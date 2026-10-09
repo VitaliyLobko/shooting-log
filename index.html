@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#181c18">
+  <meta name="description" content="Учёт боеприпасов, настрела по стволам и рецептов снаряжения">
+  <title>Настрел</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="version.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="title">БК</h1>
+    <div id="subtitle" class="muted"></div>
+  </header>
+
+  <div id="update" class="update" hidden>
+    Доступна новая версия
+    <button type="button" id="update-btn">Обновить</button>
+  </div>
+
+  <main id="view" class="view"></main>
+
+  <button type="button" id="fab" class="fab" aria-label="Добавить">+</button>
+
+  <nav class="tabs">
+    <a href="#ammo" data-tab="ammo">
+      <svg viewBox="0 0 24 24"><path d="M9 3h6v4l1 2v12H8V9l1-2z"/><path d="M8 13h8"/></svg>
+      <span>БК</span>
+    </a>
+    <a href="#guns" data-tab="guns">
+      <svg viewBox="0 0 24 24"><path d="M3 9h15l3-2v4h-4l-2 2h-3l-1 6H7l1-6H3z"/></svg>
+      <span>Оружие</span>
+    </a>
+    <a href="#log" data-tab="log">
+      <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+      <span>Журнал</span>
+    </a>
+    <a href="#reload" data-tab="reload">
+      <svg viewBox="0 0 24 24"><path d="M6 20h12M8 20V9h8v11M10 9V5h4v4"/><path d="M12 13v3"/></svg>
+      <span>Рецепты</span>
+    </a>
+    <a href="#settings" data-tab="settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>
+      <span>Ещё</span>
+    </a>
+  </nav>
+
+  <div id="layer"></div>
+</body>
+</html>
