@@ -1,0 +1,17 @@
+{
+  "name": "Shooting Log — учёт БК и настрела",
+  "short_name": "Настрел",
+  "description": "Учёт боеприпасов, настрела по стволам и рецептов снаряжения",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#181c18",
+  "theme_color": "#181c18",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
