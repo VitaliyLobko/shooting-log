@@ -1,5 +1,6 @@
 import * as db from './db.js';
 import * as M from './model.js';
+import * as sync from './sync.js';
 import { h, fmt, sheet, toast, form, chips, swipeable, confirmSheet } from './ui.js';
 
 let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [] };
@@ -700,7 +701,8 @@ function importData(file) {
     const changes = Object.fromEntries(db.STORES.map((s) => [s, { put: (data[s] ?? []).filter((x) => x && x.id) }]));
     const close = sheet('Импорт', h('div', {},
       h('p', {}, `В файле ${count} записей.`),
-      h('p', { class: 'muted small' }, '«Объединить» — добавит новые и обновит совпадающие записи. «Заменить всё» — сначала удалит текущие данные.')), {
+      h('p', { class: 'muted small' }, '«Объединить» — добавит новые и обновит совпадающие записи. «Заменить всё» — сначала удалит текущие данные.'),
+      sync.enabled() ? h('p', { class: 'muted small' }, 'Включена синхронизация: «Заменить всё» очистит только это устройство, данные с Google Диска потом вернутся.') : null), {
       actions: [
         btn('Отмена', () => close()),
         btn('Объединить', async () => { close(); await db.write(changes); await refresh(); toast('Импортировано'); }),
@@ -716,6 +718,65 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+function syncTime(ms) {
+  if (!ms) return 'ещё не было';
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? `сегодня в ${time}` : `${d.toLocaleDateString('ru-RU')} ${time}`;
+}
+
+function connectGoogle() {
+  sync.connect().then(() => toast('Google Диск подключён')).catch((err) => toast(err.message));
+}
+
+function syncPanel() {
+  const s = sync.status;
+  const panel = h('section', { class: 'panel' }, h('h3', {}, 'Синхронизация · Google Диск'));
+  if (!sync.configured()) {
+    panel.append(h('p', { class: 'muted small' }, 'Не настроена: в js/config.js не указан Google Client ID.'));
+  } else if (!sync.enabled()) {
+    panel.append(
+      h('p', { class: 'muted small' }, 'Данные будут храниться в файле shooting-log.json на вашем Google Диске и совпадать на телефоне и компьютере. Приложение видит только этот свой файл, остальной Диск ему недоступен.'),
+      h('div', { class: 'btn-row' }, btn('Подключить Google Диск', connectGoogle, 'primary')));
+  } else {
+    panel.append(
+      h('dl', { class: 'kv' },
+        h('dt', {}, 'Аккаунт'), h('dd', {}, s.email ?? '—'),
+        h('dt', {}, 'Последняя'), h('dd', {}, syncTime(s.lastSync)),
+        s.message ? [h('dt', {}, 'Статус'), h('dd', {}, s.message)] : null),
+      h('div', { class: 'btn-row' },
+        s.state === 'auth' ? btn('Войти в Google', connectGoogle, 'primary') : btn('Синхронизировать', () => sync.syncNow(), 'primary'),
+        btn('Отключить', () => confirmSheet('Отключить синхронизацию?', 'Данные останутся и на устройстве, и на Google Диске, просто перестанут обмениваться.', 'Отключить', () => sync.disconnect()))));
+  }
+  return panel;
+}
+
+const CHIP = {
+  idle: () => `☁ ✓ ${new Date(sync.status.lastSync).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+  syncing: () => '☁ …',
+  offline: () => '☁ офлайн',
+  auth: () => '☁ войти',
+  error: () => '☁ ошибка',
+};
+
+function renderSyncChip(s) {
+  const chip = $('sync-chip');
+  chip.hidden = !CHIP[s.state];
+  if (CHIP[s.state]) {
+    chip.textContent = CHIP[s.state]();
+    chip.className = `sync-chip ${s.state}`;
+    chip.title = s.message || 'Синхронизация с Google Диском';
+  }
+  if (tab === 'settings') render();
+}
+
+function onSyncChip() {
+  const { state: st, message } = sync.status;
+  if (st === 'auth') connectGoogle();
+  else if (st === 'offline') toast('Нет интернета — синхронизация произойдёт, когда появится связь');
+  else if (st === 'error') { toast(message || 'Ошибка синхронизации'); sync.syncNow(); } else sync.syncNow();
+}
+
 function renderSettings() {
   $('subtitle').textContent = `версия ${self.APP_VERSION}`;
   const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; } });
@@ -723,9 +784,12 @@ function renderSettings() {
   navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? 'защищено от автоочистки' : 'браузер может очистить при нехватке места'; })
     .catch(() => { persisted.textContent = 'неизвестно'; });
   return h('div', {},
+    syncPanel(),
     h('section', { class: 'panel' },
       h('h3', {}, 'Резервная копия'),
-      h('p', { class: 'muted small' }, 'Данные хранятся только на этом телефоне. Делайте экспорт после каждой стрельбы — например, «Поделиться» → Google Диск или Telegram «Избранное».'),
+      h('p', { class: 'muted small' }, sync.enabled()
+        ? 'Основная копия — на Google Диске. Файл ниже — дополнительный снимок на всякий случай.'
+        : 'Без синхронизации данные хранятся только на этом устройстве. Делайте экспорт после каждой стрельбы — например, «Поделиться» → Google Диск или Telegram «Избранное».'),
       h('div', { class: 'btn-row' },
         btn('Поделиться копией', () => exportData(true), 'primary'),
         btn('Скачать файл', () => exportData(false)),
@@ -740,7 +804,9 @@ function renderSettings() {
       h('p', { class: 'muted small' }, 'Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.')),
     h('section', { class: 'panel' },
       h('h3', {}, 'Опасная зона'),
-      btn('Удалить все данные', () => confirmSheet('Удалить все данные?', 'Оружие, БК, журнал и рецепты будут удалены с этого устройства. Отменить нельзя.', 'Удалить всё', async () => {
+      btn('Удалить данные с устройства', () => confirmSheet('Удалить данные с устройства?', sync.enabled()
+        ? 'Данные будут удалены с этого устройства. Копия на Google Диске останется и вернётся при следующей синхронизации — чтобы этого не было, сначала отключите синхронизацию.'
+        : 'Оружие, БК, журнал и рецепты будут удалены с этого устройства. Отменить нельзя.', 'Удалить', async () => {
         await db.clearAll(); await refresh(); toast('Данные удалены');
       }), 'danger')));
 }
@@ -802,8 +868,13 @@ function registerWorker() {
 }
 
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
+$('sync-chip').addEventListener('click', onSyncChip);
 window.addEventListener('hashchange', route);
+window.addEventListener('sync-applied', refresh);
 registerWorker();
 navigator.storage?.persist?.().catch(() => {});
 state = await db.loadAll();
 route();
+sync.onStatus(renderSyncChip);
+sync.preload();
+sync.syncNow();

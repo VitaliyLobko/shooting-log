@@ -56,6 +56,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar > * { max-width: 688px; margin-inline: auto; }
 .topbar h1 { margin-top: 0; margin-bottom: 0; font-size: 22px; }
 .topbar #subtitle { font-size: 13px; min-height: 18px; }
+.topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sync-chip {
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sync-chip[hidden] { display: none; }
+.sync-chip.idle { color: var(--buy); }
+.sync-chip.auth { color: var(--accent); border-color: var(--accent); }
+.sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
 
 .update {
   display: flex;
