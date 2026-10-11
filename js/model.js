@@ -5,6 +5,8 @@
 //   kind: buy | shot | reload | consume | adjust
 //   qty: зі знаком, у штуках патронів або в одиницях компонента.
 //   shot без cartridgeId — історичний запис: рахується в настріл, але не в залишок БК.
+// Підписи нижче — ключі перекладу, на екран вони йдуть через t().
+import { collate } from './i18n.js';
 
 export const KINDS = {
   buy: 'Покупка',
@@ -43,13 +45,20 @@ export function weaponShots(state, weapon) {
   return (Number(weapon.initialShots) || 0) + fired;
 }
 
+/** Настріл із журналу: калібр → загалом і по кожному стволу (weaponId null — ствол не вказано). */
 export function shotsByCaliber(state) {
   const totals = new Map();
   for (const m of state.movements) {
     if (m.kind !== 'shot') continue;
-    totals.set(m.caliber, (totals.get(m.caliber) ?? 0) - (Number(m.qty) || 0));
+    const n = -(Number(m.qty) || 0);
+    const row = totals.get(m.caliber) ?? { caliber: m.caliber, total: 0, weapons: new Map() };
+    row.total += n;
+    row.weapons.set(m.weaponId ?? null, (row.weapons.get(m.weaponId ?? null) ?? 0) + n);
+    totals.set(m.caliber, row);
   }
-  return [...totals].sort((a, b) => b[1] - a[1]);
+  return [...totals.values()]
+    .map((row) => ({ ...row, weapons: [...row.weapons].sort((a, b) => b[1] - a[1]) }))
+    .sort((a, b) => b.total - a.total);
 }
 
 export function unitPrice(component) {
@@ -77,12 +86,35 @@ export function recipeCost(state, recipe) {
   return recipeLines(state, recipe).reduce((sum, line) => sum + line.cost, 0);
 }
 
-/** Скільки патронів можна спорядити з наявних компонентів (без гільз — вони багаторазові). */
+/** Рядки рецепта, що обмежують спорядження (без гільз — вони багаторазові). */
+function consumable(state, recipe) {
+  return recipeLines(state, recipe).filter((l) => l.component && l.component.kind !== 'case' && l.fromStock !== null);
+}
+
+/** Скільки патронів можна спорядити з наявних компонентів. */
 export function recipeEnough(state, recipe) {
-  const limits = recipeLines(state, recipe)
-    .filter((l) => l.component && l.component.kind !== 'case' && l.fromStock !== null)
-    .map((l) => Math.max(0, l.fromStock));
+  const limits = consumable(state, recipe).map((l) => Math.max(0, l.fromStock));
   return limits.length ? Math.min(...limits) : 0;
+}
+
+/** Компонент, який закінчиться першим. */
+export function recipeBottleneck(state, recipe) {
+  const lines = consumable(state, recipe);
+  return lines.length ? lines.reduce((a, b) => (b.fromStock < a.fromStock ? b : a)).component : null;
+}
+
+/** На скільки патронів вистачить компонента в кожному рецепті, де він є. */
+export function componentRunway(state, component) {
+  const stock = componentStock(state, component.id);
+  return state.recipes.flatMap((recipe) => recipe.items
+    .filter((i) => i.componentId === component.id && Number(i.perRound) > 0)
+    .map((i) => ({ recipe, rounds: Math.max(0, Math.floor(stock / Number(i.perRound))) })))
+    .sort((a, b) => a.rounds - b.rounds);
+}
+
+/** Вартість залишку компонентів за ціною упаковки. */
+export function stockValue(state) {
+  return state.components.reduce((sum, c) => sum + Math.max(0, componentStock(state, c.id)) * unitPrice(c), 0);
 }
 
 export function calibers(state) {
@@ -90,7 +122,7 @@ export function calibers(state) {
   for (const list of [state.weapons, state.cartridges, state.recipes]) {
     for (const x of list) if (x.caliber) set.add(x.caliber);
   }
-  return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+  return [...set].sort(collate);
 }
 
 export function today() {

@@ -3,14 +3,23 @@
 // Злиття — по id: перемагає запис з пізнішим updated, надгробок перемагає старіший запис.
 import * as db from './db.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
+import { t } from './i18n.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FILE_NAME = 'shooting-log.json';
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const KEY = 'shooting-log:sync';
+const PHOTO_PREFIX = 'shooting-log-photo-';
 
 class AuthError extends Error {}
+
+class ApiError extends Error {
+  constructor(status) {
+    super(t('Google Диск ответил {n}', { n: status }));
+    this.status = status;
+  }
+}
 
 let conf = load();
 let tokenClient = null;
@@ -55,7 +64,7 @@ function loadGis() {
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => { gisLoading = null; reject(new Error('Нет связи с Google')); };
+    script.onerror = () => { gisLoading = null; reject(new Error(t('Нет связи с Google'))); };
     document.head.append(script);
   });
   return gisLoading;
@@ -80,7 +89,7 @@ function client() {
       save();
       finishAuth();
     },
-    error_callback: (err) => finishAuth(new Error(err?.type === 'popup_closed' ? 'Вход отменён' : (err?.message || 'Ошибка входа в Google'))),
+    error_callback: (err) => finishAuth(new Error(err?.type === 'popup_closed' ? t('Вход отменён') : (err?.message || t('Ошибка входа в Google')))),
   });
   return tokenClient;
 }
@@ -95,7 +104,7 @@ export async function connect() {
   const c = client();
   if (!c) {
     preload();
-    throw new Error('Google ещё загружается — нажмите ещё раз через секунду');
+    throw new Error(t('Google ещё загружается — нажмите ещё раз через секунду'));
   }
   await new Promise((resolve, reject) => {
     authWaiter = { resolve, reject };
@@ -121,9 +130,9 @@ async function api(url, options = {}) {
   if (res.status === 401) {
     conf.token = null;
     save();
-    throw new AuthError('Сессия Google истекла');
+    throw new AuthError(t('Сессия Google истекла'));
   }
-  if (!res.ok) throw new Error(`Google Drive ответил ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status);
   return res;
 }
 
@@ -154,7 +163,7 @@ async function upload(fileId, data) {
   const boundary = `sl${Date.now()}`;
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
-    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Данные приложения Shooting Log' }),
+    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooting Log' }),
     `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`,
   ].join('\r\n');
   const created = await (await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, {
@@ -163,6 +172,78 @@ async function upload(fileId, data) {
   conf.fileId = created.id;
   save();
   return created.id;
+}
+
+// ---------- фото ----------
+
+/** Фото, видалені на цьому пристрої: їхні файли на Диску ще треба прибрати в кошик. */
+export function trashPhoto(driveId) {
+  if (!driveId) return;
+  conf.trash = [...new Set([...(conf.trash ?? []), driveId])];
+  save();
+}
+
+async function emptyTrash() {
+  for (const id of [...(conf.trash ?? [])]) {
+    try {
+      await api(`${DRIVE}/files/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
+      });
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      // інша помилка — спробуємо наступного разу, решту синхронізації не блокуємо
+      if (!(err instanceof ApiError && err.status === 404)) continue;
+    }
+    conf.trash = conf.trash.filter((x) => x !== id);
+    save();
+  }
+}
+
+async function uploadPhoto(id, blob) {
+  const boundary = `sl${Date.now()}`;
+  const meta = { name: `${PHOTO_PREFIX}${id}.jpg`, mimeType: 'image/jpeg', appProperties: { app: 'shooting-log', photoId: id } };
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
+    `--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`, blob, `\r\n--${boundary}--`,
+  ]);
+  const created = await (await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, {
+    method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
+  })).json();
+  return created.id;
+}
+
+/** Вивантажити нові фото цього пристрою. Повертає кількість. */
+async function pushPhotos() {
+  const { photos = [] } = await db.loadAll();
+  const have = new Set(await db.blobKeys());
+  let count = 0;
+  for (const p of photos) {
+    if (p.driveId || !have.has(p.id)) continue;
+    const blob = await db.getBlob(p.id);
+    if (!blob) continue;
+    const driveId = await uploadPhoto(p.id, blob);
+    if (await db.patch('photos', p.id, { driveId })) count += 1;
+    else trashPhoto(driveId);
+  }
+  return count;
+}
+
+/** Докачати фото, додані на інших пристроях. Повертає кількість. */
+async function pullPhotos(photos) {
+  const have = new Set(await db.blobKeys());
+  let count = 0;
+  for (const p of photos) {
+    if (!p.driveId || have.has(p.id)) continue;
+    try {
+      const blob = await (await api(`${DRIVE}/files/${p.driveId}?alt=media`)).blob();
+      await db.putBlob(p.id, blob);
+      count += 1;
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 404)) throw err;
+    }
+  }
+  await db.dropOrphanBlobs();
+  return count;
 }
 
 // ---------- злиття ----------
@@ -215,7 +296,7 @@ export async function syncNow() {
   if (!configured()) { set('unconfigured'); return; }
   if (!conf.enabled) { set('off'); return; }
   if (!navigator.onLine) { set('offline'); return; }
-  if (!tokenValid()) { set('auth', 'Нажмите, чтобы войти в Google'); return; }
+  if (!tokenValid()) { set('auth', t('Нажмите, чтобы войти в Google')); return; }
   if (running) { again = true; return; }
   running = true;
   set('syncing');
@@ -224,6 +305,8 @@ export async function syncNow() {
       const about = await (await api(`${DRIVE}/about?fields=user(emailAddress)`)).json();
       conf.email = about.user?.emailAddress ?? null;
     }
+    await emptyTrash();
+    const pushed = await pushPhotos();
     const local = await db.loadAll();
     const fileId = await findFile();
     const remote = fileId ? ((await (await api(`${DRIVE}/files/${fileId}?alt=media`)).json())?.data ?? {}) : {};
@@ -231,12 +314,13 @@ export async function syncNow() {
     const changes = localChanges(local, merged);
     if (changes) await db.writeMerged(changes);
     if (!fileId || fingerprint(remote) !== fingerprint(merged)) await upload(fileId, merged);
+    const pulled = await pullPhotos(merged.photos);
     conf.lastSync = Date.now();
     save();
     set('idle');
-    if (changes) window.dispatchEvent(new Event('sync-applied'));
+    if (changes || pushed || pulled) window.dispatchEvent(new Event('sync-applied'));
   } catch (err) {
-    if (err instanceof AuthError) set('auth', 'Нажмите, чтобы войти в Google');
+    if (err instanceof AuthError) set('auth', t('Нажмите, чтобы войти в Google'));
     else set(navigator.onLine ? 'error' : 'offline', err.message);
   } finally {
     running = false;
