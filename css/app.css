@@ -262,6 +262,32 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 .items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+
+.scopes { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.scope { display: flex; gap: 6px; align-items: baseline; overflow-wrap: anywhere; }
+.scope-mark { color: var(--accent); flex: none; }
+.scope-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 40px;
+  grid-template-areas: "name name del" "kind zero zero" "note note note";
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.scope-row .sc-name { grid-area: name; }
+.scope-row .sc-del { grid-area: del; align-self: center; }
+.scope-row .sc-kind { grid-area: kind; }
+.scope-row .sc-zero { grid-area: zero; }
+.scope-row .sc-note { grid-area: note; }
+.scope-row input, .scope-row select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
 .item-row { display: grid; grid-template-columns: 1fr 88px 40px; gap: 6px; align-items: center; }
 
 .lines { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }

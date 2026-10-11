@@ -322,6 +322,28 @@ function progress(label, value, max) {
     h('div', { class: 'bar' }, h('div', { class: `fill ${pct >= 100 ? 'over' : pct >= 85 ? 'warn' : ''}`, style: `width:${pct}%` })));
 }
 
+const SCOPE_KINDS = {
+  optic: 'Оптический',
+  red: 'Коллиматор',
+  holo: 'Голографический',
+  thermal: 'Тепловизор',
+  night: 'Ночной',
+  other: 'Другое',
+};
+
+function scopeLine(s, full = false) {
+  const parts = [s.name];
+  if (full && s.kind) parts.push(SCOPE_KINDS[s.kind]);
+  if (s.zero) parts.push(`пристрелка ${fmt.num(s.zero)} м`);
+  if (full && s.note) parts.push(s.note);
+  return h('div', { class: 'scope' }, h('span', { class: 'scope-mark', 'aria-hidden': 'true' }, '⊕'), parts.join(' · '));
+}
+
+function scopeList(w, full = false) {
+  if (!w.scopes?.length) return null;
+  return h('div', { class: `scopes ${full ? '' : 'small'}` }, w.scopes.map((s) => scopeLine(s, full)));
+}
+
 function weaponCard(w) {
   const shots = M.weaponShots(state, w);
   const sinceClean = shots - (Number(w.cleanedAt) || 0);
@@ -330,6 +352,7 @@ function weaponCard(w) {
       h('div', { class: 'card-main' },
         h('div', { class: 'card-title' }, w.name),
         h('div', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`].filter(Boolean).join(' · ')),
+        scopeList(w),
         progress('Ресурс ствола', shots, Number(w.barrelLife)),
         progress('После чистки', sinceClean, Number(w.cleanEvery))),
       h('div', { class: 'big' }, fmt.num(shots), h('div', { class: 'muted small unit' }, 'настрел'))));
@@ -360,14 +383,41 @@ function weaponForm(w = null) {
     { name: 'note', label: 'Примечание', value: w?.note, wide: true },
   ]);
   f.el.append(caliberList());
-  const close = sheet(w ? 'Изменить оружие' : 'Новое оружие', f.el, {
+  const scopesBox = h('div', { class: 'items' });
+  const addScope = (s = {}) => {
+    const name = h('input', { type: 'text', placeholder: 'Модель: Vortex Diamondback 4-12x40', autocomplete: 'off', class: 'sc-name' });
+    name.value = s.name ?? '';
+    const kind = h('select', { class: 'sc-kind' },
+      Object.entries(SCOPE_KINDS).map(([k, label]) => h('option', { value: k, selected: k === (s.kind ?? 'optic') }, label)));
+    const zero = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: 'Пристрелка, м', class: 'sc-zero' });
+    zero.value = s.zero ?? '';
+    const note = h('input', { type: 'text', placeholder: 'Кронштейн, сетка, серийный №…', autocomplete: 'off', class: 'sc-note' });
+    note.value = s.note ?? '';
+    const row = h('div', { class: 'scope-row', dataset: { id: s.id ?? db.uid() } }, name,
+      h('button', { type: 'button', class: 'icon-btn sc-del', 'aria-label': 'Убрать прицел', onclick: () => row.remove() }, '✕'),
+      kind, zero, note);
+    scopesBox.append(row);
+  };
+  (w?.scopes ?? []).forEach(addScope);
+  const close = sheet(w ? 'Изменить оружие' : 'Новое оружие', h('div', {},
+    f.el, h('h3', {}, 'Прицелы'), scopesBox, btn('+ прицел', () => addScope())), {
     actions: [btn('Отмена', () => close()), btn('Сохранить', save, 'primary')],
   });
   async function save() {
     if (invalidToast(f)) return;
     const v = f.values();
+    const scopes = [...scopesBox.querySelectorAll('.scope-row')].map((row) => {
+      const zero = Number(String(row.querySelector('.sc-zero').value).replace(',', '.'));
+      return {
+        id: row.dataset.id,
+        name: row.querySelector('.sc-name').value.trim(),
+        kind: row.querySelector('.sc-kind').value,
+        zero: zero > 0 ? zero : null,
+        note: row.querySelector('.sc-note').value.trim(),
+      };
+    }).filter((s) => s.name);
     close();
-    await saveEntity('weapons', { cleanedAt: 0, ...(w ?? { id: db.uid(), created: Date.now() }), ...v, initialShots: v.initialShots ?? 0 }, w ? 'Сохранено' : `Добавлено: ${v.name}`);
+    await saveEntity('weapons', { cleanedAt: 0, ...(w ?? { id: db.uid(), created: Date.now() }), ...v, initialShots: v.initialShots ?? 0, scopes }, w ? 'Сохранено' : `Добавлено: ${v.name}`);
   }
 }
 
@@ -381,6 +431,7 @@ function weaponDetail(w) {
       stat('после чистки', fmt.num(shots - (Number(w.cleanedAt) || 0))),
       w.cleanedDate ? stat('чистка', fmt.date(w.cleanedDate)) : null),
     progress('Ресурс ствола', shots, Number(w.barrelLife)),
+    w.scopes?.length ? [h('h3', {}, 'Прицелы'), scopeList(w, true)] : null,
     h('div', { class: 'btn-row' },
       btn('Записать стрельбу', () => { close(); shootSheet({ weapon: w }); }, 'shoot'),
       btn('Почистил', async () => {
