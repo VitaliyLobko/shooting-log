@@ -1,4 +1,5 @@
 // Дрібні UI-примітиви без фреймворку: елементи, шторка, тост, форма, свайп.
+import { t, locale } from './i18n.js';
 
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -17,14 +18,24 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-const numFmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
-const moneyFmt = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatters = new Map();
+
+/** Форматер під поточну мову: створюється раз на мову й опції. */
+function nf(options) {
+  const key = `${locale()}|${JSON.stringify(options)}`;
+  if (!formatters.has(key)) formatters.set(key, new Intl.NumberFormat(locale(), options));
+  return formatters.get(key);
+}
+
+const NUM = { maximumFractionDigits: 3 };
+const MONEY = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
 export const fmt = {
-  num: (n) => numFmt.format(Number(n) || 0),
-  money: (n) => moneyFmt.format(Number(n) || 0),
-  signed: (n) => (n > 0 ? `+${numFmt.format(n)}` : numFmt.format(n)),
-  date: (iso) => (iso ? iso.split('-').reverse().join('.') : 'без даты'),
+  num: (n) => nf(NUM).format(Number(n) || 0),
+  money: (n) => nf(MONEY).format(Number(n) || 0),
+  signed: (n) => (n > 0 ? `+${nf(NUM).format(n)}` : nf(NUM).format(n)),
+  date: (iso) => (iso ? iso.split('-').reverse().join('.') : t('без даты')),
+  time: (ms) => new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }),
 };
 
 export function vibrate(ms = 12) {
@@ -44,7 +55,7 @@ export function sheet(title, body, { actions = [], onClose } = {}) {
     h('div', { class: 'sheet-grip' }),
     h('header', { class: 'sheet-head' },
       h('h2', {}, title),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Закрыть', onclick: close }, '✕')),
+      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕')),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);
   const backdrop = h('div', { class: 'backdrop', onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
@@ -196,7 +207,7 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
 export function confirmSheet(title, text, okLabel, onOk) {
   const close = sheet(title, h('p', {}, text), {
     actions: [
-      h('button', { type: 'button', class: 'btn', onclick: () => close() }, 'Отмена'),
+      h('button', { type: 'button', class: 'btn', onclick: () => close() }, t('Отмена')),
       h('button', { type: 'button', class: 'btn danger', onclick: () => { close(); onOk(); } }, okLabel),
     ],
   });
