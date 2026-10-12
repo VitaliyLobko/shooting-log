@@ -14,6 +14,7 @@ export const KINDS = {
   reload: 'Снаряжение',
   consume: 'Расход компонента',
   adjust: 'Корректировка',
+  clean: 'Чистка',
 };
 
 export const COMPONENT_KINDS = {
@@ -43,6 +44,57 @@ export function componentStock(state, id) {
 export function weaponShots(state, weapon) {
   const fired = -sumBy(state.movements, (m) => m.kind === 'shot' && m.weaponId === weapon.id);
   return (Number(weapon.initialShots) || 0) + fired;
+}
+
+// Рух m зроблено пізніше за ref: спершу за датою, в межах дня — за часом створення.
+const later = (m, ref) => (m.date ?? '') > (ref.date ?? '')
+  || ((m.date ?? '') === (ref.date ?? '') && (m.created ?? 0) > (ref.created ?? 0));
+
+/**
+ * Журнал чисток ствола, найновіша перша (рухи kind 'clean', qty 0).
+ * Позначка cleanedDate з версій до 0.4 — як чистка наприкінці того дня.
+ */
+export function cleanings(state, weapon) {
+  const list = state.movements.filter((m) => m.kind === 'clean' && m.weaponId === weapon.id).sort(byDateDesc);
+  if (!list.length && weapon.cleanedDate) list.push({ id: null, date: weapon.cleanedDate, created: Infinity, legacy: true });
+  return list;
+}
+
+/**
+ * Стан чистки. Без інтервалу due — є постріли після останньої чистки;
+ * з інтервалом cleanEvery — постріли після чистки досягли інтервалу.
+ */
+export function cleaningStatus(state, weapon) {
+  const last = cleanings(state, weapon)[0] ?? null;
+  const shots = state.movements.filter((m) => m.kind === 'shot' && m.weaponId === weapon.id && (!last || later(m, last)));
+  const since = Math.max(0, -sumBy(shots, () => true));
+  const every = Number(weapon.cleanEvery) || 0;
+  const lastShot = shots.map((m) => m.date).filter(Boolean).sort().pop() ?? null;
+  return { last, since, every, lastShot, due: every > 0 ? since >= every : since > 0 };
+}
+
+// Орієнтовний ресурс ствола до втрати купчастості, пострілів. Довідково: хромований ствол
+// ближче до верхньої межі, матчевий — до нижньої, швидкий темп стрільби скорочує ресурс.
+const BARREL_LIFE = [
+  [/(^|[^\d])(223|5[.,]56)/, 10000, 20000],
+  [/5[.,]45/, 10000, 20000],
+  [/7[.,]62\s*[x×х]\s*39/, 15000, 20000],
+  [/7[.,]62\s*[x×х]\s*54/, 6000, 10000],
+  [/(308|7[.,]62\s*[x×х]\s*51)/, 5000, 10000],
+  [/6[.,]5\s*(cm|creed|крід)/, 2500, 3500],
+  [/300\s*(wm|win\s*mag)/, 1500, 2500],
+  [/338/, 1500, 3000],
+  [/(9\s*[x×х]\s*19|9\s*(mm|мм)|luger|para)/, 30000, 50000],
+  [/22\s*lr/, 50000, null],
+];
+
+/** Ресурс за калібром: { min, max } або { smooth: true } для гладкоствольної; null — невідомо. */
+export function barrelLifeFor(caliber) {
+  const c = String(caliber ?? '').toLowerCase();
+  if (!c) return null;
+  if (/(^|[^\d])(12|16|20|28)\s*(кал|ga|g\b|калібр)/.test(c)) return { smooth: true };
+  const row = BARREL_LIFE.find(([re]) => re.test(c));
+  return row ? { min: row[1], max: row[2] } : null;
 }
 
 /** Настріл із журналу: калібр → загалом і по кожному стволу (weaponId null — ствол не вказано). */
