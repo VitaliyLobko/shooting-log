@@ -88,12 +88,20 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const ASPECTS = [['free', 'Свободно'], ['1:1', '1:1'], ['4:3', '4:3'], ['16:9', '16:9']];
 const MIN_CROP = 0.05;
 
-/** Редактор: кадрування, дзеркало, поворот на 90° і вирівнювання. Повертає { blob, thumb, w, h } або null. */
-export async function editPhoto(blob) {
-  const src = await decode(blob);
+/**
+ * Редактор: кадрування, дзеркало, поворот на 90° і вирівнювання. Повертає { blob, thumb, w, h } або null.
+ * square — лише квадратна рамка (для іконки), без вибору пропорцій.
+ */
+export async function editPhoto(blob, { square = false } = {}) {
+  let src;
+  try {
+    src = await decode(blob);
+  } catch {
+    throw new Error(t('Формат фото не поддерживается'));
+  }
   const preview = draw(src, 1000);
   return new Promise((done) => {
-    const st = { rot: 0, flip: false, angle: 0, aspect: 'free', crop: { x: 0, y: 0, w: 1, h: 1 } };
+    const st = { rot: 0, flip: false, angle: 0, aspect: square ? '1:1' : 'free', crop: { x: 0, y: 0, w: 1, h: 1 } };
     let base = null;
     const canvas = h('canvas', { class: 'editor-canvas' });
     const frame = h('div', { class: 'crop-frame' },
@@ -235,7 +243,7 @@ export async function editPhoto(blob) {
             paint(true);
           })),
         h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Выравнивание')), slider, angleValue),
-        aspectChips),
+        square ? null : aspectChips),
       h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')), saveBtn));
 
     document.getElementById('layer').append(root);

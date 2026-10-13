@@ -83,6 +83,12 @@ export function toast(message, { action, onAction, timeout = action ? 8000 : 350
   toastTimer = setTimeout(() => el.remove(), timeout);
 }
 
+/** Пункти <select>: [value, label] або група { group, options: [[value, label], …] }. */
+export function selectOptions(options, selected) {
+  const option = ([value, label]) => h('option', { value, selected: String(value) === String(selected ?? '') }, label);
+  return options.map((o) => (Array.isArray(o) ? option(o) : o.options.length ? h('optgroup', { label: o.group }, o.options.map(option)) : null));
+}
+
 /**
  * Проста форма. fields: [{ name, label, type, value, options, required, step, min, list, hint }]
  * type: text | number | date | select | textarea | chips
@@ -93,8 +99,7 @@ export function form(fields) {
   for (const f of fields) {
     let input;
     if (f.type === 'select') {
-      input = h('select', { name: f.name },
-        f.options.map(([value, label]) => h('option', { value, selected: String(value) === String(f.value ?? '') }, label)));
+      input = h('select', { name: f.name }, selectOptions(f.options, f.value));
     } else if (f.type === 'textarea') {
       input = h('textarea', { name: f.name, rows: 2 });
       input.value = f.value ?? '';

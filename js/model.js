@@ -97,6 +97,27 @@ export function barrelLifeFor(caliber) {
   return row ? { min: row[1], max: row[2] } : null;
 }
 
+// Різні написання одного калібру: .223 Rem і 5.56×45, .308 Win і 7.62×51 тощо.
+const CALIBER_SAME = [
+  [/(^|[^\d.,])[.,]?(223|5[.,]56)/, '5.56x45'],
+  [/(^|[^\d.,])[.,]?308|7[.,]62\s*[x×х*]\s*51/, '7.62x51'],
+  [/7[.,]62\s*[x×х*]\s*39/, '7.62x39'],
+  [/7[.,]62\s*[x×х*]\s*54/, '7.62x54'],
+  [/5[.,]45/, '5.45x39'],
+  [/9\s*[x×х*]\s*19|luger|para/, '9x19'],
+  [/(^|[^\d])(12)\s*(кал|ga|g\b|калібр|$)/, '12ga'],
+];
+
+function caliberKey(caliber) {
+  const c = String(caliber ?? '').toLowerCase().trim();
+  return CALIBER_SAME.find(([re]) => re.test(c))?.[1] ?? c.replace(/[\s.]+/g, '');
+}
+
+/** Той самий калібр з урахуванням різних написань; без калібру — підходить до будь-якого. */
+export function sameCaliber(a, b) {
+  return !a || !b || caliberKey(a) === caliberKey(b);
+}
+
 /** Настріл із журналу: калібр → загалом і по кожному стволу (weaponId null — ствол не вказано). */
 export function shotsByCaliber(state) {
   const totals = new Map();

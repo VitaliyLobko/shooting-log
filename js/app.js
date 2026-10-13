@@ -4,7 +4,8 @@ import * as sync from './sync.js';
 import { t, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer } from './photos.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
-import { h, fmt, sheet, toast, form, chips, swipeable, confirmSheet } from './ui.js';
+import { customIcon, applyIcon, setIcon, clearIcon, iconFile } from './icon.js';
+import { h, fmt, sheet, toast, form, chips, swipeable, confirmSheet, selectOptions } from './ui.js';
 
 let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [] };
 let tab = 'ammo';
@@ -61,6 +62,24 @@ function recall(key) {
 }
 
 // ---------- спільні шматки UI ----------
+
+/**
+ * Пункти вибору ствола чи набою: спершу свого калібру, решта — групою «Другой калибр»
+ * (калібр міг бути записаний інакше, вибрати все одно можна).
+ */
+function caliberOptions(list, caliber, label = (x) => x.name) {
+  const sorted = [...list].sort(byName);
+  const match = sorted.filter((x) => M.sameCaliber(x.caliber, caliber));
+  const other = sorted.filter((x) => !M.sameCaliber(x.caliber, caliber));
+  return {
+    match,
+    all: [...match, ...other],
+    options: [
+      ...match.map((x) => [x.id, label(x)]),
+      { group: t('Другой калибр'), options: other.map((x) => [x.id, [label(x), x.caliber].filter(Boolean).join(' · ')]) },
+    ],
+  };
+}
 
 function groupBy(list, key) {
   const map = new Map();
@@ -257,20 +276,21 @@ function shootSheet({ cartridge = null, weapon = null }) {
   const caliber = cartridge?.caliber ?? weapon?.caliber;
   const fields = [{ name: 'qty', label: t('Выстрелов, шт'), type: 'number', step: 1, min: 1, required: true }];
   if (cartridge) {
-    const guns = state.weapons.filter((w) => !w.archived && (w.caliber === caliber || !caliber));
+    const guns = caliberOptions(state.weapons.filter((w) => !w.archived), caliber);
     const last = recall(`gun:${caliber}`);
     fields.push({
       name: 'weaponId', label: t('Оружие'), type: 'select',
-      value: guns.some((w) => w.id === last) ? last : (guns[0]?.id ?? ''),
-      options: [...guns.map((w) => [w.id, w.name]), ['', t('— не указывать —')]],
+      value: guns.all.some((w) => w.id === last) ? last : (guns.match[0]?.id ?? ''),
+      options: [...guns.options, ['', t('— не указывать —')]],
     });
   } else {
-    const ammo = state.cartridges.filter((c) => !c.archived && c.caliber === caliber);
+    const ammo = caliberOptions(state.cartridges.filter((c) => !c.archived), caliber,
+      (c) => t('{name} · ост. {n}', { name: c.name, n: fmt.num(M.cartridgeStock(state, c.id)) }));
     const last = recall(`ammo:${weapon.id}`);
     fields.push({
       name: 'cartridgeId', label: t('Патроны (списать из БК)'), type: 'select',
-      value: ammo.some((c) => c.id === last) ? last : (ammo[0]?.id ?? ''),
-      options: [...ammo.map((c) => [c.id, t('{name} · ост. {n}', { name: c.name, n: fmt.num(M.cartridgeStock(state, c.id)) })]), ['', t('— не списывать из БК —')]],
+      value: ammo.all.some((c) => c.id === last) ? last : (ammo.match[0]?.id ?? ''),
+      options: [...ammo.options, ['', t('— не списывать из БК —')]],
     });
   }
   fields.push(
@@ -760,13 +780,13 @@ function logRow(m) {
 
 /** Ствол у записі стрільби можна змінити — так історичний настріл розноситься по зброї. */
 function shotWeaponSelect(m) {
-  const guns = state.weapons.filter((w) => w.id === m.weaponId || (!w.archived && (!m.caliber || w.caliber === m.caliber))).sort(byName);
+  const guns = caliberOptions(state.weapons.filter((w) => w.id === m.weaponId || !w.archived), m.caliber);
   return h('select', {
     class: 'inline-select', 'aria-label': t('Оружие'),
     onchange: async (e) => {
       await saveEntity('movements', { ...m, weaponId: e.target.value || null }, t('Сохранено'));
     },
-  }, h('option', { value: '' }, t('— не указывать —')), guns.map((w) => h('option', { value: w.id, selected: w.id === m.weaponId }, w.name)));
+  }, selectOptions([['', t('— не указывать —')], ...guns.options], m.weaponId ?? ''));
 }
 
 function movementDetail(m) {
@@ -1144,8 +1164,8 @@ function reloadSheet(r) {
 
 // ---------- налаштування ----------
 
-function download(name, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+function download(name, content) {
+  const url = URL.createObjectURL(content instanceof Blob ? content : new Blob([content], { type: 'application/json' }));
   const a = h('a', { href: url, download: name });
   document.body.append(a);
   a.click();
@@ -1281,6 +1301,47 @@ function switchLang(code) {
   render();
 }
 
+/** «Своя иконка»: картинка лише на цьому пристрої, файл для ярлика на робочому столі. */
+function iconPanel() {
+  const fileInput = h('input', {
+    type: 'file', accept: 'image/*', hidden: true,
+    onchange: async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const result = await editPhoto(file, { square: true });
+        if (!result) return;
+        await setIcon(result.blob);
+      } catch (err) {
+        toast(err.message);
+        return;
+      }
+      applyIcon();
+      render();
+      toast(t('Иконка сохранена на этом устройстве'));
+    },
+  });
+  const saveFile = async () => {
+    const file = await iconFile();
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: file.name }); return; } catch (err) { if (err.name === 'AbortError') return; }
+    }
+    download(file.name, file);
+  };
+  const url = customIcon();
+  return h('section', { class: 'panel' },
+    h('h3', {}, t('Своя иконка')),
+    url ? h('div', { class: 'icon-preview' }, h('img', { src: url, alt: '' }),
+      h('span', { class: 'muted small' }, t('Показывается в шапке и на вкладке браузера. Хранится только на этом устройстве и никуда не публикуется.'))) : null,
+    h('p', { class: 'muted small' }, t('Иконку установленного приложения Android берёт с сервера, поэтому на рабочий стол свою картинку ставят вручную: сохраните файл и назначьте его ярлыку — долгое нажатие на иконку → «Изменить» (Nova, темы Samsung и Xiaomi) или приложение «Shortcut Maker». На iPhone: выберите иконку, затем «Поделиться» → «На экран Домой».')),
+    h('div', { class: 'btn-row' },
+      btn(url ? t('Заменить картинку') : t('Выбрать картинку'), () => fileInput.click(), url ? '' : 'primary'),
+      url ? btn(t('Сохранить для рабочего стола'), saveFile, 'primary') : null,
+      url ? btn(t('Убрать'), () => { clearIcon(); applyIcon(); render(); }) : null),
+    fileInput);
+}
+
 function renderSettings() {
   $('subtitle').textContent = t('версия {v}', { v: self.APP_VERSION });
   const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; } });
@@ -1294,6 +1355,7 @@ function renderSettings() {
       h('h3', {}, t('Справочник стрелка')),
       h('p', { class: 'muted small' }, t('Курс марксмана: изготовка, спуск, мил и MOA, пристрелка, ветер, дальность, калькулятор и тренажёр сетки. Работает без интернета.')),
       btn(t('Открыть справочник'), () => { location.hash = '#guide'; }, 'primary')),
+    iconPanel(),
     h('section', { class: 'panel' }, h('h3', {}, 'Язык · Мова'), langChips),
     h('section', { class: 'panel' }, h('h3', {}, t('Тема')), (() => {
       const row = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooting-log:theme', v); applyTheme(); });
@@ -1452,6 +1514,7 @@ function registerWorker() {
 
 applyStatic();
 applyTheme();
+applyIcon();
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
 $('sync-chip').addEventListener('click', onSyncChip);
 window.addEventListener('hashchange', route);
