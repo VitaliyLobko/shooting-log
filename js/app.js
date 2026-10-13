@@ -3,6 +3,7 @@ import * as M from './model.js';
 import * as sync from './sync.js';
 import { t, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer } from './photos.js';
+import { loadGuide, parseGuide, initGuide } from './guide.js';
 import { h, fmt, sheet, toast, form, chips, swipeable, confirmSheet } from './ui.js';
 
 let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [] };
@@ -146,8 +147,9 @@ function hero(label, value, sub, cls = '') {
 function cartridgeDetails(c) {
   const parts = [];
   if (c.bulletWeight) parts.push(`${fmt.num(c.bulletWeight)} ${c.weightUnit || 'gr'}`);
-  const recipe = c.recipeId && findRecipe(c.recipeId);
-  if (recipe) parts.push(t('самоснаряд · {price} за шт', { price: fmt.money(M.recipeCost(state, recipe)) }));
+  const unit = M.cartridgeUnitCost(state, c.id);
+  if (c.recipeId) parts.push(t('самоснаряд'));
+  if (unit) parts.push(t('{price} за выстрел', { price: fmt.money(unit) }));
   if (c.note) parts.push(c.note);
   return parts.join(' · ');
 }
@@ -280,6 +282,21 @@ function shootSheet({ cartridge = null, weapon = null }) {
   f.inputs.note.closest('.field').after(noteChips);
   const title = cartridge ? t('Списать: {name}', { name: cartridge.name }) : t('Настрел: {name}', { name: weapon.name });
   const info = cartridge ? h('p', { class: 'muted' }, t('В наличии: {n} шт', { n: fmt.num(M.cartridgeStock(state, cartridge.id)) })) : null;
+  // Вартість стрільби одразу під кількістю: ціна набою × постріли.
+  const costLine = h('div', { class: 'cost-line small' });
+  const updateCost = () => {
+    const c = cartridge ?? findCartridge(f.inputs.cartridgeId?.value);
+    const unit = c ? M.cartridgeUnitCost(state, c.id) : null;
+    const qty = Number(String(f.inputs.qty.value).replace(',', '.')) || 0;
+    costLine.textContent = unit
+      ? t('Стоимость: {sum} · {unit} за выстрел', { sum: fmt.money(unit * qty), unit: fmt.money(unit) })
+      : c ? t('Цена патрона неизвестна — укажите сумму при покупке') : '';
+  };
+  f.inputs.qty.closest('.field').after(costLine);
+  f.inputs.qty.addEventListener('input', updateCost);
+  f.inputs.cartridgeId?.addEventListener('change', updateCost);
+  f.el.addEventListener('click', () => setTimeout(updateCost));
+  updateCost();
   const close = sheet(title, h('div', {}, info, f.el), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Списать'), save, 'primary shoot')],
   });
@@ -297,7 +314,11 @@ function shootSheet({ cartridge = null, weapon = null }) {
     let message = stock !== null && qty > stock ? t('−{n} · остаток ушёл в минус', { n: qty }) : `−${fmt.num(qty)}${w ? ` · ${w.name}` : ''}`;
     const s = w ? M.cleaningStatus(state, w) : null;
     if (s?.every && s.since + qty >= s.every) message += t(' · пора чистить ({n} после чистки)', { n: fmt.num(s.since + qty) });
-    await addMovements([movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, caliber: c?.caliber ?? caliber, qty: -qty, date: v.date || null, note: v.note })], message);
+    // Вартість фіксуємо на момент списання, щоб подальші покупки за іншою ціною її не змінювали.
+    const unit = c ? M.cartridgeUnitCost(state, c.id) : null;
+    const price = unit ? +(unit * qty).toFixed(2) : null;
+    if (price) message += ` · ${fmt.money(price)}`;
+    await addMovements([movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, note: v.note })], message);
   }
 }
 
@@ -673,6 +694,7 @@ function weaponDetail(w) {
     h('div', { class: 'stats' },
       stat(t('настрел'), fmt.num(shots), 'accent'),
       stat(t('после чистки'), fmt.num(s.since), s.due ? 'warn' : ''),
+      M.shotsCost(state, moves) ? stat(t('стоимость стрельб'), fmt.money(M.shotsCost(state, moves))) : null,
       s.last ? stat(t('чистка'), fmt.date(s.last.date)) : null),
     cleanBadge(w),
     progress(t('Ресурс ствола'), shots, Number(w.barrelLife)),
@@ -726,7 +748,8 @@ function movementTitle(m) {
 
 function logRow(m) {
   const w = findWeapon(m.weaponId);
-  const sub = [t(M.KINDS[m.kind]), m.kind === 'clean' ? null : w?.name, m.note, m.price ? `${fmt.money(m.price)}` : null]
+  const money = m.kind === 'shot' ? M.shotCost(state, m) : m.price;
+  const sub = [t(M.KINDS[m.kind]), m.kind === 'clean' ? null : w?.name, m.note, money ? fmt.money(money) : null]
     .filter(Boolean).join(' · ');
   const unit = m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : '';
   return h('button', { type: 'button', class: `row kind-${m.kind}`, onclick: () => movementDetail(m) },
@@ -758,7 +781,9 @@ function movementDetail(m) {
       m.kind === 'shot'
         ? [h('dt', {}, t('Оружие')), h('dd', {}, shotWeaponSelect(m))]
         : w && m.kind !== 'clean' ? [h('dt', {}, t('Оружие')), h('dd', {}, w.name)] : null,
-      m.price ? [h('dt', {}, t('Сумма')), h('dd', {}, fmt.money(m.price))] : null,
+      m.kind === 'shot' && M.shotCost(state, m)
+        ? [h('dt', {}, t('Стоимость')), h('dd', {}, `${fmt.money(M.shotCost(state, m))}${m.price ? '' : ` (${t('по средней цене')})`}`)]
+        : m.price ? [h('dt', {}, t('Сумма')), h('dd', {}, fmt.money(m.price))] : null,
       m.note ? [h('dt', {}, t('Примечание')), h('dd', {}, m.note)] : null),
     m.kind === 'shot' && !m.cartridgeId ? h('p', { class: 'muted small' }, t('Запись без списания из БК — учитывается только в настреле.')) : null,
     batch.length > 1 ? [h('h3', {}, t('Списано компонентов')), h('div', { class: 'rows' }, batch.filter((x) => x.id !== m.id).map(logRow))] : null,
@@ -809,10 +834,11 @@ function logGroups(list) {
   }
   return [...groups.values()].sort((a, b) => b.key.localeCompare(a.key)).map((g) => {
     const shots = -M.sumBy(g.rows, (m) => m.kind === 'shot');
+    const cost = M.shotsCost(state, g.rows);
     return fold(`log:${logPeriod}:${g.key}`,
       [h('span', { class: 'fold-title' }, g.label),
         h('span', { class: 'fold-meta' }, t('записей: {n}', { n: g.rows.length })),
-        shots ? h('span', { class: 'fold-sum' }, t('{n} выстр.', { n: fmt.num(shots) })) : null],
+        shots ? h('span', { class: 'fold-sum' }, t('{n} выстр.', { n: fmt.num(shots) }), cost ? h('span', { class: 'fold-cost' }, fmt.money(cost)) : null) : null],
       h('div', { class: 'rows' }, g.rows.map(logRow)), { closed: true });
   });
 }
@@ -1264,6 +1290,10 @@ function renderSettings() {
   const langChips = chips(Object.entries(LANGS), lang(), switchLang);
   langChips.classList.add('segmented');
   return h('div', {},
+    h('section', { class: 'panel guide-entry' },
+      h('h3', {}, t('Справочник стрелка')),
+      h('p', { class: 'muted small' }, t('Курс марксмана: изготовка, спуск, мил и MOA, пристрелка, ветер, дальность, калькулятор и тренажёр сетки. Работает без интернета.')),
+      btn(t('Открыть справочник'), () => { location.hash = '#guide'; }, 'primary')),
     h('section', { class: 'panel' }, h('h3', {}, 'Язык · Мова'), langChips),
     h('section', { class: 'panel' }, h('h3', {}, t('Тема')), (() => {
       const row = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooting-log:theme', v); applyTheme(); });
@@ -1300,6 +1330,57 @@ function renderSettings() {
       }), 'danger')));
 }
 
+// ---------- довідник ----------
+
+/** Розділи курсу згорнуті; пошук розкриває збіги й ховає решту. */
+function renderGuide() {
+  const list = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
+  loadGuide().then((html) => {
+    const { sections, foot } = parseGuide(html);
+    if (tab === 'guide') $('subtitle').textContent = t('Курс марксмана · тем: {n}', { n: sections.length });
+    const folds = sections.map((s) => fold(`guide:${s.id}`,
+      [h('span', { class: 'guide-n' }, s.num), h('span', { class: 'fold-title' }, s.title)], s.body, { closed: true }));
+    folds.forEach((el, i) => { el.id = sections[i].id; });
+    const nothing = h('p', { class: 'muted guide-none', hidden: true }, t('Ничего не найдено'));
+    let before = null;
+    const search = h('input', {
+      type: 'search', class: 'guide-search', placeholder: t('Поиск по справочнику'), autocomplete: 'off',
+      oninput: () => {
+        const q = search.value.trim().toLowerCase();
+        // Стан до пошуку повертаємо, коли рядок очищено.
+        if (q && !before) before = folds.map((el) => el.open);
+        let hits = 0;
+        folds.forEach((el, i) => {
+          const hit = !q || el.textContent.toLowerCase().includes(q);
+          el.hidden = !hit;
+          if (q) el.open = hit;
+          else if (before) el.open = before[i];
+          hits += hit;
+        });
+        if (!q) before = null;
+        nothing.hidden = hits > 0;
+      },
+    });
+    list.replaceChildren(...[
+      lang() === 'ru' ? null : h('p', { class: 'muted small' }, t('Справочник пока только на русском.')),
+      search, nothing, ...folds, foot].filter(Boolean));
+    initGuide(list);
+  }).catch(() => {
+    list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
+  });
+  // Посилання між розділами (#wind тощо) — без зміни маршруту.
+  list.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    const target = a && list.querySelector(`details.fold[id="${CSS.escape(a.getAttribute('href').slice(1))}"]`);
+    if (!target) return;
+    e.preventDefault();
+    target.hidden = false;
+    target.open = true;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  return list;
+}
+
 // ---------- навігація ----------
 
 function addMenu() {
@@ -1314,6 +1395,7 @@ const VIEWS = {
   log: { title: 'Журнал', render: renderLog },
   reload: { title: 'Рецепты', render: renderReload, fab: addMenu },
   settings: { title: 'Ещё', render: renderSettings },
+  guide: { title: 'Справочник', render: renderGuide, tab: 'settings' },
 };
 
 function render() {
@@ -1322,7 +1404,7 @@ function render() {
   $('subtitle').textContent = '';
   $('view').replaceChildren(view.render());
   $('fab').hidden = !view.fab;
-  document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === tab));
+  document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
   document.querySelector('.tabs a[data-tab="guns"]').classList.toggle('alert', state.weapons.some(needsCleaning));
 }
 

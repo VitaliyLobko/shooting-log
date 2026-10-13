@@ -58,7 +58,14 @@ export function sheet(title, body, { actions = [], onClose } = {}) {
       h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕')),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);
-  const backdrop = h('div', { class: 'backdrop', onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
+  // Закривати лише якщо й натиск почався на фоні: інакше на сенсорному екрані «фантомний» клік
+  // після тапу по картці падає на щойно відкритий фон і одразу закриває шторку.
+  let downOnBackdrop = false;
+  const backdrop = h('div', {
+    class: 'backdrop',
+    onpointerdown: (e) => { downOnBackdrop = e.target === backdrop; },
+    onclick: (e) => { if (e.target === backdrop && downOnBackdrop) close(); downOnBackdrop = false; },
+  }, panel);
   layer.append(backdrop);
   requestAnimationFrame(() => backdrop.classList.add('open'));
   window.addEventListener('popstate', close, { once: true });
@@ -166,7 +173,7 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
   card.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || e.target.closest('button, a, input')) return;
     start = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    axis = null; dx = 0;
+    axis = null; dx = 0; tapArmed = false;
     body.style.transition = 'none';
   });
   card.addEventListener('pointermove', (e) => {
@@ -196,9 +203,17 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
     if (wasAxis === 'x') {
       if (wasArmed) (dir > 0 ? onRight : onLeft)?.();
     } else if (!wasAxis && e.type === 'pointerup') {
-      onTap?.();
+      tapArmed = true;
     }
   };
+  // Тап відкриваємо на click, а не на pointerup: click приходить останнім,
+  // тож після відкриття шторки вже нема «фантомного» кліку, який її закриє.
+  let tapArmed = false;
+  card.addEventListener('click', () => {
+    if (!tapArmed) return;
+    tapArmed = false;
+    onTap?.();
+  });
   card.addEventListener('pointerup', finish);
   card.addEventListener('pointercancel', finish);
   return card;
