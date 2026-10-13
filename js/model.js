@@ -138,6 +138,36 @@ export function recipeCost(state, recipe) {
   return recipeLines(state, recipe).reduce((sum, line) => sum + line.cost, 0);
 }
 
+/**
+ * Середня ціна одного набою: покупки із сумою та спорядження за собівартістю.
+ * Без таких рухів — собівартість рецепта, якщо набій самоспоряджений; інакше null.
+ */
+export function cartridgeUnitCost(state, id) {
+  let money = 0;
+  let qty = 0;
+  for (const m of state.movements) {
+    if (m.cartridgeId !== id || (m.kind !== 'buy' && m.kind !== 'reload') || !(Number(m.price) > 0) || !(m.qty > 0)) continue;
+    money += Number(m.price);
+    qty += Number(m.qty);
+  }
+  if (qty > 0) return money / qty;
+  const recipe = state.recipes.find((r) => r.id === state.cartridges.find((c) => c.id === id)?.recipeId);
+  return recipe ? recipeCost(state, recipe) || null : null;
+}
+
+/** Вартість пострілів: збережена при списанні, інакше за середньою ціною набою; null — невідомо. */
+export function shotCost(state, m) {
+  if (m.kind !== 'shot') return null;
+  if (Number(m.price) > 0) return Number(m.price);
+  const unit = m.cartridgeId ? cartridgeUnitCost(state, m.cartridgeId) : null;
+  return unit ? -(Number(m.qty) || 0) * unit : null;
+}
+
+/** Сума вартості пострілів у списку рухів (лише відома). */
+export function shotsCost(state, list) {
+  return list.reduce((sum, m) => sum + (shotCost(state, m) ?? 0), 0);
+}
+
 /** Рядки рецепта, що обмежують спорядження (без гільз — вони багаторазові). */
 function consumable(state, recipe) {
   return recipeLines(state, recipe).filter((l) => l.component && l.component.kind !== 'case' && l.fromStock !== null);

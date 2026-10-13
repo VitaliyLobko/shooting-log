@@ -213,6 +213,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .fold-body { padding-top: 2px; }
+.fold-cost { margin-left: 8px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
+.cost-line { grid-column: 1 / -1; margin-top: -4px; color: var(--accent-2); font-weight: 600; }
+.cost-line:empty { display: none; }
 
 /* --- картки зі свайпом --- */
 .card {
@@ -759,6 +762,161 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .toast button { border: 0; background: none; color: var(--accent-2); font-weight: 800; cursor: pointer; padding: 4px 8px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Довідник: розмітка курсу (guide/marksman.html) на токенах застосунку. */
+.guide {
+  --paper: var(--surface);
+  --fg: var(--text);
+  --mute: var(--muted);
+  --acc: var(--accent);
+  --acc-soft: var(--accent-soft);
+  --olive: #9fb878;
+  --olive-soft: color-mix(in srgb, var(--olive) 15%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 15%, transparent);
+  --sky: var(--surface-2);
+  --ground: color-mix(in srgb, var(--olive) 22%, var(--surface-2));
+  --tgt: var(--muted);
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  line-height: 1.6;
+}
+:root[data-theme="light"] .guide { --olive: #56663a; --warn: #9a5b00; }
+.guide-entry .btn { width: 100%; }
+.guide-search {
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.guide-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.guide .fold-head { line-height: 1.25; }
+.guide-n { flex: none; min-width: 22px; font: 600 13px var(--mono); color: var(--accent); }
+.guide .fold { scroll-margin-top: calc(env(safe-area-inset-top) + 84px); }
+.guide .fold-body { padding: 0 2px 14px; }
+.guide-foot { margin-top: 24px; font-size: 13px; color: var(--muted); }
+.guide h3 { margin: 22px 0 8px; font-size: 17px; }
+.guide p { margin: 0 0 12px; }
+.guide ul, .guide ol { margin: 0 0 12px; padding-left: 22px; }
+.guide li { margin-bottom: 6px; }
+.guide li::marker { color: var(--muted); }
+.guide a { color: var(--accent-2); text-underline-offset: 3px; }
+.guide strong { font-weight: 700; }
+.guide em.term { font-style: normal; font: .88em var(--mono); background: var(--olive-soft); color: var(--olive); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.guide code, .guide .mono { font: .9em var(--mono); }
+.guide .num { font-variant-numeric: tabular-nums; }
+
+.guide .fig { margin: 16px 0; padding: 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.guide .fig svg { display: block; width: 100%; height: auto; }
+.guide .fig figcaption { margin-top: 10px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.guide .fig figcaption b { color: var(--text); }
+.guide .row2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 640px) { .guide .row2 { grid-template-columns: 1fr 1fr; } }
+.guide .row2 > * { min-width: 0; }
+
+.guide .note { margin: 14px 0; padding: 12px 14px; border-left: 3px solid var(--olive); border-radius: 0 10px 10px 0; background: var(--olive-soft); }
+.guide .note.warn { border-color: var(--warn); background: var(--warn-soft); }
+.guide .note.acc { border-color: var(--accent); background: var(--accent-soft); }
+.guide .note > :last-child { margin-bottom: 0; }
+.guide .note .h { display: block; margin-bottom: 4px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.guide .tbl { overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.45; }
+.guide th, .guide td { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line-soft); }
+.guide tr:last-child td { border-bottom: 0; }
+.guide th { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+.guide td.r, .guide th.r { text-align: right; font: 13px var(--mono); font-variant-numeric: tabular-nums; }
+.guide th.r { font: 700 11px var(--mono); }
+.guide tr.dim td { color: var(--muted); }
+
+.guide .steps { display: grid; gap: 10px; padding: 0; list-style: none; counter-reset: s; }
+.guide .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; margin: 0; counter-increment: s; }
+.guide .steps li::before {
+  content: counter(s);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  font: 600 13px var(--mono);
+  color: var(--accent);
+}
+.guide .formula { overflow-x: auto; margin: 12px 0; padding: 10px 14px; border: 1px dashed var(--line); border-radius: 10px; background: var(--surface); font: 14px/1.5 var(--mono); white-space: nowrap; }
+
+.guide .calc { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 14px 0; }
+@media (min-width: 700px) { .guide .calc { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.guide .tool { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide .tool h4 { margin: 0; font-size: 15px; }
+.guide .tool label, .guide .ctl label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.guide .tool input, .guide .ctl select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); }
+.guide .tool input { font-family: var(--mono); }
+.guide .out { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font: 600 15px var(--mono); color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.guide .out small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+
+.guide .links { display: grid; gap: 10px; padding: 0; list-style: none; }
+.guide .links li { margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide .links a { font-weight: 700; }
+.guide .links .d { display: block; margin-top: 2px; font-size: 14px; color: var(--muted); }
+.guide .tag { margin-left: 6px; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--olive); }
+
+/* SVG-схеми курсу */
+.guide .sv-fg { stroke: var(--fg); fill: none; }
+.guide .sv-mute { stroke: var(--mute); fill: none; }
+.guide .sv-acc { stroke: var(--acc); fill: none; }
+.guide .sv-ol { stroke: var(--olive); fill: none; }
+.guide .sv-line { stroke: var(--line); fill: none; }
+.guide .f-fg { fill: var(--fg); }
+.guide .f-mute { fill: var(--mute); }
+.guide .f-acc { fill: var(--acc); }
+.guide .f-ol { fill: var(--olive); }
+.guide .f-paper { fill: var(--paper); }
+.guide .f-bg { fill: var(--bg); }
+.guide .f-accs { fill: var(--acc-soft); }
+.guide .f-ols { fill: var(--olive-soft); }
+.guide .f-line { fill: var(--line); }
+.guide svg text { font-family: var(--mono); font-size: 12px; fill: var(--fg); }
+.guide svg text.m { fill: var(--mute); }
+.guide svg text.a { fill: var(--acc); }
+.guide svg text.o { fill: var(--olive); }
+.guide .r-l { stroke: var(--fg); fill: none; }
+.guide .r-d { fill: var(--fg); }
+.guide .r-ill { fill: var(--acc); }
+.guide .r-sky { fill: var(--sky); }
+.guide .r-gr { fill: var(--ground); }
+.guide .r-tgt { fill: var(--tgt); }
+.guide .r-hold { stroke: var(--acc); fill: none; }
+.guide .r-ann { stroke: var(--mute); fill: none; }
+.guide svg.ret text { font-size: 2.1px; fill: var(--fg); }
+.guide svg.ret text.m { fill: var(--mute); }
+.guide svg.ret text.a { fill: var(--acc); }
+.guide svg.ret text.sm { font-size: 1.7px; fill: var(--mute); }
+.guide svg.ret.bp text { font-size: 3.3px; }
+.guide svg.ret.bp text.sm { font-size: 2.4px; }
+.guide .scroll { overflow-x: auto; }
+.guide .scroll svg.wide { min-width: 680px; }
+
+.guide .ret-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+@media (min-width: 640px) { .guide .ret-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.guide .ret-gallery figure { min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide .ret-gallery svg { display: block; width: 100%; height: auto; }
+.guide .ret-gallery figcaption { margin-top: 8px; text-align: center; font: 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .ret-gallery figcaption b { display: block; font: 700 16px system-ui, sans-serif; }
+
+.guide .sim { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 14px 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+@media (min-width: 640px) { .guide .sim { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.guide .sim > * { min-width: 0; }
+.guide .sim svg { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; }
+.guide .ctl { display: grid; gap: 12px; align-content: start; }
+.guide .ctl label b { font: 600 15px var(--mono); color: var(--text); }
+.guide .ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.guide .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide .seg button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-2); font-size: 13px; cursor: pointer; }
+.guide .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+.guide .readout { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); font: 14px/1.55 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .readout .k { display: block; font: 12.5px system-ui, sans-serif; color: var(--muted); }
+.guide .readout .v { font-weight: 600; color: var(--accent-2); }
+.guide .readout .w { color: var(--warn); }
 
 @media (prefers-reduced-motion: reduce) {
   .sheet, .backdrop, .swipe-body, .chevron, .toast { transition: none !important; animation: none !important; }
