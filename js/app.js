@@ -5,9 +5,10 @@ import { t, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js
 import { prepare as preparePhoto, editPhoto, viewer } from './photos.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
 import { customIcon, applyIcon, setIcon, clearIcon, iconFile } from './icon.js';
+import { COLORS, UNITS, CLICKS, length, groupRows, paintPreview, shareImage, markTarget } from './target.js';
 import { h, fmt, sheet, toast, form, chips, swipeable, confirmSheet, selectOptions } from './ui.js';
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [] };
+let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -51,6 +52,7 @@ const findWeapon = (id) => state.weapons.find((w) => w.id === id);
 const findCartridge = (id) => state.cartridges.find((c) => c.id === id);
 const findComponent = (id) => state.components.find((c) => c.id === id);
 const findRecipe = (id) => state.recipes.find((r) => r.id === id);
+const findTarget = (id) => state.targets.find((x) => x.id === id);
 const byName = (a, b) => collate(a.name, b.name);
 
 function remember(key, value) {
@@ -723,6 +725,7 @@ function weaponDetail(w) {
     h('div', { class: 'btn-row' },
       btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: w }); }, 'shoot'),
       btn(t('Почистил'), () => { close(); cleanSheet(w); }, 'buy')),
+    targetsEntry(w, () => close()),
     h('h3', {}, t('Журнал чистки')),
     cleans.length ? movementRows(cleans, 20)
       : h('p', { class: 'muted' }, s.last?.legacy ? t('Почищено {date}', { date: fmt.date(s.last.date) }) : t('Чисток пока не отмечено')),
@@ -806,6 +809,14 @@ function movementDetail(m) {
         : m.price ? [h('dt', {}, t('Сумма')), h('dd', {}, fmt.money(m.price))] : null,
       m.note ? [h('dt', {}, t('Примечание')), h('dd', {}, m.note)] : null),
     m.kind === 'shot' && !m.cartridgeId ? h('p', { class: 'muted small' }, t('Запись без списания из БК — учитывается только в настреле.')) : null,
+    m.kind === 'shot' ? (() => {
+      const tg = state.targets.find((x) => x.movementId === m.id);
+      return h('div', { class: 'btn-row' }, btn(tg ? t('Мишень') : t('+ Мишень'), () => {
+        close();
+        if (tg) targetDetail(tg);
+        else newTarget({ movement: m });
+      }));
+    })() : null,
     batch.length > 1 ? [h('h3', {}, t('Списано компонентов')), h('div', { class: 'rows' }, batch.filter((x) => x.id !== m.id).map(logRow))] : null,
     h('div', { class: 'btn-row' },
       btn(t('Удалить запись'), () => {
@@ -891,6 +902,7 @@ function renderLog() {
     onchange: (e) => { logWeapon = e.target.value; render(); },
   }, h('option', { value: '' }, t('Всё оружие')), guns.map((w) => h('option', { value: w.id, selected: w.id === logWeapon }, w.name))) : null;
   return h('div', {},
+    targetsEntry(),
     logWeapon
       ? hero(findWeapon(logWeapon).name, fmt.num(M.weaponShots(state, findWeapon(logWeapon))), t('настрел всего, вместе с настрелом до начала учёта'))
       : shotsPanel(),
@@ -908,6 +920,319 @@ function renderLog() {
     list.length
       ? logGroups(list)
       : empty(t('Записей нет'), t('Свайпните патрон в разделе БК, чтобы купить или списать.')));
+}
+
+// ---------- кучність ----------
+
+// Фото мішені більше за фото зброї: на 2400 px пробоїна .223 на 100 м — це ще 20+ пікселів.
+const TARGET_PHOTO = 2400;
+
+let targetUnit = UNITS.some(([k]) => k === recall('shooting-log:target-unit')) ? recall('shooting-log:target-unit') : 'cm';
+let targetWeapon = '';
+
+const targetPhoto = (tg) => state.photos.find((p) => p.id === tg.photoId);
+
+function targetTitle(tg) {
+  return [findWeapon(tg.weaponId)?.name, findCartridge(tg.cartridgeId)?.name].filter(Boolean).join(' · ') || t('Мишень');
+}
+
+/** Найкраща група мішені — з найменшим розмахом. */
+function bestGroup(tg) {
+  const photo = targetPhoto(tg);
+  if (!photo) return null;
+  return M.targetStats(tg, photo).filter((g) => g.stats?.n >= 2).sort((a, b) => a.stats.spread - b.stats.spread)[0] ?? null;
+}
+
+function unitChips(onPick) {
+  const row = chips(UNITS.map(([k, label]) => [k, t(label)]), targetUnit, (v) => {
+    targetUnit = v;
+    remember('shooting-log:target-unit', v);
+    onPick();
+  });
+  row.classList.add('segmented');
+  return row;
+}
+
+/** Вхід у «Кучность»: з журналу — усі мішені, з картки зброї — лише її. */
+function targetsEntry(weapon = null, closeSheet = null) {
+  const list = weapon ? state.targets.filter((x) => x.weaponId === weapon.id) : state.targets;
+  if (weapon && !list.length) return null;
+  const best = list.map(bestGroup).filter(Boolean).sort((a, b) => a.stats.spread - b.stats.spread)[0];
+  const sub = list.length ? t('мишеней: {n}', { n: list.length }) : t('разбор мишени по фото: размах, СТП, поправки');
+  return h('button', {
+    type: 'button', class: 'row tg-entry',
+    onclick: () => {
+      closeSheet?.();
+      targetWeapon = weapon?.id ?? '';
+      location.hash = '#targets';
+    },
+  }, kindIcon('shot'),
+  h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, t('Кучность')), h('span', { class: 'muted small' }, sub)),
+  weapon && best ? h('span', { class: 'tg-best' }, t('лучшая {v}', { v: length(best.stats.spread, 'cm') })) : h('span', { class: 'tg-go', 'aria-hidden': 'true' }, '›'));
+}
+
+function targetThumb(tg) {
+  const canvas = h('canvas', { class: 'tg-thumb' });
+  const photo = targetPhoto(tg);
+  if (photo?.thumb) paintPreview(canvas, photo.thumb, tg, 160).catch(() => {});
+  return canvas;
+}
+
+function targetRow(tg) {
+  const best = bestGroup(tg);
+  const holes = (tg.groups ?? []).reduce((sum, g) => sum + g.holes.length, 0);
+  const sub = [fmt.date(tg.date), tg.distance ? t('{n} м', { n: fmt.num(tg.distance) }) : null,
+    holes ? t('{n} выстр.', { n: holes }) : t('не размечена'), tg.note].filter(Boolean).join(' · ');
+  return h('button', { type: 'button', class: 'row tg-row', onclick: () => targetDetail(tg) },
+    targetThumb(tg),
+    h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, targetTitle(tg)), h('span', { class: 'muted small' }, sub)),
+    best ? h('span', { class: 'tg-best' }, length(best.stats.spread, targetUnit, tg.distance)) : null);
+}
+
+function renderTargets() {
+  const guns = state.weapons.filter((w) => state.targets.some((x) => x.weaponId === w.id)).sort(byName);
+  if (targetWeapon && !guns.some((w) => w.id === targetWeapon)) targetWeapon = '';
+  const list = state.targets.filter((x) => !targetWeapon || x.weaponId === targetWeapon).sort(M.byDateDesc);
+  $('subtitle').textContent = t('мишеней: {n}', { n: list.length });
+  return h('div', {},
+    unitChips(render),
+    guns.length ? h('select', {
+      class: 'log-gun', 'aria-label': t('Оружие'),
+      onchange: (e) => { targetWeapon = e.target.value; render(); },
+    }, h('option', { value: '' }, t('Всё оружие')), guns.map((w) => h('option', { value: w.id, selected: w.id === targetWeapon }, w.name))) : null,
+    list.length
+      ? h('div', { class: 'rows' }, list.map(targetRow))
+      : empty(t('Мишеней пока нет'), t('Сфотографируйте мишень и нажмите «+»: отметьте пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
+    h('p', { class: 'muted small' }, t('Размах — между центрами самых дальних пробоин. СТП — средняя точка попадания. Фото снимайте прямо, без наклона: перспективу приложение пока не исправляет.')));
+}
+
+/** Нова мішень: вибір фото → дані → розмітка. Викликати з обробника натискання — інакше браузер не відкриє вибір файлу. */
+function newTarget(prefill = {}) {
+  const input = h('input', { type: 'file', accept: 'image/*', hidden: true });
+  input.addEventListener('cancel', () => input.remove());
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    input.remove();
+    if (!file) return;
+    toast(t('Обработка фото…'));
+    let photo;
+    try {
+      photo = await preparePhoto(file, { max: TARGET_PHOTO });
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+    targetForm(null, { photo, ...prefill });
+  });
+  document.body.append(input);
+  input.click();
+}
+
+async function runMarking(blob, tg) {
+  try {
+    const marks = await markTarget(blob, tg, {
+      distance: tg.distance, unit: targetUnit, click: tg.click, scaleMm: Number(recall('shooting-log:scale-mm')) || 100,
+    });
+    if (marks?.scale?.mm) remember('shooting-log:scale-mm', marks.scale.mm);
+    return marks;
+  } catch (err) {
+    toast(err.message);
+    return null;
+  }
+}
+
+function targetForm(tg, { photo = null, movement = null, weaponId = null } = {}) {
+  const lastOf = (id) => state.targets.filter((x) => x.weaponId === id).sort(M.byDateDesc)[0];
+  const gunId = [tg?.weaponId, movement?.weaponId, weaponId, recall('shooting-log:target-gun')].find((id) => id && findWeapon(id)) ?? '';
+  const guns = state.weapons.filter((w) => !w.archived || w.id === gunId).sort(byName);
+  const ammoId = [tg?.cartridgeId, movement?.cartridgeId, gunId && recall(`ammo:${gunId}`)].find((id) => id && findCartridge(id)) ?? '';
+  const ammo = (id) => [['', t('— не указывать —')],
+    ...caliberOptions(state.cartridges.filter((c) => !c.archived || c.id === ammoId), findWeapon(id)?.caliber).options];
+  const hours = Array.from({ length: 12 }, (_, i) => [String(i + 1), t('на {n} ч', { n: i + 1 })]);
+  const f = form([
+    { name: 'weaponId', label: t('Оружие'), type: 'select', value: gunId, options: [['', t('— не указывать —')], ...guns.map((w) => [w.id, w.name])] },
+    { name: 'cartridgeId', label: t('Патроны'), type: 'select', value: ammoId, options: ammo(gunId) },
+    { name: 'distance', label: t('Дистанция, м'), type: 'number', step: 'any', min: 0, required: true,
+      value: tg?.distance ?? lastOf(gunId)?.distance ?? (Number(recall('shooting-log:target-distance')) || 100) },
+    { name: 'date', label: t('Дата'), type: 'date', value: tg?.date ?? movement?.date ?? M.today() },
+    { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true, options: CLICKS.map(([k, label]) => [k, t(label)]),
+      value: tg?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
+    { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', value: tg?.temp ?? '' },
+    { name: 'wind', label: t('Ветер, м/с'), type: 'number', step: 'any', min: 0, value: tg?.wind ?? '' },
+    { name: 'windClock', label: t('Откуда ветер'), type: 'select', value: tg?.windClock ? String(tg.windClock) : '', options: [['', '—'], ...hours] },
+    { name: 'note', label: t('Примечание'), placeholder: t('Положение, упор, серия…'), value: tg?.note ?? '', wide: true },
+  ]);
+  qtyChips(f.inputs.distance, [25, 50, 100, 200, 300]);
+  f.inputs.weaponId.addEventListener('change', () => {
+    const id = f.inputs.weaponId.value;
+    const keep = f.inputs.cartridgeId.value;
+    f.inputs.cartridgeId.replaceChildren(...selectOptions(ammo(id), keep).filter(Boolean));
+  });
+  let gps = tg?.gps ?? null;
+  const gpsText = h('span', { class: 'muted small' });
+  const gpsBtn = btn('', locate);
+  const showGps = () => {
+    gpsText.textContent = gps ? `${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)} ± ${Math.round(gps.acc)} ${t('м')}` : t('не записаны');
+    gpsBtn.textContent = gps ? t('Убрать координаты') : t('Записать координаты');
+  };
+  function locate() {
+    if (gps) { gps = null; showGps(); return; }
+    if (!navigator.geolocation) { toast(t('Геолокация недоступна')); return; }
+    gpsBtn.disabled = true;
+    gpsText.textContent = t('Определяю…');
+    navigator.geolocation.getCurrentPosition((p) => {
+      gps = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy };
+      gpsBtn.disabled = false;
+      showGps();
+    }, () => {
+      gpsBtn.disabled = false;
+      showGps();
+      toast(t('Не удалось определить координаты'));
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
+  }
+  showGps();
+  const close = sheet(tg ? t('Мишень: данные') : t('Новая мишень'), h('div', {},
+    f.el,
+    h('div', { class: 'tg-gps' }, h('span', { class: 'field-label' }, t('Координаты')), gpsText, gpsBtn)), {
+    actions: [btn(t('Отмена'), () => close()), btn(tg ? t('Сохранить') : t('Далее: разметка'), save, 'primary')],
+  });
+  async function save() {
+    if (invalidToast(f)) return;
+    const v = f.values();
+    if (!(v.distance > 0)) { toast(t('Укажите дистанцию')); return; }
+    const fields = {
+      weaponId: v.weaponId || null, cartridgeId: v.cartridgeId || null, distance: v.distance, date: v.date || null,
+      click: f.inputs.click.value || null, temp: v.temp, wind: v.wind, windClock: v.windClock ? Number(v.windClock) : null, note: v.note, gps,
+    };
+    remember('shooting-log:target-distance', v.distance);
+    remember('shooting-log:target-gun', fields.weaponId);
+    close();
+    if (tg) {
+      await saveEntity('targets', { ...tg, ...fields }, t('Сохранено'));
+      targetDetail(findTarget(tg.id) ?? tg);
+      return;
+    }
+    // Нова мішень пишеться одним записом уже з розміткою; скасували розмітку — нічого не зберігаємо.
+    const draft = { id: db.uid(), created: Date.now(), photoId: db.uid(), movementId: movement?.id ?? null, scale: null, poa: null, groups: [], ...fields };
+    const marks = await runMarking(photo.blob, draft);
+    if (!marks) { toast(t('Мишень не сохранена')); return; }
+    const record = { ...draft, ...marks };
+    await db.write({
+      targets: { put: [record] },
+      photos: { put: [{ id: draft.photoId, targetId: record.id, created: Date.now(), thumb: photo.thumb, w: photo.w, h: photo.h, driveId: null }] },
+      blobs: { put: [{ id: draft.photoId, blob: photo.blob }] },
+    });
+    await refresh();
+    toast(t('Мишень сохранена'));
+    targetDetail(findTarget(record.id) ?? record);
+  }
+}
+
+async function editMarks(tg) {
+  const blob = await db.getBlob(tg.photoId);
+  if (!blob) { toast(t('Полное фото ещё не загрузилось — изменить можно после синхронизации')); return; }
+  const marks = await runMarking(blob, tg);
+  if (!marks) return;
+  await saveEntity('targets', { ...tg, ...marks }, t('Разметка сохранена'));
+  targetDetail(findTarget(tg.id) ?? tg);
+}
+
+function weatherText(tg) {
+  return [tg.temp !== null && tg.temp !== undefined && tg.temp !== '' ? `${fmt.num(tg.temp)} °C` : null,
+    tg.wind ? t('ветер {v} м/с', { v: fmt.num(tg.wind) }) + (tg.windClock ? ` ${t('на {n} ч', { n: tg.windClock })}` : '') : null]
+    .filter(Boolean).join(' · ');
+}
+
+function clickLabel(key) {
+  const row = CLICKS.find(([k]) => k === key);
+  return row ? t(row[1]) : null;
+}
+
+function statsBlocks(tg, photo) {
+  if (!photo) return [h('p', { class: 'muted small' }, t('Фото мишени ещё не синхронизировано.'))];
+  if (!M.mmPerPx(tg.scale, photo)) return [h('p', { class: 'muted small' }, t('Масштаб не задан — откройте разметку и отметьте две точки с известным расстоянием.'))];
+  const groups = M.targetStats(tg, photo).filter((g) => g.stats);
+  if (!groups.length) return [h('p', { class: 'muted small' }, t('Пробоины не отмечены.'))];
+  return [
+    ...groups.map((g) => h('div', { class: 'tg-group' },
+      h('h4', {}, h('i', { class: 'tg-swatch', style: `background:${COLORS[g.index % COLORS.length]}` }), t('Группа {n}', { n: g.index + 1 })),
+      h('dl', { class: 'kv' }, groupRows(g.stats, { unit: targetUnit, distance: tg.distance, click: tg.click }).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])))),
+    tg.poa ? null : h('p', { class: 'muted small' }, t('Отметьте точку прицеливания — появятся СТП и поправки в щелчках.')),
+  ];
+}
+
+function shareLines(tg, photo) {
+  const lines = [
+    { text: targetTitle(tg), bold: true },
+    { text: [fmt.date(tg.date), t('{n} м', { n: fmt.num(tg.distance) }), weatherText(tg)].filter(Boolean).join(' · '), color: '#aab3a6' },
+  ];
+  for (const g of M.targetStats(tg, photo).filter((x) => x.stats)) {
+    const [, ...rows] = groupRows(g.stats, { unit: targetUnit, distance: tg.distance, click: tg.click });
+    lines.push({ text: `${t('Группа {n}', { n: g.index + 1 })} · ${t('{n} выстр.', { n: g.stats.n })}`, bold: true, color: COLORS[g.index % COLORS.length] });
+    for (const [k, v] of rows) lines.push({ text: `${k}: ${v}` });
+  }
+  return lines;
+}
+
+async function shareTarget(tg) {
+  const photo = targetPhoto(tg);
+  if (!photo) return;
+  const blob = await db.getBlob(photo.id);
+  const src = blob ? URL.createObjectURL(blob) : photo.thumb;
+  let image;
+  try {
+    image = await shareImage(src, tg, shareLines(tg, photo));
+  } finally {
+    if (blob) URL.revokeObjectURL(src);
+  }
+  const file = new File([image], `target-${tg.date ?? 'shot'}.jpg`, { type: 'image/jpeg' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: targetTitle(tg) }); return; } catch (err) { if (err.name === 'AbortError') return; }
+  }
+  download(file.name, file);
+}
+
+function targetDetail(tg) {
+  const photo = targetPhoto(tg);
+  const shot = tg.movementId ? state.movements.find((m) => m.id === tg.movementId) : null;
+  const figure = h('canvas', { class: 'tg-figure' });
+  if (photo?.thumb) {
+    paintPreview(figure, photo.thumb, tg, 720).then(async () => {
+      const blob = await db.getBlob(photo.id);
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      try { await paintPreview(figure, url, tg, 1400); } finally { URL.revokeObjectURL(url); }
+    }).catch(() => {});
+  }
+  const statsBox = h('div', {}, statsBlocks(tg, photo));
+  const close = sheet(targetTitle(tg), h('div', {},
+    figure,
+    unitChips(() => statsBox.replaceChildren(...statsBlocks(tg, photo).filter(Boolean))),
+    statsBox,
+    h('dl', { class: 'kv' },
+      h('dt', {}, t('Дата')), h('dd', {}, fmt.date(tg.date)),
+      h('dt', {}, t('Дистанция')), h('dd', {}, t('{n} м', { n: fmt.num(tg.distance) })),
+      tg.click ? [h('dt', {}, t('Цена щелчка')), h('dd', {}, clickLabel(tg.click))] : null,
+      weatherText(tg) ? [h('dt', {}, t('Погода')), h('dd', {}, weatherText(tg))] : null,
+      tg.gps ? [h('dt', {}, t('Координаты')), h('dd', {}, `${tg.gps.lat.toFixed(5)}, ${tg.gps.lon.toFixed(5)}`)] : null,
+      shot ? [h('dt', {}, t('Стрельба')), h('dd', {}, h('button', {
+        type: 'button', class: 'link-btn', onclick: () => { close(); movementDetail(shot); },
+      }, `${fmt.date(shot.date)} · ${fmt.signed(shot.qty)}`))] : null,
+      tg.note ? [h('dt', {}, t('Примечание')), h('dd', {}, tg.note)] : null),
+    h('div', { class: 'btn-row' },
+      btn(t('Разметка'), () => { close(); editMarks(tg); }, 'primary'),
+      btn(t('Поделиться'), () => shareTarget(tg).catch((err) => toast(err.message)))),
+    h('div', { class: 'btn-row' },
+      btn(t('Изменить данные'), () => { close(); targetForm(tg); }),
+      btn(t('Удалить'), () => {
+        close();
+        confirmSheet(t('Удалить мишень?'), t('Фото и разметка будут удалены.'), t('Удалить'), async () => {
+          sync.trashPhoto((await db.get('photos', tg.photoId))?.driveId);
+          await db.write({ targets: { del: [tg.id] }, photos: { del: [tg.photoId] }, blobs: { del: [tg.photoId] } });
+          await refresh();
+          toast(t('Мишень удалена'));
+        });
+      }, 'danger'))));
 }
 
 // ---------- рецепти та склад компонентів ----------
@@ -1458,6 +1783,7 @@ const VIEWS = {
   reload: { title: 'Рецепты', render: renderReload, fab: addMenu },
   settings: { title: 'Ещё', render: renderSettings },
   guide: { title: 'Справочник', render: renderGuide, tab: 'settings' },
+  targets: { title: 'Кучность', render: renderTargets, tab: 'log', fab: () => newTarget({ weaponId: targetWeapon || null }) },
 };
 
 function render() {

@@ -922,6 +922,54 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .readout .v { font-weight: 600; color: var(--accent-2); }
 .guide .readout .w { color: var(--warn); }
 
+/* Кучність */
+.tg-entry { margin-bottom: 12px; color: var(--text); }
+.tg-entry .row-icon { color: var(--shoot); background: color-mix(in srgb, var(--shoot) 14%, transparent); }
+.tg-go { color: var(--muted); font-size: 22px; line-height: 1; }
+.tg-best { flex: none; font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tg-row { color: var(--text); }
+.tg-thumb { flex: none; width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: #000; }
+.tg-figure { display: block; width: 100%; height: auto; margin-bottom: 12px; border-radius: 12px; background: #000; }
+.tg-group { padding: 10px 0 0; border-top: 1px solid var(--line-soft); }
+.tg-group h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; }
+.tg-group .kv { font-variant-numeric: tabular-nums; }
+.tg-swatch { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgb(0 0 0 / .35); }
+.tg-gps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 4px; }
+.tg-gps .field-label { width: 100%; }
+.link-btn { padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; text-decoration: underline; cursor: pointer; }
+
+.tg-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+.tg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.tg-loupe {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 6px 18px rgb(0 0 0 / .6);
+  pointer-events: none;
+}
+.tg-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 0; }
+.tg-panel .chips { justify-content: center; margin: 0; }
+.tg-panel .chips button { background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .18); color: #fff; }
+.tg-panel .chips button.on { background: var(--accent); border-color: var(--accent); }
+.tg-groups button { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.tg-scale { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.tg-scale label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tg-scale input {
+  width: 84px;
+  padding: 6px 8px;
+  border: 1px solid rgb(255 255 255 / .25);
+  border-radius: 8px;
+  background: rgb(255 255 255 / .08);
+  color: #fff;
+  font: inherit;
+}
+.tg-hint { font-size: 13px; text-align: center; opacity: .75; }
+.tg-stats { min-height: 18px; font-size: 14px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.tg-panel .editor-tool:disabled { opacity: .35; }
+.tg-panel [hidden], .tg-loupe[hidden] { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .sheet, .backdrop, .swipe-body, .chevron, .toast { transition: none !important; animation: none !important; }
 }
