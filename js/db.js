@@ -3,8 +3,8 @@
 // це потрібно, щоб синхронізація з Google Диском зливала зміни без втрат.
 // Файли фото лежать окремо в blobs: вони не входять у JSON синхронізації й резервної копії.
 const DB_NAME = 'shooting-log';
-const DB_VERSION = 3;
-export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos'];
+const DB_VERSION = 4;
+export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets'];
 const ALL = [...STORES, 'tombstones'];
 const BLOBS = 'blobs';
 

@@ -8,7 +8,7 @@ const FULL = 1600;
 const THUMB = 240;
 
 /** Декодування з урахуванням EXIF-орієнтації — інакше фото з телефона лягають боком. */
-async function decode(file) {
+export async function decode(file) {
   if ('createImageBitmap' in window) {
     try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { /* нижче — запасний шлях */ }
   }
@@ -40,15 +40,15 @@ function jpeg(canvas, quality) {
   });
 }
 
-/** Файл з галереї чи камери → { blob, thumb, w, h }. */
-export async function prepare(file) {
+/** Файл з галереї чи камери → { blob, thumb, w, h }. max — довша сторона повного фото. */
+export async function prepare(file, { max = FULL } = {}) {
   let src;
   try {
     src = await decode(file);
   } catch {
     throw new Error(t('Формат фото не поддерживается'));
   }
-  const full = draw(src, FULL);
+  const full = draw(src, max);
   src.close?.();
   return { blob: await jpeg(full, 0.82), thumb: draw(full, THUMB).toDataURL('image/jpeg', 0.7), w: full.width, h: full.height };
 }

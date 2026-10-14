@@ -220,6 +220,67 @@ export function stockValue(state) {
   return state.components.reduce((sum, c) => sum + Math.max(0, componentStock(state, c.id)) * unitPrice(c), 0);
 }
 
+// ---------- кучність ----------
+
+// 1 MOA на 100 м ≈ 29,09 мм (на 1 м — 0,2909 мм), 1 мрад на 100 м = 100 мм.
+const MM_PER_MOA_AT_1M = 0.29089;
+
+/** Відрізок mm мм на дистанції distance м → MOA або мрад; null без дистанції. */
+export function toAngle(mm, distance, unit) {
+  if (!(distance > 0)) return null;
+  return unit === 'moa' ? mm / (distance * MM_PER_MOA_AT_1M) : mm / distance;
+}
+
+/** Ціна клацання з ключа виду 'mil0.1' чи 'moa0.25'. */
+export function clickValue(key) {
+  const m = /^(mil|moa)([\d.]+)$/.exec(key ?? '');
+  return m ? { unit: m[1], value: Number(m[2]) } : null;
+}
+
+/** Масштаб фото мішені, мм на піксель: дві точки (частки ширини й висоти) і відстань між ними. */
+export function mmPerPx(scale, photo) {
+  if (!scale?.a || !scale?.b || !(scale.mm > 0) || !photo?.w || !photo?.h) return null;
+  const d = Math.hypot((scale.a[0] - scale.b[0]) * photo.w, (scale.a[1] - scale.b[1]) * photo.h);
+  return d > 0 ? scale.mm / d : null;
+}
+
+/**
+ * Купчастість групи за центрами пробоїн, усе в мм: розмах (найбільша відстань між центрами),
+ * середній радіус від СТП, ширина й висота групи. offset — СТП від точки прицілювання:
+ * x — праворуч, y — вгору (на фото y росте вниз).
+ */
+export function groupStats(points, aim = null) {
+  const n = points.length;
+  if (!n) return null;
+  const cx = points.reduce((s, p) => s + p[0], 0) / n;
+  const cy = points.reduce((s, p) => s + p[1], 0) / n;
+  let spread = 0;
+  for (let i = 0; i < n; i += 1) {
+    for (let j = i + 1; j < n; j += 1) spread = Math.max(spread, Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]));
+  }
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return {
+    n,
+    center: [cx, cy],
+    spread,
+    meanRadius: points.reduce((s, p) => s + Math.hypot(p[0] - cx, p[1] - cy), 0) / n,
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+    offset: aim ? [cx - aim[0], aim[1] - cy] : null,
+  };
+}
+
+/** Статистика кожної групи мішені; stats null — немає масштабу або пробоїн. */
+export function targetStats(target, photo) {
+  const k = mmPerPx(target.scale, photo);
+  const toMm = (p) => [p[0] * photo.w * k, p[1] * photo.h * k];
+  const aim = k && target.poa ? toMm(target.poa) : null;
+  return (target.groups ?? []).map((g, index) => ({
+    index, holes: g.holes, stats: k && g.holes.length ? groupStats(g.holes.map(toMm), aim) : null,
+  }));
+}
+
 export function calibers(state) {
   const set = new Set();
   for (const list of [state.weapons, state.cartridges, state.recipes]) {
