@@ -18,15 +18,29 @@ const ASSETS = [
   './js/guide.js',
   './js/icon.js',
   './js/target.js',
+  './js/ammo.js',
+  './js/weapon-icon.js',
+  './js/levels.js',
+  './js/timer.js',
+  './js/shot-detector.js',
   './guide/marksman.html',
+  './guide/img/prone-bipod.jpg',
+  './guide/img/prone-bags.jpg',
+  './guide/img/sitting.jpg',
+  './guide/img/kneeling.jpg',
+  './guide/img/standing.jpg',
+  './guide/img/barricade.jpg',
+  './guide/img/barricade-kneel.jpg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
 ];
 
+// Файли — повз HTTP-кеш браузера: GitHub Pages віддає max-age=600, і без reload
+// оновлення 10 хвилин після релізу ставило б старі файли.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', (event) => {

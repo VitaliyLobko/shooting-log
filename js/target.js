@@ -6,14 +6,17 @@ import { decode } from './photos.js';
 import * as M from './model.js';
 
 export const COLORS = ['#ff4d4d', '#38b6ff', '#ffd23f', '#4ade80', '#d27bff', '#ff9f43'];
-export const UNITS = [['cm', 'см'], ['moa', 'MOA'], ['mil', 'мил']];
-export const CLICKS = [['mil0.1', '0,1 мил'], ['moa0.25', '¼ MOA'], ['moa0.125', '⅛ MOA'], ['moa0.5', '½ MOA']];
+export const UNITS = [['cm', 'см'], ['moa', 'MOA'], ['mil', 'MRAD']];
+export const CLICKS = [['mil0.1', '0,1 MRAD'], ['moa0.25', '¼ MOA'], ['moa0.125', '⅛ MOA'], ['moa0.5', '½ MOA'], ['mm13', '13 мм / 100 м'], ['mm16', '16 мм / 100 м']];
 export const SCALE_MM = [10, 25.4, 50, 100];
 
 const HIT = 24;
 const LOUPE = 128;
 const LOUPE_ZOOM = 3;
 const MOVE = 6;
+
+// Мітка кінця лінії масштабу → [лінія, кінець]
+const END = { a: ['scale', 'a'], b: ['scale', 'b'], c: ['scale2', 'a'], d: ['scale2', 'b'] };
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const color = (i) => COLORS[i % COLORS.length];
@@ -25,43 +28,102 @@ export function num(v, digits = 1) {
 
 /** Відрізок у мм — у вибраних одиницях; кутові без дистанції не порахувати, тоді см. */
 export function length(mm, unit, distance) {
-  if (unit !== 'cm' && distance > 0) return `${num(M.toAngle(mm, distance, unit), 2)} ${unit === 'moa' ? 'MOA' : t('мил')}`;
+  if (unit !== 'cm' && distance > 0) return `${num(M.toAngle(mm, distance, unit), 2)} ${unit === 'moa' ? 'MOA' : 'MRAD'}`;
   return `${num(mm / 10, 1)} ${t('см')}`;
 }
 
+/** Ширина × висота з одиницею один раз: «3,0 × 2,4 см». */
+export function size(w, hh, unit, distance) {
+  if (unit !== 'cm' && distance > 0) {
+    return `${num(M.toAngle(w, distance, unit), 2)} × ${num(M.toAngle(hh, distance, unit), 2)} ${unit === 'moa' ? 'MOA' : 'MRAD'}`;
+  }
+  return `${num(w / 10, 1)} × ${num(hh / 10, 1)} ${t('см')}`;
+}
+
+// Напрямок поправки — як позначено на барабані прицілу
+const DIRS = { up: ['↑', 'вверх (UP)'], down: ['↓', 'вниз (DOWN)'], left: ['←', 'влево (L)'], right: ['→', 'вправо (R)'] };
+
 /**
- * Поправка прицілу: зсунути влучання назустріч зміщенню СТП, у кутових одиницях і клацаннях.
- * mm — зміщення СТП по осі (x праворуч, y вгору), стрілка — куди крутити барабан.
+ * Поправка прицілу по осі: зсунути влучання назустріч зміщенню СТП. mm — зміщення по осі (x праворуч, y вгору).
+ * { arrow, word, angle, unit, clicks } або null — немає ціни клацання чи дистанції, або менше пів клацання.
  */
-function correction(mm, axis, distance, click) {
+function axisFix(mm, axis, distance, click) {
   const c = M.clickValue(click);
   if (!c || !(distance > 0) || Math.abs(mm) < 0.5) return null;
   const angle = M.toAngle(Math.abs(mm), distance, c.unit);
-  const arrow = axis === 'x' ? (mm > 0 ? '←' : '→') : (mm > 0 ? '↓' : '↑');
-  const unit = c.unit === 'moa' ? 'MOA' : t('мил');
-  return `${arrow} ${num(angle, 2)} ${unit} = ${t('{n} щелч.', { n: Math.round(angle / c.value) })}`;
+  // toFixed прибирає похибку дробу: 0,35 / 0,1 = 3,4999… мало б округлитися до 4, а не до 3
+  const clicks = Math.round(Number((angle / c.value).toFixed(6)));
+  if (!clicks) return null;
+  const [arrow, word] = DIRS[axis === 'x' ? (mm > 0 ? 'left' : 'right') : (mm > 0 ? 'down' : 'up')];
+  return { arrow, word: t(word), angle, unit: c.unit === 'moa' ? 'MOA' : 'MRAD', clicks };
+}
+
+/**
+ * Поправка вертикалі з таблиці DOPE (мрад, плюс — вгору) в одиницях барабана: «↑ 1,20 MRAD = 12 клац.».
+ * Без ціни клацання — лише кут у мрад; 0 — «0» (дистанція пристрілки).
+ */
+export function elevText(mrad, click) {
+  if (Math.abs(mrad) < 0.0005) return '0';
+  const [arrow] = DIRS[mrad > 0 ? 'up' : 'down'];
+  const c = M.clickValue(click);
+  const unit = c?.unit ?? 'mil';
+  const angle = Math.abs(M.fromMrad(mrad, unit));
+  const text = `${arrow} ${num(angle, 2)} ${unit === 'moa' ? 'MOA' : 'MRAD'}`;
+  if (!c) return text;
+  // toFixed прибирає похибку дробу, як і в поправках мішені
+  return `${text} = ${Math.round(Number((angle / c.value).toFixed(6)))} ${t('щелч.')}`;
+}
+
+/** Винос у сітці прицілу: 'mil' чи 'moa' — у поділках сітки, інакше (точка, без сітки) — сантиметри на цілі. */
+export function holdText(mrad, distance, reticle) {
+  if (Math.abs(mrad) < 0.0005) return '0';
+  const arrow = mrad > 0 ? '↑' : '↓';
+  const cm = `${num(Math.abs(M.fromMrad(mrad, 'cm', distance)), 0)} ${t('см')}`;
+  if (reticle !== 'mil' && reticle !== 'moa') return `${arrow} ${cm}`;
+  return `${arrow} ${num(Math.abs(M.fromMrad(mrad, reticle)), 1)} ${reticle === 'moa' ? 'MOA' : 'MRAD'} · ${cm}`;
+}
+
+/** Поправки групи: вертикаль, потім горизонталь; wantUp — мм, на скільки влучання має бути вище точки прицілювання. */
+export function corrections(stats, { distance, click, wantUp = 0 }) {
+  if (!stats.offset) return [];
+  return [axisFix(stats.offset[1] - wantUp, 'y', distance, click), axisFix(stats.offset[0], 'x', distance, click)].filter(Boolean);
 }
 
 /** Зміщення СТП словами: «выше 1,2 см · левее 0,4 см». */
-function offsetText([dx, dy], unit, distance) {
+export function offsetText([dx, dy], unit, distance) {
   const parts = [];
   if (Math.abs(dy) >= 0.5) parts.push(`${dy > 0 ? t('выше') : t('ниже')} ${length(Math.abs(dy), unit, distance)}`);
   if (Math.abs(dx) >= 0.5) parts.push(`${dx > 0 ? t('правее') : t('левее')} ${length(Math.abs(dx), unit, distance)}`);
   return parts.length ? parts.join(' · ') : t('в точке прицеливания');
 }
 
-/** Пари [підпис, значення] для однієї групи: деталі, картинка «Поделиться». */
-export function groupRows(stats, { unit, distance, click }) {
+/**
+ * Пари [підпис, значення] для однієї групи: деталі, картинка «Поделиться».
+ * wantUp — мм, на скільки влучання має бути вище точки прицілювання (пристрілка на іншу дистанцію).
+ */
+export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
+  // unit 'all' — кожне значення одразу в см, MOA і MRAD (кутові — лише з дистанцією)
+  const units = unit !== 'all' ? [unit] : distance > 0 ? ['cm', 'moa', 'mil'] : ['cm'];
+  const len = (mm) => units.map((u) => length(mm, u, distance)).join(' · ');
   const rows = [[t('Выстрелов'), String(stats.n)]];
   if (stats.n >= 2) {
     rows.push(
-      [t('Размах'), length(stats.spread, unit, distance)],
-      [t('Средний радиус'), length(stats.meanRadius, unit, distance)],
-      [t('Ширина × высота'), `${length(stats.width, unit, distance)} × ${length(stats.height, unit, distance)}`]);
+      [t('Размах'), len(stats.spread)],
+      [t('Средний радиус'), len(stats.meanRadius)],
+      [t('Ширина × высота'), units.map((u) => size(stats.width, stats.height, u, distance)).join(' · ')]);
+  }
+  if (stats.offset && unit === 'all') {
+    const [dx, dy] = stats.offset;
+    rows.push(
+      [t('СТП по вертикали'), Math.abs(dy) < 0.5 ? t('в точке прицеливания') : `${dy > 0 ? t('выше') : t('ниже')} ${len(Math.abs(dy))}`],
+      [t('СТП по горизонтали'), Math.abs(dx) < 0.5 ? t('в точке прицеливания') : `${dx > 0 ? t('правее') : t('левее')} ${len(Math.abs(dx))}`]);
+  } else if (stats.offset) {
+    rows.push([t('СТП'), offsetText(stats.offset, unit, distance)]);
   }
   if (stats.offset) {
-    rows.push([t('СТП'), offsetText(stats.offset, unit, distance)]);
-    const fix = [correction(stats.offset[1], 'y', distance, click), correction(stats.offset[0], 'x', distance, click)].filter(Boolean);
+    if (wantUp) rows.push([t('Нужное попадание'), `${wantUp > 0 ? t('выше') : t('ниже')} ${len(Math.abs(wantUp))}`]);
+    const fix = corrections(stats, { distance, click, wantUp })
+      .map((f) => `${f.arrow} ${f.word} ${num(f.angle, 2)} ${f.unit} = ${t('{n} щелч.', { n: f.clicks })}`);
     if (fix.length) rows.push([t('Поправка'), fix.join(' · ')]);
   }
   return rows;
@@ -85,8 +147,10 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
   const isSel = (kind, g, i) => selected && selected.kind === kind && selected.g === g && selected.i === i;
   ctx.save();
   ctx.lineCap = 'round';
-  if (scale && marks.scale) {
-    const { a, b, mm } = marks.scale;
+  // дві лінії масштабу: кінці першої — мітки a, b, другої — c, d
+  for (const [line, ends] of scale ? [['scale', ['a', 'b']], ['scale2', ['c', 'd']]] : []) {
+    if (!marks[line]) continue;
+    const { a, b, mm } = marks[line];
     const pa = a && map(a);
     const pb = b && map(b);
     if (pa && pb) {
@@ -106,7 +170,7 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
         ctx.fillText(label, x, y);
       }
     }
-    for (const [kind, p] of [['a', pa], ['b', pb]]) {
+    for (const [kind, p] of [[ends[0], pa], [ends[1], pb]]) {
       if (!p) continue;
       const s = r * (isSel(kind) ? 1.2 : 0.8);
       halo(() => { ctx.beginPath(); ctx.rect(p[0] - s, p[1] - s, s * 2, s * 2); }, isSel(kind) ? '#fff' : '#5ee6ff', r * 0.3);
@@ -115,6 +179,23 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
   (marks.groups ?? []).forEach((group, g) => {
     ctx.globalAlpha = active === null || active === g ? 1 : 0.5;
     const c = color(g);
+    if (group.holes.length >= 2) {
+      // Рамка (ширина × висота) і коло від СТВ через найдальшу пробоїну — видно відрив і куди витягнута група.
+      const pts = group.holes.map(map);
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      const cx = xs.reduce((s, v) => s + v, 0) / pts.length;
+      const cy = ys.reduce((s, v) => s + v, 0) / pts.length;
+      const radius = Math.max(...pts.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      ctx.save();
+      ctx.globalAlpha *= 0.75;
+      ctx.setLineDash([r * 0.7, r * 0.5]);
+      halo(() => { ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); }, c, r * 0.12);
+      ctx.setLineDash([]);
+      halo(() => { ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); }, c, r * 0.12);
+      ctx.restore();
+    }
     group.holes.forEach((hole, i) => {
       const [x, y] = map(hole);
       const sel = isSel('hole', g, i);
@@ -212,7 +293,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     poa: marks.poa ? [...marks.poa] : null,
     groups: marks.groups?.length ? structuredClone(marks.groups) : [{ holes: [] }],
   };
+  st.scale2 = { a: null, b: null, mm: st.scale.mm, ...structuredClone(marks.scale2 ?? {}) };
   let mode = st.scale.a && st.scale.b ? 'holes' : 'scale';
+  // лінія масштабу, яку зараз ставимо: 'scale' — основна, 'scale2' — поперечна
+  let line = 'scale';
   let active = st.groups.length - 1;
   let selected = null;
   const history = [];
@@ -229,15 +313,17 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       type: 'number', inputmode: 'decimal', step: 'any', min: 0, 'aria-label': t('Между точками, мм'),
       oninput: () => {
         const v = Number(String(mmInput.value).replace(',', '.'));
-        if (v > 0) { st.scale.mm = v; paint(); }
+        if (v > 0) { st[line].mm = v; paint(); }
       },
     });
     mmInput.value = st.scale.mm ?? '';
+    const lineRow = h('div', { class: 'chips tg-lines' });
     const scaleRow = h('div', { class: 'tg-scale' },
+      lineRow,
       h('label', {}, h('span', {}, t('Между точками, мм')), mmInput),
       h('div', { class: 'chips' }, SCALE_MM.map((v) => h('button', {
         type: 'button',
-        onclick: () => { st.scale.mm = v; mmInput.value = v; paint(); },
+        onclick: () => { st[line].mm = v; mmInput.value = v; paint(); },
       }, num(v, v % 1 ? 1 : 0)))));
     const hint = h('div', { class: 'tg-hint' });
     const stats = h('div', { class: 'tg-stats' });
@@ -342,8 +428,15 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
           },
         }, t('+ группа')));
       scaleRow.hidden = mode !== 'scale';
+      lineRow.replaceChildren(...[['scale', t('Линия 1')], ['scale2', t('Линия 2 ↕')]].map(([key, label]) => h('button', {
+        type: 'button', class: key === line ? 'on' : '',
+        onclick: () => { line = key; selected = null; mmInput.value = st[line].mm ?? ''; paint(); },
+      }, label)));
       hint.textContent = mode === 'scale'
-        ? t('Отметьте две точки, расстояние между которыми знаете: клетки мишени, линейку, край листа.')
+        ? (line === 'scale'
+          ? t('Отметьте две точки, расстояние между которыми знаете: клетки мишени, линейку, край листа.')
+          : [t('Вторая линия — поперёк первой, лучше вертикально: если фото снято под углом, высота посчитается отдельно. Можно не ставить.'),
+            scaleNote()].filter(Boolean).join(' '))
         : mode === 'poa'
           ? t('Отметьте точку, в которую целились.')
           : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.');
@@ -363,15 +456,24 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       delBtn.disabled = !selected;
     }
 
+    /** Що дала друга лінія: на скільки висота відрізняється від ширини, або чому її не враховано. */
+    function scaleNote() {
+      if (!st.scale2.a || !st.scale2.b) return null;
+      const k = M.scaleXY(st.scale, st.scale2, { w: W, h: H });
+      if (!k) return null;
+      if (!k.two) return t('Линии почти параллельны или не сходятся по длине — вторая не учтена.');
+      return t('Масштаб по высоте отличается от ширины на {p}%.', { p: num((k.y / k.x - 1) * 100, 1) });
+    }
+
     function snapshot() {
-      history.push(JSON.stringify({ scale: st.scale, poa: st.poa, groups: st.groups }));
+      history.push(JSON.stringify({ scale: st.scale, scale2: st.scale2, poa: st.poa, groups: st.groups }));
       if (history.length > 200) history.shift();
     }
     function undo() {
       const prev = history.pop();
       if (!prev) return;
       Object.assign(st, JSON.parse(prev));
-      mmInput.value = st.scale.mm ?? '';
+      mmInput.value = st[line].mm ?? '';
       active = Math.min(active, st.groups.length - 1);
       selected = null;
       paint();
@@ -381,21 +483,22 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       snapshot();
       if (selected.kind === 'hole') st.groups[selected.g].holes.splice(selected.i, 1);
       else if (selected.kind === 'poa') st.poa = null;
-      else st.scale[selected.kind] = null;
+      else { const [l, end] = END[selected.kind]; st[l][end] = null; }
       selected = null;
       paint();
     }
     function place(n) {
       snapshot();
+      const s = st[line];
       if (mode === 'holes') st.groups[active].holes.push(n);
       else if (mode === 'poa') st.poa = n;
-      else if (!st.scale.a) st.scale.a = n;
-      else if (!st.scale.b) st.scale.b = n;
+      else if (!s.a) s.a = n;
+      else if (!s.b) s.b = n;
       else {
         // обидві точки є — переставляємо ближчу
-        const da = Math.hypot(n[0] - st.scale.a[0], n[1] - st.scale.a[1]);
-        const db = Math.hypot(n[0] - st.scale.b[0], n[1] - st.scale.b[1]);
-        st.scale[da < db ? 'a' : 'b'] = n;
+        const da = Math.hypot(n[0] - s.a[0], n[1] - s.a[1]);
+        const db = Math.hypot(n[0] - s.b[0], n[1] - s.b[1]);
+        s[da < db ? 'a' : 'b'] = n;
       }
       selected = null;
       vibrate();
@@ -403,7 +506,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     function setPoint(hit, n) {
       if (hit.kind === 'hole') st.groups[hit.g].holes[hit.i] = n;
       else if (hit.kind === 'poa') st.poa = n;
-      else st.scale[hit.kind] = n;
+      else { const [l, end] = END[hit.kind]; st[l][end] = n; }
     }
     /** Мітка поточного режиму під пальцем. */
     function hitTest(at) {
@@ -411,7 +514,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         ? st.groups[active].holes.map((p, i) => ({ kind: 'hole', g: active, i, p }))
         : mode === 'poa'
           ? (st.poa ? [{ kind: 'poa', p: st.poa }] : [])
-          : ['a', 'b'].filter((k) => st.scale[k]).map((k) => ({ kind: k, p: st.scale[k] }));
+          : Object.entries(END).filter(([, [l, end]]) => l === line && st[l][end]).map(([kind, [l, end]]) => ({ kind, p: st[l][end] }));
       let best = null;
       for (const item of list) {
         const [x, y] = toScreen(item.p);
@@ -524,6 +627,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     };
     const save = () => close({
       scale: st.scale.a || st.scale.b ? st.scale : (st.scale.mm ? { a: null, b: null, mm: st.scale.mm } : null),
+      scale2: st.scale2.a || st.scale2.b ? st.scale2 : null,
       poa: st.poa,
       groups: st.groups.filter((g) => g.holes.length),
     });

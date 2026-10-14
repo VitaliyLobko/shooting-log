@@ -1,8 +1,8 @@
 {
-  "name": "Shooting Log — учёт БК и настрела",
-  "short_name": "Настрел",
-  "description": "Учёт боеприпасов, настрела по стволам и рецептов снаряжения",
-  "lang": "ru",
+  "name": "Shooting Log — облік БК і настрілу",
+  "short_name": "Настріл",
+  "description": "Облік боєприпасів, настрілу по стволах і рецептів спорядження",
+  "lang": "uk",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

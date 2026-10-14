@@ -1,10 +1,11 @@
 // Залишки й настріл не зберігаються — завжди рахуються з журналу рухів.
 //
 // movement: { id, batch, date, kind, qty, caliber, cartridgeId?, componentId?,
-//             weaponId?, recipeId?, price?, note? }
+//             weaponId?, recipeId?, price?, note?, foreignWeapon?, foreignWeaponName?, foreignAmmo? }
 //   kind: buy | shot | reload | consume | adjust
 //   qty: зі знаком, у штуках патронів або в одиницях компонента.
-//   shot без cartridgeId — історичний запис: рахується в настріл, але не в залишок БК.
+//   shot без cartridgeId — історичний запис або чужі набої (foreignAmmo): рахується в настріл, але не в залишок БК.
+//   foreignWeapon — стріляли з чужої зброї: у загальний настріл, але не в настріл своїх стволів.
 // Підписи нижче — ключі перекладу, на екран вони йдуть через t().
 import { collate } from './i18n.js';
 
@@ -62,15 +63,66 @@ export function cleanings(state, weapon) {
 
 /**
  * Стан чистки. Без інтервалу due — є постріли після останньої чистки;
- * з інтервалом cleanEvery — постріли після чистки досягли інтервалу.
+ * з інтервалом cleanEvery — після чистки набралося стільки пострілів або стрільб
+ * (cleanUnit 'sessions'; стрільба — день, коли зі ствола стріляли). count — у тих самих одиницях.
+ * Відстрочка cleanDelay (днів): reached — чистити вже треба, а due настає через стільки днів
+ * після останньої стрільби (dueDate), якщо ствол так і не почистили.
  */
 export function cleaningStatus(state, weapon) {
   const last = cleanings(state, weapon)[0] ?? null;
   const shots = state.movements.filter((m) => m.kind === 'shot' && m.weaponId === weapon.id && (!last || later(m, last)));
   const since = Math.max(0, -sumBy(shots, () => true));
+  const dates = new Set(shots.map((m) => m.date ?? ''));
+  const unit = weapon.cleanUnit === 'sessions' ? 'sessions' : 'shots';
+  const count = unit === 'sessions' ? dates.size : since;
   const every = Number(weapon.cleanEvery) || 0;
+  const delay = Number(weapon.cleanDelay) || 0;
   const lastShot = shots.map((m) => m.date).filter(Boolean).sort().pop() ?? null;
-  return { last, since, every, lastShot, due: every > 0 ? since >= every : since > 0 };
+  const reached = every > 0 ? count >= every : since > 0;
+  const dueDate = reached && delay && lastShot ? addDays(lastShot, delay) : null;
+  const due = reached && (!dueDate || today() >= dueDate);
+  return { last, since, dates, unit, count, every, delay, lastShot, reached, due, dueDate };
+}
+
+/** Дата 'YYYY-MM-DD' плюс n днів; рахунок в UTC, щоб перехід на літній час не зсував день. */
+export function addDays(date, n) {
+  const d = new Date(Date.parse(date) + n * 864e5);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Прицел для запису стрільби: позначений «за замовчуванням», а якщо прицел один — він. */
+export function defaultScope(weapon) {
+  const scopes = weapon?.scopes ?? [];
+  return scopes.find((s) => s.default) ?? (scopes.length === 1 ? scopes[0] : null);
+}
+
+/**
+ * Загальний настріл: усі записи стрільби (будь-який калібр, зі стволом чи без) і настріл до обліку.
+ * Розбивка: foreign — з чужої зброї, noGun — ствол не вказано, own — свої стволи (з настрілом до обліку).
+ */
+export function totalShots(state) {
+  const fired = -sumBy(state.movements, (m) => m.kind === 'shot');
+  const initial = state.weapons.reduce((sum, w) => sum + (Number(w.initialShots) || 0), 0);
+  const foreign = -sumBy(state.movements, (m) => m.kind === 'shot' && !m.weaponId && m.foreignWeapon);
+  const noGun = -sumBy(state.movements, (m) => m.kind === 'shot' && !m.weaponId && !m.foreignWeapon);
+  const total = fired + initial;
+  return { fired, initial, total, foreign, noGun, own: total - foreign - noGun };
+}
+
+/**
+ * Середній настріл за виїзд (день зі стрільбою) за останні last виїздів; pred відбирає записи.
+ * null — менше двох виїздів, середнє ще нічого не каже.
+ */
+export function perSession(state, pred = () => true, last = 10) {
+  const byDate = new Map();
+  for (const m of state.movements) {
+    if (m.kind !== 'shot' || !m.date || !pred(m)) continue;
+    byDate.set(m.date, (byDate.get(m.date) ?? 0) - (Number(m.qty) || 0));
+  }
+  const days = [...byDate].sort((a, b) => b[0].localeCompare(a[0])).slice(0, last);
+  if (days.length < 2) return null;
+  const avg = days.reduce((sum, [, n]) => sum + n, 0) / days.length;
+  return avg > 0 ? avg : null;
 }
 
 // Орієнтовний ресурс ствола до втрати купчастості, пострілів. Довідково: хромований ствол
@@ -118,7 +170,7 @@ export function sameCaliber(a, b) {
   return !a || !b || caliberKey(a) === caliberKey(b);
 }
 
-/** Настріл із журналу: калібр → загалом і по кожному стволу (weaponId null — ствол не вказано). */
+/** Настріл із журналу: калібр → загалом і по кожному стволу (null — ствол не вказано, 'foreign:Назва' — чужа зброя). */
 export function shotsByCaliber(state) {
   const totals = new Map();
   for (const m of state.movements) {
@@ -126,7 +178,8 @@ export function shotsByCaliber(state) {
     const n = -(Number(m.qty) || 0);
     const row = totals.get(m.caliber) ?? { caliber: m.caliber, total: 0, weapons: new Map() };
     row.total += n;
-    row.weapons.set(m.weaponId ?? null, (row.weapons.get(m.weaponId ?? null) ?? 0) + n);
+    const gun = m.weaponId ?? (m.foreignWeapon ? `foreign:${m.foreignWeaponName?.trim() ?? ''}` : null);
+    row.weapons.set(gun, (row.weapons.get(gun) ?? 0) + n);
     totals.set(m.caliber, row);
   }
   return [...totals.values()]
@@ -231,10 +284,78 @@ export function toAngle(mm, distance, unit) {
   return unit === 'moa' ? mm / (distance * MM_PER_MOA_AT_1M) : mm / distance;
 }
 
-/** Ціна клацання з ключа виду 'mil0.1' чи 'moa0.25'. */
+/** Ціна клацання з ключа виду 'mil0.1', 'moa0.25' чи 'mm13' (мм на 100 м — у мрад, 13 мм = 0,13 мрад). */
 export function clickValue(key) {
-  const m = /^(mil|moa)([\d.]+)$/.exec(key ?? '');
-  return m ? { unit: m[1], value: Number(m[2]) } : null;
+  const m = /^(mil|moa|mm)([\d.]+)$/.exec(key ?? '');
+  if (!m) return null;
+  return m[1] === 'mm' ? { unit: 'mil', value: Number(m[2]) / 100 } : { unit: m[1], value: Number(m[2]) };
+}
+
+// ---------- таймер ----------
+
+/**
+ * Підсумок серії таймера; shots — секунди від сигналу. first — реакція й перший постріл, total — останній,
+ * splits — інтервали між сусідніми, avg — середній інтервал, best — найкоротший.
+ */
+export function drillStats(shots) {
+  const list = [...(shots ?? [])].sort((a, b) => a - b);
+  const splits = list.slice(1).map((x, i) => x - list[i]);
+  return {
+    n: list.length,
+    first: list[0] ?? null,
+    total: list.at(-1) ?? null,
+    splits,
+    best: splits.length ? Math.min(...splits) : null,
+    avg: splits.length ? (list.at(-1) - list[0]) / splits.length : null,
+  };
+}
+
+// ---------- DOPE ----------
+
+/**
+ * Кут у мрад з одиниць unit: 'mil', 'moa', 'cm' (на дистанції distance) або ключ ціни клацання ('mil0.1',
+ * 'moa0.25', 'mm13') — тоді value є кількістю клацань. null — не перевести (см без дистанції, невідомий ключ).
+ */
+export function toMrad(value, unit, distance) {
+  if (unit === 'mil') return value;
+  if (unit === 'moa') return value * MM_PER_MOA_AT_1M;
+  if (unit === 'cm') return distance > 0 ? (value * 10) / distance : null;
+  const c = clickValue(unit);
+  return c ? toMrad(value * c.value, c.unit, distance) : null;
+}
+
+/** Обернене до toMrad: мрад → одиниці unit (для ключа клацання — дробова кількість клацань). */
+export function fromMrad(mrad, unit, distance) {
+  if (unit === 'mil') return mrad;
+  if (unit === 'moa') return mrad / MM_PER_MOA_AT_1M;
+  if (unit === 'cm') return distance > 0 ? (mrad * distance) / 10 : null;
+  const c = clickValue(unit);
+  return c ? fromMrad(mrad, c.unit, distance) / c.value : null;
+}
+
+/**
+ * Рядки DOPE за дистанцією; дистанція пристрілки прицілу — рядок з нулем, якщо його не вписали
+ * (zero: true — щоб показати, що він не з таблиці).
+ */
+export function dopeRows(rows, zero = null) {
+  const list = [...(rows ?? [])];
+  if (zero > 0 && !list.some((r) => r.distance === zero)) list.push({ distance: zero, mrad: 0, zero: true });
+  return list.sort((a, b) => a.distance - b.distance);
+}
+
+/**
+ * Поправка на довільну дистанцію: лінійно між сусідніми рядками. За межами таблиці — null:
+ * траєкторія не пряма, тож вгадувати далі останнього рядка не беремося.
+ */
+export function dopeAt(rows, distance, zero = null) {
+  const list = dopeRows(rows, zero);
+  const exact = list.find((r) => r.distance === distance);
+  if (exact) return exact.mrad;
+  for (let i = 1; i < list.length; i += 1) {
+    const [a, b] = [list[i - 1], list[i]];
+    if (a.distance < distance && distance < b.distance) return a.mrad + ((b.mrad - a.mrad) * (distance - a.distance)) / (b.distance - a.distance);
+  }
+  return null;
 }
 
 /** Масштаб фото мішені, мм на піксель: дві точки (частки ширини й висоти) і відстань між ними. */
@@ -242,6 +363,27 @@ export function mmPerPx(scale, photo) {
   if (!scale?.a || !scale?.b || !(scale.mm > 0) || !photo?.w || !photo?.h) return null;
   const d = Math.hypot((scale.a[0] - scale.b[0]) * photo.w, (scale.a[1] - scale.b[1]) * photo.h);
   return d > 0 ? scale.mm / d : null;
+}
+
+/**
+ * Масштаб по осях, мм на піксель: { x, y, two }. Одна лінія — однаковий по обох осях. Друга, поперечна,
+ * рахує висоту окремо (фото під кутом стискає мішень по одній осі): для лінії з проєкціями dx, dy
+ * і довжиною L маємо L² = x²·dx² + y²·dy², дві лінії — система з двох рівнянь. two — другу лінію враховано.
+ */
+export function scaleXY(scale, scale2, photo) {
+  const k = mmPerPx(scale, photo);
+  if (!k) return null;
+  const same = { x: k, y: k, two: false };
+  if (!mmPerPx(scale2, photo)) return same;
+  const line = (s) => [((s.a[0] - s.b[0]) * photo.w) ** 2, ((s.a[1] - s.b[1]) * photo.h) ** 2, s.mm ** 2];
+  const [x1, y1, l1] = line(scale);
+  const [x2, y2, l2] = line(scale2);
+  const det = x1 * y2 - x2 * y1;
+  // лінії майже паралельні — друга нічого не уточнює
+  if (Math.abs(det) < 0.1 * (x1 + y1) * (x2 + y2)) return same;
+  const xx = (l1 * y2 - l2 * y1) / det;
+  const yy = (x1 * l2 - x2 * l1) / det;
+  return xx > 0 && yy > 0 ? { x: Math.sqrt(xx), y: Math.sqrt(yy), two: true } : same;
 }
 
 /**
@@ -273,12 +415,53 @@ export function groupStats(points, aim = null) {
 
 /** Статистика кожної групи мішені; stats null — немає масштабу або пробоїн. */
 export function targetStats(target, photo) {
-  const k = mmPerPx(target.scale, photo);
-  const toMm = (p) => [p[0] * photo.w * k, p[1] * photo.h * k];
+  const k = scaleXY(target.scale, target.scale2, photo);
+  const toMm = (p) => [p[0] * photo.w * k.x, p[1] * photo.h * k.y];
   const aim = k && target.poa ? toMm(target.poa) : null;
   return (target.groups ?? []).map((g, index) => ({
     index, holes: g.holes, stats: k && g.holes.length ? groupStats(g.holes.map(toMm), aim) : null,
   }));
+}
+
+/** Найменше пробоїн у групі, щоб порівнювати набої: з двох розмах — випадковість. */
+export const PRECISION_MIN_HOLES = 3;
+
+/**
+ * Кучність набоїв одного ствола за розміченими мішенями. Мішені на різних дистанціях зводяться до 100 м
+ * (кут той самий: мм × 100 / дистанція), тож усі розміри — мм на 100 м. Для кожного набою:
+ * { cartridgeId, groups, shots, meanRadius, spread, best, offset, targets }; meanRadius і spread — середні
+ * по групах, best — найменший розмах, offset — середнє зміщення СТП [x праворуч, y вгору] або null.
+ * Порядок — за середнім радіусом: він бере всі пробоїни, а не дві крайні, і менше залежить від кількості
+ * пострілів у групі, ніж розмах.
+ */
+export function ammoPrecision(targets, photos) {
+  const byCartridge = new Map();
+  for (const tg of targets) {
+    const photo = photos.find((p) => p.id === tg.photoId);
+    if (!tg.cartridgeId || !(tg.distance > 0) || !photo) continue;
+    const k = 100 / tg.distance;
+    for (const g of targetStats(tg, photo)) {
+      if (!g.stats || g.stats.n < PRECISION_MIN_HOLES) continue;
+      const row = byCartridge.get(tg.cartridgeId) ?? { cartridgeId: tg.cartridgeId, list: [], targets: new Set() };
+      row.list.push({ ...g.stats, k });
+      row.targets.add(tg.id);
+      byCartridge.set(tg.cartridgeId, row);
+    }
+  }
+  const avg = (list, fn) => list.reduce((s, x) => s + fn(x), 0) / list.length;
+  return [...byCartridge.values()].map(({ cartridgeId, list, targets: ids }) => {
+    const shifted = list.filter((s) => s.offset);
+    return {
+      cartridgeId,
+      groups: list.length,
+      shots: list.reduce((s, x) => s + x.n, 0),
+      meanRadius: avg(list, (s) => s.meanRadius * s.k),
+      spread: avg(list, (s) => s.spread * s.k),
+      best: Math.min(...list.map((s) => s.spread * s.k)),
+      offset: shifted.length ? [avg(shifted, (s) => s.offset[0] * s.k), avg(shifted, (s) => s.offset[1] * s.k)] : null,
+      targets: [...ids],
+    };
+  }).sort((a, b) => a.meanRadius - b.meanRadius);
 }
 
 export function calibers(state) {
@@ -293,6 +476,29 @@ export function today() {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 10);
+}
+
+// ---------- дозвіл на зброю ----------
+
+/**
+ * Строк дії дозволу на сьогодні або null без дати «діє до». days — днів до кінця (0 — останній день,
+ * менше — прострочено), months — цілих місяців до кінця, level — over (менше місяця або вже скінчився),
+ * warn (1–3 місяці), ok (від 3), left — яка частка строку ще лишилася (від дати видачі; без неї — від року).
+ */
+export function permitStatus(permit, day = today()) {
+  if (!permit?.expires) return null;
+  const end = Date.parse(permit.expires);
+  const now = Date.parse(day);
+  const plus = (n) => { const d = new Date(now); d.setUTCMonth(d.getUTCMonth() + n); return d.getTime(); };
+  let months = 0;
+  while (months < 600 && plus(months + 1) <= end) months += 1;
+  const start = permit.issued ? Date.parse(permit.issued) : end - 365 * 86_400_000;
+  return {
+    days: Math.round((end - now) / 86_400_000),
+    months,
+    level: end < plus(1) ? 'over' : end < plus(3) ? 'warn' : 'ok',
+    left: Math.max(0, Math.min(1, (end - now) / Math.max(1, end - start))),
+  };
 }
 
 export function byDateDesc(a, b) {
