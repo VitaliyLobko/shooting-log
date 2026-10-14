@@ -43,19 +43,39 @@ export function vibrate(ms = 12) {
 }
 
 /** Нижня шторка. Повертає close(). */
-export function sheet(title, body, { actions = [], onClose } = {}) {
+// Відкриті «живі» шторки: картка під іншою шторкою має побачити, що там змінили чи видалили.
+const liveSheets = new Set();
+
+/** Перебудовує відкриті живі шторки за свіжим станом; live() поверне null — запису вже нема, шторка закривається. */
+export function refreshSheets() {
+  for (const s of [...liveSheets]) s();
+}
+
+/** live — функція, що будує тіло заново; з нею шторка оновлюється після refreshSheets(). */
+export function sheet(title, body, { actions = [], onClose, live, tools = [] } = {}) {
   const layer = document.getElementById('layer');
   const close = () => {
+    liveSheets.delete(rebuild);
     backdrop.classList.remove('open');
     setTimeout(() => backdrop.remove(), 180);
     window.removeEventListener('popstate', close);
     onClose?.();
   };
+  const rebuild = () => {
+    const next = live();
+    if (!next) { close(); return; }
+    const box = panel.querySelector('.sheet-body');
+    const top = box.scrollTop;
+    box.replaceChildren(next);
+    box.scrollTop = top;
+  };
+  if (live) liveSheets.add(rebuild);
   const panel = h('section', { class: 'sheet', role: 'dialog', 'aria-label': title },
     h('div', { class: 'sheet-grip' }),
     h('header', { class: 'sheet-head' },
       h('h2', {}, title),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕')),
+      h('div', { class: 'sheet-tools' }, tools,
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕'))),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);
   // Закривати лише якщо й натиск почався на фоні: інакше на сенсорному екрані «фантомний» клік
@@ -90,7 +110,8 @@ export function selectOptions(options, selected) {
 }
 
 /**
- * Проста форма. fields: [{ name, label, type, value, options, required, step, min, list, hint }]
+ * Проста форма. fields: [{ name, label, type, value, options, required, step, min, list, hint, half }]
+ * half — поле на пів рядка: два такі поля поспіль стають в одну строку.
  * type: text | number | date | select | textarea | chips
  */
 export function form(fields) {
@@ -105,6 +126,8 @@ export function form(fields) {
       input.value = f.value ?? '';
     } else if (f.type === 'chips') {
       input = chips(f.options, f.value, f.onPick);
+    } else if (f.type === 'dmy') {
+      input = dmyInput(f.value);
     } else {
       input = h('input', {
         name: f.name, type: f.type ?? 'text', step: f.step, min: f.min, list: f.list,
@@ -114,7 +137,7 @@ export function form(fields) {
       input.value = f.value ?? '';
     }
     inputs[f.name] = input;
-    el.append(h('label', { class: `field ${f.wide ? 'wide' : ''}` },
+    el.append(h('label', { class: `field ${f.wide ? 'wide' : ''} ${f.half ? 'half' : ''}` },
       f.label ? h('span', { class: 'field-label' }, f.label) : null, input,
       f.hint ? h('small', { class: 'muted' }, f.hint) : null));
   }
@@ -124,15 +147,52 @@ export function form(fields) {
       const input = inputs[f.name];
       let v = input.value;
       if (f.type === 'number') v = v === '' ? null : Number(String(v).replace(',', '.'));
+      if (f.type === 'dmy') v = dmyToIso(v) ?? (v.trim() ? NaN : '');
       out[f.name] = typeof v === 'string' ? v.trim() : v;
     }
     return out;
   };
   const invalid = () => fields.find((f) => {
     const v = values()[f.name];
-    return (f.required && (v === '' || v === null)) || (f.type === 'number' && v !== null && Number.isNaN(v));
+    return (f.required && (v === '' || v === null)) || ((f.type === 'number' || f.type === 'dmy') && Number.isNaN(v));
   });
   return { el, inputs, values, invalid };
+}
+
+/** «2026-11-03» → «03.11.2026». */
+export function isoToDmy(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+
+/** «03.11.2026» або «3.11.26» → «2026-11-03»; null — не дата (31.02 теж). */
+export function dmyToIso(text) {
+  const m = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/.exec(String(text ?? '').trim());
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3].length === 2 ? `20${m[3]}` : m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Дата цифрами замість календаря: на роки вперед чи назад календар гортає місяць за місяцем.
+ * Крапки ставляться самі: 03112026 → 03.11.2026; рік можна двома цифрами.
+ */
+function dmyInput(iso) {
+  const input = h('input', { type: 'text', inputmode: 'numeric', placeholder: t('ДД.ММ.ГГГГ'), maxlength: 10, autocomplete: 'off', class: 'dmy' });
+  input.value = isoToDmy(iso);
+  input.addEventListener('input', () => {
+    // Частина перед роздільником завершена: «3.» — це день 03, а не початок «31»
+    const parts = input.value.split(/\D+/);
+    let d = '';
+    parts.forEach((p, i) => { d += i < parts.length - 1 && p.length === 1 && d.length < 4 ? `0${p}` : p; });
+    d = d.slice(0, 8);
+    input.value = d.slice(0, 2) + (d.length > 2 ? `.${d.slice(2, 4)}` : '') + (d.length > 4 ? `.${d.slice(4)}` : '');
+  });
+  // Вийшли з поля — рік повністю: 14.10.23 → 14.10.2023
+  input.addEventListener('blur', () => { const iso = dmyToIso(input.value); if (iso) input.value = isoToDmy(iso); });
+  return input;
 }
 
 /** Ряд кнопок-чипів; клік вставляє значення. Повертає контейнер з полем .value. */

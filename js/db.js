@@ -3,8 +3,8 @@
 // це потрібно, щоб синхронізація з Google Диском зливала зміни без втрат.
 // Файли фото лежать окремо в blobs: вони не входять у JSON синхронізації й резервної копії.
 const DB_NAME = 'shooting-log';
-const DB_VERSION = 4;
-export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets'];
+const DB_VERSION = 5;
+export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills'];
 const ALL = [...STORES, 'tombstones'];
 const BLOBS = 'blobs';
 
@@ -19,8 +19,14 @@ function open() {
         if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'id' });
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    // Нову версію бази відкрили в іншій вкладці — віддаємо з'єднання, інакше там оновлення зависне
+    req.onsuccess = () => {
+      req.result.onversionchange = () => { req.result.close(); location.reload(); };
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
+    // Стара вкладка тримає попередню версію (без обробника вище) — без підказки застосунок мовчки порожній
+    req.onblocked = () => window.dispatchEvent(new Event('db-blocked'));
   });
   return opening;
 }
@@ -111,6 +117,31 @@ export function writeMerged(changes) {
       }
     }
   });
+}
+
+/**
+ * «Объединить» з резервної копії: запис із файлу лягає, лише якщо він новіший за локальний
+ * і за надгробок — стара копія не відкочує пізніші правки й не воскрешає видалене.
+ */
+export async function mergeImport(changes) {
+  const names = Object.keys(changes).filter((n) => STORES.includes(n));
+  await run([...names, 'tombstones'], 'readwrite', (tx) => {
+    const graves = tx.objectStore('tombstones');
+    for (const name of names) {
+      const store = tx.objectStore(name);
+      for (const obj of changes[name].put ?? []) {
+        store.get(obj.id).onsuccess = (e) => {
+          const mine = e.target.result;
+          if (mine) {
+            if (stamp(mine) < stamp(obj)) store.put(obj);
+            return;
+          }
+          graves.get(obj.id).onsuccess = (g) => { if (!g.target.result || stamp(g.target.result) < stamp(obj)) store.put(obj); };
+        };
+      }
+    }
+  });
+  window.dispatchEvent(new Event('db-change'));
 }
 
 export async function getBlob(id) {

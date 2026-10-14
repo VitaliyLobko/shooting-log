@@ -17,6 +17,17 @@
   --radius: 16px;
   --tabs-h: 64px;
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 6px 16px rgb(0 0 0 / .22);
+  /* силуети зброї на плитці: сталь, пластик, дерево, дрібні деталі */
+  --gun-steel-1: #f5f7f9;
+  --gun-steel-2: #b7bfc7;
+  --gun-steel-3: #6b737b;
+  --gun-poly-1: #7f8891;
+  --gun-poly-2: #454c53;
+  --gun-wood-1: #d39a62;
+  --gun-wood-2: #7f4c23;
+  --gun-mag: #b5612a;
+  --gun-detail: rgb(0 0 0 / .45);
+  --gun-glass: #93d3ff;
   color-scheme: dark;
 }
 
@@ -73,7 +84,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .topbar > * { max-width: 688px; margin-inline: auto; }
 .topbar h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
-.topbar #subtitle { font-size: 13px; min-height: 18px; }
+.topbar #subtitle { font-size: 15px; min-height: 20px; }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .topbar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .app-icon { width: 30px; height: 30px; flex: none; border-radius: 8px; object-fit: cover; }
@@ -91,6 +102,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .sync-chip[hidden] { display: none; }
+.topbar-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.gear {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.gear svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.gear.active { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
 .sync-chip.idle { color: var(--buy); }
 .sync-chip.auth { color: var(--accent); border-color: var(--accent); }
 .sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
@@ -139,6 +163,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .hero.accent .hero-value { color: var(--accent-2); }
+/* Підсумок з рівнем: текст ліворуч, картинка рівня праворуч. */
+.hero.lv { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.hero.lv .hero-value { font-size: 40px; }
+.lv-art { width: 96px; height: 76px; }
+.lv-art svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 3px rgb(0 0 0 / .4)); }
+.lv-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.lv-wide { grid-column: 1 / -1; margin-top: -4px; }
+.lv-wide > span { white-space: nowrap; }
 .hero-unit { font-size: 18px; font-weight: 600; color: var(--muted); }
 .hero-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .hero-split { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -155,6 +187,24 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .pill b { font-variant-numeric: tabular-nums; }
+
+/* Іконка набою: плитка кольору калібру, набій навскіс. */
+.ammo-ico { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 40% 28%), hsl(var(--h) 30% 12%) 75%);
+  border: 1px solid hsl(var(--h) 35% 30%); }
+:root[data-theme="light"] .ammo-ico {
+  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 55% 90%), hsl(var(--h) 40% 76%) 75%);
+  border-color: hsl(var(--h) 35% 70%); }
+.ammo-ico svg { width: auto; height: 40px; transform: rotate(-28deg); filter: drop-shadow(2px 3px 2px rgb(0 0 0 / .5)); }
+.ammo-ico svg.pistol { height: 31px; }
+.ammo-ico svg.rimfire { height: 26px; }
+.ammo-ico svg.shot { height: 37px; }
+/* у заголовку групи калібру — менша */
+:is(.fold-head, .shots-head) .ammo-ico { width: 32px; height: 32px; border-radius: 10px; }
+:is(.fold-head, .shots-head) .ammo-ico svg { height: 27px; }
+:is(.fold-head, .shots-head) .ammo-ico svg.pistol { height: 21px; }
+:is(.fold-head, .shots-head) .ammo-ico svg.rimfire { height: 18px; }
+:is(.fold-head, .shots-head) .ammo-ico svg.shot { height: 25px; }
 
 /* --- групи, що згортаються --- */
 .group { margin-bottom: 18px; }
@@ -192,11 +242,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: relative;
   transition: transform .18s ease;
 }
+/* Квадрат 8×8 з двома рамками, повернутий на −45°: видимий «>» лежить правіше його центру,
+   тож квадрат зсунуто ліворуч — по центру кружка опиняється сама стрілка. */
 .chevron::before {
   content: "";
   position: absolute;
-  left: 8px;
-  top: 6px;
+  left: 5px;
+  top: 7px;
   width: 6px;
   height: 6px;
   border-right: 2px solid var(--muted);
@@ -216,10 +268,44 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.fold-stack { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.fold-sum.stack { display: flex; flex-direction: column; align-items: flex-end; padding: 4px 10px; border-radius: 10px; line-height: 1.2; }
+.fold-sum.stack .fold-cost { margin: 0; padding: 0; border: 0; font-size: 12px; font-weight: 600; opacity: .85; }
 .fold-body { padding-top: 2px; }
+/* БК і рецепти: позиції калібру — одним блоком, рядками через лінію, без окремої рамки й тіні в кожної */
+.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body {
+  margin-top: 2px;
+  padding-top: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card { margin: 0; border-radius: 0; }
+.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card .swipe-body {
+  min-height: 54px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--surface);
+}
+.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card + .card .swipe-body { border-top: 1px solid var(--line-soft); }
+.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body .big { font-size: 22px; }
 .fold-cost { margin-left: 8px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
 .cost-line { grid-column: 1 / -1; margin-top: -4px; color: var(--accent-2); font-weight: 600; }
 .cost-line:empty { display: none; }
+.caliber-warn {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--shoot);
+  background: color-mix(in srgb, var(--shoot) 12%, transparent);
+  font-weight: 600;
+}
+.caliber-warn[hidden] { display: none; }
 
 /* --- картки зі свайпом --- */
 .card {
@@ -286,15 +372,56 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
-.thumb.placeholder { display: grid; place-items: center; color: var(--muted); }
-.thumb.placeholder svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; opacity: .7; }
+/* Заглушка без фото: силует за типом навскіс через плитку кольору калібру (--h). */
+.gun-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 30% 20%, hsl(var(--h) 60% 62% / .35), transparent 70%),
+    radial-gradient(130% 100% at 25% 15%, hsl(var(--h) 42% 32%), hsl(var(--h) 38% 12%) 78%);
+  border-color: hsl(var(--h) 35% 32%);
+}
+:root[data-theme="light"] .gun-tile {
+  background:
+    radial-gradient(90% 70% at 30% 20%, hsl(var(--h) 70% 75% / .4), transparent 70%),
+    radial-gradient(130% 100% at 25% 15%, hsl(var(--h) 40% 46%), hsl(var(--h) 40% 24%) 78%);
+  border-color: hsl(var(--h) 35% 40%);
+}
+.gun-tile svg {
+  width: 76px;
+  height: auto;
+  flex: none;
+  transform: rotate(-33deg);
+  filter: drop-shadow(0 0 .5px rgb(255 255 255 / .45)) drop-shadow(1px 3px 2px rgb(0 0 0 / .6));
+}
+.gun-tile.pistol svg { width: 50px; transform: rotate(-6deg) translate(1px, 1px); }
+.gun-tile.shotgun svg { width: 80px; }
 
 .progress { margin-top: 8px; }
-.progress-label { display: flex; justify-content: space-between; }
+.progress-label { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; }
+.progress-label > span { white-space: nowrap; }
+.progress-label > span:last-child { margin-left: auto; }
 .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 3px; }
 .fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--buy), color-mix(in srgb, var(--buy) 70%, #fff)); }
 .fill.warn { background: var(--warn); }
 .fill.over { background: var(--shoot); }
+.fill.ap { background: var(--muted); }
+.ap-row .row-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ap-row .bar { margin-top: 6px; }
+.progress.inline { display: grid; grid-template-columns: auto minmax(32px, 1fr) auto; align-items: center; column-gap: 10px; margin-top: 6px; }
+.progress.inline > span { white-space: nowrap; }
+.progress.inline .bar { margin-top: 0; }
+.swipe-body.wrap { flex-wrap: wrap; row-gap: 10px; }
+.card-foot { flex-basis: 100%; min-width: 0; }
+/* Показники — спільна сітка: смуги всіх рядків починаються з одного місця. */
+.meters { display: grid; grid-template-columns: auto minmax(32px, 1fr) auto; align-items: center; gap: 6px 10px; }
+.meters > .progress.inline { display: contents; }
+.meters > .badge { grid-column: 1 / -1; justify-self: end; margin-top: 0; }
+/* Плитки одним рядом порівну, скільки б їх не було. */
+.stats.even { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.stats.even .stat-value { font-size: 20px; overflow-wrap: anywhere; }
 
 /* --- стан чистки, підказки --- */
 .badge {
@@ -307,6 +434,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .badge.ok { color: var(--muted); background: var(--surface-2); font-weight: 500; }
 .badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .badge.danger { color: var(--shoot); background: color-mix(in srgb, var(--shoot) 14%, transparent); }
+.clean-due { color: var(--shoot); font-weight: 700; }
+.clean-wait { color: var(--warn); font-weight: 600; }
 .stat.warn .stat-value { color: var(--warn); }
 .hint-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -4px; }
 .btn.mini { min-height: 34px; padding: 6px 12px; font-size: 13px; border-radius: 10px; }
@@ -321,6 +450,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* --- журнал --- */
 .rows { display: flex; flex-direction: column; gap: 6px; }
+.doc-urgent { margin: 12px 0; }
 .row {
   display: flex;
   align-items: center;
@@ -353,23 +483,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .row-title { font-weight: 600; overflow-wrap: anywhere; }
 .row-qty { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.shots-cal { padding: 8px 0; border-top: 1px solid var(--line-soft); }
-.shots-cal:first-of-type { border-top: 0; padding-top: 0; }
-.shots-head { display: flex; justify-content: space-between; font-weight: 700; }
-.shots-head b { color: var(--accent-2); font-variant-numeric: tabular-nums; }
+/* Настріл за калібрами: калібр зі значком і часткою, під ним стволи зі смужками. */
+.shots-cal { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.shots-cal:first-child { border-top: 0; padding-top: 6px; }
+.shots-head { display: flex; align-items: center; gap: 10px; }
+.shots-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; font-weight: 800; overflow-wrap: anywhere; }
+.shots-head b { font-size: 18px; font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .shots-gun {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 2px 10px;
-  padding: 4px 0 0 12px;
+  gap: 3px 10px;
+  padding: 8px 0 0 42px;
 }
-.shots-gun span:nth-child(2) { font-variant-numeric: tabular-nums; }
+.shots-gun span:nth-child(2) { font-weight: 600; font-variant-numeric: tabular-nums; }
 .shots-bar {
   grid-column: 1 / -1;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent) var(--w), var(--surface-2) var(--w));
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--w), color-mix(in srgb, var(--muted) 18%, transparent) var(--w));
 }
+.shots-note { margin: 6px 0 0; }
 .log-gun {
   width: 100%;
   min-height: 44px;
@@ -379,6 +512,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   background: var(--surface);
 }
+
+/* Блок із заголовком на лінії рамки (fieldset + legend, як в 1С). */
+.box { min-width: 0; margin: 16px 0 12px; padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.box > legend { padding: 0 6px; margin-left: -4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.box > .muted:last-child, .box-body > .muted:last-child { margin: 4px 0 0; }
+/* Рядки всередині блоку — без власних рамок, розділені лінією: рамка вже є в блоку. */
+.box .rows { gap: 0; }
+.box .row { padding: 10px 2px; border: 0; border-radius: 0; background: none; }
+.box .row + .row { border-top: 1px solid var(--line-soft); }
+/* Згорнутий блок — лише заголовок на лінії, без рамки навколо порожнечі. */
+.box.closed { padding: 0; border-width: 1px 0 0; border-radius: 0; }
+.box.closed > legend { margin-left: 0; padding-left: 0; }
+.box.closed > .box-body { display: none; }
+.box-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.box-chevron { display: inline-block; font-size: 16px; line-height: 1; transform: rotate(90deg); transition: transform .15s; }
+.box.closed .box-chevron { transform: none; }
+.box-count { padding: 0 7px; border-radius: 9px; background: var(--surface-2); font-weight: 600; letter-spacing: 0; }
 
 .panel {
   margin-bottom: 14px;
@@ -579,6 +729,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form > .chips { grid-column: 1 / -1; margin-top: -4px; }
 .field { display: flex; flex-direction: column; gap: 4px; grid-column: 1 / -1; }
+.field.half { grid-column: span 1; min-width: 0; justify-content: flex-end; }
+/* Нагадування про чистку у формі зброї. */
+.remind { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.remind-field { display: flex; flex-direction: column; gap: 4px; }
+.remind-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.remind-row .chips { margin: 0; }
+.remind-num { width: 64px; min-height: 40px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; text-align: center; }
+.remind-num:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.remind-sum { margin: 2px 0 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--clean) 12%, transparent); color: var(--text); line-height: 1.35; }
 .field-label { font-size: 13px; color: var(--muted); }
 .field input, .field select, .field textarea, .item-row select, .item-row input {
   width: 100%;
@@ -598,7 +757,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row {
   display: grid;
   grid-template-columns: 1fr 1fr 40px;
-  grid-template-areas: "name name del" "kind zero zero" "note note note";
+  grid-template-areas: "name name del" "kind ret ret" "zero click click" "note note note" "def def def";
   gap: 6px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -607,8 +766,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row .sc-name { grid-area: name; }
 .scope-row .sc-del { grid-area: del; align-self: center; }
 .scope-row .sc-kind { grid-area: kind; }
+.scope-row .sc-ret { grid-area: ret; }
 .scope-row .sc-zero { grid-area: zero; }
+.scope-row .sc-click { grid-area: click; }
 .scope-row .sc-note { grid-area: note; }
+.scope-row .sc-def { grid-area: def; display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
+.scope-row .sc-def input { width: 20px; min-height: 20px; height: 20px; padding: 0; accent-color: var(--accent); }
+.scope.default .scope-mark { color: var(--accent-2); }
+.field[hidden] { display: none; }
 .scope-row input, .scope-row select {
   width: 100%;
   min-height: 44px;
@@ -677,6 +842,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   stroke-linecap: round;
   transition: background .15s ease;
 }
+/* Довга тонка гвинтівка — крупніше на 25 %, лінія тонша на стільки ж, щоб товщина збігалася з сусідніми */
+.tabs svg.wide { padding: 3px 13px; stroke-width: 1.36; }
 .tabs a.active { color: var(--accent-2); }
 .tabs a.active svg { background: var(--accent-soft); }
 .tabs a { position: relative; }
@@ -740,6 +907,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 8px auto 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; }
 .sheet-head h2 { margin: 0; font-size: 19px; font-weight: 800; overflow-wrap: anywhere; }
+.sheet-tools { display: flex; flex: none; gap: 6px; }
+.icon-btn.tool { display: grid; place-items: center; color: var(--text); }
+.icon-btn.tool svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.icon-btn.tool.danger { color: var(--shoot); }
 .sheet-body { overflow-y: auto; padding: 4px 16px 12px; }
 .sheet-body h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
 .sheet-actions { display: flex; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--line); }
@@ -814,6 +985,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .fig svg { display: block; width: 100%; height: auto; }
 .guide .fig figcaption { margin-top: 10px; font-size: 14px; line-height: 1.5; color: var(--muted); }
 .guide .fig figcaption b { color: var(--text); }
+.guide .fig.photo { padding: 8px; }
+.guide .fig.photo img { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--surface-2); }
+.guide .fig.photo.tall img { width: auto; max-width: 100%; max-height: 480px; margin: 0 auto; }
+.guide .fig.photo figcaption { margin: 8px 6px 2px; }
+.guide .photo-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.guide .fig .credit { display: block; margin-top: 4px; font-size: 12px; }
+.guide .fig .credit a { color: inherit; }
 .guide .row2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
 @media (min-width: 640px) { .guide .row2 { grid-template-columns: 1fr 1fr; } }
 .guide .row2 > * { min-width: 0; }
@@ -933,6 +1111,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tg-group { padding: 10px 0 0; border-top: 1px solid var(--line-soft); }
 .tg-group h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; }
 .tg-group .kv { font-variant-numeric: tabular-nums; }
+.box > legend .tg-swatch { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.box > legend .box-count { margin-left: 6px; text-transform: none; }
+.box > legend .icon-btn.tool.small { display: inline-grid; width: 30px; height: 30px; margin-left: 8px; vertical-align: middle; }
+.box > legend .icon-btn.tool.small svg { width: 16px; height: 16px; }
+.permit-quick { margin: -4px 0 0; }
+.tg-tiles { margin: 8px 0; }
+.tg-tiles .stat { padding: 8px 10px; }
+.tg-tiles .stat-value { font-size: 16px; }
+.tg-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 2px; font-variant-numeric: tabular-nums; }
+.tg-line + .tg-line { border-top: 1px solid var(--line-soft); }
+.tg-line > :last-child { text-align: right; }
+.tg-fix { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
+.tg-fix.ok { color: var(--buy); font-weight: 700; background: color-mix(in srgb, var(--buy) 14%, transparent); }
+.tg-fix-title { margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tg-fix-row { display: grid; grid-template-columns: 26px auto 1fr auto; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 16px; font-variant-numeric: tabular-nums; }
+.tg-fix-arrow { font-size: 22px; font-weight: 800; line-height: 1; color: var(--accent-2); }
+.tg-fix-row b { font-size: 18px; }
 .tg-swatch { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgb(0 0 0 / .35); }
 .tg-gps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 4px; }
 .tg-gps .field-label { width: 100%; }
@@ -956,6 +1151,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tg-groups button { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .tg-scale { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 .tg-scale label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tg-scale .tg-lines { flex-basis: 100%; }
 .tg-scale input {
   width: 84px;
   padding: 6px 8px;
@@ -973,3 +1169,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .backdrop, .swipe-body, .chevron, .toast { transition: none !important; animation: none !important; }
 }
+
+/* DOPE: таблиця поправок по дистанціях */
+.dope-card { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.dope-card:last-of-type { border-bottom: 0; }
+.dope-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dope-head .icon-btn.tool.small { width: 30px; height: 30px; }
+.dope-head .icon-btn.tool.small svg { width: 16px; height: 16px; }
+.dope { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+.dope th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 6px; }
+.dope td { padding: 7px 6px; border-top: 1px solid var(--line-soft); }
+.dope td:first-child { font-weight: 800; width: 3.5em; }
+.dope tr.zero td { color: var(--muted); }
+.dope-calc { display: grid; grid-template-columns: minmax(0, 11em) 1fr; align-items: center; gap: 10px; }
+
+.dope-out { margin: 0; font-weight: 650; color: var(--accent-2); }
+.dope-rows { display: grid; gap: 6px; margin-bottom: 8px; }
+.dope-row { display: grid; grid-template-columns: 1fr 1fr 40px; gap: 6px; align-items: center; }
+.dope-row input, .dope-calc input { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
+.dope-cols { margin-top: 10px; }
+
+/* Полігон: перемикач Мішені | Таймер */
+.range-seg { margin-bottom: 14px; }
+.chips.segmented.range-seg button.on { background: var(--accent); color: #fff; }
+
+/* Таймер пострілів */
+.timer { display: grid; gap: 12px; }
+.timer [hidden] { display: none !important; }
+.tm-face { text-align: center; padding: 18px 12px 10px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.tm-time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.tm-time.over { color: var(--shoot); }
+.tm-status { margin-top: 8px; min-height: 1.4em; }
+.tm-start { min-height: 64px; font-size: 20px; }
+.tm-start.stop { background: var(--shoot); border-color: var(--shoot); }
+.tm-shots { display: grid; }
+.tm-shot { display: grid; grid-template-columns: 2em 1fr auto 40px; align-items: center; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+.tm-shot:first-child { border-top: 0; }
+.tm-shot.first .tm-at { color: var(--accent-2); }
+.tm-n { color: var(--muted); font-weight: 700; }
+.tm-at { font-size: 20px; font-weight: 800; }
+.tm-del { width: 32px; height: 32px; }
+.tm-set { display: grid; gap: 8px; }
+.tm-row { display: grid; gap: 4px; }
+.tm-row input, .tm-row select { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
+.tm-level { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.tm-level-fill { height: 100%; width: 0; background: var(--buy); transition: width .05s linear; }
+.tm-level-fill.hit { background: var(--accent); }
+.tm-level-mark { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--shoot); }
+.tm-sens { width: 100%; accent-color: var(--accent); }
+.tm-late { color: var(--shoot); }

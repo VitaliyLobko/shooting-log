@@ -40,20 +40,20 @@ export function initCalc(root) {
   const v = (id) => { const x = parseFloat($(id).value); return Number.isFinite(x) ? x : NaN; };
   const range = () => {
     const s = v('r-size'); const m = v('r-mil'); const o = $('r-out');
-    if (!(s > 0 && m > 0)) { o.innerHTML = '<small>Введите размер и мил больше нуля</small>'; return; }
-    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} м<small>дальность = размер × 1000 ÷ мил</small>`;
+    if (!(s > 0 && m > 0)) { o.innerHTML = '<small>Введите размер и угол в MRAD больше нуля</small>'; return; }
+    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} м<small>дальность = размер × 1000 ÷ MRAD</small>`;
   };
   const clicks = () => {
     const c = v('c-cm'); const d = v('c-d'); const o = $('c-out');
     if (!(c >= 0 && d > 0)) { o.innerHTML = '<small>Введите отклонение и дистанцию</small>'; return; }
     const mil = c * 10 / d; const moa = c / (d / 100) / 2.908;
-    o.innerHTML = `${f(mil, 2)} мил → ${Math.round(mil * 10)} щелч. по 0,1`
+    o.innerHTML = `${f(mil, 2)} MRAD → ${Math.round(mil * 10)} щелч. по 0,1`
       + `<small>${f(moa, 2)} MOA → ${Math.round(moa * 4)} щелч. по ¼ MOA</small>`;
   };
   const lead = () => {
     const s = v('l-v'); const tm = v('l-t'); const d = v('l-d'); const o = $('l-out');
     if (!(s >= 0 && tm >= 0 && d > 0)) { o.innerHTML = '<small>Введите скорость, время и дистанцию</small>'; return; }
-    o.innerHTML = `${f(s * tm * 1000 / d, 1)} мил вперёд<small>${f(s * tm, 2)} м по ходу движения</small>`;
+    o.innerHTML = `${f(s * tm * 1000 / d, 1)} MRAD вперёд<small>${f(s * tm, 2)} м по ходу движения</small>`;
   };
   ['r-size', 'r-mil'].forEach((i) => $(i).addEventListener('input', range));
   ['c-cm', 'c-d'].forEach((i) => $(i).addEventListener('input', clicks));
@@ -113,7 +113,7 @@ function bplex(g, R) {
 }
 
 const RET = {
-  dsmr: { u: 'мил', cal: 6, R: 29.5, draw: dsmr, size: (m, d) => m * 1000 / d },
+  dsmr: { u: 'MRAD', cal: 6, R: 29.5, draw: dsmr, size: (m, d) => m * 1000 / d },
   bplex: { u: 'MOA', cal: 7, R: 46, draw: bplex, size: (m, d) => m * 100 * 34.377 / d },
 };
 
@@ -167,12 +167,12 @@ export function initReticles(root) {
   const gal = $('range-gallery');
   if (gal) {
     [100, 200, 300, 400, 500, 600].forEach((d) => mini(gal, { ret: 'dsmr', mag: 6, dist: d, tgt: 'man', mode: 'range' },
-      `<b>${d} м</b>рост ${f(1700 / d, 1)} мил`));
+      `<b>${d} м</b>рост ${f(1700 / d, 1)} MRAD`));
   }
   const pair = $('sfp-pair');
   if (pair) {
-    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 6×</b>5,7 деления = 5,7 мил');
-    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 3×</b>2,8 деления, но это те же 5,7 мил');
+    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 6×</b>5,7 деления = 5,7 MRAD');
+    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 3×</b>2,8 деления, но это те же 5,7 MRAD');
   }
   const bgal = $('bplex-gallery');
   if (bgal) {
@@ -277,8 +277,8 @@ export function initSim(root) {
     rows.push(`<div><span class="k">Цель занимает (на ${C.cal}×)</span><span class="v">${f(sz, 1)} ${u}</span> → ${formula} = ${d} м</div>`);
     if (m < C.cal) rows.push(`<div class="w"><span class="k">Кратность ${fm(m)}×</span>все значения сетки × ${f(C.cal / m, 2)}. Цель видна как ${f(sz * k, 1)} ${u} «по сетке» — для дальномера ставь ${C.cal}×</div>`);
     const ah = Math.abs(hold); const up = hold >= 0 ? 'вверх' : 'вниз';
-    const clicks = moa ? `${Math.round(ah * 4.19)} щелч. по ¼″` : `${Math.round(ah * 10)} щелч. 0,1 мрад · ${Math.round(ah * 13.75)} щелч. ¼ MOA`;
-    rows.push(`<div><span class="k">Поправка по вертикали</span><span class="v">${f(ah, moa ? 1 : 2)} ${u} ${up}</span> · ${clicks}${moa ? ` · ${f(ah / 3.4377, 2)} мил` : ''}</div>`);
+    const clicks = moa ? `${Math.round(ah * 4.19)} щелч. по ¼″` : `${Math.round(ah * 10)} щелч. 0,1 MRAD · ${Math.round(ah * 13.75)} щелч. ¼ MOA`;
+    rows.push(`<div><span class="k">Поправка по вертикали</span><span class="v">${f(ah, moa ? 1 : 2)} ${u} ${up}</span> · ${clicks}${moa ? ` · ${f(ah / 3.4377, 2)} MRAD` : ''}</div>`);
     if (moa) rows.push(`<div><span class="k">Где держать на 7×</span>${bplexWhere(hold)}${m < C.cal ? ` — на ${fm(m)}× точки не совпадают` : ''}</div>`);
     else rows.push(`<div><span class="k">Вынос по сетке на ${fm(m)}×</span>метка на ${f(ah * k, 2)} деления ${hold >= 0 ? 'ниже' : 'выше'} центра ставится на цель</div>`);
     if (w > 0) rows.push(`<div><span class="k">Ветер ${fm(w)} м/с ${left ? 'слева' : 'справа'}</span><span class="v">${f(wm, moa ? 1 : 2)} ${u}</span>: центр ${left ? 'левее' : 'правее'} цели, цель на ${f(wm * k, moa ? 1 : 2)} ${u} ${left ? 'справа' : 'слева'} от центра</div>`);

@@ -262,7 +262,9 @@ function newest(lists) {
 
 export function merge(local, remote) {
   const graves = newest([local.tombstones ?? [], remote.tombstones ?? []]);
-  const result = { tombstones: [...graves.values()] };
+  // Сховища, яких ця версія ще не знає (додані новішою), лишаються у файлі як є — інакше стара версія їх стерла б.
+  const unknown = Object.entries(remote).filter(([name]) => name !== 'tombstones' && !db.STORES.includes(name));
+  const result = { ...Object.fromEntries(unknown), tombstones: [...graves.values()] };
   for (const name of db.STORES) {
     result[name] = [...newest([local[name] ?? [], remote[name] ?? []]).values()]
       .filter((rec) => !graves.has(rec.id) || stamp(rec) > stamp(graves.get(rec.id)));
