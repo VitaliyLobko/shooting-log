@@ -2,9 +2,11 @@
 // Кожен запис має updated (мс), видалення лишають надгробок у tombstones —
 // це потрібно, щоб синхронізація з Google Диском зливала зміни без втрат.
 // Файли фото лежать окремо в blobs: вони не входять у JSON синхронізації й резервної копії.
+// ponytail: ім'я бази лишилося старим — перейменування сховало б дані, вже записані на пристрої.
+// Міняти разом із міграцією (перелити стори зі старої бази), коли з'явиться привід.
 const DB_NAME = 'shooting-log';
-const DB_VERSION = 6;
-export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores'];
+const DB_VERSION = 7;
+export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores', 'exercises'];
 const ALL = [...STORES, 'tombstones'];
 const BLOBS = 'blobs';
 
@@ -186,6 +188,25 @@ export function get(name, id) {
     tx.objectStore(name).get(id).onsuccess = (e) => { out.rec = e.target.result ?? null; };
     return out;
   }).then((r) => r.rec);
+}
+
+/**
+ * «Заменить всё»: лишаються тільки записи з копії, усі з однією відміткою часу — її й повертає
+ * (за нею синхронізація відрізняє відновлене від старого). Файли фото не стирає: ті, що є в копії,
+ * не доведеться качати з Диска, а фото без Диска не пропадуть; сиріт прибирає dropOrphanBlobs.
+ */
+export async function replaceAll(changes) {
+  const now = Date.now();
+  await run(ALL, 'readwrite', (tx) => {
+    for (const name of ALL) {
+      const store = tx.objectStore(name);
+      store.clear();
+      for (const obj of changes[name]?.put ?? []) store.put({ ...obj, updated: now });
+    }
+  });
+  await dropOrphanBlobs();
+  window.dispatchEvent(new Event('db-change'));
+  return now;
 }
 
 export async function clearAll() {

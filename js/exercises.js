@@ -3,6 +3,7 @@
 import { t, lang } from './i18n.js';
 import { h, form, sheet, toast, chips, confirmSheet, fmt } from './ui.js';
 import * as M from './model.js';
+import { lineChart, sparkline } from './chart.js';
 
 const L = (o) => (typeof o === 'string' ? o : o[lang()] ?? o.ru);
 const btn = (label, onclick, kind = '') => h('button', { type: 'button', class: `btn ${kind}`, onclick }, label);
@@ -13,10 +14,16 @@ const btn = (label, onclick, kind = '') => h('button', { type: 'button', class: 
  * time — сумарний час; perHit — очки за влучання вводяться вручну (таблиця Уайта залежить від часу).
  * ranks — [мінімум очок, назва], від вищого.
  */
+/** Назва вправи поточною мовою — журналу, щоб підписати стрільбу з тренування. */
+export const exerciseName = (id) => {
+  const ex = exById(id);
+  return ex ? L(ex.name) : null;
+};
+
 export const EXERCISES = [
   {
     id: 'baza20',
-    name: 'Baza-20',
+    name: { ru: 'База-20', uk: 'База-20' },
     sub: { ru: 'Квалификационное · 20 выстрелов · 50–150 м', uk: 'Кваліфікаційна · 20 пострілів · 50–150 м' },
     rules: {
       ru: [
@@ -105,21 +112,21 @@ export const EXERCISES = [
     sub: { ru: '20 выстрелов · 50–300 м · 30 с на позицию', uk: '20 пострілів · 50–300 м · 30 с на позицію' },
     rules: {
       ru: [
-        'Маршрут как в Baza-20, но дистанции растут от 50 до ~300 м; 2–3 выстрела с позиции (например, «2S75» — 2 выстрела стоя с 75 м).',
+        'Маршрут как в База-20, но дистанции растут от 50 до ~300 м; 2–3 выстрела с позиции (например, «2S75» — 2 выстрела стоя с 75 м).',
         '30 с на позицию с принятием положения. Старт с разряженным оружием, дозарядка только из патронташа или подсумка.',
         'До 155 м — стоя с рук, дальше — с колена, на ~200 и 300 м — лёжа без упоров. Ремень разрешён.',
         'Мишень A3 с чёрной картонкой за головой — для поправок. Сквад 6 человек, 60 минут.',
       ],
       uk: [
-        'Маршрут як у Baza-20, але дистанції ростуть від 50 до ~300 м; 2–3 постріли з позиції (наприклад, «2S75» — 2 постріли стоячи з 75 м).',
+        'Маршрут як у База-20, але дистанції ростуть від 50 до ~300 м; 2–3 постріли з позиції (наприклад, «2S75» — 2 постріли стоячи з 75 м).',
         '30 с на позицію разом із прийняттям положення. Старт з розрядженою зброєю, дозарядка лише з патронташа чи підсумка.',
         'До 155 м — стоячи з рук, далі — з коліна, на ~200 і 300 м — лежачи без упорів. Ремінь дозволено.',
         'Мішень A3 з чорною картонкою за головою — для поправок. Сквад 6 людей, 60 хвилин.',
       ],
     },
     scoring: {
-      ru: 'Зоны как в Baza-20 (5 / 4 / 1), максимум 100. За каждый выстрел после 30 с снимается одно лучшее попадание. Звания по сумме (пример из видео: 80 = Scout), официальные пороги не найдены.',
-      uk: 'Зони як у Baza-20 (5 / 4 / 1), максимум 100. За кожен постріл після 30 с знімається одне найкраще влучання. Звання за сумою (приклад з відео: 80 = Scout), офіційні пороги не знайдені.',
+      ru: 'Зоны как в База-20 (5 / 4 / 1), максимум 100. За каждый выстрел после 30 с снимается одно лучшее попадание. Звания по сумме (пример из видео: 80 = Scout), официальные пороги не найдены.',
+      uk: 'Зони як у База-20 (5 / 4 / 1), максимум 100. За кожен постріл після 30 с знімається одне найкраще влучання. Звання за сумою (приклад з відео: 80 = Scout), офіційні пороги не знайдені.',
     },
     shots: 20,
     zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
@@ -131,17 +138,17 @@ export const EXERCISES = [
     sub: { ru: '20 попаданий в свою мишень на маршруте', uk: '20 влучань у свою мішень на маршруті' },
     rules: {
       ru: [
-        'Марафон: логика Baza-20, но дистанции до 300 м и «дикие», заранее неизвестные локации.',
+        'Марафон: логика База-20, но дистанции до 300 м и «дикие», заранее неизвестные локации.',
         'Тропа скаута (Hit&Run): маршрут ~500 м с инструктором, ~10 позиций по 2 выстрела — к финишу 20 попаданий. Бывает этап с дробовиком и картечью («скаутская спарка»).',
       ],
       uk: [
-        'Марафон: логіка Baza-20, але дистанції до 300 м і «дикі», заздалегідь невідомі локації.',
+        'Марафон: логіка База-20, але дистанції до 300 м і «дикі», заздалегідь невідомі локації.',
         'Стежка скаута (Hit&Run): маршрут ~500 м з інструктором, ~10 позицій по 2 постріли — до фінішу 20 влучань. Буває етап з дробовиком і картеччю («скаутська спарка»).',
       ],
     },
     scoring: {
-      ru: 'Подсчёт по зонам грудной мишени, как в Baza-20.',
-      uk: 'Підрахунок за зонами грудної мішені, як у Baza-20.',
+      ru: 'Подсчёт по зонам грудной мишени, как в База-20.',
+      uk: 'Підрахунок за зонами грудної мішені, як у База-20.',
     },
     shots: 20,
     zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
@@ -172,15 +179,15 @@ export const EXERCISES = [
 
 /** Скаутське триборство — три вправи з цього списку, очки етапів складаються. */
 const TRIATHLON = {
-  ru: 'Скаутское троеборье: Baza-20 + Пятёрка Уайта + Nordic-10 = 35 выстрелов, очки этапов складываются.',
-  uk: 'Скаутське триборство: Baza-20 + П\'ятірка Уайта + Nordic-10 = 35 пострілів, очки етапів складаються.',
+  ru: 'Скаутское троеборье: База-20 + Пятёрка Уайта + Nordic-10 = 35 выстрелов, очки этапов складываются.',
+  uk: 'Скаутське триборство: База-20 + П\'ятірка Уайта + Nordic-10 = 35 пострілів, очки етапів складаються.',
 };
 
 /** Довгий текст під розкриттям: правила й підрахунок читають раз, а блок відкривають щоразу. */
 const more = (title, node) => h('details', { class: 'ex-more' }, h('summary', {}, title), node);
 
 /** Пороги звань: свої (localStorage) або зашиті у вправі. */
-const RANKS_KEY = 'shooting-log:ex-ranks';
+const RANKS_KEY = 'shooters-log:ex-ranks';
 // ponytail: свої пороги лежать у localStorage — на кожному пристрої окремі й на Диск не їдуть.
 // Перенести у власний стор, коли знадобиться бачити їх і на телефоні, і на комп'ютері.
 function allRanks() {
@@ -209,7 +216,41 @@ export function scoreOf(ex, r) {
 }
 
 export const rankOf = (ex, score) => ranksOf(ex)?.find(([min]) => score >= min)?.[1];
-export const exById = (id) => EXERCISES.find((e) => e.id === id);
+
+// Свої вправи з бази: тримаємо тут, щоб exById і назва в журналі бачили їх як вбудовані.
+let CUSTOM = [];
+
+/** Запис своєї вправи → той самий вигляд, що й у вбудованих (зони, правила, підпис). */
+export function asExercise(rec) {
+  const lines = String(rec.rules ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
+  // Правка вбудованої вправи — запис із тим самим id: особливі механіки (прострочка Купера,
+  // ціна влучання за часом, варіанти) лишаються від неї, решту беремо з правки.
+  const base = EXERCISES.find((e) => e.id === rec.id);
+  return {
+    ...(base ?? {}),
+    id: rec.id,
+    custom: true,
+    builtIn: !!base,
+    name: rec.name,
+    sub: [rec.shots ? t('{n} выстр.', { n: rec.shots }) : null,
+      rec.distance ? t('{n} м', { n: rec.distance }) : null].filter(Boolean).join(' · '),
+    shots: Number(rec.shots) || 0,
+    distance: Number(rec.distance) || null,
+    time: !!rec.time,
+    zones: (rec.zones ?? []).map((z, i) => [z.key ?? `z${i + 1}`, z.label, Number(z.pts) || 0]),
+    rules: { ru: lines, uk: lines },
+  };
+}
+
+/** Усі вправи: вбудовані плюс свої. */
+export const exerciseList = () => {
+  const mine = CUSTOM.map(asExercise);
+  const edited = new Set(mine.map((e) => e.id));
+  // Відредагована вбудована лишається на своєму місці, нові свої — у кінці.
+  const order = (e) => { const i = EXERCISES.findIndex((x) => x.id === e.id); return i < 0 ? EXERCISES.length : i; };
+  return [...EXERCISES.filter((e) => !edited.has(e.id)), ...mine].sort((x, y) => order(x) - order(y));
+};
+export const exById = (id) => exerciseList().find((e) => e.id === id);
 
 /**
  * Таблиця Уїлена (1923) у відкритих джерелах не знайдена — відома одна точка: 9,87 с → A 15, B 10.
@@ -228,28 +269,128 @@ const round2 = (v) => Math.round(v * 100) / 100;
  * onSave(record, consume) зберігає (consume = {cartridgeId, qty} або null), onDelete(record) видаляє,
  * targetsOf(record) віддає блок мішеней результату (або null).
  */
-export function exercisesPanel({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf }) {
-  const ctx = { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf };
+export function exercisesPanel({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, custom = [], onSaveExercise = null, onDeleteExercise = null }) {
+  CUSTOM = custom;
+  const ctx = { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, custom, onSaveExercise, onDeleteExercise };
+  // Плиткою: шість вправ видно одним екраном, рекорд одразу під назвою, решта — у картці вправи.
   return h('div', {},
     planBox(cartridges, box),
-    EXERCISES.map((ex) => {
-      const mine = scores.filter((s) => s.exercise === ex.id).sort(M.byDateDesc);
-      const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
-      const avgOf = Math.min(3, mine.length);
-      // Спершу свої результати й кнопки, правила — нижче під розкриттям: щодня потрібні цифри, а не текст.
-      return box(h('span', {}, L(ex.name), h('span', { class: 'muted small' }, ` · ${L(ex.sub)}`)), h('div', {},
-        mine.length ? h('div', { class: 'stats even' },
-          stat(t('рекорд'), fmt.num(best), 'accent'),
-          stat(t('среднее из {n}', { n: avgOf }), fmt.num(Math.round(mine.slice(0, avgOf).reduce((s, x) => s + x.score, 0) / avgOf))),
-          stat(t('последний'), fmt.num(mine[0].score))) : null,
-        ex.zones ? h('div', { class: 'btn-row' },
-          btn(t('Записать результат'), () => scoreSheet(ex, ctx), 'primary'),
-          btn(t('Пороги званий'), () => ranksSheet(ex))) : null,
-        mine.length ? h('div', { class: 'rows' }, mine.map((s) => scoreRow(ex, s, best, ctx))) : null,
-        more(t('Правила'), h('ul', { class: 'ex-rules' }, L(ex.rules).map((line) => h('li', {}, line)))),
-        ex.scoring ? more(t('Подсчёт очков'), h('p', { class: 'ex-scoring' }, L(ex.scoring))) : null,
-      ), { fold: `ex-${ex.id}`, count: mine.length });
-    }));
+    h('div', { class: 'ex-grid' }, exerciseList().map((ex) => exerciseTile(ex, ctx)),
+      onSaveExercise ? h('button', { type: 'button', class: 'ex-tile ex-add', onclick: () => exerciseForm(null, ctx) },
+        h('span', { class: 'ex-tile-name' }, t('+ Своё упражнение')),
+        h('span', { class: 'ex-tile-sub' }, t('зоны, очки, выстрелы'))) : null));
+}
+
+function myScores(ex, ctx) {
+  return ctx.scores.filter((s) => s.exercise === ex.id).sort(M.byDateDesc);
+}
+
+function exerciseTile(ex, ctx) {
+  const mine = myScores(ex, ctx);
+  const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
+  const rank = best === null ? null : rankOf(ex, best);
+  const series = M.scoreSeries(ctx.scores, ex.id);
+  return h('button', { type: 'button', class: 'ex-tile', onclick: () => exerciseSheet(ex, ctx) },
+    h('span', { class: 'ex-tile-name' }, L(ex.name)),
+    h('span', { class: 'ex-tile-sub' }, ex.shots ? t('{n} выстр.', { n: ex.shots }) : L(ex.sub)),
+    h('span', { class: `ex-tile-score ${best === null ? 'empty' : ''}` }, best === null ? '—' : fmt.num(best)),
+    sparkline(series.map((x) => x.value)),
+    h('span', { class: 'ex-tile-foot' }, [rank && L(rank), mine.length ? t('попыток: {n}', { n: mine.length }) : t('нет результатов')].filter(Boolean).join(' · ')));
+}
+
+/** Картка вправи: свої цифри, кнопки, список результатів, правила під розкриттям. */
+function exerciseSheet(ex, ctx) {
+  const body = () => {
+    const mine = myScores(ex, ctx);
+    const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
+    const avgOf = Math.min(3, mine.length);
+    const series = M.scoreSeries(ctx.scores, ex.id);
+    return h('div', {},
+      h('p', { class: 'muted' }, L(ex.sub)),
+      mine.length ? h('div', { class: 'stats even' },
+        ctx.stat(t('рекорд'), fmt.num(best), 'accent'),
+        ctx.stat(t('среднее из {n}', { n: avgOf }), fmt.num(Math.round(mine.slice(0, avgOf).reduce((s, x) => s + x.score, 0) / avgOf))),
+        ctx.stat(t('последний'), fmt.num(mine[0].score))) : null,
+      nextRank(ex, best),
+      ex.zones ? h('div', { class: 'btn-row' },
+        btn(t('Записать результат'), () => { close(); scoreSheet(ex, ctx); }, 'primary'),
+        btn(t('Пороги званий'), () => ranksSheet(ex))) : null,
+      ctx.onSaveExercise ? h('div', { class: 'btn-row' },
+        btn(t('Изменить'), () => { close(); exerciseForm(ctx.custom.find((r) => r.id === ex.id) ?? asRecord(ex), ctx); }),
+        ctx.custom.some((r) => r.id === ex.id)
+          ? btn(ex.builtIn ? t('Вернуть встроенную') : t('Удалить'),
+            () => { close(); ctx.onDeleteExercise?.(ctx.custom.find((r) => r.id === ex.id)); }, 'danger')
+          : null) : null,
+      series.length > 1 ? ctx.box(t('Динамика'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: x.value })))) : null,
+      mine.length ? ctx.box(t('Результаты'), h('div', { class: 'rows' }, mine.map((x) => scoreRow(ex, x, best, ctx)))) : null,
+      more(t('Правила'), h('ul', { class: 'ex-rules' }, L(ex.rules).map((line) => h('li', {}, line)))),
+      ex.scoring ? more(t('Подсчёт очков'), h('p', { class: 'ex-scoring' }, L(ex.scoring))) : null);
+  };
+  const close = sheet(L(ex.name), body(), { live: body });
+}
+
+/** Скільки очок лишилось до наступного звання — видно, куди тягнутись. */
+function nextRank(ex, best) {
+  const list = ranksOf(ex);
+  if (best === null || !list?.length) return null;
+  // Пороги впорядковані від більшого: беремо найнижчий, якого ще не дотягнули.
+  const next = [...list].sort((a, b) => a[0] - b[0]).find(([min]) => min > best);
+  if (!next) return h('p', { class: 'muted small' }, t('Высшее звание взято'));
+  return h('p', { class: 'muted small' }, t('До звания {name}: ещё {n}', { name: L(next[1]), n: fmt.num(next[0] - best) }));
+}
+
+/** Вбудована вправа у вигляді запису — щоб відкрити її в тій самій формі правки. */
+function asRecord(ex) {
+  return {
+    id: ex.id,
+    name: L(ex.name),
+    shots: ex.shots ?? '',
+    distance: ex.distance ?? '',
+    time: !!ex.time,
+    zones: (ex.zones ?? []).map(([key, label, pts]) => ({ key, label: L(label), pts })),
+    rules: (L(ex.rules) ?? []).join(String.fromCharCode(10)),
+  };
+}
+
+/** Своя вправа: назва, постріли, дистанція, зони з очками й довільні правила. */
+function exerciseForm(rec, ctx) {
+  const zones = rec?.zones?.length ? rec.zones : [{ label: t('Попадание'), pts: 1 }];
+  const ZONES = 4;
+  const fields = [
+    { name: 'name', label: t('Название'), value: rec?.name ?? '', required: true, wide: true },
+    { name: 'shots', label: t('Выстрелов'), type: 'number', min: 1, step: 1, value: rec?.shots ?? '', half: true },
+    { name: 'distance', label: t('Дистанция, м'), type: 'number', min: 0, step: 'any', value: rec?.distance ?? '', half: true },
+    { name: 'time', label: t('Считать время'), type: 'chips', value: rec?.time ? '1' : '',
+      options: [['', t('нет')], ['1', t('да')]], half: true },
+  ];
+  for (let i = 0; i < ZONES; i += 1) {
+    fields.push(
+      { name: `z${i}n`, label: i === 0 ? t('Зона') : '', value: zones[i]?.label ?? '', placeholder: t('Напр. Alpha'), half: true },
+      { name: `z${i}p`, label: i === 0 ? t('Очков за попадание') : '', type: 'number', min: 0, step: 'any', value: zones[i]?.pts ?? '', half: true });
+  }
+  fields.push({ name: 'rules', label: t('Правила'), type: 'textarea', value: rec?.rules ?? '', wide: true,
+    hint: t('Каждая строка — отдельный пункт.') });
+  const f = form(fields);
+  const save = () => {
+    const v = f.values();
+    if (!v.name) { toast(t('Заполните поле «{label}»', { label: t('Название') })); return; }
+    const list = [];
+    for (let i = 0; i < ZONES; i += 1) {
+      const label = v[`z${i}n`];
+      if (!label) continue;
+      // Ключ зони лишаємо старий, інакше вже записані результати втратять свої влучання.
+      list.push({ key: rec?.zones?.[i]?.key ?? `z${i + 1}`, label, pts: Number(v[`z${i}p`]) || 0 });
+    }
+    if (!list.length) { toast(t('Добавьте хотя бы одну зону')); return; }
+    close();
+    ctx.onSaveExercise?.({
+      ...(rec ?? {}), name: v.name, shots: Math.max(0, Math.round(v.shots || 0)),
+      distance: v.distance || null, time: v.time === '1', rules: v.rules, zones: list,
+    });
+  };
+  const close = sheet(rec ? L(rec.name) : t('Своё упражнение'), f.el, {
+    actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
+  });
 }
 
 /** Збори на полігон: скільки набоїв вимагають вибрані вправи і чи вистачає їх у БК. */
@@ -264,7 +405,7 @@ function planBox(cartridges, box) {
       : [t('Нужно выстрелов: {n}', { n: fmt.num(need) }), t('в БК: {n}', { n: fmt.num(stock) }),
         need > stock ? t('не хватает {n}', { n: fmt.num(need - stock) }) : null].filter(Boolean).join(' · ');
   };
-  const row = h('div', { class: 'chips' }, EXERCISES.filter((ex) => ex.shots).map((ex) => {
+  const row = h('div', { class: 'chips' }, exerciseList().filter((ex) => ex.shots).map((ex) => {
     const chip = h('button', {
       type: 'button',
       onclick: () => {
@@ -283,6 +424,7 @@ function scoreRow(ex, s, best, ctx) {
   const rank = rankOf(ex, s.score);
   const variant = ex.variants?.find(([k]) => k === s.variant)?.[1];
   const sub = [fmt.date(s.date), variant && L(variant), ctx.weapons.find(([id]) => id === s.weaponId)?.[1],
+    s.distance ? t('{n} м', { n: fmt.num(s.distance) }) : null,
     s.time ? `${fmt.num(s.time)} ${t('с')}` : null, s.note].filter(Boolean).join(' · ');
   return h('button', { type: 'button', class: 'row', onclick: () => scoreCard(ex, s, ctx) },
     h('span', { class: 'row-main' },
@@ -302,6 +444,7 @@ function scoreCard(ex, s, ctx) {
     [t('Попаданий'), `${hitsOf(s)} / ${ex.shots}`],
     ...(ex.zones ?? []).map(([k, label]) => [L(label), fmt.num(s.hits?.[k] ?? 0)]),
     ...(cut ? [[t('Просрочка'), t('−{n} лучших попаданий', { n: cut })]] : []),
+    ...(s.distance ? [[t('Дистанция, м'), fmt.num(s.distance)]] : []),
     ...(s.time ? [[t('Время'), `${fmt.num(s.time)} ${t('с')}`]] : []),
     ...(s.variant ? [[t('Вариант'), L(ex.variants?.find(([k]) => k === s.variant)?.[1] ?? s.variant)]] : []),
     ...(s.weaponId ? [[t('Оружие'), ctx.weapons.find(([id]) => id === s.weaponId)?.[1] ?? '—']] : []),
@@ -314,9 +457,13 @@ function scoreCard(ex, s, ctx) {
       confirmSheet(t('Удалить результат?'), `${L(ex.name)} · ${fmt.date(s.date)} · ${s.score}`, t('Удалить'), () => ctx.onDelete(s));
     },
   }, '🗑');
+  const edit = h('button', {
+    type: 'button', class: 'icon-btn tool', 'aria-label': t('Изменить'),
+    onclick: () => { close(); scoreSheet(ex, ctx, s); },
+  }, '✎');
   const close = sheet(L(ex.name), h('div', {},
     h('dl', { class: 'kv' }, kv.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v))])),
-    ctx.targetsOf?.(s) ?? null), { tools: [del] });
+    ctx.targetsOf?.(s) ?? null), { tools: [edit, del] });
 }
 
 /** Свої пороги звань: «очки — назва», від вищого. Порожні рядки — повернути зашиті. */
@@ -346,26 +493,42 @@ function ranksSheet(ex) {
 }
 
 /** Шторка запису: влучання по зонах, живий підсумок, списання з БК і збереження. */
-function scoreSheet(ex, ctx) {
-  let variant = ex.variants?.[0][0];
+function scoreSheet(ex, ctx, prev = null) {
+  let variant = prev?.variant ?? ex.variants?.[0][0];
   const ammo = ctx.cartridges.map(([id, name, n]) => [id, t('{name} · ост. {n}', { name, n: fmt.num(n) })]);
+  // Дистанція — у самому результаті: та сама вправа стріляється і з 50, і з 150 м.
+  const lastDistance = ctx.scores.filter((s) => s.exercise === ex.id && s.distance).sort(M.byDateDesc)[0]?.distance;
   const fields = [
-    { name: 'date', label: t('Дата'), type: 'dmy', value: M.today(), half: true },
-    { name: 'weaponId', label: t('Оружие'), type: 'select', options: [['', '—'], ...ctx.weapons], half: true },
-    ...ex.zones.map(([k, label, pts]) => ({ name: `hit_${k}`, label: `${L(label)} (${ex.perHit ? t('попаданий') : `× ${pts}`})`, type: 'number', min: 0, half: true })),
-    ...(ex.time ? [{ name: 'time', label: t('Сумма времени, с'), type: 'number', step: 0.01, min: 0, half: true }] : []),
-    ...(ex.perHit ? ex.zones.map(([k, label, pts]) => ({ name: `pts_${k}`, label: `${t('Очков за')} ${L(label)}`, type: 'number', value: pts, min: 0, half: true })) : []),
-    ...(ex.late ? [{ name: 'late', label: t('Выстрелов после 30 с'), type: 'number', min: 0, value: 0, half: true }] : []),
-    { name: 'cartridgeId', label: t('Списать из БК'), type: 'select', options: [['', t('не списывать')], ...ammo], half: true },
-    { name: 'qty', label: t('Выстрелов, шт'), type: 'number', min: 0, value: ex.shots ?? '', half: true },
-    { name: 'note', label: t('Примечание'), type: 'text', wide: true },
+    { name: 'date', label: t('Дата'), type: 'dmy', value: prev?.date ?? M.today(), half: true },
+    { name: 'weaponId', label: t('Оружие'), type: 'select', value: prev?.weaponId ?? '', options: [['', '—'], ...ctx.weapons], half: true },
+    { name: 'distance', label: t('Дистанция, м'), type: 'number', min: 0, step: 'any', half: true,
+      value: prev?.distance ?? ex.distance ?? lastDistance ?? '' },
+    ...ex.zones.map(([k, label, pts]) => ({ name: `hit_${k}`, label: `${L(label)} (${ex.perHit ? t('попаданий') : `× ${pts}`})`, type: 'number', min: 0, value: prev?.hits?.[k] ?? '', half: true })),
+    ...(ex.time ? [{ name: 'time', label: t('Сумма времени, с'), type: 'number', step: 0.01, min: 0, value: prev?.time ?? '', half: true }] : []),
+    ...(ex.perHit ? ex.zones.map(([k, label, pts]) => ({ name: `pts_${k}`, label: `${t('Очков за')} ${L(label)}`, type: 'number', value: prev?.pts?.[k] ?? pts, min: 0, half: true })) : []),
+    ...(ex.late ? [{ name: 'late', label: t('Выстрелов после 30 с'), type: 'number', min: 0, value: prev?.late ?? 0, half: true }] : []),
+    // При правці БК не чіпаємо: набої вже списані рухом, і міняти його заднім числом — більше шкоди, ніж користі.
+    ...(prev ? [] : [
+      { name: 'cartridgeId', label: t('Списать из БК'), type: 'select', options: [['', t('не списывать')], ...ammo], half: true },
+      { name: 'qty', label: t('Выстрелов, шт'), type: 'number', min: 0, value: ex.shots ?? '', half: true },
+    ]),
+    { name: 'note', label: t('Примечание'), type: 'text', value: prev?.note ?? '', wide: true },
   ];
   const f = form(fields);
+  if (f.inputs.cartridgeId) ctx.pickAmmo?.(f.inputs.cartridgeId);
   const total = h('div', { class: 'stat-value' });
   const hint = h('p', { class: 'muted small' });
   let pricedByHand = false;
   // Час зі збереженої серії таймера: у вправах на час його й так міряють таймером.
   const timed = ctx.drills.filter((d) => d.shots?.length);
+  if (ex.time && ctx.openTimer) {
+    // Вправу на час стріляють із таймером — запускаємо його звідси, час сам стане в поле.
+    const run = h('button', {
+      type: 'button', class: 'btn',
+      onclick: () => ctx.openTimer((seconds) => { f.inputs.time.value = round2(seconds); update(); }),
+    }, t('Запустить таймер'));
+    f.inputs.time.closest('.field').after(h('div', { class: 'btn-row' }, run));
+  }
   if (ex.time && timed.length) {
     const pick = h('select', {
       class: 'inline-select', 'aria-label': t('Взять время из серии'),
@@ -381,7 +544,8 @@ function scoreSheet(ex, ctx) {
   }
   const record = () => {
     const v = f.values();
-    const r = { exercise: ex.id, date: v.date, weaponId: v.weaponId || null, note: v.note, hits: {} };
+    // ...prev — щоб правка зберегла id, зв'язок зі стрільбою й дату створення.
+    const r = { ...(prev ?? {}), exercise: ex.id, date: v.date, weaponId: v.weaponId || null, distance: v.distance || null, note: v.note, hits: {} };
     for (const [k] of ex.zones) r.hits[k] = Math.max(0, Math.round(v[`hit_${k}`] || 0));
     if (ex.perHit) r.pts = Object.fromEntries(ex.zones.map(([k, , pts]) => [k, v[`pts_${k}`] ?? pts]));
     if (ex.time) r.time = v.time;
@@ -400,19 +564,35 @@ function scoreSheet(ex, ctx) {
     const rank = rankOf(ex, r.score);
     const cut = lateCut(ex, r);
     total.textContent = `${fmt.num(r.score)}${rank ? ` · ${L(rank)}` : ''}`;
+    const hits = hitsOf(r);
     hint.textContent = [
+      // Скільки влучань уже введено й скільки лишилось промахів — видно, не рахуючи в голові.
+      ex.shots ? t('попаданий {n} из {all}', { n: hits, all: ex.shots }) : null,
+      ex.shots && hits <= ex.shots && hits ? t('промахов: {n}', { n: ex.shots - hits }) : null,
       cut ? t('−{n} лучших попаданий', { n: cut }) : null,
-      hitsOf(r) > ex.shots ? t('больше {n} выстрелов', { n: ex.shots }) : null,
+      ctx.mismatch?.(f.inputs.cartridgeId?.value, f.inputs.weaponId.value),
+      hits > ex.shots ? t('больше {n} выстрелов', { n: ex.shots }) : null,
       ex.whelan ? t('Цена попадания — оценка по времени, её можно исправить.') : null,
     ].filter(Boolean).join(' · ');
   };
   if (ex.perHit) for (const [k] of ex.zones) f.inputs[`pts_${k}`].addEventListener('input', () => { pricedByHand = true; });
+  // Вибрали ствол — підставляємо набій, яким з нього стріляли востаннє: на полігоні це майже завжди він.
+  let ammoByHand = false;
+  if (f.inputs.cartridgeId) {
+    f.inputs.cartridgeId.addEventListener('change', () => { ammoByHand = true; });
+    f.inputs.weaponId.addEventListener('change', () => {
+      if (ammoByHand) return;
+      const id = ctx.lastAmmo?.(f.inputs.weaponId.value);
+      if (id && [...f.inputs.cartridgeId.options].some((o) => o.value === id)) f.inputs.cartridgeId.value = id;
+    });
+  }
   f.el.addEventListener('input', update);
   update();
-  const close = sheet(L(ex.name), h('div', {},
+  const close = sheet(prev ? `${L(ex.name)} · ${t('Изменить')}` : L(ex.name), h('div', {},
     ex.variants ? chips(ex.variants.map(([k, label]) => [k, L(label)]), variant, (v) => { variant = v; }) : null,
     f.el,
-    h('div', { class: 'stat accent' }, total, h('div', { class: 'muted small' }, t('Очки'))),
+    prev ? h('p', { class: 'muted small' }, t('Списание из БК остаётся как было — правьте его в журнале.')) : null,
+    h('div', { class: 'stat accent ex-total' }, total, h('div', { class: 'muted small' }, t('Очки'))),
     hint), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), () => {
       if (Number.isNaN(f.values().date)) { toast(t('Заполните поле «{label}»', { label: t('Дата') })); return; }
@@ -421,7 +601,7 @@ function scoreSheet(ex, ctx) {
       const v = f.values();
       const qty = Math.max(0, Math.round(v.qty || 0));
       close();
-      ctx.onSave(r, v.cartridgeId && qty ? { cartridgeId: v.cartridgeId, qty, note: L(ex.name) } : null);
+      ctx.onSave(r, !prev && v.cartridgeId && qty ? { cartridgeId: v.cartridgeId, qty, note: L(ex.name) } : null);
     }, 'primary')],
   });
 }

@@ -20,10 +20,10 @@ const END = { a: ['scale', 'a'], b: ['scale', 'b'], c: ['scale2', 'a'], d: ['sca
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const color = (i) => COLORS[i % COLORS.length];
-// Рамка (габарит) і коло (розкид) — насичені кольори поза палітрою пробоїн і лінії масштабу:
-// світлі відтінки зливалися з білим папером мішені.
-const BOX = '#ff2d95';
-const RING = '#00e5c0';
+// Кольори розмітки — поза палітрою пробоїн і лінії масштабу: світлі відтінки зливалися з папером.
+const SPAN = '#ff2d95';   // лінія між двома найдальшими пробоїнами — розкид
+const RING = '#00e5c0';   // кільце від СТВ — середній радіус
+const BOX = '#5ea8ff';    // рамка габариту — ширина × висота
 
 /** Число за мовою інтерфейсу з фіксованою кількістю знаків. */
 export function num(v, digits = 1) {
@@ -137,7 +137,7 @@ export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
  * Мітки поверх зображення. map(p) — частки фото → пікселі полотна, r — розмір мітки.
  * active — група, що редагується (інші блідіші), selected — виділена мітка, scale — показати масштаб.
  */
-export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false } = {}) {
+export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0 } = {}) {
   const halo = (draw, stroke, width) => {
     ctx.lineWidth = width + r * 0.35;
     ctx.strokeStyle = 'rgb(0 0 0 / .65)';
@@ -149,6 +149,16 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
     ctx.stroke();
   };
   const isSel = (kind, g, i) => selected && selected.kind === kind && selected.g === g && selected.i === i;
+  // Підпис фігури тими самими одиницями, що вибрані в картці; mm — міліметрів у пікселі полотна.
+  const tag = (text, x, y, color, align = 'center') => {
+    ctx.font = `700 ${Math.round(r * 1.6)}px system-ui, sans-serif`;
+    ctx.textAlign = align;
+    ctx.lineWidth = r * 0.5;
+    ctx.strokeStyle = 'rgb(0 0 0 / .8)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  };
   ctx.save();
   ctx.lineCap = 'round';
   // дві лінії масштабу: кінці першої — мітки a, b, другої — c, d
@@ -180,26 +190,48 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       halo(() => { ctx.beginPath(); ctx.rect(p[0] - s, p[1] - s, s * 2, s * 2); }, isSel(kind) ? '#fff' : '#5ee6ff', r * 0.3);
     }
   }
+  const labels = [];
   (marks.groups ?? []).forEach((group, g) => {
     ctx.globalAlpha = active === null || active === g ? 1 : 0.5;
     const c = color(g);
     if (group.holes.length >= 2) {
-      // Рамка (ширина × висота) і коло від СТВ через найдальшу пробоїну — видно відрив і куди витягнута група.
       const pts = group.holes.map(map);
       const xs = pts.map((p) => p[0]);
       const ys = pts.map((p) => p[1]);
       const cx = xs.reduce((s, v) => s + v, 0) / pts.length;
       const cy = ys.reduce((s, v) => s + v, 0) / pts.length;
-      // Коло — середній радіус (саме його показують цифри), рамка — габарит: крайні пробоїни й так на її межі.
-      const radius = pts.reduce((sum, [x, y]) => sum + Math.hypot(x - cx, y - cy), 0) / pts.length;
-      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      // Кожна фігура — число з картки: лінія між двома найдальшими пробоїнами (розкид), кільце від
+      // СТВ (середній радіус), пунктирна рамка (габарит). aspect — у скільки разів міліметр по
+      // вертикалі «довший» за горизонтальний (друга лінія масштабу): тоді коло в міліметрах — еліпс
+      // у пікселях, інакше малюнок розходився б із цифрою.
+      const dist = (a, b) => Math.hypot(a[0] - b[0], (a[1] - b[1]) * aspect);
+      let span = [pts[0], pts[1]];
+      let spanLen = 0;
+      for (const a of pts) for (const b of pts) if (dist(a, b) > spanLen) { spanLen = dist(a, b); span = [a, b]; }
+      const meanR = pts.reduce((s, [x, y]) => s + Math.hypot(x - cx, (y - cy) * aspect), 0) / pts.length;
+      const [bx0, bx1, by0, by1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
       ctx.save();
       ctx.globalAlpha *= 0.75;
       ctx.setLineDash([r * 0.7, r * 0.5]);
-      halo(() => { ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); }, BOX, r * 0.12);
+      halo(() => { ctx.beginPath(); ctx.rect(bx0, by0, bx1 - bx0, by1 - by0); }, BOX, r * 0.1);
       ctx.setLineDash([]);
-      halo(() => { ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); }, RING, r * 0.12);
+      halo(() => { ctx.beginPath(); ctx.moveTo(...span[0]); ctx.lineTo(...span[1]); }, SPAN, r * 0.12);
+      halo(() => {
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, meanR, meanR / aspect, 0, 0, Math.PI * 2);
+      }, RING, r * 0.12);
       ctx.restore();
+      if (mm) {
+        // Розкид — над своєю лінією й уздовж неї (перевертаємо, щоб не читалося догори
+        // дриґом), середній радіус — горизонтально над кільцем. Малюємо наприкінці,
+        // поверх усього, щоб пробоїни не затирали цифри.
+        const ang = Math.atan2(span[1][1] - span[0][1], span[1][0] - span[0][0]);
+        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha,
+          x: (span[0][0] + span[1][0]) / 2, y: (span[0][1] + span[1][1]) / 2,
+          ang: Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang, off: -r * 0.9 });
+        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha,
+          x: cx, y: cy - meanR / aspect - r * 0.6, ang: 0, off: 0 });
+      }
     }
     group.holes.forEach((hole, i) => {
       const [x, y] = map(hole);
@@ -231,6 +263,14 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       ctx.moveTo(x, y + s * 0.25); ctx.lineTo(x, y + s);
     }, stroke, r * 0.25);
   }
+  for (const l of labels) {
+    ctx.globalAlpha = l.alpha;
+    ctx.save();
+    ctx.translate(l.x, l.y);
+    if (l.ang) ctx.rotate(l.ang);
+    tag(l.text, 0, l.off, l.color);
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -240,22 +280,39 @@ function loadImage(src) {
   return img.decode().then(() => img);
 }
 
-/** Зображення мішені з мітками в canvas: ширина width пікселів (висота — за пропорцією фото). */
-export async function paintPreview(canvas, src, marks, width) {
+/** Міліметр по вертикалі відносно міліметра по горизонталі: 1, доки не поставлено другу лінію масштабу. */
+function aspectOf(marks, photo) {
+  const k = M.scaleXY(marks.scale, marks.scale2, { w: photo.width ?? photo.w, h: photo.height ?? photo.h });
+  return k?.two ? k.y / k.x : 1;
+}
+
+/** Скільки міліметрів в одному пікселі полотна по горизонталі — щоб підписати фігури. */
+function mmPerCanvasPx(marks, photo, canvasW) {
+  const dims = { w: photo.width ?? photo.w, h: photo.height ?? photo.h };
+  const k = M.scaleXY(marks.scale, marks.scale2, dims);
+  return k ? (k.x * dims.w) / canvasW : null;
+}
+
+/**
+ * Зображення мішені з мітками в canvas: ширина width пікселів (висота — за пропорцією фото).
+ * unit — підписати фігури числами в цих одиницях (на дрібних прев'ю не треба).
+ */
+export async function paintPreview(canvas, src, marks, width, { unit = null, distance = 0, active = null } = {}) {
   const img = await loadImage(src);
   canvas.width = Math.round(width);
   canvas.height = Math.round((width * img.height) / img.width);
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  drawMarks(ctx, marks, (p) => [p[0] * canvas.width, p[1] * canvas.height], Math.max(3, canvas.width / 80));
+  drawMarks(ctx, marks, (p) => [p[0] * canvas.width, p[1] * canvas.height], Math.max(3, canvas.width / 80),
+    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, canvas.width) : null, unit, distance, active });
 }
 
 /**
  * Картинка, щоб поділитися: фото з мітками й підсумок під ним.
  * lines — [{ text, color?, bold? }]. Повертає JPEG.
  */
-export async function shareImage(src, marks, lines) {
+export async function shareImage(src, marks, lines, { unit = null, distance = 0 } = {}) {
   const img = await loadImage(src);
   const width = Math.min(1600, Math.max(900, img.width));
   const photoH = Math.round((width * img.height) / img.width);
@@ -270,7 +327,8 @@ export async function shareImage(src, marks, lines) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, width, photoH);
-  drawMarks(ctx, marks, (p) => [p[0] * width, p[1] * photoH], width / 110);
+  drawMarks(ctx, marks, (p) => [p[0] * width, p[1] * photoH], width / 110,
+    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, width) : null, unit, distance });
   ctx.textBaseline = 'middle';
   lines.forEach((line, i) => {
     ctx.font = `${line.bold ? 700 : 400} ${font}px system-ui, sans-serif`;
@@ -373,7 +431,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, view.x, view.y, W * view.k, H * view.k);
-      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' ? active : null, selected, scale: true });
+      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' ? active : null, selected, scale: true,
+        aspect: aspectOf(st, { w: W, h: H }), mm: mmPerCanvasPx(st, { w: W, h: H }, W * view.k), unit, distance });
       panel();
     }
     function paintLoupe(at, n) {
@@ -388,7 +447,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, LOUPE, LOUPE);
       ctx.drawImage(src, c - n[0] * W * z, c - n[1] * H * z, W * z, H * z);
-      drawMarks(ctx, st, map, 8, { active: mode === 'holes' ? active : null, selected, scale: true });
+      drawMarks(ctx, st, map, 8, { active: mode === 'holes' ? active : null, selected, scale: true, aspect: aspectOf(st, { w: W, h: H }) });
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgb(0 0 0 / .7)';
       const cross = () => {
@@ -411,28 +470,15 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       loupe.hidden = false;
     }
 
-    /** Довге натискання на чип групи видаляє її — помилку повертає ↶. */
-    function holdToDrop(el, i) {
-      let timer = null;
-      let from = null;
-      const stop = () => { clearTimeout(timer); timer = null; };
-      // Горизонтальне гортання чипів — не видалення, тож рух пальця скасовує таймер.
-      el.addEventListener('pointermove', (e) => { if (timer && from && Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 8) stop(); });
-      el.addEventListener('pointerdown', (e) => {
-        from = [e.clientX, e.clientY];
-        timer = setTimeout(() => {
-          timer = null;
-          snapshot();
-          st.groups.splice(i, 1);
-          if (!st.groups.length) st.groups.push({ holes: [] });
-          active = Math.min(active, st.groups.length - 1);
-          selected = null;
-          vibrate();
-          paint();
-        }, 600);
-      });
-      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, stop);
-      return el;
+    /** Активну групу видаляє кнопка поруч із «+ група» — помилку повертає ↶. */
+    function dropGroup() {
+      snapshot();
+      st.groups.splice(active, 1);
+      if (!st.groups.length) st.groups.push({ holes: [] });
+      active = Math.min(active, st.groups.length - 1);
+      selected = null;
+      vibrate();
+      paint();
     }
 
     function panel() {
@@ -442,10 +488,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       }, label)));
       groupRow.hidden = mode !== 'holes';
       groupRow.replaceChildren(
-        ...st.groups.map((g, i) => holdToDrop(h('button', {
+        ...st.groups.map((g, i) => h('button', {
           type: 'button', class: i === active ? 'on' : '',
           onclick: () => { active = i; selected = null; paint(); },
-        }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`), i)),
+        }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`)),
         h('button', {
           type: 'button',
           onclick: () => {
@@ -455,7 +501,12 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             selected = null;
             paint();
           },
-        }, t('+ группа')));
+        }, t('+ группа')),
+        h('button', {
+          type: 'button',
+          disabled: st.groups.length === 1 && !st.groups[0].holes.length,
+          onclick: dropGroup,
+        }, t('✕ группа')));
       scaleRow.hidden = mode !== 'scale';
       lineRow.replaceChildren(...[['scale', t('Линия 1')], ['scale2', t('Линия 2 ↕')]].map(([key, label]) => h('button', {
         type: 'button', class: key === line ? 'on' : '',
@@ -468,7 +519,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             scaleNote()].filter(Boolean).join(' '))
         : mode === 'poa'
           ? t('Отметьте точку, в которую целились.')
-          : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить. Долгое нажатие на номер группы удаляет её.');
+          : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.');
       const k = M.mmPerPx(st.scale, { w: W, h: H });
       const group = M.targetStats(st, { w: W, h: H })[active];
       if (!k) stats.textContent = t('Задайте масштаб — без него размеры не посчитать');

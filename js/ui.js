@@ -32,7 +32,8 @@ const MONEY = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
 export const fmt = {
   num: (n) => nf(NUM).format(Number(n) || 0),
-  money: (n) => nf(MONEY).format(Number(n) || 0),
+  // Гривня — у самому форматері: інакше валюту довелося б дописувати в кожному рядку.
+  money: (n) => `${nf(MONEY).format(Number(n) || 0)} грн`,
   signed: (n) => (n > 0 ? `+${nf(NUM).format(n)}` : nf(NUM).format(n)),
   date: (iso) => (iso ? iso.split('-').reverse().join('.') : t('без даты')),
   time: (ms) => new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }),

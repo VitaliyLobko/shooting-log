@@ -1,6 +1,6 @@
 {
-  "name": "Shooting Log — облік БК і настрілу",
-  "short_name": "Настріл",
+  "name": "Shooters Log — облік БК і настрілу",
+  "short_name": "Shooters Log",
   "description": "Облік боєприпасів, настрілу по стволах і рецептів спорядження",
   "lang": "uk",
   "start_url": "./",
@@ -10,8 +10,23 @@
   "background_color": "#181c18",
   "theme_color": "#181c18",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
