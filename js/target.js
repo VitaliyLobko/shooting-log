@@ -20,6 +20,10 @@ const END = { a: ['scale', 'a'], b: ['scale', 'b'], c: ['scale2', 'a'], d: ['sca
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const color = (i) => COLORS[i % COLORS.length];
+// Рамка (габарит) і коло (розкид) — насичені кольори поза палітрою пробоїн і лінії масштабу:
+// світлі відтінки зливалися з білим папером мішені.
+const BOX = '#ff2d95';
+const RING = '#00e5c0';
 
 /** Число за мовою інтерфейсу з фіксованою кількістю знаків. */
 export function num(v, digits = 1) {
@@ -186,14 +190,15 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       const ys = pts.map((p) => p[1]);
       const cx = xs.reduce((s, v) => s + v, 0) / pts.length;
       const cy = ys.reduce((s, v) => s + v, 0) / pts.length;
-      const radius = Math.max(...pts.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+      // Коло — середній радіус (саме його показують цифри), рамка — габарит: крайні пробоїни й так на її межі.
+      const radius = pts.reduce((sum, [x, y]) => sum + Math.hypot(x - cx, y - cy), 0) / pts.length;
       const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
       ctx.save();
       ctx.globalAlpha *= 0.75;
       ctx.setLineDash([r * 0.7, r * 0.5]);
-      halo(() => { ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); }, c, r * 0.12);
+      halo(() => { ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); }, BOX, r * 0.12);
       ctx.setLineDash([]);
-      halo(() => { ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); }, c, r * 0.12);
+      halo(() => { ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); }, RING, r * 0.12);
       ctx.restore();
     }
     group.holes.forEach((hole, i) => {
@@ -306,7 +311,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
   return new Promise((done) => {
     const canvas = h('canvas', { class: 'tg-canvas' });
     const loupe = h('canvas', { class: 'tg-loupe', hidden: true, width: LOUPE, height: LOUPE });
-    const stage = h('div', { class: 'tg-stage' }, canvas, loupe);
+    const stats = h('div', { class: 'tg-stats' });
+    const stage = h('div', { class: 'tg-stage' }, canvas, loupe, stats);
     const modeRow = h('div', { class: 'chips tg-modes' });
     const groupRow = h('div', { class: 'chips tg-groups' });
     const mmInput = h('input', {
@@ -326,7 +332,6 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         onclick: () => { st[line].mm = v; mmInput.value = v; paint(); },
       }, num(v, v % 1 ? 1 : 0)))));
     const hint = h('div', { class: 'tg-hint' });
-    const stats = h('div', { class: 'tg-stats' });
     const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
     const undoBtn = tool('↶', t('Отменить последнее'), undo);
     const delBtn = tool('✕', t('Удалить метку'), removeSelected);
@@ -406,6 +411,30 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       loupe.hidden = false;
     }
 
+    /** Довге натискання на чип групи видаляє її — помилку повертає ↶. */
+    function holdToDrop(el, i) {
+      let timer = null;
+      let from = null;
+      const stop = () => { clearTimeout(timer); timer = null; };
+      // Горизонтальне гортання чипів — не видалення, тож рух пальця скасовує таймер.
+      el.addEventListener('pointermove', (e) => { if (timer && from && Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 8) stop(); });
+      el.addEventListener('pointerdown', (e) => {
+        from = [e.clientX, e.clientY];
+        timer = setTimeout(() => {
+          timer = null;
+          snapshot();
+          st.groups.splice(i, 1);
+          if (!st.groups.length) st.groups.push({ holes: [] });
+          active = Math.min(active, st.groups.length - 1);
+          selected = null;
+          vibrate();
+          paint();
+        }, 600);
+      });
+      for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, stop);
+      return el;
+    }
+
     function panel() {
       modeRow.replaceChildren(...[['holes', t('Пробоины')], ['poa', t('Точка прицеливания')], ['scale', t('Масштаб')]].map(([key, label]) => h('button', {
         type: 'button', class: key === mode ? 'on' : '',
@@ -413,10 +442,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       }, label)));
       groupRow.hidden = mode !== 'holes';
       groupRow.replaceChildren(
-        ...st.groups.map((g, i) => h('button', {
+        ...st.groups.map((g, i) => holdToDrop(h('button', {
           type: 'button', class: i === active ? 'on' : '',
           onclick: () => { active = i; selected = null; paint(); },
-        }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`)),
+        }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`), i)),
         h('button', {
           type: 'button',
           onclick: () => {
@@ -439,7 +468,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             scaleNote()].filter(Boolean).join(' '))
         : mode === 'poa'
           ? t('Отметьте точку, в которую целились.')
-          : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.');
+          : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить. Долгое нажатие на номер группы удаляет её.');
       const k = M.mmPerPx(st.scale, { w: W, h: H });
       const group = M.targetStats(st, { w: W, h: H })[active];
       if (!k) stats.textContent = t('Задайте масштаб — без него размеры не посчитать');
@@ -488,17 +517,17 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       paint();
     }
     function place(n) {
-      snapshot();
       const s = st[line];
+      // Обидві точки лінії вже стоять — тап нічого не зсуває: точку переставляють перетягуванням.
+      if (mode === 'scale' && s.a && s.b) return;
+      snapshot();
       if (mode === 'holes') st.groups[active].holes.push(n);
       else if (mode === 'poa') st.poa = n;
       else if (!s.a) s.a = n;
-      else if (!s.b) s.b = n;
       else {
-        // обидві точки є — переставляємо ближчу
-        const da = Math.hypot(n[0] - s.a[0], n[1] - s.a[1]);
-        const db = Math.hypot(n[0] - s.b[0], n[1] - s.b[1]);
-        s[da < db ? 'a' : 'b'] = n;
+        s.b = n;
+        // Масштаб задано — далі майже завжди пробоїни, тож не змушуємо перемикати руками.
+        if (line === 'scale') mode = 'holes';
       }
       selected = null;
       vibrate();
@@ -637,7 +666,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: cancel }, '✕')),
       stage,
       h('div', { class: 'tg-panel' },
-        modeRow, groupRow, scaleRow, hint, stats,
+        modeRow, groupRow, scaleRow, hint,
         h('div', { class: 'editor-row' }, undoBtn, delBtn, tool('⤢', t('Вписать в экран'), () => { fit(); paint(); }))),
       h('footer', { class: 'viewer-actions' },
         h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')),
