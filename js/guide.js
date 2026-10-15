@@ -1,15 +1,18 @@
 // Довідник стрілка: розділи курсу з guide/marksman.html, калькулятор мил і тренажер сітки.
-import { locale } from './i18n.js';
+import { t, lang, locale } from './i18n.js';
 
-let cached = null;
+const cached = new Map();
 
-/** Текст курсу; кешується на сесію (офлайн його віддає service worker). */
+/** Текст курсу мовою інтерфейсу; кешується на сесію (офлайн його віддає service worker). */
 export function loadGuide() {
-  cached ??= fetch('./guide/marksman.html').then((r) => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
-  }).catch((err) => { cached = null; throw err; });
-  return cached;
+  const file = lang() === 'uk' ? './guide/marksman.uk.html' : './guide/marksman.html';
+  if (!cached.has(file)) {
+    cached.set(file, fetch(file).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    }).catch((err) => { cached.delete(file); throw err; }));
+  }
+  return cached.get(file);
 }
 
 /** Розділи фрагмента: { id, num, title, body } — body без заголовка h2. */
@@ -40,20 +43,20 @@ export function initCalc(root) {
   const v = (id) => { const x = parseFloat($(id).value); return Number.isFinite(x) ? x : NaN; };
   const range = () => {
     const s = v('r-size'); const m = v('r-mil'); const o = $('r-out');
-    if (!(s > 0 && m > 0)) { o.innerHTML = '<small>Введите размер и угол в MRAD больше нуля</small>'; return; }
-    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} м<small>дальность = размер × 1000 ÷ MRAD</small>`;
+    if (!(s > 0 && m > 0)) { o.innerHTML = `<small>${t('Введите размер и угол в MRAD больше нуля')}</small>`; return; }
+    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} ${t('м')}<small>${t('дальность = размер × 1000 ÷ MRAD')}</small>`;
   };
   const clicks = () => {
     const c = v('c-cm'); const d = v('c-d'); const o = $('c-out');
-    if (!(c >= 0 && d > 0)) { o.innerHTML = '<small>Введите отклонение и дистанцию</small>'; return; }
+    if (!(c >= 0 && d > 0)) { o.innerHTML = `<small>${t('Введите отклонение и дистанцию')}</small>`; return; }
     const mil = c * 10 / d; const moa = c / (d / 100) / 2.908;
-    o.innerHTML = `${f(mil, 2)} MRAD → ${Math.round(mil * 10)} щелч. по 0,1`
-      + `<small>${f(moa, 2)} MOA → ${Math.round(moa * 4)} щелч. по ¼ MOA</small>`;
+    o.innerHTML = `${f(mil, 2)} MRAD → ${t('{n} щелч. по 0,1', { n: Math.round(mil * 10) })}`
+      + `<small>${f(moa, 2)} MOA → ${t('{n} щелч. по ¼ MOA', { n: Math.round(moa * 4) })}</small>`;
   };
   const lead = () => {
     const s = v('l-v'); const tm = v('l-t'); const d = v('l-d'); const o = $('l-out');
-    if (!(s >= 0 && tm >= 0 && d > 0)) { o.innerHTML = '<small>Введите скорость, время и дистанцию</small>'; return; }
-    o.innerHTML = `${f(s * tm * 1000 / d, 1)} MRAD вперёд<small>${f(s * tm, 2)} м по ходу движения</small>`;
+    if (!(s >= 0 && tm >= 0 && d > 0)) { o.innerHTML = `<small>${t('Введите скорость, время и дистанцию')}</small>`; return; }
+    o.innerHTML = `${f(s * tm * 1000 / d, 1)} ${t('MRAD вперёд')}<small>${t('{v} м по ходу движения', { v: f(s * tm, 2) })}</small>`;
   };
   ['r-size', 'r-mil'].forEach((i) => $(i).addEventListener('input', range));
   ['c-cm', 'c-d'].forEach((i) => $(i).addEventListener('input', clicks));
@@ -167,17 +170,17 @@ export function initReticles(root) {
   const gal = $('range-gallery');
   if (gal) {
     [100, 200, 300, 400, 500, 600].forEach((d) => mini(gal, { ret: 'dsmr', mag: 6, dist: d, tgt: 'man', mode: 'range' },
-      `<b>${d} м</b>рост ${f(1700 / d, 1)} MRAD`));
+      `<b>${d} ${t('м')}</b>${t('рост {v} MRAD', { v: f(1700 / d, 1) })}`));
   }
   const pair = $('sfp-pair');
   if (pair) {
-    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 6×</b>5,7 деления = 5,7 MRAD');
-    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, '<b>300 м на 3×</b>2,8 деления, но это те же 5,7 MRAD');
+    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 6×')}</b>${t('5,7 деления = 5,7 MRAD')}`);
+    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 3×')}</b>${t('2,8 деления, но это те же 5,7 MRAD')}`);
   }
   const bgal = $('bplex-gallery');
   if (bgal) {
     [200, 300, 400, 500, 600, 700].forEach((d) => mini(bgal, { ret: 'bplex', mag: 7, dist: d, tgt: 'man', mode: 'range' },
-      `<b>${d} м</b>рост ${f(170 * 34.377 / d, 1)} MOA`));
+      `<b>${d} ${t('м')}</b>${t('рост {v} MOA', { v: f(170 * 34.377 / d, 1) })}`));
   }
 }
 
@@ -202,7 +205,7 @@ const LOADS = {
       915: [0.056, 0.116, 0.18, 0.248, 0.32, 0.398, 0.481, 0.571, 0.668, 0.772, 0.886, 1.01, 1.146, 1.294],
       948: [0.054, 0.112, 0.173, 0.239, 0.308, 0.383, 0.463, 0.548, 0.641, 0.74, 0.848, 0.966, 1.094, 1.235],
     },
-    lim: 600, limTxt: 'Дальше 600 м M855 близок к дозвуку: кучность резко падает',
+    lim: 600, limTxt: 'Дальше 600 м M855 близок к дозвуку: кучность резко падает',  // перекладається через t() у draw()
   },
   b308: {
     ret: 'bplex', mvs: [['720', '16,5″ · 720 м/с'], ['740', '16,5″ · 740 м/с'], ['760', '16,5″ · 760 м/с']], def: '740', zeroLbl: '200 м',
@@ -234,16 +237,16 @@ function at(arr, d) {
 }
 
 function bplexWhere(v) {
-  if (v <= 0) return `центр${v < -0.2 ? ' (держать чуть ниже)' : ''}`;
+  if (v <= 0) return `${t('центр')}${v < -0.2 ? ` ${t('(держать чуть ниже)')}` : ''}`;
   for (let i = 1; i < BMARKS.length; i++) {
     if (v <= BMARKS[i][0]) {
-      const a = BMARKS[i - 1]; const b = BMARKS[i]; const t = (v - a[0]) / (b[0] - a[0]);
-      if (t < 0.15) return a[1];
-      if (t > 0.85) return b[1];
-      return `между «${a[1]}» и «${b[1]}», ${t < 0.5 ? 'ближе к первой' : 'ближе ко второй'}`;
+      const a = BMARKS[i - 1]; const b = BMARKS[i]; const part = (v - a[0]) / (b[0] - a[0]);
+      if (part < 0.15) return t(a[1]);
+      if (part > 0.85) return t(b[1]);
+      return t('между «{a}» и «{b}», {near}', { a: t(a[1]), b: t(b[1]), near: part < 0.5 ? t('ближе к первой') : t('ближе ко второй') });
     }
   }
-  return 'ниже кончика столба — крути барабан';
+  return t('ниже кончика столба — крути барабан');
 }
 
 /** Тренажер: вид у приціл з ціллю, виносом і вітром. */
@@ -268,22 +271,23 @@ export function initSim(root) {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const u = C.u; const moa = L.ret === 'bplex';
     const d = +$('s-dist').value; const m = +$('s-mag').value; const mv = $('s-barrel').value; const z = +$('s-zero').value;
     const w = +$('s-wind').value; const left = $('s-wdir').value === 'L';
-    $('s-dist-v').textContent = `${d} м`; $('s-mag-v').textContent = `${fm(m)}×`; $('s-wind-v').textContent = `${fm(w)} м/с`;
+    $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`; $('s-wind-v').textContent = `${fm(w)} ${t('м/с')}`;
     const hold = at(L.H[mv], d) - (z === 200 ? at(L.H[mv], 200) : 0);
     const wm = at(L.W[mv], d) * w; const hx = left ? wm : -wm; const k = m / C.cal; const T = TGT[st.tgt];
     scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold });
     const sz = C.size(T.h, d); const rows = [];
     const formula = moa ? `${f(T.h * 100, 0)} см × 34,4 ÷ ${f(sz, 1)}` : `${f(T.h, 1)} × 1000 ÷ ${f(sz, 1)}`;
-    rows.push(`<div><span class="k">Цель занимает (на ${C.cal}×)</span><span class="v">${f(sz, 1)} ${u}</span> → ${formula} = ${d} м</div>`);
-    if (m < C.cal) rows.push(`<div class="w"><span class="k">Кратность ${fm(m)}×</span>все значения сетки × ${f(C.cal / m, 2)}. Цель видна как ${f(sz * k, 1)} ${u} «по сетке» — для дальномера ставь ${C.cal}×</div>`);
-    const ah = Math.abs(hold); const up = hold >= 0 ? 'вверх' : 'вниз';
-    const clicks = moa ? `${Math.round(ah * 4.19)} щелч. по ¼″` : `${Math.round(ah * 10)} щелч. 0,1 MRAD · ${Math.round(ah * 13.75)} щелч. ¼ MOA`;
-    rows.push(`<div><span class="k">Поправка по вертикали</span><span class="v">${f(ah, moa ? 1 : 2)} ${u} ${up}</span> · ${clicks}${moa ? ` · ${f(ah / 3.4377, 2)} MRAD` : ''}</div>`);
-    if (moa) rows.push(`<div><span class="k">Где держать на 7×</span>${bplexWhere(hold)}${m < C.cal ? ` — на ${fm(m)}× точки не совпадают` : ''}</div>`);
-    else rows.push(`<div><span class="k">Вынос по сетке на ${fm(m)}×</span>метка на ${f(ah * k, 2)} деления ${hold >= 0 ? 'ниже' : 'выше'} центра ставится на цель</div>`);
-    if (w > 0) rows.push(`<div><span class="k">Ветер ${fm(w)} м/с ${left ? 'слева' : 'справа'}</span><span class="v">${f(wm, moa ? 1 : 2)} ${u}</span>: центр ${left ? 'левее' : 'правее'} цели, цель на ${f(wm * k, moa ? 1 : 2)} ${u} ${left ? 'справа' : 'слева'} от центра</div>`);
-    rows.push(`<div><span class="k">Время полёта</span>${f(at(L.T[mv], d), 2)} с</div>`);
-    if (d > L.lim) rows.push(`<div class="w">${L.limTxt}</div>`);
+    rows.push(`<div><span class="k">${t('Цель занимает (на {n}×)', { n: C.cal })}</span><span class="v">${f(sz, 1)} ${u}</span> → ${formula} = ${d} ${t('м')}</div>`);
+    if (m < C.cal) rows.push(`<div class="w"><span class="k">${t('Кратность {n}×', { n: fm(m) })}</span>${t('все значения сетки × {k}. Цель видна как {v} {u} «по сетке» — для дальномера ставь {c}×', { k: f(C.cal / m, 2), v: f(sz * k, 1), u, c: C.cal })}</div>`);
+    const ah = Math.abs(hold); const up = hold >= 0 ? t('вверх') : t('вниз');
+    const clicks = moa ? t('{n} щелч. по ¼″', { n: Math.round(ah * 4.19) })
+      : t('{a} щелч. 0,1 MRAD · {b} щелч. ¼ MOA', { a: Math.round(ah * 10), b: Math.round(ah * 13.75) });
+    rows.push(`<div><span class="k">${t('Поправка по вертикали')}</span><span class="v">${f(ah, moa ? 1 : 2)} ${u} ${up}</span> · ${clicks}${moa ? ` · ${f(ah / 3.4377, 2)} MRAD` : ''}</div>`);
+    if (moa) rows.push(`<div><span class="k">${t('Где держать на 7×')}</span>${bplexWhere(hold)}${m < C.cal ? t(' — на {n}× точки не совпадают', { n: fm(m) }) : ''}</div>`);
+    else rows.push(`<div><span class="k">${t('Вынос по сетке на {n}×', { n: fm(m) })}</span>${t('метка на {v} деления {dir} центра ставится на цель', { v: f(ah * k, 2), dir: hold >= 0 ? t('ниже') : t('выше') })}</div>`);
+    if (w > 0) rows.push(`<div><span class="k">${t('Ветер {w} м/с {from}', { w: fm(w), from: left ? t('слева') : t('справа') })}</span><span class="v">${f(wm, moa ? 1 : 2)} ${u}</span>: ${t('центр {side1} цели, цель на {v} {u} {side2} от центра', { side1: left ? t('левее') : t('правее'), v: f(wm * k, moa ? 1 : 2), u, side2: left ? t('справа') : t('слева') })}</div>`);
+    rows.push(`<div><span class="k">${t('Время полёта')}</span>${f(at(L.T[mv], d), 2)} ${t('с')}</div>`);
+    if (d > L.lim) rows.push(`<div class="w">${t(L.limTxt)}</div>`);
     $('sim-out').innerHTML = rows.join('');
   };
 

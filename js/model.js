@@ -429,8 +429,8 @@ export const PRECISION_MIN_HOLES = 3;
 /**
  * Кучність набоїв одного ствола за розміченими мішенями. Мішені на різних дистанціях зводяться до 100 м
  * (кут той самий: мм × 100 / дистанція), тож усі розміри — мм на 100 м. Для кожного набою:
- * { cartridgeId, groups, shots, meanRadius, spread, best, offset, targets }; meanRadius і spread — середні
- * по групах, best — найменший розмах, offset — середнє зміщення СТП [x праворуч, y вгору] або null.
+ * { cartridgeId, groups, shots, meanRadius, best, offset, targets }; meanRadius — середній по групах,
+ * best — найменший розмах, offset — середнє зміщення СТП [x праворуч, y вгору] або null.
  * Порядок — за середнім радіусом: він бере всі пробоїни, а не дві крайні, і менше залежить від кількості
  * пострілів у групі, ніж розмах.
  */
@@ -456,7 +456,6 @@ export function ammoPrecision(targets, photos) {
       groups: list.length,
       shots: list.reduce((s, x) => s + x.n, 0),
       meanRadius: avg(list, (s) => s.meanRadius * s.k),
-      spread: avg(list, (s) => s.spread * s.k),
       best: Math.min(...list.map((s) => s.spread * s.k)),
       offset: shifted.length ? [avg(shifted, (s) => s.offset[0] * s.k), avg(shifted, (s) => s.offset[1] * s.k)] : null,
       targets: [...ids],
