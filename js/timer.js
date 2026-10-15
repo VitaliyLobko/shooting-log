@@ -10,6 +10,7 @@ const PAR_BEEP = 0.15; // с — гудок пар-тайму
 const SILENCE_STOP = 10; // с без пострілів — серія закінчилась
 const MAX_RUN = 180; // с — запобіжник, якщо забули зупинити
 const DELAYS = [['random', 'Случайная 2–4 с'], ['3', '3 с'], ['0', 'Без задержки']];
+const TRIGGERS = [['button', 'Кнопкой'], ['sound', 'По звуку']];
 
 function recall(key, fallback) {
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
@@ -94,6 +95,11 @@ let panel = null;
  * чи будь-яка зміна даних посеред серії знищила б запущений таймер.
  * weapons — [id, назва] для вибору ствола; onSave(drill) — зберегти серію.
  */
+/** Зупинити таймер ззовні: його шторку закрили. */
+export function stopTimerPanel() {
+  panel?.stopIfBusy();
+}
+
 export function timerPanel({ weapons, onSave, source = null }) {
   if (!panel) panel = buildPanel(source);
   panel.update({ weapons, onSave });
@@ -115,18 +121,25 @@ function buildPanel(source) {
   const fill = h('div', { class: 'tm-level-fill' });
   const mark = h('div', { class: 'tm-level-mark' });
   const sens = h('input', { type: 'range', min: 0, max: 100, step: 1, class: 'tm-sens', 'aria-label': t('Чувствительность') });
-  sens.value = recall('shooting-log:timer-sens', '40');
+  sens.value = recall('shooters-log:timer-sens', '40');
   const placeMark = () => {
     mark.style.left = `${levelPos(thresholdOf(Number(sens.value))) * 100}%`;
     engine.setThreshold(thresholdOf(Number(sens.value)));
   };
-  sens.addEventListener('input', () => { remember('shooting-log:timer-sens', sens.value); placeMark(); });
+  sens.addEventListener('input', () => { remember('shooters-log:timer-sens', sens.value); placeMark(); });
 
-  let delay = recall('shooting-log:timer-delay', 'random');
-  const delayChips = chips(DELAYS.map(([k, label]) => [k, t(label)]), delay, (v) => { delay = v; remember('shooting-log:timer-delay', v); });
+  let trigger = TRIGGERS.some(([k]) => k === recall('shooters-log:timer-trigger')) ? recall('shooters-log:timer-trigger') : 'button';
+  const triggerChips = chips(TRIGGERS.map(([k, label]) => [k, t(label)]), trigger, (v) => {
+    trigger = v;
+    remember('shooters-log:timer-trigger', v);
+    if (mode === 'armed') stop();
+    startBtn.textContent = t('Старт');
+  });
+  let delay = recall('shooters-log:timer-delay', 'random');
+  const delayChips = chips(DELAYS.map(([k, label]) => [k, t(label)]), delay, (v) => { delay = v; remember('shooters-log:timer-delay', v); });
   const par = h('input', { type: 'number', inputmode: 'decimal', min: 0, step: 0.1, placeholder: '—', class: 'tm-par' });
-  par.value = recall('shooting-log:timer-par', '');
-  par.addEventListener('input', () => remember('shooting-log:timer-par', par.value));
+  par.value = recall('shooters-log:timer-par', '');
+  par.addEventListener('input', () => remember('shooters-log:timer-par', par.value));
   const weapon = h('select', { class: 'tm-weapon' });
   const note = h('input', { type: 'text', placeholder: t('Упражнение: «Билл-дрил», 2 цели…'), autocomplete: 'off', class: 'tm-note' });
 
@@ -145,6 +158,8 @@ function buildPanel(source) {
       setTimeout(() => fill.classList.remove('hit'), 300);
       return;
     }
+    // Руки на зброї — серію починає будь-який гучний звук: команда «старт» або плеск.
+    if (mode === 'armed') { start(); return; }
     // Перехід «чекаємо → вогонь» — за часом пострілу, а не за кадром анімації (кадри можуть стояти)
     if ((mode !== 'run' && mode !== 'wait') || at < t0) return;
     mode = 'run';
@@ -196,6 +211,21 @@ function buildPanel(source) {
     }
   }
 
+  /** Чекаємо на звук: мікрофон уже слухає, перший гучний звук запустить затримку й гудок. */
+  async function arm() {
+    if (!(await openAudio())) return;
+    engine.reset();
+    shots = [];
+    mode = 'armed';
+    time.textContent = num(0, 2);
+    status.textContent = t('Скажите «старт» или хлопните');
+    startBtn.textContent = t('Стоп');
+    startBtn.classList.add('stop');
+    checkBtn.hidden = true;
+    drawShots();
+    lock = await navigator.wakeLock?.request('screen').catch(() => null);
+  }
+
   async function start() {
     // Аудіо й мікрофон — лише з натискання: інакше браузер не дасть звуку
     if (!(await openAudio())) return;
@@ -224,7 +254,7 @@ function buildPanel(source) {
     cancelAnimationFrame(frame);
     clearTimeout(stopTimer);
     const was = mode;
-    mode = was === 'wait' ? 'idle' : 'done';
+    mode = was === 'wait' || was === 'armed' ? 'idle' : 'done';
     engine.release();
     lock?.release().catch(() => {});
     lock = null;
@@ -262,11 +292,15 @@ function buildPanel(source) {
     drawShots();
   }
 
-  startBtn.addEventListener('click', () => (mode === 'wait' || mode === 'run' ? stop() : start()));
+  startBtn.addEventListener('click', () => {
+    if (mode === 'wait' || mode === 'run' || mode === 'armed') stop();
+    else if (trigger === 'sound') arm();
+    else start();
+  });
   checkBtn.addEventListener('click', toggleCheck);
   resetBtn.addEventListener('click', reset);
   saveBtn.addEventListener('click', async () => {
-    remember('shooting-log:timer-weapon', weapon.value);
+    remember('shooters-log:timer-weapon', weapon.value);
     await onSave?.({
       date: M.today(), weaponId: weapon.value || null, note: note.value.trim() || null,
       delay, par: parValue(), shots: shots.map((x) => Math.round(x * 1000) / 1000),
@@ -274,7 +308,7 @@ function buildPanel(source) {
     reset();
   });
   // Вкладку сховали посеред серії — мікрофон і екран усе одно зупиняться, тож зупиняємо чесно
-  document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'wait' || mode === 'run')) stop(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'wait' || mode === 'run' || mode === 'armed')) stop(); });
 
   const el = h('div', { class: 'timer' },
     h('div', { class: 'tm-face' }, time, status),
@@ -283,6 +317,8 @@ function buildPanel(source) {
     after,
     h('fieldset', { class: 'box' }, h('legend', {}, t('Настройки таймера')),
       h('div', { class: 'tm-set' },
+        h('span', { class: 'field-label' }, t('Запуск')), triggerChips,
+        h('small', { class: 'muted' }, t('«По звуку» — серия начнётся от команды «старт» или хлопка: руки остаются на оружии.')),
         h('span', { class: 'field-label' }, t('Задержка сигнала')), delayChips,
         h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Пар-тайм, с')), par,
           h('small', { class: 'muted' }, t('Второй сигнал — уложиться до него'))),
@@ -294,9 +330,14 @@ function buildPanel(source) {
 
   return {
     el,
+    // Таймер відкривали зі шторки вправи: коли її закрили, серія й мікрофон мають зупинитися.
+    stopIfBusy() {
+      if (mode === 'wait' || mode === 'run' || mode === 'armed') stop();
+      else if (mode === 'check') toggleCheck();
+    },
     update(opts) {
       onSave = opts.onSave;
-      const keep = weapon.value || recall('shooting-log:timer-weapon', '');
+      const keep = weapon.value || recall('shooters-log:timer-weapon', '');
       weapon.replaceChildren(...[['', t('— не указывать —')], ...opts.weapons].map(([id, name]) => h('option', { value: id, selected: id === keep }, name)));
     },
   };

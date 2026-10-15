@@ -13,128 +13,112 @@ function ensureDefs() {
   svg.innerHTML = `<defs>
     <linearGradient id="lv-br" x1="0" x2="1"><stop offset="0" stop-color="#7a5414"/><stop offset=".3" stop-color="#ffe7a0"/><stop offset=".55" stop-color="#d9a640"/><stop offset="1" stop-color="#6b470f"/></linearGradient>
     <linearGradient id="lv-cu" x1="0" x2="1"><stop offset="0" stop-color="#6e2c0e"/><stop offset=".32" stop-color="#ffbf8a"/><stop offset=".6" stop-color="#cf6c32"/><stop offset="1" stop-color="#55210a"/></linearGradient>
-    <linearGradient id="lv-olive" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8a52"/><stop offset="1" stop-color="#4a5430"/></linearGradient>
-    <linearGradient id="lv-oliveD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5d6a3a"/><stop offset="1" stop-color="#363f22"/></linearGradient>
     <linearGradient id="lv-zinc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c0b4"/><stop offset=".5" stop-color="#8b9586"/><stop offset="1" stop-color="#5f685b"/></linearGradient>
     <linearGradient id="lv-card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2c38f"/><stop offset="1" stop-color="#b08a52"/></linearGradient>
     <linearGradient id="lv-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b98a52"/><stop offset="1" stop-color="#7d5428"/></linearGradient>
     <linearGradient id="lv-woodD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f6435"/><stop offset="1" stop-color="#5c3a18"/></linearGradient>
-    <linearGradient id="lv-steel" x1="0" x2="1"><stop offset="0" stop-color="#6b737b"/><stop offset=".35" stop-color="#e9edf1"/><stop offset="1" stop-color="#7d858d"/></linearGradient>
-    <linearGradient id="lv-burlap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9ad78"/><stop offset="1" stop-color="#8d7246"/></linearGradient>
-    <pattern id="lv-net" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0h6M0 0v6" stroke="#3f5a2a" stroke-width="1.1"/></pattern>
-    <g id="lv-round"><path fill="url(#lv-cu)" d="M7 15C7 9 9 4 10 1.5 11 4 13 9 13 15Z"/><path fill="url(#lv-br)" d="M7 14h6v6l3 5v32H4V25l3-5Z"/><rect fill="#5e3f0e" x="5" y="57" width="10" height="2"/><rect fill="url(#lv-br)" x="3.5" y="59" width="13" height="3.5" rx="1"/></g>
-    <g id="lv-case"><path fill="url(#lv-br)" d="M7 0h6v6l3 5v32H4V11l3-5Z"/><ellipse cx="10" cy=".6" rx="3" ry=".9" fill="#3d2a08"/><rect fill="#5e3f0e" x="5" y="43" width="10" height="2"/><rect fill="url(#lv-br)" x="3.5" y="45" width="13" height="3.5" rx="1"/></g>
-    <g id="lv-crate"><rect fill="url(#lv-wood)" width="40" height="28" rx="1.5"/><path d="M0 9.3h40M0 18.6h40" stroke="#5c3a18" stroke-width=".8" opacity=".7"/>
-      <rect fill="url(#lv-woodD)" width="5" height="28" rx="1"/><rect fill="url(#lv-woodD)" x="35" width="5" height="28" rx="1"/>
-      <path d="M1.4 11q1.1-3 2.2 0M36.4 11q1.1-3 2.2 0" fill="none" stroke="#2b1a08" stroke-width=".9"/>
-      <text x="20" y="17.6" text-anchor="middle" font-size="7" font-weight="900" fill="#2b1a08" opacity=".55" font-family="system-ui">БК</text></g>
+    <linearGradient id="lv-bronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e49a5c"/><stop offset=".45" stop-color="#c0703a"/><stop offset="1" stop-color="#7f4420"/></linearGradient>
+    <linearGradient id="lv-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f5f7"/><stop offset=".45" stop-color="#bcc5cc"/><stop offset="1" stop-color="#7d868e"/></linearGradient>
+    <linearGradient id="lv-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".45" stop-color="#e0ad3e"/><stop offset="1" stop-color="#9a6d14"/></linearGradient>
+    <linearGradient id="lv-ribbon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7532f"/><stop offset="1" stop-color="#a33318"/></linearGradient>
   </defs>`;
   document.body.append(svg);
 }
 
-const use = (id, x, y, rot = 0, sc = 1) => `<use href="#lv-${id}" transform="translate(${x} ${y}) rotate(${rot}) scale(${sc})"/>`;
-
-/** Купа гільз: детермінована «випадковість» за seed, тож картинка щоразу однакова. */
-function pile(count, cx, base, w, hgt, seed, scale = 0.36) {
-  let s = seed;
-  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-  let out = '';
-  for (let i = 0; i < count; i++) {
-    const up = rnd();
-    const x = cx + (rnd() - 0.5) * w * (1 - up * 0.85);
-    out += use('case', x - 4, base - up * hgt - 4, -90 + (rnd() - 0.5) * 160, scale);
+/** Зірка з n променями для жетона. */
+function star(cx, cy, r, fill) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const rad = i % 2 ? r * 0.44 : r;
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    pts.push(`${(cx + rad * Math.cos(a)).toFixed(2)},${(cy + rad * Math.sin(a)).toFixed(2)}`);
   }
-  return out;
+  return `<polygon points="${pts.join(' ')}" fill="${fill}"/>`;
 }
 
-/** Тінь під предметом. */
-const shadow = (cx, cy, rx, ry = 2.2) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#000" opacity=".28"/>`;
-
-/** Верхня пачка: кулі рядами, як у відкритій коробці. */
-function packTips() {
+/**
+ * Жетон звання: диск із металу (бронза → срібло → золото), зірки за рівнем, вінок і промені на вершині.
+ * Без металу — порожній пунктирний контур: настрілу ще немає.
+ */
+function badge(metal, stars, { wreath = false, rays = false } = {}) {
+  const cx = 48;
+  const cy = 30;
+  const R = 19;
+  const dark = { bronze: '#6b3a1c', silver: '#6d757c', gold: '#7d5610' }[metal] ?? '#8c958a';
   let out = '';
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 8; c++) {
-      const x = 23 + c * 5.2 + (2 - r) * 2.6;
-      const y = 22.4 - (2 - r) * 1.9;
-      out += `<path fill="url(#lv-cu)" d="M${x} ${y}c0-2.4.8-4.2 1.6-5.4.8 1.2 1.6 3 1.6 5.4z"/>`;
+  if (rays) {
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI / 6) * i;
+      out += `<line x1="${(cx + Math.cos(a) * (R + 3)).toFixed(1)}" y1="${(cy + Math.sin(a) * (R + 3)).toFixed(1)}"`
+        + ` x2="${(cx + Math.cos(a) * (R + 8)).toFixed(1)}" y2="${(cy + Math.sin(a) * (R + 8)).toFixed(1)}"`
+        + ' stroke="#e0ad3e" stroke-width="2" stroke-linecap="round" opacity=".55"/>';
     }
   }
+  if (metal) {
+    out += `<path d="M${cx - 15} ${cy + R - 4} h30 l-4 ${R + 14} -11 -7 -11 7z" fill="url(#lv-ribbon)"/>`;
+    out += `<path d="M${cx - 15} ${cy + R - 4} h30 l-1.6 6 h-26.8z" fill="#000" opacity=".18"/>`;
+  }
+  out += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${metal ? `url(#lv-${metal})` : 'none'}" stroke="${dark}"`
+    + ` stroke-width="${metal ? 1.2 : 2.4}"${metal ? '' : ' stroke-dasharray="4 4"'}/>`;
+  if (metal) out += `<circle cx="${cx}" cy="${cy}" r="${R - 3.5}" fill="none" stroke="${dark}" stroke-width="1" opacity=".6"/>`;
+  if (wreath) {
+    for (const dir of [-1, 1]) {
+      out += `<path d="M${cx + dir * 10} ${cy + 11} q${dir * 7} -6 ${dir * 6} -16" fill="none" stroke="${dark}" stroke-width="1.6" opacity=".85"/>`;
+      for (let i = 0; i < 3; i++) {
+        const k = 0.25 + i * 0.3;
+        const px = (cx + dir * 10 + dir * (7 * k * (2 - k))).toFixed(1);
+        const py = (cy + 11 - 16 * k).toFixed(1);
+        out += `<ellipse cx="${px}" cy="${py}" rx="2.6" ry="1.4" fill="${dark}" opacity=".85" transform="rotate(${dir * -40} ${px} ${py})"/>`;
+      }
+    }
+  }
+  if (!stars) out += `<circle cx="${cx}" cy="${cy}" r="2.4" fill="${dark}" opacity=".6"/>`;
+  else if (stars === 1) out += star(cx, cy - 1, 8.5, dark);
+  else if (stars === 2) out += star(cx - 6.5, cy - 1, 6.5, dark) + star(cx + 6.5, cy - 1, 6.5, dark);
+  else out += star(cx, cy - 6, 6.2, dark) + star(cx - 8, cy + 3, 6.2, dark) + star(cx + 8, cy + 3, 6.2, dark);
   return out;
 }
 
+/** Набій для значків запасу: гільза з кулею, висота 26. */
+const roundSvg = (x, y, rot = 0, sc = 1) => `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${sc})">`
+  + '<path d="M0 0h9v17l-1.5 2.5h-6L0 17z" fill="url(#lv-br)"/>'
+  + '<path d="M0 0h9v-5l-4.5-8L0-5z" fill="url(#lv-cu)"/>'
+  + '<rect x="-.6" y="15.5" width="10.2" height="2.2" rx="1" fill="#8a6a1e" opacity=".55"/></g>';
+
+/** Дерев'яний ящик: прості дошки, без написів — у дрібному розмірі важить силует. */
+const crateSvg = (x, y, sc = 1) => `<g transform="translate(${x} ${y}) scale(${sc})">`
+  + '<rect width="40" height="26" rx="2" fill="url(#lv-wood)"/>'
+  + '<rect x="3" y="3" width="34" height="20" rx="1.5" fill="none" stroke="#5c3a18" stroke-width="1.6" opacity=".6"/>'
+  + '<path d="M0 9h40M0 17h40" stroke="#5c3a18" stroke-width="1" opacity=".45"/></g>';
+
+// Запас БК: від порожньої коробки до арсеналу. Силует простий, деталей мінімум — значок працює і в 30 px.
 const AMMO = [
-  // Відкрита порожня коробка: павутина всередині, над нею міль.
-  { max: 0, name: 'Пусто. Совсем', art: () => `
-    <path fill="#8a6a3c" d="M18 34 30 25h52l-12 9z"/>
-    <path fill="#3b2d19" d="M22 33 31 27h48l-9 6z"/>
-    <g stroke="#e8ecef" stroke-width=".45" fill="none" opacity=".6">
-      <path d="M31 27 36 33M31 27l14 3M31 27l9 6M31 27l20 1"/><path d="M33 29q2-.6 3 1M35 30.5q3-1 5 .6M37 28.6q3-.6 5 .3"/></g>
-    <path fill="#c9a66d" d="M30 25 22 13l52-2 8 14z"/>
-    <path fill="#b08a52" d="M18 34 30 25 20 18 8 27z"/>
-    <path fill="#d9b981" d="M70 34 82 25 92 31 80 40z"/>
-    <rect fill="url(#lv-card)" x="18" y="34" width="52" height="30" rx="1.5"/>
-    <path fill="#9a7644" d="M70 34 82 25v30l-12 9z"/>
-    <rect fill="#c0392b" x="18" y="44" width="52" height="8"/>
-    <text x="44" y="50.6" text-anchor="middle" font-size="7" font-weight="900" fill="#fff" font-family="system-ui">0 шт</text>
-    <g transform="translate(60 6) rotate(18)"><ellipse cx="-3.4" cy="0" rx="3.6" ry="2.4" fill="#b7ab98"/><ellipse cx="3.4" cy="0" rx="3.6" ry="2.4" fill="#a39783"/>
-      <ellipse cx="0" cy=".4" rx="1" ry="3" fill="#5b5248"/></g>
-    <path d="M48 12q4 3 8-1M44 16q3 2 6 0" stroke="#949e90" stroke-width=".6" fill="none" stroke-dasharray="1.4 1.6"/>` },
-  // Кілька набоїв лежать, один стоїть.
-  { max: 25, name: 'Россыпь', art: () => `${shadow(36, 63, 17)}${shadow(68, 61, 15)}${shadow(46, 58, 6, 1.6)}${shadow(28, 53, 12, 1.8)}
-    ${use('round', 14, 54, -96, 0.42)}${use('round', 40, 19, 0, 0.64)}${use('round', 20, 66, -84, 0.5)}${use('round', 88, 59, 98, 0.5)}` },
-  // Дві пачки по 20, верхня відкрита.
-  { max: 100, name: 'Пара пачек', art: () => `${shadow(46, 66, 36, 2.6)}
-    <path fill="#a4804a" d="M14 46 22 40h44l-8 6z"/>
-    <rect fill="url(#lv-card)" x="14" y="46" width="44" height="18" rx="1.2"/>
-    <path fill="#94713f" d="M58 46 66 40v18l-8 6z"/>
-    <rect fill="#c0392b" x="14" y="51" width="44" height="7"/>
-    <text x="36" y="56.6" text-anchor="middle" font-size="6" font-weight="900" fill="#fff" font-family="system-ui">20</text>
-    <path fill="#c9a66d" d="M30 16 32 6l40-1-2 11z"/>
-    <path fill="#3b2d19" d="M22 24 30 18h42l-8 6z"/>
-    ${packTips()}
-    <rect fill="url(#lv-card)" x="22" y="24" width="42" height="18" rx="1.2"/>
-    <path fill="#94713f" d="M64 24 72 18v18l-8 6z"/>
-    <rect fill="#c0392b" x="22" y="29" width="42" height="7"/>
-    <text x="43" y="34.6" text-anchor="middle" font-size="6" font-weight="900" fill="#fff" font-family="system-ui">20</text>` },
-  // Цинк у три чверті: канавка розкриття, ключ, відігнутий кут.
-  { max: 400, name: 'Цинк', art: () => `${shadow(48, 66, 36, 2.6)}
-    <path fill="#cfd5ca" d="M12 30 24 20h60L72 30z"/>
-    <path d="M16 28.6 25.4 21.4h54.6L70.6 28.6z" fill="none" stroke="#7d867a" stroke-width="1.1"/>
-    ${[0, 1, 2, 3].map((i) => `<path fill="url(#lv-cu)" d="M${62 + i * 3.6} ${27.6 - i * 1.4}c0-2.2.7-3.8 1.4-4.8.7 1 1.4 2.6 1.4 4.8z"/>`).join('')}
-    <path d="M70.6 28.6 80 21.4" stroke="#3f463c" stroke-width="2.6"/>
-    <path d="M71 27.8c2-6 5-10.6 9.4-12.4 3.4-1.4 5.6.4 4.2 2.6-1.2 2-4.4 1.4-3.6-1" fill="none" stroke="url(#lv-steel)" stroke-width="2.4" stroke-linecap="round"/>
-    <circle cx="21" cy="26" r="3.2" fill="none" stroke="#6a7366" stroke-width="1.4"/><path d="M23.6 24.6l4-2" stroke="#6a7366" stroke-width="1.6" stroke-linecap="round"/>
-    <rect fill="url(#lv-zinc)" x="12" y="30" width="60" height="34" rx="1.5"/>
-    <path d="M12 33.5h60" stroke="#5f685b" stroke-width="1"/>
-    <path fill="#6f786b" d="M72 30 84 20v34l-12 10z"/>
-    <path d="M72 33.5 84 23.5" stroke="#4f574c" stroke-width="1"/>
-    <text x="42" y="47" text-anchor="middle" font-size="7.5" font-weight="900" fill="#f2e7a2" opacity=".85" font-family="system-ui">7,62</text>
-    <text x="42" y="57" text-anchor="middle" font-size="6" font-weight="800" fill="#f2e7a2" opacity=".7" font-family="system-ui">440 шт</text>` },
-  { max: 1000, name: 'Ящик', art: () => `<g transform="translate(8 14) scale(2)">${use('crate', 0, 0)}</g>` },
-  { max: 3000, name: 'Склад', art: () => `<g transform="translate(2 4) scale(1.15)">${use('crate', 0, 30)}${use('crate', 42, 30)}${use('crate', 21, 2)}</g>` },
-  { max: Infinity, name: 'Хомяк уровня «арсенал»', art: () => `<g transform="translate(0 2) scale(.93)">
-    ${use('crate', 0, 52)}${use('crate', 42, 52)}${use('crate', 84, 52)}${use('crate', 21, 26)}${use('crate', 63, 26)}${use('crate', 42, 0)}
-    <path d="M38 -2 Q60 -8 86 0 L112 54 Q100 62 92 58 Q80 66 66 60 Q52 68 40 60 Q24 66 14 58 Q4 62 -6 54 Z" fill="url(#lv-net)" opacity=".85"/>
-    <g fill="#4f6b30" opacity=".9"><ellipse cx="54" cy="4" rx="5" ry="2.4" transform="rotate(-20 54 4)"/><ellipse cx="80" cy="22" rx="5" ry="2.2" transform="rotate(30 80 22)"/>
-    <ellipse cx="28" cy="34" rx="5" ry="2.4" transform="rotate(-35 28 34)"/><ellipse cx="96" cy="46" rx="4.6" ry="2" transform="rotate(20 96 46)"/><ellipse cx="62" cy="40" rx="4" ry="2" transform="rotate(-10 62 40)"/></g></g>` },
+  { max: 0, name: 'Пусто. Совсем', art: () => '<rect x="26" y="26" width="44" height="30" rx="3" fill="none" stroke="#8c958a" stroke-width="2.4" stroke-dasharray="5 4"/>'
+    + '<path d="M38 41h20" stroke="#8c958a" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>' },
+  { max: 25, name: 'Россыпь', art: () => roundSvg(28, 28, -14, 1.5) + roundSvg(46, 24, 6, 1.5) + roundSvg(62, 30, 20, 1.5) },
+  { max: 100, name: 'Пара пачек', art: () => [0, 1, 2, 3, 4].map((i) => roundSvg(27 + i * 8, 16, 0, 0.72)).join('')
+    + '<rect x="24" y="30" width="44" height="26" rx="2.5" fill="url(#lv-card)"/>'
+    + '<rect x="24" y="38" width="44" height="8" fill="#c0392b"/>'
+    + '<rect x="24" y="30" width="44" height="26" rx="2.5" fill="none" stroke="#8a6534" stroke-width="1.2"/>' },
+  { max: 400, name: 'Цинк', art: () => '<path d="M22 28 32 20h34l10 8z" fill="#cfd5ca"/>'
+    + '<rect x="22" y="28" width="54" height="30" rx="2" fill="url(#lv-zinc)"/>'
+    + '<path d="M22 34h54" stroke="#596254" stroke-width="1.2" opacity=".7"/>'
+    + '<path d="M66 24c6-4 11-3 10 1-1 3-5 2-4-1" fill="none" stroke="#e9edf1" stroke-width="2.4" stroke-linecap="round"/>'
+    + '<circle cx="33" cy="26" r="3" fill="none" stroke="#596254" stroke-width="1.6"/>' },
+  { max: 1000, name: 'Ящик', art: () => crateSvg(29, 26, 1.1) },
+  { max: 3000, name: 'Склад', art: () => crateSvg(12, 38, 0.78) + crateSvg(50, 38, 0.78) + crateSvg(31, 18, 0.78) },
+  { max: Infinity, name: 'Хомяк уровня «арсенал»', art: () => crateSvg(8, 46, 0.62) + crateSvg(34, 46, 0.62) + crateSvg(60, 46, 0.62)
+    + crateSvg(21, 30, 0.62) + crateSvg(47, 30, 0.62) + crateSvg(34, 14, 0.62) },
 ];
 
 const SHOTS = [
-  { max: 0, name: 'Всё впереди', art: () => use('round', 40, 6, 0, 1) },
-  { max: 499, name: 'Пристрелка', art: () => use('case', 20, 66, -95, 0.55) + use('case', 44, 60, -70, 0.55) + use('case', 62, 70, -115, 0.55) },
-  { max: 1999, name: 'Стрелок', art: () => pile(16, 48, 70, 70, 22, 7, 0.4) },
-  { max: 4999, name: 'Опытный', art: () => `${pile(14, 48, 26, 46, 12, 11, 0.34)}
-    <path fill="url(#lv-steel)" d="M22 24h52l-6 44H28z"/><path d="M22 24h52" stroke="#4d555c" stroke-width="2"/>
-    <path d="M24 26 Q48 -6 72 26" fill="none" stroke="#8a929a" stroke-width="1.6"/>
-    <path d="M27 40h42M28.6 54h38.8" stroke="#5f676f" stroke-width=".8" opacity=".7"/>` },
-  { max: 9999, name: 'Ветеран', art: () => `${pile(10, 70, 72, 34, 6, 5, 0.34)}
-    <path fill="url(#lv-burlap)" d="M28 70q-10-2-8-22 2-18 12-26l-4-8h24l-4 8q12 8 14 26 2 20-8 22z"/>
-    <path d="M30 14h24" stroke="#6b5530" stroke-width="2.4"/><path d="M28 30q14 4 28 0M24 46q20 5 38 0" stroke="#7a6340" stroke-width=".7" fill="none"/>` },
-  { max: 24999, name: 'Мастер', art: () => pile(46, 48, 72, 92, 42, 3) },
-  { max: Infinity, name: 'Легенда', art: () => `${pile(56, 48, 72, 96, 46, 9)}
-    <g transform="translate(48 12)"><path d="M-6 6 -9 16h6l3-5 3 5h6L6 6" fill="#c0392b"/><circle r="8" fill="url(#lv-br)" stroke="#7a5414" stroke-width="1"/>
-    <path d="M0-4.6 1.4-1.4 4.8-1.2 2.2 1 3 4.4 0 2.6-3 4.4-2.2 1-4.8-1.2-1.4-1.4z" fill="#7a5414"/></g>` },
+  { max: 0, name: 'Всё впереди', art: () => badge(null, 0) },
+  { max: 199, name: 'Пристрелка', art: () => badge('bronze', 1) },
+  { max: 749, name: 'Стрелок', art: () => badge('bronze', 2) },
+  { max: 1999, name: 'Опытный', art: () => badge('silver', 3) },
+  { max: 4999, name: 'Ветеран', art: () => badge('silver', 3, { wreath: true }) },
+  { max: 9999, name: 'Мастер', art: () => badge('gold', 3, { wreath: true }) },
+  { max: Infinity, name: 'Легенда', art: () => badge('gold', 3, { wreath: true, rays: true }) },
 ];
 
 /** Рівень запасу набоїв за кількістю. */

@@ -387,8 +387,8 @@ export function scaleXY(scale, scale2, photo) {
 }
 
 /**
- * Купчастість групи за центрами пробоїн, усе в мм: розмах (найбільша відстань між центрами),
- * середній радіус від СТП, ширина й висота групи. offset — СТП від точки прицілювання:
+ * Купчастість групи за центрами пробоїн, усе в мм: розкид (найбільша відстань між центрами),
+ * середній радіус від СТП і габарит (ширина × висота). offset — СТП від точки прицілювання:
  * x — праворуч, y — вгору (на фото y росте вниз).
  */
 export function groupStats(points, aim = null) {
@@ -406,9 +406,9 @@ export function groupStats(points, aim = null) {
     n,
     center: [cx, cy],
     spread,
-    meanRadius: points.reduce((s, p) => s + Math.hypot(p[0] - cx, p[1] - cy), 0) / n,
     width: Math.max(...xs) - Math.min(...xs),
     height: Math.max(...ys) - Math.min(...ys),
+    meanRadius: points.reduce((s, p) => s + Math.hypot(p[0] - cx, p[1] - cy), 0) / n,
     offset: aim ? [cx - aim[0], aim[1] - cy] : null,
   };
 }
@@ -423,13 +423,22 @@ export function targetStats(target, photo) {
   }));
 }
 
+/**
+ * Поправка середнього радіуса на кількість пострілів. СТВ рахується з тих самих пробоїн, що й радіуси,
+ * тому вибіркове середнє занижує справжнє розсіювання: група з 3 пострілів виглядає приблизно
+ * на 17% кучнішою за групу з 10 того самого набою. Множник √(n/(n−1)) це прибирає, і групи
+ * з різною кількістю пострілів стають порівнянними (перевірено симуляцією на 20 000 групах).
+ */
+export const mrBias = (n) => (n > 1 ? Math.sqrt(n / (n - 1)) : 1);
+
 /** Найменше пробоїн у групі, щоб порівнювати набої: з двох розмах — випадковість. */
 export const PRECISION_MIN_HOLES = 3;
 
 /**
  * Кучність набоїв одного ствола за розміченими мішенями. Мішені на різних дистанціях зводяться до 100 м
  * (кут той самий: мм × 100 / дистанція), тож усі розміри — мм на 100 м. Для кожного набою:
- * { cartridgeId, groups, shots, meanRadius, best, offset, targets }; meanRadius — середній по групах,
+ * { cartridgeId, groups, shots, meanRadius, best, offset, targets }; meanRadius — зважений за пострілами
+ * і виправлений на малу вибірку (див. mrBias),
  * best — найменший розмах, offset — середнє зміщення СТП [x праворуч, y вгору] або null.
  * Порядок — за середнім радіусом: він бере всі пробоїни, а не дві крайні, і менше залежить від кількості
  * пострілів у групі, ніж розмах.
@@ -449,18 +458,68 @@ export function ammoPrecision(targets, photos) {
     }
   }
   const avg = (list, fn) => list.reduce((s, x) => s + fn(x), 0) / list.length;
+  // Групи зважуємо за кількістю пострілів: десятка знає про набій більше, ніж трійка.
+  const weighted = (list, fn) => list.reduce((s, x) => s + fn(x) * x.n, 0) / list.reduce((s, x) => s + x.n, 0);
   return [...byCartridge.values()].map(({ cartridgeId, list, targets: ids }) => {
     const shifted = list.filter((s) => s.offset);
     return {
       cartridgeId,
       groups: list.length,
       shots: list.reduce((s, x) => s + x.n, 0),
-      meanRadius: avg(list, (s) => s.meanRadius * s.k),
+      meanRadius: weighted(list, (s) => s.meanRadius * mrBias(s.n) * s.k),
       best: Math.min(...list.map((s) => s.spread * s.k)),
       offset: shifted.length ? [avg(shifted, (s) => s.offset[0] * s.k), avg(shifted, (s) => s.offset[1] * s.k)] : null,
       targets: [...ids],
     };
   }).sort((a, b) => a.meanRadius - b.meanRadius);
+}
+
+// ---------- ряди для графіків ----------
+
+/** Результати вправи за датами, від старих до нових: [{ date, value }]. */
+export function scoreSeries(scores, exerciseId) {
+  return scores.filter((s) => s.exercise === exerciseId && s.date)
+    .map((s) => ({ date: s.date, value: Number(s.score) || 0 }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Купчастість ствола за датами: середній радіус груп кожної мішені, зведений до 100 м.
+ * Менше — краще. Групи менші за PRECISION_MIN_HOLES не рахуються, мішені без дистанції й фото — теж.
+ */
+export function precisionSeries(targets, photos, weaponId) {
+  const rows = [];
+  for (const tg of targets) {
+    if (tg.weaponId !== weaponId || !(tg.distance > 0) || !tg.date) continue;
+    const photo = photos.find((p) => p.id === tg.photoId);
+    if (!photo) continue;
+    const groups = targetStats(tg, photo).filter((g) => g.stats && g.stats.n >= PRECISION_MIN_HOLES);
+    if (!groups.length) continue;
+    const k = 100 / tg.distance;
+    rows.push({
+      date: tg.date,
+      // Та сама поправка, що й у порівнянні набоїв, інакше точки графіка стрибали б від кількості пострілів.
+      value: groups.reduce((sum, g) => sum + g.stats.meanRadius * mrBias(g.stats.n) * g.stats.n * k, 0)
+        / groups.reduce((sum, g) => sum + g.stats.n, 0),
+      cartridgeId: tg.cartridgeId ?? null,
+    });
+  }
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Постріли й гроші по місяцях: [{ key: '2026-10', shots, cost }], останні limit місяців із записами. */
+/** list — рухи, які потрапили у фільтри журналу; ціни однаково беруться з усього обліку. */
+export function shotsByMonth(state, limit = 12, list = state.movements) {
+  const map = new Map();
+  for (const m of list) {
+    if (m.kind !== 'shot' || !m.date) continue;
+    const key = m.date.slice(0, 7);
+    const row = map.get(key) ?? { key, shots: 0, cost: 0 };
+    row.shots += -(Number(m.qty) || 0);
+    row.cost += shotCost(state, m) ?? 0;
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key)).slice(-limit);
 }
 
 export function calibers(state) {
@@ -498,6 +557,13 @@ export function permitStatus(permit, day = today()) {
     level: end < plus(1) ? 'over' : end < plus(3) ? 'warn' : 'ok',
     left: Math.max(0, Math.min(1, (end - now) / Math.max(1, end - start))),
   };
+}
+
+/** Набій, яким востаннє стріляли з цього ствола: ним і підставляємо списання у вправах. */
+export function lastAmmo(state, weaponId) {
+  if (!weaponId) return null;
+  const shots = state.movements.filter((m) => m.kind === 'shot' && m.weaponId === weaponId && m.cartridgeId);
+  return shots.sort(byDateDesc)[0]?.cartridgeId ?? null;
 }
 
 export function byDateDesc(a, b) {

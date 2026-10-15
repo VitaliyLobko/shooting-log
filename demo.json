@@ -1,0 +1,1652 @@
+{
+ "app": "shooters-log",
+ "format": 1,
+ "exportedAt": "2026-10-15T09:43:25.550Z",
+ "data": {
+  "weapons": [
+   {
+    "id": "w-ar",
+    "created": 1767348000000,
+    "name": "IWI Zion Z15 16\"",
+    "caliber": ".223 Rem",
+    "serial": "Z15-0042",
+    "initialShots": 450,
+    "barrelLife": 10000,
+    "cleanEvery": 200,
+    "cleanUnit": "shots",
+    "cleanDelay": 3,
+    "note": "DMR-збірка",
+    "permit": {
+     "number": "АБ-114275",
+     "issued": "2024-11-03",
+     "expires": "2027-11-03"
+    },
+    "scopes": [
+     {
+      "id": "sc-ar1",
+      "name": "Delta Stryker HD 1-6×24",
+      "kind": "optic",
+      "zero": 100,
+      "click": "mil0.1",
+      "reticle": "mil",
+      "note": "DSMR",
+      "default": true
+     },
+     {
+      "id": "sc-ar2",
+      "name": "AimPoint PRO",
+      "kind": "red",
+      "zero": 50,
+      "click": "mm13",
+      "reticle": "dot",
+      "note": "",
+      "default": false
+     }
+    ]
+   },
+   {
+    "id": "w-bolt",
+    "created": 1767348000000,
+    "name": "Savage 110 Scout",
+    "caliber": ".308 Win",
+    "serial": "SV-77301",
+    "initialShots": 0,
+    "barrelLife": 8000,
+    "cleanEvery": 3,
+    "cleanUnit": "sessions",
+    "cleanDelay": 0,
+    "note": "",
+    "permit": {
+     "number": "АБ-114276",
+     "issued": "2024-11-03",
+     "expires": "2026-12-20"
+    },
+    "scopes": [
+     {
+      "id": "sc-b1",
+      "name": "Burris Scout 2-7×32",
+      "kind": "optic",
+      "zero": 200,
+      "click": "moa0.25",
+      "reticle": "moa",
+      "note": "Ballistic Plex",
+      "default": true
+     }
+    ]
+   },
+   {
+    "id": "w-sg",
+    "created": 1771063200000,
+    "name": "Hatsan Escort Magnum",
+    "caliber": "12 кал",
+    "serial": "",
+    "initialShots": 0,
+    "barrelLife": 0,
+    "cleanEvery": 0,
+    "cleanUnit": "shots",
+    "cleanDelay": 0,
+    "note": "полювання",
+    "scopes": []
+   }
+  ],
+  "cartridges": [
+   {
+    "id": "c-m855",
+    "created": 1767434400000,
+    "name": "Гринтип M855",
+    "caliber": ".223 Rem",
+    "bulletWeight": 62,
+    "weightUnit": "gr",
+    "note": ""
+   },
+   {
+    "id": "c-ggg77",
+    "created": 1767434400000,
+    "name": "GGG 77 gr OTM",
+    "caliber": ".223 Rem",
+    "bulletWeight": 77,
+    "weightUnit": "gr",
+    "note": "матчевий"
+   },
+   {
+    "id": "c-308f",
+    "created": 1767434400000,
+    "name": "GGG 175 gr HPBT",
+    "caliber": ".308 Win",
+    "bulletWeight": 175,
+    "weightUnit": "gr",
+    "note": ""
+   },
+   {
+    "id": "c-308r",
+    "created": 1772359200000,
+    "name": "Самокрут .308 175",
+    "caliber": ".308 Win",
+    "bulletWeight": 175,
+    "weightUnit": "gr",
+    "note": "",
+    "recipeId": "r-308"
+   },
+   {
+    "id": "c-buck",
+    "created": 1771063200000,
+    "name": "Картеч 8,5 мм",
+    "caliber": "12 кал",
+    "bulletWeight": 32,
+    "weightUnit": "г",
+    "note": ""
+   }
+  ],
+  "components": [
+   {
+    "id": "k-bullet",
+    "created": 1771581600000,
+    "name": "Sierra MatchKing 175",
+    "kind": "bullet",
+    "unit": "шт",
+    "packQty": 100,
+    "packPrice": 2400,
+    "note": ""
+   },
+   {
+    "id": "k-powder",
+    "created": 1771581600000,
+    "name": "Vihtavuori N140",
+    "kind": "powder",
+    "unit": "г",
+    "packQty": 1000,
+    "packPrice": 3200,
+    "note": ""
+   },
+   {
+    "id": "k-primer",
+    "created": 1771581600000,
+    "name": "CCI BR-2",
+    "kind": "primer",
+    "unit": "шт",
+    "packQty": 1000,
+    "packPrice": 3500,
+    "note": ""
+   },
+   {
+    "id": "k-case",
+    "created": 1771581600000,
+    "name": "Lapua .308",
+    "kind": "case",
+    "unit": "шт",
+    "packQty": 100,
+    "packPrice": 3000,
+    "note": "багаторазові"
+   }
+  ],
+  "recipes": [
+   {
+    "id": "r-308",
+    "created": 1771668000000,
+    "name": "Матч .308 175 N140",
+    "caliber": ".308 Win",
+    "cartridgeId": "c-308r",
+    "items": [
+     {
+      "componentId": "k-bullet",
+      "perRound": 1
+     },
+     {
+      "componentId": "k-powder",
+      "perRound": 2.85
+     },
+     {
+      "componentId": "k-primer",
+      "perRound": 1
+     },
+     {
+      "componentId": "k-case",
+      "perRound": 1
+     }
+    ]
+   }
+  ],
+  "movements": [
+   {
+    "id": "mv-0001",
+    "created": 1767434400000,
+    "date": "2026-01-03",
+    "kind": "buy",
+    "cartridgeId": "c-m855",
+    "caliber": ".223 Rem",
+    "qty": 600,
+    "price": 14400,
+    "note": "Ібіс"
+   },
+   {
+    "id": "mv-0002",
+    "created": 1767434400000,
+    "date": "2026-01-03",
+    "kind": "buy",
+    "cartridgeId": "c-ggg77",
+    "caliber": ".223 Rem",
+    "qty": 200,
+    "price": 8400,
+    "note": "Ібіс"
+   },
+   {
+    "id": "mv-0003",
+    "created": 1767434400000,
+    "date": "2026-01-03",
+    "kind": "buy",
+    "cartridgeId": "c-308f",
+    "caliber": ".308 Win",
+    "qty": 200,
+    "price": 13600,
+    "note": "Тетраедр"
+   },
+   {
+    "id": "mv-0004",
+    "created": 1771063200000,
+    "date": "2026-02-14",
+    "kind": "buy",
+    "cartridgeId": "c-buck",
+    "caliber": "12 кал",
+    "qty": 100,
+    "price": 2800,
+    "note": "Полювання"
+   },
+   {
+    "id": "mv-0005",
+    "created": 1779098400000,
+    "date": "2026-05-18",
+    "kind": "buy",
+    "cartridgeId": "c-m855",
+    "caliber": ".223 Rem",
+    "qty": 400,
+    "price": 10000,
+    "note": "акція"
+   },
+   {
+    "id": "mv-0006",
+    "created": 1788688800000,
+    "date": "2026-09-06",
+    "kind": "buy",
+    "cartridgeId": "c-ggg77",
+    "caliber": ".223 Rem",
+    "qty": 200,
+    "price": 8800,
+    "note": ""
+   },
+   {
+    "id": "mv-0007",
+    "created": 1771581600000,
+    "date": "2026-02-20",
+    "kind": "buy",
+    "componentId": "k-bullet",
+    "qty": 500,
+    "price": 12000,
+    "note": ""
+   },
+   {
+    "id": "mv-0008",
+    "created": 1771581600000,
+    "date": "2026-02-20",
+    "kind": "buy",
+    "componentId": "k-powder",
+    "qty": 2000,
+    "price": 6400,
+    "note": ""
+   },
+   {
+    "id": "mv-0009",
+    "created": 1771581600000,
+    "date": "2026-02-20",
+    "kind": "buy",
+    "componentId": "k-primer",
+    "qty": 1000,
+    "price": 3500,
+    "note": ""
+   },
+   {
+    "id": "mv-0010",
+    "created": 1771581600000,
+    "date": "2026-02-20",
+    "kind": "buy",
+    "componentId": "k-case",
+    "qty": 200,
+    "price": 6000,
+    "note": ""
+   },
+   {
+    "id": "mv-0011",
+    "created": 1772359200000,
+    "date": "2026-03-01",
+    "batch": "b-1",
+    "kind": "reload",
+    "cartridgeId": "c-308r",
+    "caliber": ".308 Win",
+    "recipeId": "r-308",
+    "qty": 200,
+    "price": 8224,
+    "note": ""
+   },
+   {
+    "id": "mv-0012",
+    "created": 1772359200000,
+    "date": "2026-03-01",
+    "batch": "b-1",
+    "kind": "consume",
+    "componentId": "k-bullet",
+    "recipeId": "r-308",
+    "qty": -200
+   },
+   {
+    "id": "mv-0013",
+    "created": 1772359200000,
+    "date": "2026-03-01",
+    "batch": "b-1",
+    "kind": "consume",
+    "componentId": "k-powder",
+    "recipeId": "r-308",
+    "qty": -570
+   },
+   {
+    "id": "mv-0014",
+    "created": 1772359200000,
+    "date": "2026-03-01",
+    "batch": "b-1",
+    "kind": "consume",
+    "componentId": "k-primer",
+    "recipeId": "r-308",
+    "qty": -200
+   },
+   {
+    "id": "mv-0015",
+    "created": 1768730400000,
+    "date": "2026-01-18",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -40,
+    "price": 960,
+    "note": "Пристрілка 100 м"
+   },
+   {
+    "id": "mv-0016",
+    "created": 1770544800000,
+    "date": "2026-02-08",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -60,
+    "price": 1440,
+    "note": "Полігон"
+   },
+   {
+    "id": "mv-0017",
+    "created": 1770544800000,
+    "date": "2026-02-08",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0018",
+    "created": 1771063200000,
+    "date": "2026-02-14",
+    "kind": "shot",
+    "cartridgeId": "c-buck",
+    "weaponId": "w-sg",
+    "scopeId": "",
+    "caliber": "12 кал",
+    "qty": -25,
+    "price": 700,
+    "note": "Полювання"
+   },
+   {
+    "id": "mv-0019",
+    "created": 1772877600000,
+    "date": "2026-03-07",
+    "kind": "shot",
+    "cartridgeId": "c-ggg77",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -45,
+    "price": 1890,
+    "note": "Купчастість"
+   },
+   {
+    "id": "mv-0020",
+    "created": 1772877600000,
+    "date": "2026-03-07",
+    "kind": "shot",
+    "cartridgeId": "c-308f",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -30,
+    "price": 2040,
+    "note": ""
+   },
+   {
+    "id": "mv-0021",
+    "created": 1774173600000,
+    "date": "2026-03-22",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar2",
+    "caliber": ".223 Rem",
+    "qty": -80,
+    "price": 1920,
+    "note": "Тренування"
+   },
+   {
+    "id": "mv-0022",
+    "created": 1774173600000,
+    "date": "2026-03-22",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0023",
+    "created": 1775901600000,
+    "date": "2026-04-11",
+    "kind": "shot",
+    "cartridgeId": "c-308r",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -40,
+    "price": 1640,
+    "note": "Самокрут"
+   },
+   {
+    "id": "mv-0024",
+    "created": 1775901600000,
+    "date": "2026-04-11",
+    "kind": "clean",
+    "weaponId": "w-bolt",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0025",
+    "created": 1777197600000,
+    "date": "2026-04-26",
+    "kind": "shot",
+    "cartridgeId": "c-ggg77",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -50,
+    "price": 2100,
+    "note": "Baza-20"
+   },
+   {
+    "id": "mv-0026",
+    "created": 1778320800000,
+    "date": "2026-05-09",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -90,
+    "price": 2160,
+    "note": "Курс"
+   },
+   {
+    "id": "mv-0027",
+    "created": 1778320800000,
+    "date": "2026-05-09",
+    "kind": "shot",
+    "cartridgeId": "c-308f",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -25,
+    "price": 1700,
+    "note": ""
+   },
+   {
+    "id": "mv-0028",
+    "created": 1778320800000,
+    "date": "2026-05-09",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0029",
+    "created": 1779616800000,
+    "date": "2026-05-24",
+    "kind": "shot",
+    "cartridgeId": "c-308r",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -35,
+    "price": 1435,
+    "note": ""
+   },
+   {
+    "id": "mv-0030",
+    "created": 1780826400000,
+    "date": "2026-06-07",
+    "kind": "shot",
+    "cartridgeId": "c-ggg77",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -60,
+    "price": 2520,
+    "note": "Скаут-10"
+   },
+   {
+    "id": "mv-0031",
+    "created": 1780826400000,
+    "date": "2026-06-07",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0032",
+    "created": 1782036000000,
+    "date": "2026-06-21",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar2",
+    "caliber": ".223 Rem",
+    "qty": -70,
+    "price": 1680,
+    "note": "Тренування"
+   },
+   {
+    "id": "mv-0033",
+    "created": 1783850400000,
+    "date": "2026-07-12",
+    "kind": "shot",
+    "cartridgeId": "c-308r",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -45,
+    "price": 1845,
+    "note": "Турнір"
+   },
+   {
+    "id": "mv-0034",
+    "created": 1783850400000,
+    "date": "2026-07-12",
+    "kind": "clean",
+    "weaponId": "w-bolt",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0035",
+    "created": 1785146400000,
+    "date": "2026-07-27",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -85,
+    "price": 2040,
+    "note": ""
+   },
+   {
+    "id": "mv-0036",
+    "created": 1785146400000,
+    "date": "2026-07-27",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0037",
+    "created": 1786874400000,
+    "date": "2026-08-16",
+    "kind": "shot",
+    "cartridgeId": "c-ggg77",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -55,
+    "price": 2310,
+    "note": "Купчастість"
+   },
+   {
+    "id": "mv-0038",
+    "created": 1786874400000,
+    "date": "2026-08-16",
+    "kind": "shot",
+    "cartridgeId": "c-308f",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -20,
+    "price": 1360,
+    "note": ""
+   },
+   {
+    "id": "mv-0039",
+    "created": 1789293600000,
+    "date": "2026-09-13",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -75,
+    "price": 1800,
+    "note": "Полігон"
+   },
+   {
+    "id": "mv-0040",
+    "created": 1789293600000,
+    "date": "2026-09-13",
+    "kind": "clean",
+    "weaponId": "w-ar",
+    "qty": 0,
+    "note": "Повна чистка"
+   },
+   {
+    "id": "mv-0041",
+    "created": 1790589600000,
+    "date": "2026-09-28",
+    "kind": "shot",
+    "cartridgeId": "c-ggg77",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -50,
+    "price": 2100,
+    "note": "Марафон"
+   },
+   {
+    "id": "mv-0042",
+    "created": 1790589600000,
+    "date": "2026-09-28",
+    "kind": "shot",
+    "cartridgeId": "c-308r",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "caliber": ".308 Win",
+    "qty": -30,
+    "price": 1230,
+    "note": ""
+   },
+   {
+    "id": "mv-0043",
+    "created": 1791712800000,
+    "date": "2026-10-11",
+    "kind": "shot",
+    "cartridgeId": "c-m855",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -60,
+    "price": 1440,
+    "note": "Тренування"
+   },
+   {
+    "id": "mv-0044",
+    "created": 1782036000000,
+    "date": "2026-06-21",
+    "kind": "shot",
+    "cartridgeId": null,
+    "weaponId": null,
+    "caliber": "7.62×39",
+    "qty": -30,
+    "foreignWeapon": true,
+    "foreignWeaponName": "АКМ",
+    "note": "у друга"
+   },
+   {
+    "id": "mv-0045",
+    "created": 1786874400000,
+    "date": "2026-08-16",
+    "kind": "shot",
+    "cartridgeId": null,
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "caliber": ".223 Rem",
+    "qty": -20,
+    "foreignAmmo": true,
+    "note": "чужі набої"
+   }
+  ],
+  "photos": [
+   {
+    "id": "ph-0046",
+    "weaponId": null,
+    "created": 1768730400000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0048",
+    "weaponId": null,
+    "created": 1772877600000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0050",
+    "weaponId": null,
+    "created": 1777197600000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0052",
+    "weaponId": null,
+    "created": 1780826400000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0054",
+    "weaponId": null,
+    "created": 1786874400000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0056",
+    "weaponId": null,
+    "created": 1789293600000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0058",
+    "weaponId": null,
+    "created": 1791712800000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0060",
+    "weaponId": null,
+    "created": 1772877600000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0062",
+    "weaponId": null,
+    "created": 1779616800000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0064",
+    "weaponId": null,
+    "created": 1783850400000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   },
+   {
+    "id": "ph-0066",
+    "weaponId": null,
+    "created": 1790589600000,
+    "thumb": "data:image/png;base64,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",
+    "w": 480,
+    "h": 360,
+    "driveId": null
+   }
+  ],
+  "targets": [
+   {
+    "id": "tg-0047",
+    "created": 1768730400000,
+    "date": "2026-01-18",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-m855",
+    "distance": 100,
+    "photoId": "ph-0046",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.3625,
+        0.31666666666666665
+       ],
+       [
+        0.6375,
+        0.31666666666666665
+       ],
+       [
+        0.3625,
+        0.6833333333333333
+       ],
+       [
+        0.6375,
+        0.6833333333333333
+       ],
+       [
+        0.5275,
+        0.445
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0015",
+    "note": "перша пристрілка",
+    "temp": -4,
+    "wind": 1
+   },
+   {
+    "id": "tg-0049",
+    "created": 1772877600000,
+    "date": "2026-03-07",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-ggg77",
+    "distance": 100,
+    "photoId": "ph-0048",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.405,
+        0.3733333333333333
+       ],
+       [
+        0.595,
+        0.3733333333333333
+       ],
+       [
+        0.405,
+        0.6266666666666667
+       ],
+       [
+        0.595,
+        0.6266666666666667
+       ],
+       [
+        0.519,
+        0.46199999999999997
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0019",
+    "temp": 6,
+    "wind": 2,
+    "windClock": 9
+   },
+   {
+    "id": "tg-0051",
+    "created": 1777197600000,
+    "date": "2026-04-26",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-ggg77",
+    "distance": 100,
+    "photoId": "ph-0050",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.415,
+        0.38666666666666666
+       ],
+       [
+        0.585,
+        0.38666666666666666
+       ],
+       [
+        0.415,
+        0.6133333333333333
+       ],
+       [
+        0.585,
+        0.6133333333333333
+       ],
+       [
+        0.517,
+        0.466
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0025",
+    "temp": 14,
+    "wind": 3,
+    "windClock": 3
+   },
+   {
+    "id": "tg-0053",
+    "created": 1780826400000,
+    "date": "2026-06-07",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-ggg77",
+    "distance": 100,
+    "photoId": "ph-0052",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.4225,
+        0.39666666666666667
+       ],
+       [
+        0.5775,
+        0.39666666666666667
+       ],
+       [
+        0.4225,
+        0.6033333333333333
+       ],
+       [
+        0.5775,
+        0.6033333333333333
+       ],
+       [
+        0.5155,
+        0.469
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0030",
+    "temp": 22,
+    "wind": 2
+   },
+   {
+    "id": "tg-0055",
+    "created": 1786874400000,
+    "date": "2026-08-16",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-ggg77",
+    "distance": 200,
+    "photoId": "ph-0054",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.355,
+        0.30666666666666664
+       ],
+       [
+        0.645,
+        0.30666666666666664
+       ],
+       [
+        0.355,
+        0.6933333333333334
+       ],
+       [
+        0.645,
+        0.6933333333333334
+       ],
+       [
+        0.529,
+        0.442
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0037",
+    "temp": 26,
+    "wind": 4,
+    "windClock": 10
+   },
+   {
+    "id": "tg-0057",
+    "created": 1789293600000,
+    "date": "2026-09-13",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-m855",
+    "distance": 100,
+    "photoId": "ph-0056",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.385,
+        0.3466666666666667
+       ],
+       [
+        0.615,
+        0.3466666666666667
+       ],
+       [
+        0.385,
+        0.6533333333333333
+       ],
+       [
+        0.615,
+        0.6533333333333333
+       ],
+       [
+        0.523,
+        0.45399999999999996
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0039",
+    "temp": 15,
+    "wind": 1
+   },
+   {
+    "id": "tg-0059",
+    "created": 1791712800000,
+    "date": "2026-10-11",
+    "weaponId": "w-ar",
+    "scopeId": "sc-ar1",
+    "cartridgeId": "c-ggg77",
+    "distance": 100,
+    "photoId": "ph-0058",
+    "click": "mil0.1",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.43,
+        0.4066666666666667
+       ],
+       [
+        0.5700000000000001,
+        0.4066666666666667
+       ],
+       [
+        0.43,
+        0.5933333333333334
+       ],
+       [
+        0.5700000000000001,
+        0.5933333333333334
+       ],
+       [
+        0.514,
+        0.472
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0043",
+    "note": "найкраща",
+    "temp": 9,
+    "wind": 0
+   },
+   {
+    "id": "tg-0061",
+    "created": 1772877600000,
+    "date": "2026-03-07",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "cartridgeId": "c-308f",
+    "distance": 100,
+    "photoId": "ph-0060",
+    "click": "moa0.25",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.435,
+        0.41333333333333333
+       ],
+       [
+        0.565,
+        0.41333333333333333
+       ],
+       [
+        0.435,
+        0.5866666666666667
+       ],
+       [
+        0.565,
+        0.5866666666666667
+       ],
+       [
+        0.513,
+        0.474
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0020",
+    "temp": 6
+   },
+   {
+    "id": "tg-0063",
+    "created": 1779616800000,
+    "date": "2026-05-24",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "cartridgeId": "c-308r",
+    "distance": 100,
+    "photoId": "ph-0062",
+    "click": "moa0.25",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.445,
+        0.42666666666666664
+       ],
+       [
+        0.555,
+        0.42666666666666664
+       ],
+       [
+        0.445,
+        0.5733333333333334
+       ],
+       [
+        0.555,
+        0.5733333333333334
+       ],
+       [
+        0.511,
+        0.47800000000000004
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0029",
+    "temp": 18
+   },
+   {
+    "id": "tg-0065",
+    "created": 1783850400000,
+    "date": "2026-07-12",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "cartridgeId": "c-308r",
+    "distance": 300,
+    "photoId": "ph-0064",
+    "click": "moa0.25",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.345,
+        0.29333333333333333
+       ],
+       [
+        0.655,
+        0.29333333333333333
+       ],
+       [
+        0.345,
+        0.7066666666666667
+       ],
+       [
+        0.655,
+        0.7066666666666667
+       ],
+       [
+        0.531,
+        0.438
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0033",
+    "temp": 28,
+    "wind": 3,
+    "windClock": 3,
+    "zeroUp": 12
+   },
+   {
+    "id": "tg-0067",
+    "created": 1790589600000,
+    "date": "2026-09-28",
+    "weaponId": "w-bolt",
+    "scopeId": "sc-b1",
+    "cartridgeId": "c-308r",
+    "distance": 100,
+    "photoId": "ph-0066",
+    "click": "moa0.25",
+    "scale": {
+     "a": [
+      0.25,
+      0.5
+     ],
+     "b": [
+      0.75,
+      0.5
+     ],
+     "mm": 100
+    },
+    "poa": [
+     0.5,
+     0.5
+    ],
+    "groups": [
+     {
+      "holes": [
+       [
+        0.4525,
+        0.43666666666666665
+       ],
+       [
+        0.5475,
+        0.43666666666666665
+       ],
+       [
+        0.4525,
+        0.5633333333333334
+       ],
+       [
+        0.5475,
+        0.5633333333333334
+       ],
+       [
+        0.5095000000000001,
+        0.48100000000000004
+       ]
+      ]
+     }
+    ],
+    "movementId": "mv-0042",
+    "note": "рекорд",
+    "temp": 12
+   }
+  ],
+  "drills": [
+   {
+    "id": "dr-0068",
+    "created": 1774173600000,
+    "date": "2026-03-22",
+    "weaponId": "w-ar",
+    "note": "перша серія",
+    "delay": "rnd",
+    "par": 0,
+    "shots": [
+     1.62,
+     2.41,
+     3.28,
+     4.19,
+     5.02
+    ]
+   },
+   {
+    "id": "dr-0069",
+    "created": 1778320800000,
+    "date": "2026-05-09",
+    "weaponId": "w-ar",
+    "note": "",
+    "delay": "rnd",
+    "par": 0,
+    "shots": [
+     1.44,
+     2.11,
+     2.83,
+     3.52,
+     4.26
+    ]
+   },
+   {
+    "id": "dr-0070",
+    "created": 1785146400000,
+    "date": "2026-07-27",
+    "weaponId": "w-ar",
+    "note": "пар 4 с",
+    "delay": "3",
+    "par": 4,
+    "shots": [
+     1.21,
+     1.84,
+     2.42,
+     3.05,
+     3.71
+    ]
+   },
+   {
+    "id": "dr-0071",
+    "created": 1791712800000,
+    "date": "2026-10-11",
+    "weaponId": "w-ar",
+    "note": "",
+    "delay": "rnd",
+    "par": 4,
+    "shots": [
+     1.09,
+     1.66,
+     2.21,
+     2.77,
+     3.33
+    ]
+   }
+  ],
+  "scores": [
+   {
+    "id": "sc-0072",
+    "created": 1777197600000,
+    "date": "2026-04-26",
+    "exercise": "baza20",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 9,
+     "C": 6,
+     "D": 3
+    },
+    "note": "",
+    "score": 72,
+    "movementId": "mv-0025"
+   },
+   {
+    "id": "sc-0073",
+    "created": 1780826400000,
+    "date": "2026-06-07",
+    "exercise": "baza20",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 12,
+     "C": 5,
+     "D": 2
+    },
+    "note": "",
+    "score": 82,
+    "movementId": "mv-0030"
+   },
+   {
+    "id": "sc-0074",
+    "created": 1790589600000,
+    "date": "2026-09-28",
+    "exercise": "baza20",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 15,
+     "C": 4,
+     "D": 1
+    },
+    "note": "",
+    "score": 92,
+    "movementId": "mv-0041"
+   },
+   {
+    "id": "sc-0075",
+    "created": 1778320800000,
+    "date": "2026-05-09",
+    "exercise": "white5",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 2,
+     "B": 3
+    },
+    "note": "",
+    "pts": {
+     "A": 15,
+     "B": 10
+    },
+    "time": 11.4,
+    "score": 60,
+    "movementId": "mv-0026"
+   },
+   {
+    "id": "sc-0076",
+    "created": 1785146400000,
+    "date": "2026-07-27",
+    "exercise": "white5",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 3,
+     "B": 2
+    },
+    "note": "",
+    "pts": {
+     "A": 17,
+     "B": 11
+    },
+    "time": 8.9,
+    "score": 73,
+    "movementId": "mv-0035"
+   },
+   {
+    "id": "sc-0077",
+    "created": 1780826400000,
+    "date": "2026-06-07",
+    "exercise": "scout10",
+    "weaponId": "w-ar",
+    "hits": {
+     "hit": 7
+    },
+    "note": "",
+    "variant": "a4-100",
+    "score": 7
+   },
+   {
+    "id": "sc-0078",
+    "created": 1786874400000,
+    "date": "2026-08-16",
+    "exercise": "scout10",
+    "weaponId": "w-ar",
+    "hits": {
+     "hit": 9
+    },
+    "note": "",
+    "variant": "a4-100",
+    "score": 9,
+    "movementId": "mv-0037"
+   },
+   {
+    "id": "sc-0079",
+    "created": 1791712800000,
+    "date": "2026-10-11",
+    "exercise": "scout10",
+    "weaponId": "w-ar",
+    "hits": {
+     "hit": 10
+    },
+    "note": "",
+    "variant": "a5-100",
+    "score": 10,
+    "movementId": "mv-0043"
+   },
+   {
+    "id": "sc-0080",
+    "created": 1783850400000,
+    "date": "2026-07-12",
+    "exercise": "cooper",
+    "weaponId": "w-ar",
+    "hits": {
+     "A": 11,
+     "C": 6,
+     "D": 2
+    },
+    "note": "",
+    "late": 1,
+    "score": 76
+   }
+  ]
+ }
+}

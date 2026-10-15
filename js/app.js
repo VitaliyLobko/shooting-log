@@ -4,16 +4,15 @@ import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer } from './photos.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
-import { customIcon, applyIcon, setIcon, clearIcon, iconFile } from './icon.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
-import { cartridgeIcon } from './ammo.js';
+import { cartridgeIcon, caliberHue } from './ammo.js';
+import { lineChart, barChart } from './chart.js';
 import { ammoLevel, shotLevel, levelArt } from './levels.js';
-import { WEAPON_KINDS, weaponIcon } from './weapon-icon.js';
-import { timerPanel } from './timer.js';
-import { exercisesPanel } from './exercises.js';
+import { timerPanel, stopTimerPanel } from './timer.js';
+import { exercisesPanel, exerciseName } from './exercises.js';
 import { h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy } from './ui.js';
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [] };
+let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -69,6 +68,17 @@ function recall(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
+// Застосунок перейменовано: налаштування зі старого префікса переносимо один раз,
+// щоб після оновлення не злетіли тема, мова, одиниці й згорнуті блоки.
+try {
+  for (const key of Object.keys(localStorage)) {
+    if (!key.startsWith('scouts-log:')) continue;
+    const moved = `shooters-log:${key.slice('scouts-log:'.length)}`;
+    if (localStorage.getItem(moved) === null) localStorage.setItem(moved, localStorage.getItem(key));
+    localStorage.removeItem(key);
+  }
+} catch { /* приватний режим */ }
+
 // ---------- спільні шматки UI ----------
 
 /**
@@ -88,6 +98,64 @@ function caliberOptions(list, caliber, label = (x) => x.name) {
       ...groupBy(other, (x) => x.caliber || t('Без калибра')).map(([cal, items]) => ({ group: cal, options: items.map((x) => [x.id, label(x)]) })),
     ].filter(Boolean),
   };
+}
+
+/**
+ * Вибір набою як на вкладці БК: кнопка з поточним набоєм, а за нею — шторка з групами
+ * за калібром і залишком у рядку. Рідний select лишається у формі (з нього читають
+ * значення й на нього вішають обробники), просто сховано. Повертає функцію перемальовування —
+ * її кличуть, коли список набоїв перебудували (наприклад, змінили ствол).
+ */
+function ammoPicker(select, caliber = null) {
+  if (!select) return () => {};
+  const face = h('button', { type: 'button', class: 'picker' });
+  const paint = () => {
+    const c = findCartridge(select.value);
+    const text = c
+      ? t('{name} · ост. {n}', { name: c.name, n: fmt.num(M.cartridgeStock(state, c.id)) })
+      : ([...select.options].find((o) => o.value === select.value)?.textContent ?? t('— не указывать —'));
+    face.replaceChildren(
+      c ? cartridgeIcon(c.caliber) : null,
+      h('span', { class: 'picker-main' }, text),
+      h('span', { class: 'chevron', 'aria-hidden': 'true' }));
+  };
+  face.addEventListener('click', () => {
+    const pick = (value) => {
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      paint();
+      close();
+    };
+    const row = (value, body, extra = null) => h('button', {
+      type: 'button', class: `row${value === select.value ? ' on' : ''}`, onclick: () => pick(value),
+    }, body, extra);
+    const opts = [...select.options].map((o) => ({ value: o.value, text: o.textContent, c: findCartridge(o.value) }));
+    const own = opts.filter((o) => o.c);
+    const plain = opts.filter((o) => !o.c);
+    // Свій калібр — зверху й розгорнутим, решта калібрів — згортками, як у «+ → Купити вже заведений».
+    const want = caliber ?? findCartridge(select.value)?.caliber ?? null;
+    const groups = groupBy(own, (o) => o.c.caliber || t('Без калибра'))
+      .sort((a, b) => (M.sameCaliber(b[0], want) ? 1 : 0) - (M.sameCaliber(a[0], want) ? 1 : 0) || collate(a[0], b[0]));
+    const rows = (items) => h('div', { class: 'rows' }, items.map((o) => row(o.value,
+      [cartridgeIcon(o.c.caliber), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, o.c.name))],
+      h('span', { class: 'row-qty' }, fmt.num(M.cartridgeStock(state, o.c.id))))));
+    const close = sheet(t('Патроны'), h('div', {},
+      groups.map(([cal, items], i) => {
+        const g = fold(`pick:${cal}`,
+          [cartridgeIcon(cal), h('span', { class: 'fold-title' }, cal),
+            h('span', { class: 'fold-meta' }, t('{n} поз.', { n: items.length }))],
+          rows(items));
+        // Свій калібр одразу розгорнутий — по нього й прийшли.
+        if (i === 0) g.open = true;
+        return g;
+      }),
+      plain.length ? h('div', { class: 'rows' }, plain.map((o) => row(o.value, h('span', { class: 'row-main' }, o.text)))) : null));
+  });
+  select.hidden = true;
+  select.after(face);
+  paint();
+  select.addEventListener('change', paint);
+  return paint;
 }
 
 /** Текст попередження, якщо калібр набою й ствола різний; null — збігається або чогось не вказано. */
@@ -111,11 +179,11 @@ function storedSet(key) {
 }
 
 // Усі групи за замовчуванням згорнуті; тут — розгорнуті, між запусками.
-const unfolded = storedSet('shooting-log:unfolded');
+const unfolded = storedSet('shooters-log:unfolded');
 
 function setUnfolded(key, open) {
   if (open) unfolded.add(key); else unfolded.delete(key);
-  remember('shooting-log:unfolded', JSON.stringify([...unfolded]));
+  remember('shooters-log:unfolded', JSON.stringify([...unfolded]));
 }
 
 /** Група, що згортається: за замовчуванням згорнута, розгорнуту запам'ятовує. */
@@ -464,6 +532,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
     { name: 'note', label: t('Где / что'), placeholder: t('Полигон, тренировка…') },
     { name: 'date', label: t('Дата'), type: 'date', value: M.today() });
   const f = form(fields);
+  ammoPicker(f.inputs.cartridgeId, caliber);
   qtyChips(f.inputs.qty);
   // Прицели — від вибраного ствола; без прицелів поле сховане.
   const currentGun = () => weapon ?? findWeapon(f.inputs.weaponId?.value) ?? null;
@@ -510,7 +579,10 @@ function shootSheet({ cartridge = null, weapon = null }) {
   f.inputs.cartridgeId?.addEventListener('change', updateCost);
   f.el.addEventListener('click', () => setTimeout(updateCost));
   updateCost();
-  const close = sheet(title, h('div', {}, info, f.el), {
+  const withTarget = h('input', { type: 'checkbox', id: 'shot-target' });
+  const targetRow = h('label', { class: 'check', for: 'shot-target' }, withTarget,
+    h('span', {}, t('Сразу разметить мишень')));
+  const close = sheet(title, h('div', {}, info, f.el, targetRow), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Списать'), save, 'primary shoot')],
   });
   async function save() {
@@ -547,7 +619,10 @@ function shootSheet({ cartridge = null, weapon = null }) {
       foreignWeaponName: (isForeign && v.foreignName) || undefined,
       foreignAmmo: (!cartridge && !c) || undefined,
     };
-    await addMovements([movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, scopeId, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, note: v.note, ...foreign })], message);
+    const shot = movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, scopeId, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, note: v.note, ...foreign });
+    await addMovements([shot], message);
+    // Мішень чіпляється до запису, тож питаємо одразу після збереження, поки стрілець не пішов із екрана.
+    if (withTarget.checked) newTarget({ movement: shot });
   }
 }
 
@@ -599,9 +674,9 @@ function cartridgeBody(c, close) {
     h('p', { class: 'muted' }, [c.caliber, cartridgeDetails(c)].filter(Boolean).join(' · ')),
     h('div', { class: 'stats' },
       stat(t('остаток'), fmt.num(M.cartridgeStock(state, c.id)), 'accent'),
-      stat(t('куплено'), fmt.num(boughtQty)),
-      stat(t('выстрелено'), fmt.num(fired)),
-      avg ? stat(t('ср. цена'), fmt.money(avg)) : null),
+      stat(t('куплено'), fmt.num(boughtQty), 'minor'),
+      stat(t('выстрелено'), fmt.num(fired), 'minor'),
+      avg ? stat(t('ср. цена'), fmt.money(avg), 'minor') : null),
     h('div', { class: 'btn-row' },
       btn(t('+ Купить'), () => { close(); buySheet(c); }, 'buy'),
       btn(t('Списать −'), () => { close(); shootSheet({ cartridge: c }); }, 'shoot'),
@@ -628,8 +703,9 @@ const fillClass = (pct) => (pct >= 100 ? 'over' : pct >= 85 ? 'warn' : '');
 function meter(label, value, pct, fill, inline) {
   const bar = h('div', { class: 'bar' }, h('div', { class: `fill ${fill}`, style: `width:${pct}%` }));
   const right = h('span', { class: 'muted' }, value);
+  // Число — перед смугою: праворуч на плитці висить кнопка «+», і там його не видно.
   return inline
-    ? h('div', { class: 'progress inline small' }, label, bar, right)
+    ? h('div', { class: 'progress inline small' }, label, right, bar)
     : h('div', { class: 'progress' }, h('div', { class: 'progress-label small' }, label, right), bar);
 }
 
@@ -656,20 +732,39 @@ function scopeOptions(w) {
   return [...(w?.scopes ?? []).map((s) => [s.id, s.name]), ['', t('— не указывать —')]];
 }
 
-function scopeLine(s, full = false) {
-  const parts = [s.name];
-  if (full && s.kind) parts.push(t(SCOPE_KINDS[s.kind]));
-  if (s.zero) parts.push(t('пристрелка {n} м', { n: fmt.num(s.zero) }));
-  if (s.click) parts.push(clickLabel(s.click));
-  if (full && s.reticle) parts.push(t(RETICLES.find(([k]) => k === s.reticle)?.[1] ?? ''));
-  if (full && s.note) parts.push(s.note);
-  if (full && s.default) parts.push(t('по умолчанию'));
-  return h('div', { class: `scope ${s.default ? 'default' : ''}` }, h('span', { class: 'scope-mark', 'aria-hidden': 'true' }, s.default ? '◉' : '⊕'), parts.join(' · '));
+function scopeLine(s, full = false, more = 0) {
+  // У списку параметри — значками поруч із назвою (пристрілка й ціна клацання),
+  // у картці — словами під назвою: там місця вистачає.
+  if (!full) {
+    return h('div', { class: `scope ${s.default ? 'default' : ''}` },
+      h('span', { class: 'scope-mark', 'aria-hidden': 'true' }, s.default ? '◉' : '⊕'),
+      h('span', { class: 'scope-text row-chips' },
+        h('span', { class: 'scope-name' }, s.name),
+        s.zero ? h('span', { class: 'scope-chip', title: t('пристрелка {n} м', { n: fmt.num(s.zero) }) }, zeroIco(), t('{n} м', { n: fmt.num(s.zero) })) : null,
+        s.click ? h('span', { class: 'scope-chip', title: t('Цена щелчка прицела') }, clickIco(), clickLabel(s.click)) : null,
+        more > 0 ? h('span', { class: 'scope-more', title: t('ещё прицелов: {n}', { n: more }) }, scopeIco(), `+${more}`) : null));
+  }
+  const sub = [];
+  if (full && SCOPE_KINDS[s.kind]) sub.push(t(SCOPE_KINDS[s.kind]));
+  if (s.zero) sub.push(t('пристрелка {n} м', { n: fmt.num(s.zero) }));
+  if (s.click) sub.push(clickLabel(s.click));
+  if (full && s.reticle) sub.push(t(RETICLES.find(([k]) => k === s.reticle)?.[1] ?? ''));
+  if (full && s.note) sub.push(s.note);
+  return h('div', { class: `scope ${s.default ? 'default' : ''}` },
+    h('span', { class: 'scope-mark', 'aria-hidden': 'true' }, s.default ? '◉' : '⊕'),
+    h('span', { class: 'scope-text' },
+      // Основний приціл позначає ◉ ліворуч, зайвої мітки не треба; інші приціли — значком із кількістю.
+      h('span', { class: 'scope-name' }, s.name,
+        more > 0 ? h('span', { class: 'scope-more', title: t('ещё прицелов: {n}', { n: more }) }, scopeIco(), `+${more}`) : null),
+      sub.length ? h('span', { class: 'muted small' }, sub.filter(Boolean).join(' · ')) : null));
 }
 
 function scopeList(w, full = false) {
   if (!w.scopes?.length) return null;
-  return h('div', { class: `scopes ${full ? '' : 'small'}` }, w.scopes.map((s) => scopeLine(s, full)));
+  // У списку — лише основний приціл: решта в картці, інакше плитка росте на пів екрана.
+  const list = full ? w.scopes : [M.defaultScope(w) ?? w.scopes[0]];
+  const more = full ? 0 : w.scopes.length - list.length;
+  return h('div', { class: `scopes ${full ? '' : 'small'}` }, list.map((s) => scopeLine(s, full, more)));
 }
 
 function weaponPhotos(weaponId) {
@@ -681,10 +776,12 @@ function coverPhoto(w) {
   return list.find((p) => p.id === w.coverId) ?? list[0] ?? null;
 }
 
+/** Без фото — монограма за назвою на плитці кольору калібру: стволи видно один від одного. */
 function weaponThumb(w) {
   const cover = coverPhoto(w);
   if (cover) return h('img', { class: 'thumb', src: cover.thumb, alt: '' });
-  return weaponIcon(w);
+  const letters = String(w.name ?? '').split(/[\s-]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('');
+  return h('div', { class: 'thumb mono', style: `--h:${caliberHue(w.caliber)}`, 'aria-hidden': 'true' }, letters.toUpperCase() || '—');
 }
 
 /** Підпис прогресу чистки в одиницях інтервалу. */
@@ -753,10 +850,11 @@ function weaponCard(w) {
       weaponThumb(w),
       h('div', { class: 'card-main' },
         h('div', { class: 'card-title' }, w.name),
-        h('div', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`].filter(Boolean).join(' · ')),
-        scopeList(w),
-        precisionLine(w)),
-      h('div', { class: 'big' }, fmt.num(shots), h('div', { class: 'muted small unit' }, t('настрел'))),
+        h('div', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ')),
+        scopeList(w)),
+      h('div', { class: 'big-col' },
+        h('div', { class: 'big' }, fmt.num(shots), h('div', { class: 'muted small unit' }, t('настрел'))),
+        precisionBadge(w)),
       meters.length ? h('div', { class: 'card-foot meters' }, meters) : null));
   return swipeable(card, {
     rightLabel: t('✓ Почистил'), leftLabel: t('Настрел −'),
@@ -812,15 +910,36 @@ function renderGuns() {
     archived);
 }
 
+/** Дульні звуження гладкого ствола: позначення й звужувальна вставка. */
+const CHOKES = [['cyl', 'Цилиндр'], ['ic', 'Получок 1/4'], ['mod', 'Получок 1/2'],
+  ['im', 'Чок 3/4'], ['full', 'Полный чок'], ['xf', 'Усиленный чок'], ['var', 'Сменный']];
+
+/** Що навішано на ствол: глушник, сошки, дульне звуження. Усе необов'язкове. */
+function kitBox(w) {
+  const yesNo = (value) => chips([['', t('нет')], ['1', t('да')]], value ? '1' : '');
+  const suppressor = yesNo(w?.suppressor);
+  const bipod = yesNo(w?.bipod);
+  const choke = h('select', {},
+    [['', t('— нет —')], ...CHOKES].map(([k, label]) => h('option', { value: k, selected: k === (w?.choke ?? '') }, k ? t(label) : label)));
+  const el = box(t('Оснащение'), h('div', { class: 'form' },
+    h('label', { class: 'field half' }, h('span', { class: 'field-label' }, t('Глушитель')), suppressor),
+    h('label', { class: 'field half' }, h('span', { class: 'field-label' }, t('Сошки')), bipod),
+    h('label', { class: 'field wide' }, h('span', { class: 'field-label' }, t('Дульное сужение')), choke,
+      h('small', { class: 'muted' }, t('Для гладкого ствола. Для нарезного оставьте «нет».')))));
+  return { el, values: () => ({ suppressor: suppressor.value === '1', bipod: bipod.value === '1', choke: choke.value || null }) };
+}
+
+/** Підпис оснащення для картки й плитки: «глушник · сошки · чок 1/2» або порожньо. */
+function kitText(w) {
+  return [w?.suppressor ? t('глушитель') : null, w?.bipod ? t('сошки') : null,
+    w?.choke ? t(CHOKES.find(([k]) => k === w.choke)?.[1] ?? '') : null].filter(Boolean).join(' · ');
+}
+
 function weaponForm(w = null) {
   const f = form([
     { name: 'name', label: t('Название'), required: true, value: w?.name, placeholder: 'AR-15 16"', half: true },
     { name: 'serial', label: t('Серийный номер'), value: w?.serial, half: true },
     { name: 'caliber', label: t('Калибр'), required: true, value: w?.caliber, list: 'cal-list', half: true },
-    {
-      name: 'kind', label: t('Значок'), type: 'select', value: w?.kind ?? 'auto', half: true,
-      options: Object.entries(WEAPON_KINDS).map(([k, label]) => [k, t(label)]),
-    },
     { name: 'initialShots', label: t('Настрел до начала учёта'), type: 'number', step: 1, min: 0, value: w?.initialShots ?? 0, half: true },
     { name: 'barrelLife', label: t('Ресурс ствола, выстрелов'), type: 'number', step: 1, min: 0, value: w?.barrelLife, half: true },
     { name: 'note', label: t('Примечание'), value: w?.note, wide: true },
@@ -828,6 +947,7 @@ function weaponForm(w = null) {
   f.el.append(caliberList());
   barrelHint(f);
   const remind = cleanReminderBox(w);
+  const kit = kitBox(w);
   const permit = permitFields(w);
   const scopesBox = h('div', { class: 'items' });
   const addScope = (s = {}) => {
@@ -857,7 +977,7 @@ function weaponForm(w = null) {
   };
   (w?.scopes ?? []).forEach(addScope);
   const close = sheet(w ? t('Изменить оружие') : t('Новое оружие'), h('div', {},
-    f.el, remind.el, permit.el, h('h3', {}, t('Прицелы')), scopesBox, btn(t('+ прицел'), () => addScope())), {
+    f.el, kit.el, remind.el, permit.el, h('h3', {}, t('Прицелы')), scopesBox, btn(t('+ прицел'), () => addScope())), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
   });
   async function save() {
@@ -877,7 +997,7 @@ function weaponForm(w = null) {
       };
     }).filter((s) => s.name);
     close();
-    await saveEntity('weapons', { ...(w ?? { id: db.uid(), created: Date.now() }), ...v, ...remind.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes }, w ? t('Сохранено') : t('Добавлено: {name}', { name: v.name }));
+    await saveEntity('weapons', { ...(w ?? { id: db.uid(), created: Date.now() }), ...v, ...remind.values(), ...kit.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes }, w ? t('Сохранено') : t('Добавлено: {name}', { name: v.name }));
   }
 }
 
@@ -1044,7 +1164,7 @@ function weaponBody(w, close) {
   const cost = M.shotsCost(state, moves);
   const meters = [progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true }), cleanRow(w, { inline: true })].filter(Boolean);
   return h('div', {},
-    h('p', { class: 'muted' }, [w.caliber, w.serial && `№ ${w.serial}`, w.note].filter(Boolean).join(' · ')),
+    h('p', { class: 'muted' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null, w.note].filter(Boolean).join(' · ')),
     h('div', { class: 'gun-top' }, gallery(w.id), targetsTile(w, () => close())),
     h('div', { class: 'stats even' },
       stat(t('настрел'), fmt.num(shots), 'accent'),
@@ -1057,6 +1177,7 @@ function weaponBody(w, close) {
     w.scopes?.length ? box(t('Прицелы'), scopeList(w, true)) : null,
     permitBox(w),
     dopeBox(w),
+    precisionChart(w),
     ammoPrecisionBox(w, { fold: true }),
     box(t('Стрельбы и чистки'), movementRows(moves, { skip: { weapon: true } }), { fold: `shots:${w.id}`, count: moves.length }));
 }
@@ -1124,6 +1245,7 @@ function dopeForm(w, d = null) {
     { name: 'cartridgeId', label: t('Патрон'), type: 'select', value: d?.cartridgeId ?? cartridges.match[0]?.id ?? '', options: [['', t('— не указывать —')], ...cartridges.options], wide: true },
     { name: 'note', label: t('Примечание'), value: d?.note, placeholder: t('Погода, высота, источник цифр…'), wide: true },
   ]);
+  ammoPicker(f.inputs.cartridgeId, w.caliber);
   const scope = () => scopes.find((s) => s.id === f.inputs.scopeId.value) ?? null;
   let unit = d?.unit ?? (scope()?.click ? 'click' : 'mil');
   const rowsBox = h('div', { class: 'dope-rows' });
@@ -1309,8 +1431,8 @@ function permitDatesToAll(w, v) {
 /** Раз на день при відкритті: дозволи, що скінчилися або лишилося менше місяця. */
 function permitsReminder() {
   const urgent = urgentPermits();
-  if (!urgent.length || recall('shooting-log:docs-reminded') === M.today()) return;
-  remember('shooting-log:docs-reminded', M.today());
+  if (!urgent.length || recall('shooters-log:docs-reminded') === M.today()) return;
+  remember('shooters-log:docs-reminded', M.today());
   toast(t('Разрешение на оружие: {names}', { names: urgent.map((w) => w.name).join(', ') }), {
     action: t('Показать'),
     onAction: () => { location.hash = '#guns'; },
@@ -1325,8 +1447,8 @@ const KIND_ICON = {
   reload: '<path d="M6 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M6 14h4M17 7v8M13 11h8"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
   adjust: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
-  // Маслянка: корпус, горловина, ручка, носик і крапля.
-  clean: '<path d="M4 11h9l3 3v6H4z"/><path d="M7.5 11V8.5h3V11"/><path d="M4 13.5H2.5V17H4"/><path d="M16 14l5-5"/><path d="M21 12.2c0 .8-.4 1.3-1 1.3s-1-.5-1-1.3c0-.6.5-1.3 1-1.9.5.6 1 1.3 1 1.9z"/>',
+  // Крапля мастила над лінією ствола: чистка — це догляд, а не прибирання.
+  clean: '<path d="M4 17.5h16"/><path d="M12 4c2.2 2.8 3.4 4.8 3.4 6.4a3.4 3.4 0 0 1-6.8 0C8.6 8.8 9.8 6.8 12 4z"/>',
 };
 
 function kindIcon(kind) {
@@ -1352,14 +1474,27 @@ function logRow(m, { date = false, skip = {} } = {}) {
   const noStock = date && m.kind === 'shot' && !m.cartridgeId && !m.foreignAmmo ? t('без списания из БК') : null;
   const title = date ? [fmt.date(m.date), name].filter(Boolean).join(' · ') : movementTitle(m);
   const each = buyUnitPrice(m);
-  const sub = [date ? null : t(M.KINDS[m.kind]), gun, m.foreignAmmo ? t('чужие патроны') : noStock, m.note, money ? fmt.money(money) : null,
-    each ? t('{price} за шт', { price: fmt.money(each) }) : null]
-    .filter(Boolean).join(' · ');
+  // Скільки мішеней прив'язано до цієї стрільби — інакше про них видно лише в картці.
+  const targets = m.kind === 'shot' ? state.targets.filter((x) => x.movementId === m.id).length : 0;
+  // Стрільба, записана з результату вправи: видно, що це тренування, а не просто настріл.
+  const score = m.kind === 'shot' ? state.scores.find((x) => x.movementId === m.id) : null;
+  const fromExercise = score ? t('упражнение: {name}', { name: exerciseName(score.exercise) ?? '—' }) : null;
+  // Вправу виділяємо жирним — у списку одразу видно, що стрільба з тренування.
+  const parts = [date ? null : t(M.KINDS[m.kind]), gun,
+    fromExercise ? h('b', { class: 'row-ex' }, fromExercise) : null,
+    m.foreignAmmo ? t('чужие патроны') : noStock,
+    fromExercise ? null : m.note, money ? fmt.money(money) : null,
+    each ? t('{price} за шт', { price: fmt.money(each) }) : null].filter(Boolean);
+  const sub = parts.flatMap((p, i) => (i ? [' · ', p] : [p]));
   const unit = m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : '';
   return h('button', { type: 'button', class: `row kind-${m.kind}`, onclick: () => movementDetail(m) },
     kindIcon(m.kind),
-    h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub ? h('span', { class: 'muted small' }, sub) : null),
-    m.kind === 'clean' ? null : h('span', { class: `row-qty ${m.qty < 0 ? 'neg' : m.qty > 0 ? 'pos' : ''}` }, `${fmt.signed(m.qty)}${unit ? ` ${unit}` : ''}`));
+    h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub.length ? h('span', { class: 'muted small' }, sub) : null),
+    m.kind === 'clean' ? null : h('span', { class: 'row-side' },
+      h('span', { class: `row-qty ${m.qty < 0 ? 'neg' : m.qty > 0 ? 'pos' : ''}` }, `${fmt.signed(m.qty)}${unit ? ` ${unit}` : ''}`),
+      // Значок мішені з числом: у будь-якому списку стрільб видно, що її вже розібрано по фото.
+      targets ? h('span', { class: 'row-targets small muted', title: t('мишеней: {n}', { n: targets }) },
+        targetIco(), fmt.num(targets)) : null));
 }
 
 // Свіжий запис зі стану: після зміни ствола шторка тримає старий об'єкт.
@@ -1396,6 +1531,27 @@ function shotScopeSelect(m) {
 }
 
 /** Мішень на кнопці: ті самі кола, що й на вкладці «Полігон». */
+/** Значок: дистанція пристрілки — перехрестя в колі. */
+function zeroIco() {
+  const el = h('span', { class: 'btn-ico', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>';
+  return el;
+}
+
+/** Значок: ціна клацання — барабан прицілу з рискою. */
+function clickIco() {
+  const el = h('span', { class: 'btn-ico', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><path d="M12 5.5V2M15.5 3.4l1.4-2.4M8.5 3.4 7.1 1M12 12l3-3"/></svg>';
+  return el;
+}
+
+/** Значок «є ще приціли»: два кільця одне за одним — як стос однакових речей. */
+function scopeIco() {
+  const el = h('span', { class: 'btn-ico', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="9" cy="15" r="5.5"/><circle cx="15" cy="9" r="5.5"/></svg>';
+  return el;
+}
+
 function targetIco() {
   const el = h('span', { class: 'btn-ico', 'aria-hidden': 'true' });
   el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>';
@@ -1493,10 +1649,26 @@ function movementBody(m, close, edit = false) {
     batch.length > 1 ? box(t('Списано компонентов'), h('div', { class: 'rows' }, batch.filter((x) => x.id !== m.id).map((x) => logRow(x)))) : null);
 }
 
+/** Настріл по місяцях: скільки стріляв і на скільки — видно сезонність і темп. */
+function monthsBox(list = state.movements) {
+  const rows = M.shotsByMonth(state, 12, list);
+  if (rows.length < 2) return null;
+  const label = (key) => {
+    const [y, m] = key.split('-');
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(locale(), { month: 'short' });
+  };
+  const total = rows.reduce((sum, r) => sum + r.shots, 0);
+  const cost = rows.reduce((sum, r) => sum + r.cost, 0);
+  return box(t('Настрел по месяцам'), h('div', {},
+    barChart(rows.map((r) => ({ label: label(r.key), value: r.shots })), { format: (v) => fmt.num(v) }),
+    h('p', { class: 'muted small' }, [t('за {n} мес.', { n: rows.length }), t('{n} выстр.', { n: fmt.num(total) }),
+      cost ? fmt.money(cost) : null].filter(Boolean).join(' · '))));
+}
+
 let logWeapon = '';
 
 const PERIODS = [['day', 'День'], ['week', 'Неделя'], ['month', 'Месяц'], ['year', 'Год']];
-const PERIOD_KEY = 'shooting-log:log-period-v2';
+const PERIOD_KEY = 'shooters-log:log-period-v2';
 let logPeriod = PERIODS.some(([k]) => k === recall(PERIOD_KEY)) ? recall(PERIOD_KEY) : 'year';
 
 const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1598,6 +1770,7 @@ function renderLog() {
       ? hero(findWeapon(logWeapon).name, fmt.num(M.weaponShots(state, findWeapon(logWeapon))), t('настрел всего, вместе с настрелом до начала учёта'))
       : [totalHero(), shotsPanel()],
     h('div', { class: 'log-controls' }, period, h('div', { class: 'log-selects' }, typeSelect, gunSelect)),
+    logFilter === 'all' || logFilter === 'shot' ? monthsBox(list) : null,
     list.length
       ? logGroups(list)
       : empty(t('Записей нет'), t('Свайпните патрон в разделе БК, чтобы купить или списать.')));
@@ -1608,7 +1781,8 @@ function renderLog() {
 // Фото мішені більше за фото зброї: на 2400 px пробоїна .223 на 100 м — це ще 20+ пікселів.
 const TARGET_PHOTO = 2400;
 
-let targetUnit = UNITS.some(([k]) => k === recall('shooting-log:target-unit')) ? recall('shooting-log:target-unit') : 'cm';
+// Купчастість за замовчуванням у MOA: кутова міра не залежить від дистанції, її й називають уголос.
+let targetUnit = UNITS.some(([k]) => k === recall('shooters-log:target-unit-v2')) ? recall('shooters-log:target-unit-v2') : 'moa';
 let targetWeapon = '';
 
 const targetPhoto = (tg) => state.photos.find((p) => p.id === tg.photoId);
@@ -1632,15 +1806,12 @@ function bestSpread(targets) {
 }
 
 /** Рядок купчастості для картки списку: іконка й найкращий розмах у см і MOA. */
-function precisionLine(w) {
+/** Найкраща купчастість — другим числом у правій колонці плитки. */
+function precisionBadge(w) {
   const best = bestSpread(state.targets.filter((x) => x.weaponId === w.id));
   if (!best) return null;
-  const ammo = findCartridge(best.cartridgeId)?.name;
-  return h('div', { class: 'card-precision' }, kindIcon('shot'),
-    h('span', {}, t('лучший размах {v}', {
-      v: [length(best.spread, 'cm'), best.distance > 0 ? length(best.spread, 'moa', best.distance) : null].filter(Boolean).join(' · '),
-    })),
-    ammo ? h('span', { class: 'muted small' }, ammo) : null);
+  const main = best.distance > 0 ? length(best.spread, 'moa', best.distance) : length(best.spread, 'cm');
+  return h('div', { class: 'big small-big' }, main, h('div', { class: 'muted small unit' }, t('размах')));
 }
 
 /** Найкраща група мішені — з найменшим розмахом; min — скільки пробоїн щонайменше. */
@@ -1653,7 +1824,7 @@ function bestGroup(tg, min = 2) {
 function unitChips(onPick) {
   const row = chips(UNITS.map(([k, label]) => [k, t(label)]), targetUnit, (v) => {
     targetUnit = v;
-    remember('shooting-log:target-unit', v);
+    remember('shooters-log:target-unit-v2', v);
     onPick();
   });
   row.classList.add('segmented');
@@ -1672,12 +1843,23 @@ function targetsTile(weapon, closeSheet = null) {
       closeSheet?.();
       targetWeapon = weapon.id;
       rangeSeg = 'targets';
-      remember('shooting-log:range-seg', rangeSeg);
+      remember('shooters-log:range-seg', rangeSeg);
       location.hash = '#targets';
     },
   }, kindIcon('shot'),
   h('span', { class: 'tg-tile-value' }, value),
   h('span', { class: 'tg-tile-label' }, t('Кучность')));
+}
+
+/** Як змінюється купчастість ствола від виїзду до виїзду: середній радіус, зведений до 100 м. */
+function precisionChart(w) {
+  const series = M.precisionSeries(state.targets, state.photos, w.id);
+  if (series.length < 2) return null;
+  // Менший радіус — краще, тож лінія «вниз» зелена.
+  return box(t('Купчастость со временем'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: x.value })), {
+    up: false,
+    format: (mm) => length(mm, targetUnit, 100),
+  }), { fold: `pchart:${w.id}` });
 }
 
 /**
@@ -1740,19 +1922,20 @@ function targetRow(tg, beforeOpen = null) {
   return h('button', { type: 'button', class: 'row tg-row', onclick: () => { beforeOpen?.(); targetDetail(tg); } },
     targetThumb(tg),
     h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, targetTitle(tg)), h('span', { class: 'muted small' }, sub)),
-    best ? h('span', { class: 'tg-best' }, length(best.stats.spread, targetUnit, tg.distance)) : null);
+    best ? h('span', { class: 'tg-best col' }, length(best.stats.spread, targetUnit, tg.distance),
+      h('small', { class: 'muted' }, t('розкид'))) : null);
 }
 
 // ---------- полігон: мішені й таймер ----------
 
 const RANGE_SEGS = [['exercises', 'Упражнения'], ['targets', 'Мишени'], ['timer', 'Таймер']];
-let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooting-log:range-seg')) ? recall('shooting-log:range-seg') : 'exercises';
+let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooters-log:range-seg')) ? recall('shooters-log:range-seg') : 'exercises';
 
 /** Вкладка «Полігон»: перемикач розділів, розділ запам'ятовується. */
 function renderRange() {
   const seg = chips(RANGE_SEGS.map(([k, label]) => [k, t(label)]), rangeSeg, (v) => {
     rangeSeg = v;
-    remember('shooting-log:range-seg', v);
+    remember('shooters-log:range-seg', v);
     render();
   });
   seg.classList.add('segmented', 'range-seg');
@@ -1767,6 +1950,24 @@ function renderExercises() {
     .map((c) => [c.id, `${c.name} · ${c.caliber}`, M.cartridgeStock(state, c.id)]);
   return exercisesPanel({
     scores: state.scores, weapons, cartridges, drills: state.drills, box, stat,
+    lastAmmo: (weaponId) => M.lastAmmo(state, weaponId),
+    pickAmmo: (select) => ammoPicker(select),
+    // Свої вправи лежать у базі поряд з рештою — отже, їдуть і в копію, і на Диск.
+    custom: state.exercises,
+    onSaveExercise: (rec) => saveEntity('exercises', { id: db.uid(), created: Date.now(), ...rec }, t('Сохранено')),
+    onDeleteExercise: (rec) => {
+      if (!rec) return;
+      const used = state.scores.filter((s) => s.exercise === rec.id).length;
+      confirmSheet(t('Удалить упражнение?'),
+        used ? t('Результатов: {n}. Они останутся в истории, но без названия упражнения.', { n: used }) : rec.name,
+        t('Удалить'), async () => {
+          await db.write({ exercises: { del: [rec.id] } });
+          await refresh();
+          toast(t('Удалено'));
+        });
+    },
+    openTimer: timerSheet,
+    mismatch: (cartridgeId, weaponId) => caliberMismatch(findCartridge(cartridgeId), findWeapon(weaponId)),
     // Мішені чіпляються до руху стрільби, тож у результату вони є лише там, де списували набої.
     targetsOf: (r) => {
       const m = state.movements.find((x) => x.id === r.movementId);
@@ -1792,6 +1993,19 @@ function renderExercises() {
       toast(t('Удалено'));
     },
   });
+}
+
+/** Таймер прямо з результату вправи: серія зберігається як завжди, а її час іде в поле. */
+function timerSheet(onDone) {
+  const weapons = state.weapons.filter((w) => !w.archived).sort(byName).map((w) => [w.id, w.name]);
+  const close = sheet(t('Таймер'), timerPanel({
+    weapons,
+    onSave: async (drill) => {
+      await saveEntity('drills', { id: db.uid(), created: Date.now(), ...drill }, t('Серия сохранена'));
+      close();
+      onDone(drill.shots.reduce((s, x) => s + x, 0));
+    },
+  }), { onClose: stopTimerPanel });
 }
 
 function renderTimer() {
@@ -1901,9 +2115,9 @@ function pickTargetPhoto(prefill, camera) {
 async function runMarking(blob, tg) {
   try {
     const marks = await markTarget(blob, tg, {
-      distance: tg.distance, unit: targetUnit, click: tg.click, scaleMm: Number(recall('shooting-log:scale-mm')) || 100,
+      distance: tg.distance, unit: targetUnit, click: tg.click, scaleMm: Number(recall('shooters-log:scale-mm')) || 100,
     });
-    if (marks?.scale?.mm) remember('shooting-log:scale-mm', marks.scale.mm);
+    if (marks?.scale?.mm) remember('shooters-log:scale-mm', marks.scale.mm);
     return marks;
   } catch (err) {
     toast(err.message);
@@ -1913,7 +2127,7 @@ async function runMarking(blob, tg) {
 
 function targetForm(tg, { photo = null, movement = null, weaponId = null } = {}) {
   const lastOf = (id) => state.targets.filter((x) => x.weaponId === id).sort(M.byDateDesc)[0];
-  const gunId = [tg?.weaponId, movement?.weaponId, weaponId, recall('shooting-log:target-gun')].find((id) => id && findWeapon(id)) ?? '';
+  const gunId = [tg?.weaponId, movement?.weaponId, weaponId, recall('shooters-log:target-gun')].find((id) => id && findWeapon(id)) ?? '';
   const guns = state.weapons.filter((w) => !w.archived || w.id === gunId).sort(byName);
   const ammoId = [tg?.cartridgeId, movement?.cartridgeId, gunId && recall(`ammo:${gunId}`)].find((id) => id && findCartridge(id)) ?? '';
   const ammo = (id) => [['', t('— не указывать —')],
@@ -1924,7 +2138,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
   const pickScope = (wid) => [movement?.weaponId === wid ? movement.scopeId : null, lastOf(wid)?.scopeId]
     .map((id) => scopeOf(wid, id)).find(Boolean) ?? M.defaultScope(findWeapon(wid));
   const scope0 = tg && 'scopeId' in tg ? scopeOf(gunId, tg.scopeId) : pickScope(gunId);
-  const distance0 = tg?.distance ?? lastOf(gunId)?.distance ?? (Number(recall('shooting-log:target-distance')) || 100);
+  const distance0 = tg?.distance ?? lastOf(gunId)?.distance ?? (Number(recall('shooters-log:target-distance')) || 100);
   // «Влучання вище» — як у останній мішені з тим самим прицілом на тій самій дистанції
   const lastZeroUp = (sid, distance) => (sid
     ? state.targets.filter((x) => x.scopeId === sid && x.distance === distance && x.zeroUp).sort(M.byDateDesc)[0]?.zeroUp ?? '' : '');
@@ -1933,12 +2147,12 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
     { name: 'scopeId', label: t('Прицел'), type: 'select', value: scope0?.id ?? '', options: scopeOptions(findWeapon(gunId)) },
     { name: 'cartridgeId', label: t('Патроны'), type: 'select', value: ammoId, options: ammo(gunId) },
     { name: 'distance', label: t('Дистанция, м'), type: 'number', step: 'any', min: 0, required: true, value: distance0 },
-    { name: 'date', label: t('Дата'), type: 'date', value: tg?.date ?? movement?.date ?? M.today() },
-    { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true, options: CLICKS.map(([k, label]) => [k, t(label)]),
-      value: tg?.click ?? scope0?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
     { name: 'zeroUp', label: t('Попадание выше точки прицеливания, см'), type: 'number', step: 'any', wide: true,
       value: tg ? tg.zeroUp ?? '' : lastZeroUp(scope0?.id, distance0),
       hint: t('Если пристрелка на другую дистанцию — сколько по баллистической таблице, ниже — с минусом. Пусто — в точку прицеливания.') },
+    { name: 'date', label: t('Дата'), type: 'date', value: tg?.date ?? movement?.date ?? M.today() },
+    { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true, options: CLICKS.map(([k, label]) => [k, t(label)]),
+      value: tg?.click ?? scope0?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
     { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', value: tg?.temp ?? '' },
     { name: 'wind', label: t('Ветер, м/с'), type: 'number', step: 'any', min: 0, value: tg?.wind ?? '' },
     { name: 'windClock', label: t('Откуда ветер'), type: 'select', value: tg?.windClock ? String(tg.windClock) : '', options: [['', '—'], ...hours] },
@@ -1953,6 +2167,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
   const selectedScope = () => scopeOf(f.inputs.weaponId.value, f.inputs.scopeId.value);
   // Своє значення «влучання вище» не перезаписуємо підказкою з минулих мішеней.
   let zeroTyped = !!tg;
+  const repaintAmmo = ammoPicker(f.inputs.cartridgeId, findWeapon(gunId)?.caliber);
   f.inputs.zeroUp.addEventListener('input', () => { zeroTyped = true; });
   const showZero = () => {
     const distance = Number(f.inputs.distance.value);
@@ -1975,6 +2190,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
     const id = f.inputs.weaponId.value;
     const keep = f.inputs.cartridgeId.value;
     f.inputs.cartridgeId.replaceChildren(...selectOptions(ammo(id), keep).filter(Boolean));
+      repaintAmmo();
     const w = findWeapon(id);
     f.inputs.scopeId.replaceChildren(...selectOptions(scopeOptions(w), pickScope(id)?.id ?? '').filter(Boolean));
     scopeField.hidden = !w?.scopes?.length;
@@ -2016,8 +2232,8 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
       weaponId: v.weaponId || null, scopeId: selectedScope()?.id ?? null, cartridgeId: v.cartridgeId || null, distance: v.distance, date: v.date || null,
       click: f.inputs.click.value || null, zeroUp: Number(v.zeroUp) || null, temp: v.temp, wind: v.wind, windClock: v.windClock ? Number(v.windClock) : null, note: v.note, gps,
     };
-    remember('shooting-log:target-distance', v.distance);
-    remember('shooting-log:target-gun', fields.weaponId);
+    remember('shooters-log:target-distance', v.distance);
+    remember('shooters-log:target-gun', fields.weaponId);
     close();
     if (tg) {
       await saveEntity('targets', { ...tg, ...fields }, t('Сохранено'));
@@ -2091,17 +2307,20 @@ function fixPanel(fixes, click) {
 /** Значок мірки: що саме намальовано на фото — лінія між крайніми, коло середнього радіуса, рамка габариту. */
 const METRIC_ICON = {
   spread: '<circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="5" r="2.2"/><path d="M6.6 17.4 17.4 6.6"/>',
+  mpi: '<path d="M12 4 20 12 12 20 4 12z"/>',
   ring: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
-  box: '<rect x="4" y="6" width="16" height="12" rx="1.5"/>',
+  box: '<rect x="4" y="6" width="16" height="12" rx="1.5" stroke-dasharray="3 2.5"/>',
+  find: '<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
 };
-function metricLabel(icon, text) {
+function metricLabel(icon, text, color = null) {
   const ico = h('span', { class: 'metric-ico', 'aria-hidden': 'true' });
   ico.innerHTML = `<svg viewBox="0 0 24 24">${METRIC_ICON[icon]}</svg>`;
+  if (color) ico.style.color = color;
   return h('span', { class: 'metric-label' }, ico, text);
 }
 
 /** Блок групи: плитки розміру, СТВ, потрібне влучання й поправка — у вибраних одиницях. */
-function groupBox(g, tg) {
+function groupBox(g, tg, fold = false, onFocus = null) {
   const s = g.stats;
   const len = (mm) => length(mm, targetUnit, tg.distance);
   const wantUp = (tg.zeroUp || 0) * 10;
@@ -2115,21 +2334,25 @@ function groupBox(g, tg) {
       stat(metricLabel('spread', t('Размах')), len(s.spread)),
       stat(metricLabel('ring', t('Средний радиус')), len(s.meanRadius)),
       stat(metricLabel('box', t('Ширина × высота')), size(s.width, s.height, targetUnit, tg.distance))) : null,
-    s.offset ? line(t('СТП'), offsetText(s.offset, targetUnit, tg.distance)) : null,
+    s.offset ? (onFocus
+      ? h('button', { type: 'button', class: 'tg-line tg-goto', 'aria-label': t('Показать группу на фото'), onclick: () => onFocus(g.index) },
+        h('span', { class: 'muted' }, metricLabel('mpi', t('СТП'), COLORS[g.index % COLORS.length])),
+        h('span', {}, offsetText(s.offset, targetUnit, tg.distance), metricLabel('find', '')))
+      : line(metricLabel('mpi', t('СТП'), COLORS[g.index % COLORS.length]), offsetText(s.offset, targetUnit, tg.distance))) : null,
     s.offset && wantUp ? line(t('Нужное попадание'), `${wantUp > 0 ? t('выше') : t('ниже')} ${len(Math.abs(wantUp))}`) : null,
     s.offset ? fixPanel(corrections(s, { distance: tg.distance, click: tg.click, wantUp }), tg.click) : null,
-  ]);
+  ], fold ? { fold: `tg-group:${tg.id}:${g.index}` } : {});
 }
 
-function statsBlocks(tg, photo, onUnit) {
+function statsBlocks(tg, photo, onUnit, onFocus = null) {
   if (!photo) return [h('p', { class: 'muted small' }, t('Фото мишени ещё не синхронизировано.'))];
   if (!M.mmPerPx(tg.scale, photo)) return [h('p', { class: 'muted small' }, t('Масштаб не задан — откройте разметку и отметьте две точки с известным расстоянием.'))];
   const groups = M.targetStats(tg, photo).filter((g) => g.stats);
   if (!groups.length) return [h('p', { class: 'muted small' }, t('Пробоины не отмечены.'))];
   return [
     unitChips(onUnit),
-    ...groups.map((g) => groupBox(g, tg)),
-    groups.some((g) => g.stats.n >= 2) ? hint(t('Когда говорят «группа 1 MOA» — речь о размахе: его задают две крайние пробоины, и он растёт с числом выстрелов. Средний радиус считает все пробоины — по нему сравнимы группы с разным числом выстрелов.')) : null,
+    ...groups.map((g) => groupBox(g, tg, groups.length > 1, onFocus)),
+    groups.some((g) => g.stats.n >= 2) ? hint(t('На фото три фигуры, по одной на каждое число. Линия между крайними пробоинами — размах: его называют, когда говорят «группа 1 MOA», и он растёт с числом выстрелов. Кольцо вокруг СТП — средний радиус: средняя удалённость пробоин от центра, внутри кольца примерно половина попаданий; он почти не зависит от числа выстрелов, поэтому по нему и сравниваются патроны. Пунктирная рамка — габарит группы: ширина и высота.')) : null,
     tg.poa ? null : h('p', { class: 'muted small' }, t('Отметьте точку прицеливания — появятся СТП и поправки в щелчках.')),
   ].filter(Boolean);
 }
@@ -2154,7 +2377,7 @@ async function shareTarget(tg) {
   const src = blob ? URL.createObjectURL(blob) : photo.thumb;
   let image;
   try {
-    image = await shareImage(src, tg, shareLines(tg, photo));
+    image = await shareImage(src, tg, shareLines(tg, photo), { unit: targetUnit, distance: tg.distance });
   } finally {
     if (blob) URL.revokeObjectURL(src);
   }
@@ -2169,17 +2392,27 @@ function targetDetail(tg) {
   const photo = targetPhoto(tg);
   const shot = tg.movementId ? state.movements.find((m) => m.id === tg.movementId) : null;
   const figure = h('canvas', { class: 'tg-figure' });
-  if (photo?.thumb) {
-    paintPreview(figure, photo.thumb, tg, 720).then(async () => {
+  // фото перемальовуємо разом із цифрами: підписи на фігурах — у тих самих одиницях,
+  // тап по СТВ групи підсвічує її на фото; focus має бути оголошений до першого малювання
+  let focus = null;
+  function opts() { return { unit: targetUnit, distance: tg.distance, active: focus }; }
+  const goTo = (i) => {
+    focus = focus === i ? null : i;
+    drawFigure();
+    figure.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  function drawFigure() {
+    paintPreview(figure, photo.thumb, tg, 720, opts()).then(async () => {
       const blob = await db.getBlob(photo.id);
       if (!blob) return;
       const url = URL.createObjectURL(blob);
-      try { await paintPreview(figure, url, tg, 1400); } finally { URL.revokeObjectURL(url); }
+      try { await paintPreview(figure, url, tg, 1400, opts()); } finally { URL.revokeObjectURL(url); }
     }).catch(() => {});
   }
+  if (photo?.thumb) drawFigure();
   const statsBox = h('div', {});
   // зміна одиниць — і в картці, і в списку під нею
-  const showStats = () => statsBox.replaceChildren(...statsBlocks(tg, photo, () => { showStats(); render(); }));
+  const showStats = () => statsBox.replaceChildren(...statsBlocks(tg, photo, () => { showStats(); drawFigure(); render(); }, goTo));
   showStats();
   const remove = () => {
     close();
@@ -2213,7 +2446,7 @@ function targetDetail(tg) {
 
 // ---------- рецепти та склад компонентів ----------
 
-let reloadPane = recall('shooting-log:pane') === 'stock' ? 'stock' : 'recipes';
+let reloadPane = recall('shooters-log:pane') === 'stock' ? 'stock' : 'recipes';
 
 function componentLevel(c, runway) {
   if (c.kind === 'case' || !runway.length) return '';
@@ -2302,7 +2535,7 @@ function stockPane() {
 function renderReload() {
   const seg = chips([['recipes', t('Рецепты')], ['stock', t('Склад')]], reloadPane, (v) => {
     reloadPane = v;
-    remember('shooting-log:pane', v);
+    remember('shooters-log:pane', v);
     render();
   });
   seg.classList.add('segmented');
@@ -2477,8 +2710,8 @@ function download(name, content) {
 }
 
 async function exportData(share) {
-  const payload = JSON.stringify({ app: 'shooting-log', format: 1, exportedAt: new Date().toISOString(), data: state }, null, 1);
-  const name = `shooting-log-${M.today()}.json`;
+  const payload = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data: state }, null, 1);
+  const name = `shooters-log-${M.today()}.json`;
   if (share) {
     const file = new File([payload], name, { type: 'application/json' });
     if (navigator.canShare?.({ files: [file] })) {
@@ -2493,9 +2726,29 @@ function importData(file) {
   reader.onload = () => {
     let parsed;
     try { parsed = JSON.parse(reader.result); } catch { toast(t('Файл не похож на JSON')); return; }
+    importParsed(parsed);
+  };
+  reader.readAsText(file);
+}
+
+/** Демодані з комплекту: рік обліку з мішенями, вправами й серіями таймера — подивитися, як воно працює. */
+async function loadDemo() {
+  toast(t('Загружаю демо-данные…'));
+  try {
+    const res = await fetch('./demo.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    importParsed(await res.json());
+  } catch {
+    toast(t('Не удалось загрузить демо-данные'));
+  }
+}
+
+function importParsed(parsed) {
+  {
     const data = parsed?.data;
-    if (parsed?.app !== 'shooting-log' || !data || !db.STORES.every((s) => !data[s] || Array.isArray(data[s]))) {
-      toast(t('Это не резервная копия Shooting Log'));
+    // Старі копії підписані колишнім ім'ям — приймаємо обидва.
+    if (!['shooters-log', 'scouts-log', 'shooting-log'].includes(parsed?.app) || !data || !db.STORES.every((s) => !data[s] || Array.isArray(data[s]))) {
+      toast(t('Это не резервная копия Shooters Log'));
       return;
     }
     const count = db.STORES.reduce((s, k) => s + (data[k]?.length ?? 0), 0);
@@ -2503,20 +2756,19 @@ function importData(file) {
     const close = sheet(t('Импорт'), h('div', {},
       h('p', {}, t('В файле {n} записей.', { n: count })),
       h('p', { class: 'muted small' }, t('«Объединить» — добавит новые записи и обновит те, что в файле новее: более поздние правки на устройстве останутся. «Заменить всё» — сначала удалит текущие данные.')),
-      sync.enabled() ? h('p', { class: 'muted small' }, t('Включена синхронизация: «Заменить всё» очистит только это устройство, данные с Google Диска потом вернутся.')) : null), {
+      sync.enabled() ? h('p', { class: 'muted small' }, t('Включена синхронизация: «Заменить всё» заменит данные и на Google Диске, и на других устройствах. «Объединить» не откатит более новые данные с Диска.')) : null), {
       actions: [
         btn(t('Отмена'), () => close()),
         btn(t('Объединить'), async () => { close(); await db.mergeImport(changes); await refresh(); toast(t('Импортировано')); }),
         btn(t('Заменить всё'), () => {
           close();
           confirmSheet(t('Заменить все данные?'), t('Текущие данные будут удалены. Сначала сделайте экспорт, если они нужны.'), t('Заменить'), async () => {
-            await db.clearAll(); await db.write(changes); await refresh(); toast(t('Данные заменены'));
+            sync.markRestore(await db.replaceAll(changes)); await refresh(); toast(t('Данные заменены'));
           });
         }, 'danger'),
       ],
     });
-  };
-  reader.readAsText(file);
+  }
 }
 
 function syncTime(ms) {
@@ -2538,7 +2790,7 @@ function syncPanel() {
     panel.append(h('p', { class: 'muted small' }, t('Не настроена: в js/config.js не указан Google Client ID.')));
   } else if (!sync.enabled()) {
     panel.append(
-      h('p', { class: 'muted small' }, t('Данные будут храниться в файле shooting-log.json на вашем Google Диске и совпадать на телефоне и компьютере. Приложение видит только свои файлы, остальной Диск ему недоступен.')),
+      h('p', { class: 'muted small' }, t('Данные будут храниться в файле shooters-log.json на вашем Google Диске и совпадать на телефоне и компьютере. Приложение видит только свои файлы, остальной Диск ему недоступен.')),
       h('div', { class: 'btn-row' }, btn(t('Подключить Google Диск'), connectGoogle, 'primary')));
   } else {
     panel.append(
@@ -2569,6 +2821,11 @@ function renderSyncChip(s) {
     chip.className = `sync-chip ${s.state}`;
     chip.title = s.message || t('Синхронизация с Google Диском');
   }
+  // Аватар власника Google Диска в шапці — поки не під'єднано, його просто немає.
+  const avatar = $('app-icon');
+  avatar.hidden = !s.photo;
+  if (s.photo && avatar.src !== s.photo) avatar.src = s.photo;
+  avatar.title = [s.who, s.email].filter(Boolean).join(' · ');
   if (tab === 'settings') render();
 }
 
@@ -2584,7 +2841,7 @@ const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Св�
 const lightScheme = matchMedia('(prefers-color-scheme: light)');
 
 function themePref() {
-  const v = recall('shooting-log:theme');
+  const v = recall('shooters-log:theme');
   return THEMES.some(([k]) => k === v) ? v : 'auto';
 }
 
@@ -2605,44 +2862,31 @@ function switchLang(code) {
 }
 
 /** «Своя иконка»: картинка лише на цьому пристрої, файл для ярлика на робочому столі. */
-function iconPanel() {
-  const fileInput = h('input', {
-    type: 'file', accept: 'image/*', hidden: true,
-    onchange: async (e) => {
-      const file = e.target.files[0];
-      e.target.value = '';
-      if (!file) return;
-      try {
-        const result = await editPhoto(file, { square: true });
-        if (!result) return;
-        await setIcon(result.blob);
-      } catch (err) {
-        toast(err.message);
-        return;
-      }
-      applyIcon();
-      render();
-      toast(t('Иконка сохранена на этом устройстве'));
-    },
-  });
-  const saveFile = async () => {
-    const file = await iconFile();
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: file.name }); return; } catch (err) { if (err.name === 'AbortError') return; }
-    }
-    download(file.name, file);
-  };
-  const url = customIcon();
-  return h('section', { class: 'panel' },
-    h('h3', {}, t('Своя иконка')),
-    url ? h('div', { class: 'icon-preview' }, h('img', { src: url, alt: '' }),
-      h('span', { class: 'muted small' }, t('Показывается в шапке и на вкладке браузера. Хранится только на этом устройстве и никуда не публикуется.'))) : null,
-    h('p', { class: 'muted small' }, t('Иконку установленного приложения Android берёт с сервера, поэтому на рабочий стол свою картинку ставят вручную: сохраните файл и назначьте его ярлыку — долгое нажатие на иконку → «Изменить» (Nova, темы Samsung и Xiaomi) или приложение «Shortcut Maker». На iPhone: выберите иконку, затем «Поделиться» → «На экран Домой».')),
-    h('div', { class: 'btn-row' },
-      btn(url ? t('Заменить картинку') : t('Выбрать картинку'), () => fileInput.click(), url ? '' : 'primary'),
-      url ? btn(t('Сохранить для рабочего стола'), saveFile, 'primary') : null,
-      url ? btn(t('Убрать'), () => { clearIcon(); applyIcon(); render(); }) : null),
-    fileInput);
+/** Довгий текст під розкриттям. */
+const more = (title, node) => h('details', { class: 'ex-more' }, h('summary', {}, title), node);
+
+/** «Про застосунок»: що воно таке, де лежать дані й куди дивитися, якщо не довіряєш на слово. */
+function aboutPanel() {
+  const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
+  return h('section', { class: 'panel about' },
+    h('div', { class: 'about-head' },
+      h('img', { class: 'about-avatar', src: './icons/author.jpg', alt: '', width: 64, height: 64, loading: 'lazy' }),
+      h('div', {},
+        h('h3', {}, t('Про приложение')),
+        h('p', { class: 'muted small' }, t('Shooters Log — учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
+    more(t('Где мои данные'), h('div', { class: 'muted small' },
+      h('p', {}, t('Записи и фото лежат в браузере на этом устройстве. Сервера у приложения нет, автор не получает ни данных, ни статистики.')),
+      h('p', {}, t('Google Диск подключается по желанию: копия ложится в ваш Диск, приложение видит только свои файлы. Браузеру запрещено отправлять данные куда-либо ещё — это прописано в коде страницы (Content Security Policy).')),
+      h('p', {}, t('Резервная копия — ⚙ → «Поделиться копией». Она же переносит данные на другое устройство через «Импорт».')))),
+    more(t('С чего начать'), h('ol', { class: 'ex-rules' },
+      h('li', {}, t('Заведите ствол на вкладке «Оружие» и патрон на вкладке «Набої».')),
+      h('li', {}, t('Свайп по карточке патрона: вправо — покупка, влево — списание на стрельбу.')),
+      h('li', {}, t('После стрельбы сфотографируйте мишень: «Полигон» → «Мишени» → «+». Отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
+      h('li', {}, t('Не хотите вводить своё — ⚙ → «Загрузить демо-данные», там готовый год учёта.')))),
+    h('p', { class: 'muted small' },
+      link('https://github.com/VitaliyLobko/shooting-log', t('Исходный код')), ' · ',
+      link('https://github.com/VitaliyLobko/shooting-log/blob/main/PRIVACY.md', t('Приватность')), ' · ',
+      link('https://github.com/VitaliyLobko/shooting-log/blob/main/LICENSE', t('Лицензия MIT'))));
 }
 
 function renderSettings() {
@@ -2654,14 +2898,20 @@ function renderSettings() {
   const langChips = chips(Object.entries(LANGS), lang(), switchLang);
   langChips.classList.add('segmented');
   return h('div', {},
+    aboutPanel(),
     h('section', { class: 'panel guide-entry' },
       h('h3', {}, t('Справочник стрелка')),
       h('p', { class: 'muted small' }, t('Курс марксмана: изготовка, спуск, мил и MOA, пристрелка, ветер, дальность, калькулятор и тренажёр сетки. Работает без интернета.')),
       btn(t('Открыть справочник'), () => { location.hash = '#guide'; }, 'primary')),
-    iconPanel(),
-    h('section', { class: 'panel' }, h('h3', {}, 'Язык · Мова'), langChips),
+    h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
+      h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
+      h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'))),
+    h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
+      h('p', { class: 'muted small' }, t('Год учёта для примера: три ствола, покупки и стрельбы, размеченные мишени, упражнения и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
+      h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))),
+    h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
     h('section', { class: 'panel' }, h('h3', {}, t('Тема')), (() => {
-      const row = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooting-log:theme', v); applyTheme(); });
+      const row = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooters-log:theme', v); applyTheme(); });
       row.classList.add('segmented');
       return row;
     })()),
@@ -2772,7 +3022,7 @@ function addMenu() {
 }
 
 const VIEWS = {
-  ammo: { title: 'БК', render: renderAmmo, fab: ammoAddMenu },
+  ammo: { title: 'Патроны', render: renderAmmo, fab: ammoAddMenu },
   guns: { title: 'Оружие', render: renderGuns, fab: () => weaponForm() },
   log: { title: 'Журнал', render: renderLog, fab: foreignShotSheet },
   reload: { title: 'Рецепты', render: renderReload, fab: addMenu },
@@ -2796,8 +3046,8 @@ function render() {
 /** Раз на день при відкритті: які стволи не почищені після стрільби. Повертає true, якщо нагадав. */
 function cleaningReminder() {
   const dirty = state.weapons.filter(needsCleaning);
-  if (!dirty.length || recall('shooting-log:clean-reminded') === M.today()) return false;
-  remember('shooting-log:clean-reminded', M.today());
+  if (!dirty.length || recall('shooters-log:clean-reminded') === M.today()) return false;
+  remember('shooters-log:clean-reminded', M.today());
   toast(t('Пора почистить: {names}', { names: dirty.map((w) => w.name).join(', ') }), {
     action: t('Показать'),
     onAction: () => { location.hash = '#guns'; },
@@ -2810,6 +3060,25 @@ function route() {
   tab = VIEWS[next] ? next : 'ammo';
   render();
   window.scrollTo(0, 0);
+}
+
+/**
+ * Ручна перевірка оновлення: інколи телефон не питає сам (старий worker живий, мережа підвела).
+ * Нова версія приходить плашкою вгорі — тут лише штовхаємо перевірку й кажемо, чим вона скінчилась.
+ */
+async function checkUpdate() {
+  if (!('serviceWorker' in navigator)) { toast(t('Обновления работают только по https')); return; }
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) { toast(t('Приложение ещё не установлено как офлайн-копия')); return; }
+  toast(t('Проверяю обновление…'));
+  try {
+    await reg.update();
+  } catch {
+    toast(t('Нет связи с сервером'));
+    return;
+  }
+  if (reg.installing || reg.waiting) toast(t('Есть новая версия — нажмите «Обновить» вверху'));
+  else toast(t('У вас последняя версия'));
 }
 
 function registerWorker() {
@@ -2828,6 +3097,7 @@ function registerWorker() {
       });
     });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    reg.update().catch(() => {});
   }).catch((err) => console.warn('SW registration failed', err));
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -2839,7 +3109,6 @@ function registerWorker() {
 
 applyStatic();
 applyTheme();
-applyIcon();
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
 $('sync-chip').addEventListener('click', onSyncChip);
 window.addEventListener('hashchange', route);

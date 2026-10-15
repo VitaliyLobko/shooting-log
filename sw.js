@@ -1,11 +1,12 @@
 importScripts('./version.js');
 
-const CACHE = `shooting-log-${self.APP_VERSION}`;
+const CACHE = `shooters-log-${self.APP_VERSION}-${self.APP_BUILD}`;
 const ASSETS = [
   './',
   './index.html',
   './version.js',
   './manifest.webmanifest',
+  './demo.json',
   './css/app.css',
   './js/app.js',
   './js/config.js',
@@ -16,10 +17,9 @@ const ASSETS = [
   './js/i18n.js',
   './js/photos.js',
   './js/guide.js',
-  './js/icon.js',
   './js/target.js',
+  './js/chart.js',
   './js/ammo.js',
-  './js/weapon-icon.js',
   './js/levels.js',
   './js/timer.js',
   './js/exercises.js',
@@ -33,6 +33,7 @@ const ASSETS = [
   './guide/img/standing.jpg',
   './guide/img/barricade.jpg',
   './guide/img/barricade-kneel.jpg',
+  './icons/author.jpg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
@@ -48,7 +49,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    // Лише свої старі версії (і під попередніми назвами): на vitaliylobko.github.io поруч живе weight-log зі своїм кешем
+    const mine = (k) => ['shooters-log-', 'scouts-log-', 'shooting-log-'].some((p) => k.startsWith(p));
+    await Promise.all(keys.filter((k) => mine(k) && k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });

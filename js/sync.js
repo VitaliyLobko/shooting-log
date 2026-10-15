@@ -1,4 +1,4 @@
-// Синхронізація з файлом shooting-log.json на Google Диску власника.
+// Синхронізація з файлом shooters-log.json на Google Диску власника.
 // Офлайн-перший підхід: усе пишеться в IndexedDB, а сюди потрапляє, коли є мережа.
 // Злиття — по id: перемагає запис з пізнішим updated, надгробок перемагає старіший запис.
 import * as db from './db.js';
@@ -6,11 +6,12 @@ import { GOOGLE_CLIENT_ID } from './config.js';
 import { t } from './i18n.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const FILE_NAME = 'shooting-log.json';
+const FILE_NAME = 'shooters-log.json';
+const OLD_FILE_NAME = 'scouts-log.json';   // файл, створений під попередньою назвою застосунку
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
-const KEY = 'shooting-log:sync';
-const PHOTO_PREFIX = 'shooting-log-photo-';
+const KEY = 'shooters-log:sync';
+const PHOTO_PREFIX = 'shooters-log-photo-';
 
 class AuthError extends Error {}
 
@@ -42,7 +43,7 @@ function save() {
 }
 
 function set(state, message = '') {
-  Object.assign(status, { state, message, lastSync: conf.lastSync ?? null, email: conf.email ?? null });
+  Object.assign(status, { state, message, lastSync: conf.lastSync ?? null, email: conf.email ?? null, photo: conf.photo ?? null, who: conf.who ?? null });
   listeners.forEach((fn) => fn(status));
 }
 
@@ -145,7 +146,7 @@ async function findFile() {
       if (err instanceof AuthError) throw err;
     }
   }
-  const q = encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
+  const q = encodeURIComponent(`(name='${FILE_NAME}' or name='${OLD_FILE_NAME}') and trashed=false`);
   const { files } = await (await api(`${DRIVE}/files?q=${q}&spaces=drive&orderBy=modifiedTime desc&fields=files(id)`)).json();
   conf.fileId = files?.[0]?.id ?? null;
   save();
@@ -153,7 +154,7 @@ async function findFile() {
 }
 
 async function upload(fileId, data) {
-  const content = JSON.stringify({ app: 'shooting-log', format: 1, exportedAt: new Date().toISOString(), data });
+  const content = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data });
   if (fileId) {
     await api(`${UPLOAD}/files/${fileId}?uploadType=media`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: content,
@@ -163,7 +164,7 @@ async function upload(fileId, data) {
   const boundary = `sl${Date.now()}`;
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
-    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooting Log' }),
+    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooters Log' }),
     `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`,
   ].join('\r\n');
   const created = await (await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, {
@@ -201,7 +202,7 @@ async function emptyTrash() {
 
 async function uploadPhoto(id, blob) {
   const boundary = `sl${Date.now()}`;
-  const meta = { name: `${PHOTO_PREFIX}${id}.jpg`, mimeType: 'image/jpeg', appProperties: { app: 'shooting-log', photoId: id } };
+  const meta = { name: `${PHOTO_PREFIX}${id}.jpg`, mimeType: 'image/jpeg', appProperties: { app: 'shooters-log', photoId: id } };
   const body = new Blob([
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
     `--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`, blob, `\r\n--${boundary}--`,
@@ -272,6 +273,30 @@ export function merge(local, remote) {
   return result;
 }
 
+/**
+ * Після «Заменить всё» правдою стає копія: запис, найновіша версія якого (тут чи на Диску) старша
+ * за момент відновлення, видаляється. Надгробки кладемо на бік Диска — тоді localChanges запише їх
+ * і сюди, а інші пристрої отримають їх із файлу. Відновлені записи мають рівно restoreAt — їх не чіпає.
+ */
+function bury(local, remote, restoreAt) {
+  const graves = [];
+  for (const name of db.STORES) {
+    for (const rec of newest([local[name] ?? [], remote[name] ?? []]).values()) {
+      if (stamp(rec) >= restoreAt) continue;
+      graves.push({ id: rec.id, store: name, updated: restoreAt });
+      if (name === 'photos') trashPhoto(rec.driveId);
+    }
+  }
+  return { ...remote, tombstones: [...(remote.tombstones ?? []), ...graves] };
+}
+
+/** Запам'ятати момент відновлення з копії до найближчої вдалої синхронізації (переживе офлайн і перезапуск). */
+export function markRestore(at) {
+  if (!conf.enabled) return;
+  conf.restoreAt = at;
+  save();
+}
+
 function fingerprint(data) {
   return ['tombstones', ...db.STORES].map((name) => JSON.stringify(
     [...(data[name] ?? [])].sort((a, b) => String(a.id).localeCompare(String(b.id))))).join('\n');
@@ -303,19 +328,26 @@ export async function syncNow() {
   running = true;
   set('syncing');
   try {
-    if (!conf.email) {
-      const about = await (await api(`${DRIVE}/about?fields=user(emailAddress)`)).json();
+    if (!conf.email || conf.photo === undefined) {
+      // Фото власника Диска показуємо в шапці замість значка застосунку.
+      const about = await (await api(`${DRIVE}/about?fields=user(emailAddress,displayName,photoLink)`)).json();
       conf.email = about.user?.emailAddress ?? null;
+      conf.photo = about.user?.photoLink ?? null;
+      conf.who = about.user?.displayName ?? null;
+      save();
     }
     await emptyTrash();
     const pushed = await pushPhotos();
+    // Відновлення посеред цього проходу застосує наступний (again) — тут уже прочитано старі дані
+    const { restoreAt } = conf;
     const local = await db.loadAll();
     const fileId = await findFile();
     const remote = fileId ? ((await (await api(`${DRIVE}/files/${fileId}?alt=media`)).json())?.data ?? {}) : {};
-    const merged = merge(local, remote);
+    const merged = merge(local, restoreAt ? bury(local, remote, restoreAt) : remote);
     const changes = localChanges(local, merged);
     if (changes) await db.writeMerged(changes);
     if (!fileId || fingerprint(remote) !== fingerprint(merged)) await upload(fileId, merged);
+    if (restoreAt && conf.restoreAt === restoreAt) delete conf.restoreAt;
     const pulled = await pullPhotos(merged.photos);
     conf.lastSync = Date.now();
     save();
