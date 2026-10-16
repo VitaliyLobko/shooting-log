@@ -1,12 +1,11 @@
 // Графіки: тонкі inline-SVG без бібліотек. Кольори беруться з теми через currentColor і класи,
 // розміри — у координатах viewBox, тож на будь-якому екрані малюнок той самий.
 import { h } from './ui.js';
+import { locale } from './i18n.js';
 
 const W = 300;
 const H = 110;
 const PAD = { l: 4, r: 4, t: 8, b: 16 };
-
-const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
 /** Проєкція значень у координати полотна; однакове значення скрізь — лінія посередині. */
 function scale(values) {
@@ -22,11 +21,32 @@ function scale(values) {
   };
 }
 
+/** Круглі поділки шкали: крок 1·2·5 × 10ⁿ, межі — кратні кроку, щоб числа читалися з ходу. */
+function niceTicks(lo, hi, minStep = 0) {
+  if (hi === lo) {
+    const d = Math.abs(lo) * 0.1 || 1;
+    lo -= d;
+    hi += d;
+  }
+  const raw = Math.max((hi - lo) / 3, minStep);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * mag).find((x) => x >= raw * (1 - 1e-9));
+  const from = Math.floor(lo / step + 1e-9) * step;
+  const to = Math.ceil(hi / step - 1e-9) * step;
+  const list = [];
+  for (let v = from; v <= to + step / 2; v += step) list.push(Number(v.toFixed(10)));
+  return { lo: from, hi: to, step, list };
+}
+
+/** Позиція в області графіка: відсотки по обох осях, тож точки круглі на будь-якій ширині. */
+const at = (x, y) => `left:${x.toFixed(2)}%;top:${y.toFixed(2)}%`;
+
 /**
- * Лінія за точками [{ label, value }], від старих до нових. up: true — більше краще (зелена стрілка).
- * caption(min, max) — підпис під графіком; без нього показуються крайні значення.
+ * Лінія за точками [{ label, value }], від старих до нових, зі шкалою й підказкою по дотику.
+ * up — більше краще (від нього залежить, яка точка «найкраща»); format — значення з одиницею;
+ * refs — пороги [[значення, назва]]: показуються ті, що в межах даних, і найближча наступна ціль.
  */
-export function lineChart(points, { up = true, format = (v) => String(Math.round(v)) } = {}) {
+export function lineChart(points, { up = true, format = (v) => String(Math.round(v)), refs = [], minStep = 0 } = {}) {
   const el = h('div', { class: 'chart' });
   if (points.length < 2) {
     el.classList.add('chart-thin');
@@ -34,26 +54,91 @@ export function lineChart(points, { up = true, format = (v) => String(Math.round
     return el;
   }
   const values = points.map((p) => p.value);
-  const s = scale(values);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const best = up ? max : min;
+  // Наступна ціль — найближчий поріг за найкращим результатом; дальні тільки стиснули б лінію.
+  const ahead = refs.filter(([v]) => (up ? v > best : v < best)).sort((a, b) => (up ? a[0] - b[0] : b[0] - a[0]))[0];
+  const shown = refs.filter(([v]) => v >= min && v <= max).concat(ahead ? [ahead] : []);
+  const ticks = niceTicks(Math.min(min, ...shown.map(([v]) => v)), Math.max(max, ...shown.map(([v]) => v)), minStep);
   const n = points.length;
-  const pts = points.map((p, i) => [s.x(i, n), s.y(p.value)]);
-  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const area = `${PAD.l},${H - PAD.b} ${line} ${(W - PAD.r).toFixed(1)},${H - PAD.b}`;
-  const first = values[0];
-  const last = values.at(-1);
-  const better = up ? last >= first : last <= first;
-  const dots = pts.map(([x, y], i) => {
-    const best = up ? values[i] === s.max : values[i] === s.min;
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${best ? 3.4 : 2.2}" class="${best ? 'ch-best' : 'ch-dot'}"/>`;
-  }).join('');
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-hidden="true">
-      <polygon points="${area}" class="ch-area"/>
-      <polyline points="${line}" class="ch-line ${better ? 'up' : 'down'}"/>
-      ${dots}
+  const xp = (i) => (i * 100) / (n - 1);
+  const yp = (v) => (1 - (v - ticks.lo) / (ticks.hi - ticks.lo)) * 100;
+  const digits = Math.max(0, -Math.floor(Math.log10(ticks.step) + 1e-9));
+  const tickFmt = new Intl.NumberFormat(locale(), { maximumFractionDigits: digits });
+
+  const line = values.map((v, i) => `${xp(i).toFixed(2)},${yp(v).toFixed(2)}`).join(' ');
+  const svg = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      ${ticks.list.map((v) => `<line x1="0" x2="100" y1="${yp(v).toFixed(2)}" y2="${yp(v).toFixed(2)}" class="ch-grid"/>`).join('')}
+      ${shown.map(([v]) => `<line x1="0" x2="100" y1="${yp(v).toFixed(2)}" y2="${yp(v).toFixed(2)}" class="ch-ref"/>`).join('')}
+      <polygon points="0,100 ${line} 100,100" class="ch-area"/>
+      <polyline points="${line}" class="ch-line"/>
+      <line x1="0" x2="0" y1="0" y2="100" class="ch-cross" visibility="hidden"/>
     </svg>`;
-  el.append(h('div', { class: 'chart-legend' },
-    h('span', {}, `${esc(points[0].label)} · ${format(first)}`),
-    h('span', { class: better ? 'ok' : 'warn' }, `${esc(points.at(-1).label)} · ${format(last)}`)));
+  const inner = h('div', { class: 'ch-in' });
+  inner.innerHTML = svg;
+  const cross = inner.querySelector('.ch-cross');
+
+  const bestAt = values.lastIndexOf(best);
+  const lastAt = n - 1;
+  // Багато спроб — кружечки злилися б у ковбасу; тоді лишаємо тільки найкращу й останню.
+  const dense = n > 24;
+  values.forEach((v, i) => {
+    const key = i === bestAt ? 'best' : i === lastAt ? 'last' : '';
+    if (dense && !key) return;
+    inner.append(h('span', { class: `ch-pt ${key}`, style: at(xp(i), yp(v)) }));
+  });
+  // Підписи прямо на лінії: лише найкращий і останній, а решту видно по дотику.
+  // Найкращий поруч з останнім і на тій самій висоті — його підпис під точкою, щоб не налізли.
+  const close = xp(lastAt) - xp(bestAt) < 30 && Math.abs(yp(values[lastAt]) - yp(best)) < 15;
+  const label = (i, cls) => {
+    const below = (yp(values[i]) < 22) !== (cls === 'best' && close);
+    const edge = i === lastAt ? 'end' : i === 0 ? 'start' : '';
+    inner.append(h('span', { class: `ch-lab ${cls} ${edge} ${below ? 'below' : ''}`, style: at(xp(i), yp(values[i])) }, format(values[i])));
+  };
+  label(bestAt, 'best');
+  if (bestAt !== lastAt) label(lastAt, 'last');
+  for (const [v, name] of shown) inner.append(h('span', { class: 'ch-ref-lab', style: at(0, yp(v)) }, `${name} · ${tickFmt.format(v)}`));
+
+  const tip = h('div', { class: 'ch-tip', hidden: true });
+  const hit = h('span', { class: 'ch-pt hit', hidden: true });
+  inner.append(hit, tip);
+  const show = (i) => {
+    const x = xp(i);
+    const y = yp(values[i]);
+    tip.replaceChildren(h('b', {}, format(values[i])), h('span', {}, points[i].label));
+    tip.hidden = false;
+    tip.style.cssText = at(x, y);
+    tip.dataset.side = x < 25 ? 'start' : x > 75 ? 'end' : '';
+    tip.classList.toggle('below', y < 40);
+    hit.hidden = false;
+    hit.style.cssText = at(x, y);
+    cross.setAttribute('x1', x.toFixed(2));
+    cross.setAttribute('x2', x.toFixed(2));
+    cross.setAttribute('visibility', 'visible');
+  };
+  const hide = () => {
+    tip.hidden = true;
+    hit.hidden = true;
+    cross.setAttribute('visibility', 'hidden');
+  };
+  // Найближча точка по горизонталі — ціль торкання на всю висоту, а не крихітний кружечок.
+  const pick = (e) => {
+    const r = inner.getBoundingClientRect();
+    show(Math.min(n - 1, Math.max(0, Math.round(((e.clientX - r.left) / r.width) * (n - 1)))));
+  };
+  const plot = h('div', { class: 'ch-plot' },
+    h('div', { class: 'ch-y' }, ticks.list.map((v) => h('span', { style: `top:${yp(v).toFixed(2)}%` }, tickFmt.format(v)))),
+    inner);
+  plot.addEventListener('pointerdown', pick);
+  plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') pick(e); });
+  plot.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
+
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', `${points[0].label} — ${points[lastAt].label}: ${format(values[0])} → ${format(values[lastAt])}`);
+  el.append(plot, h('div', { class: 'chart-legend' },
+    h('span', {}, points[0].label),
+    h('span', {}, points[lastAt].label)));
   return el;
 }
 
