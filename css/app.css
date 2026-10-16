@@ -161,6 +161,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lv-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .lv-wide { grid-column: 1 / -1; margin-top: -4px; }
 .lv-wide > span { white-space: nowrap; }
+/* Підсумок з плашками праворуч (Склад, Усього споряджено) */
+.hero.badge-hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.badge-hero .hero-value { font-size: clamp(28px, 9vw, 34px); white-space: nowrap; }
+/* Вузький екран (320 px): плашки рядком під сумою, а не драбинкою праворуч */
+.hero.badge-hero { container-type: inline-size; }
+@container (max-width: 270px) { .badge-hero .hero-badges { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; } }
+.hero-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.hero-badge { padding: 3px 9px; border-radius: 999px; font-size: 12.5px; white-space: nowrap; color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.hero-badge b { color: var(--text); font-weight: 800; }
+.hero-badge.neg { color: var(--shoot); background: color-mix(in srgb, var(--shoot) 14%, transparent); }
+.hero-badge.neg b { color: var(--shoot); }
+.hero-badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.hero-badge.warn b { color: var(--warn); }
+/* Рецепт: одиниця навески (г / gr) поруч із полем */
+.item-row .item-unit { padding: 10px 2px 10px 8px; }
+.item-row .item-unit.off { visibility: hidden; }
 .hero-unit { font-size: 18px; font-weight: 600; color: var(--muted); }
 .hero-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
 .hero-split { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -407,6 +423,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Обидва числа — в один рядок із підписом: колонка не росте вгору. */
 .big-col .big { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
 .big-col .big .unit { font-size: 11px; }
+.big-col .big { align-items: center; }
+.big-ico { display: inline-grid; color: var(--muted); }
+.big-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.small-big .big-ico svg { width: 15px; height: 15px; }
+.nw { display: inline-block; max-width: 100%; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .meters > .progress.inline { display: contents; }
 .meters > .badge { grid-column: 1 / -1; justify-self: end; margin-top: 0; }
 /* Плитки одним рядом порівну, скільки б їх не було. */
@@ -433,8 +455,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* --- склад --- */
 .runway { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-.runway-row { display: flex; justify-content: space-between; gap: 10px; }
-.runway-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* Рецепт і запас — одним рядком тексту: у вузькій колонці назва переноситься по словах, а не стовпчиком. */
+.runway-row { color: var(--muted); }
 .runway-row b { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .enough { margin-top: 4px; }
 
@@ -547,7 +569,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .stat.accent { background: var(--accent-soft); }
 .stat.accent .stat-value { color: var(--accent-2); }
 /* Підсумок очок у записі результату — з відступом від останнього поля форми. */
-.ex-total { margin-top: 12px; }
 /* Головне число картки лишається великим, супутні — дрібніші й спокійніші. */
 /* Супутні числа — сірі плитки поруч із головною: менші й тихіші за неї. */
 .stat.minor { padding: 6px 8px; background: var(--surface-2); box-shadow: none; }
@@ -787,6 +808,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 
 .scopes { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.weapon-info > .scopes { margin-top: -4px; }
 .scope { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
 .scope-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .scope-name { font-weight: 600; }
@@ -826,7 +848,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   background: var(--bg);
 }
-.item-row { display: grid; grid-template-columns: 1fr 88px 40px; gap: 6px; align-items: center; }
+.item-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px 58px 40px; gap: 6px; align-items: center; }
 
 .lines { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
 .lines th { text-align: left; font-weight: 400; color: var(--muted); font-size: 12px; }
@@ -1281,9 +1303,9 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .dope-row input, .dope-calc input { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
 .dope-cols { margin-top: 10px; }
 
-/* Полігон: перемикач Мішені | Таймер */
-.range-seg { margin-bottom: 14px; }
-.chips.segmented.range-seg button.on { background: var(--accent); color: #fff; }
+/* Перемикач розділів вкладки (Полігон, Рецепти): активний — акцентом */
+.tab-seg { margin-bottom: 14px; }
+.chips.segmented.tab-seg button.on { background: var(--accent); color: #fff; }
 
 /* Таймер пострілів */
 .timer { display: grid; gap: 12px; }
@@ -1314,17 +1336,33 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 /* вправи */
 /* --- графіки: лінія, стовпчики, мініатюра --- */
 .chart { display: grid; gap: 4px; }
-.chart svg { width: 100%; height: 110px; display: block; overflow: visible; }
-.chart-thin svg { height: 48px; }
-.ch-area { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: none; }
-.ch-line { fill: none; stroke: var(--accent-2); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.ch-line.up { stroke: var(--buy); }
-.ch-line.down { stroke: var(--shoot); }
-.ch-dot { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.ch-best { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.chart-legend { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.chart-legend .ok { color: var(--buy); font-weight: 700; }
-.chart-legend .warn { color: var(--shoot); font-weight: 700; }
+.ch-plot { position: relative; height: 168px; padding: 10px 0; display: grid; grid-template-columns: 36px 1fr; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.ch-y { position: relative; }
+.ch-y span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 11px; line-height: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ch-in { position: relative; margin: 0 8px 0 4px; }
+.ch-in svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ch-grid { stroke: var(--line-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ch-ref { stroke: color-mix(in srgb, var(--accent) 45%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ch-cross { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ch-area { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: none; }
+.ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ch-pt { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); pointer-events: none; }
+.ch-pt.best, .ch-pt.last { width: 12px; height: 12px; margin: -6px 0 0 -6px; background: var(--accent); border-color: var(--surface); box-shadow: 0 0 0 1.5px var(--accent); }
+.ch-pt.hit { z-index: 1; width: 16px; height: 16px; margin: -8px 0 0 -8px; background: transparent; border: 2px solid var(--text); box-shadow: none; }
+.ch-lab, .ch-tip { --tx: -50%; --ty: calc(-100% - 9px); position: absolute; transform: translate(var(--tx), var(--ty)); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.ch-lab, .ch-ref-lab { text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface), 0 0 2px var(--surface); }
+.ch-lab { font-size: 12px; font-weight: 700; line-height: 1; color: var(--text); }
+.ch-lab.best::before { content: '★ '; color: var(--accent); }
+.ch-lab.start, .ch-tip[data-side="start"] { --tx: -6px; }
+.ch-lab.end, .ch-tip[data-side="end"] { --tx: calc(-100% + 6px); }
+.ch-lab.below { --ty: 9px; }
+.ch-ref-lab { position: absolute; transform: translate(2px, calc(-100% - 2px)); font-size: 11px; line-height: 1; color: var(--muted); white-space: nowrap; pointer-events: none; }
+.ch-tip { --ty: calc(-100% - 14px); z-index: 2; display: grid; gap: 2px; padding: 5px 9px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / .25); font-size: 12px; color: var(--text); }
+.ch-tip.below { --ty: 14px; }
+.ch-tip b { font-size: 14px; }
+.ch-tip span { color: var(--muted); }
+.ch-tip[hidden], .ch-pt[hidden] { display: none; }
+.chart-legend { display: flex; justify-content: space-between; gap: 8px; padding: 0 2px 0 34px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .spark { display: block; margin: 4px 0 2px; height: 26px; }
 .spark svg { width: 100%; height: 26px; display: block; }
 .spark .ch-line { stroke: var(--accent-2); stroke-width: 1.8; }
@@ -1341,8 +1379,6 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 /* Вправи — плитками: назва, рекорд, звання. Решта в картці вправи. */
 .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
 /* Плитка «+ Своя вправа»: пунктир — одразу видно, що це не вправа, а кнопка. */
-.ex-tile.ex-add { justify-content: center; align-items: center; gap: 4px; border-style: dashed; background: transparent; }
-.ex-tile.ex-add .ex-tile-name { color: var(--accent-2); }
 
 .ex-tile {
   display: grid;
@@ -1364,8 +1400,8 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-tile-score.empty { color: var(--muted); }
 .ex-tile-foot { font-size: 12px; color: var(--muted); }
 .ex-rules { counter-reset: exr; display: grid; gap: 8px; margin: 4px 0 10px; padding: 0; list-style: none; }
-.ex-rules li { position: relative; padding-left: 32px; line-height: 1.45; }
-.ex-rules li::before {
+.ex-rules > li { position: relative; padding-left: 32px; line-height: 1.45; }
+.ex-rules > li::before {
   counter-increment: exr;
   content: counter(exr);
   position: absolute;
@@ -1382,7 +1418,14 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+.ex-rules b, .ex-points b { font-weight: 700; }
+/* Підпункти: дистанції, положення — коротким списком під заголовком пункту. */
+.ex-sub { display: grid; gap: 3px; margin: 4px 0 0; padding: 0; list-style: none; color: var(--text); }
+.ex-sub li { position: relative; padding-left: 14px; }
+.ex-sub li::before { content: ''; position: absolute; left: 2px; top: .65em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
 .ex-scoring {
+  display: grid;
+  gap: 10px;
   margin: 4px 0 10px;
   padding: 10px 12px;
   border-left: 3px solid var(--accent);
@@ -1390,6 +1433,26 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-2));
   line-height: 1.45;
 }
+/* Запис результату: кнопка таймера в одному ряду з полем часу, висотою як поле. */
+.ex-timer-btn .btn { width: 100%; min-height: 44px; }
+/* Картка результату: влучання по зонах — «зона · скільки · × ціна · разом». */
+.ex-hits { display: grid; }
+.ex-hit { display: grid; grid-template-columns: minmax(0, 1fr) auto 52px 44px; align-items: baseline; gap: 10px; padding: 7px 2px; border-top: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+.ex-hit:first-child { border-top: 0; }
+.ex-hit > span:first-child { overflow-wrap: anywhere; }
+.ex-hit-n { font-weight: 700; text-align: right; }
+.ex-hit-sum { font-weight: 800; text-align: right; color: var(--accent-2); }
+.ex-hit.zero { color: var(--muted); }
+.ex-hit.zero .ex-hit-sum { color: var(--muted); }
+.ex-hit.miss { color: var(--muted); }
+.ex-hit.penalty .ex-hit-sum { color: var(--shoot); }
+.ex-scoring-title { margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ex-scoring-note { margin: 0; }
+.ex-zones { margin: 0; grid-template-columns: max-content max-content; gap: 4px 18px; }
+.ex-zones dd { font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.ex-points { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ex-points > li { position: relative; padding-left: 14px; }
+.ex-points > li::before { content: ''; position: absolute; left: 1px; top: .6em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .ex-more { margin-top: 6px; border-top: 1px solid var(--line-soft); }
 .ex-more > summary { padding: 8px 0; color: var(--accent-2); font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
 .ex-more > summary::-webkit-details-marker { display: none; }

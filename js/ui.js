@@ -123,7 +123,7 @@ export function form(fields) {
     if (f.type === 'select') {
       input = h('select', { name: f.name }, selectOptions(f.options, f.value));
     } else if (f.type === 'textarea') {
-      input = h('textarea', { name: f.name, rows: 2 });
+      input = h('textarea', { name: f.name, rows: f.rows ?? 2, placeholder: f.placeholder });
       input.value = f.value ?? '';
     } else if (f.type === 'chips') {
       input = chips(f.options, f.value, f.onPick);
@@ -283,6 +283,22 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
   card.addEventListener('pointerup', finish);
   card.addEventListener('pointercancel', finish);
   return card;
+}
+
+const TOOL_ICON = {
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  archive: '<path d="M3 4h18v5H3z"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/>',
+  delete: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  copy: '<path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/>',
+  share: '<path d="M12 3v13"/><path d="M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/>',
+  reset: '<path d="M4 4v6h6"/><path d="M5.6 15a7 7 0 1 0 1.5-7.4L4 10"/>',
+};
+
+/** Кнопка-іконка в шапці шторки. */
+export function toolBtn(icon, label, onclick, cls = '') {
+  const el = h('button', { type: 'button', class: `icon-btn tool ${cls}`, 'aria-label': label, title: label, onclick });
+  el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TOOL_ICON[icon]}</svg>`;
+  return el;
 }
 
 export function confirmSheet(title, text, okLabel, onOk) {

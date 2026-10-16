@@ -16,6 +16,7 @@ export const KINDS = {
   consume: 'Расход компонента',
   adjust: 'Корректировка',
   clean: 'Чистка',
+  collect: 'Сбор гильз',
 };
 
 export const COMPONENT_KINDS = {
@@ -187,23 +188,45 @@ export function shotsByCaliber(state) {
     .sort((a, b) => b.total - a.total);
 }
 
-export function unitPrice(component) {
+/** Ціна за одиницю з картки компонента: ціна упаковки / кількість у ній. */
+export function packUnitPrice(component) {
   const price = Number(component?.packPrice);
   const qty = Number(component?.packQty);
   return price > 0 && qty > 0 ? price / qty : 0;
 }
 
+/**
+ * Ціна компонента за одиницю: середня за покупками із сумою (скільки реально заплатив),
+ * без таких покупок — за ціною упаковки з картки.
+ */
+export function unitPrice(state, component) {
+  if (!component) return 0;
+  let money = 0;
+  let qty = 0;
+  for (const m of state.movements) {
+    if (m.kind !== 'buy' || m.componentId !== component.id || !(Number(m.price) > 0) || !(m.qty > 0)) continue;
+    money += Number(m.price);
+    qty += m.qty;
+  }
+  return qty > 0 ? money / qty : packUnitPrice(component);
+}
+
+/** Навеска пороху в гранах: 1 gr = 0,06479891 г. */
+export const GRAIN = 0.06479891;
+
 export function recipeLines(state, recipe) {
   return recipe.items.map((item) => {
     const component = state.components.find((c) => c.id === item.componentId);
     const perRound = Number(item.perRound) || 0;
+    const price = unitPrice(state, component);
     return {
       component,
       perRound,
-      cost: unitPrice(component) * perRound,
+      grains: item.grains ? perRound / GRAIN : null,
+      cost: price * perRound,
       perPack: perRound > 0 && component?.packQty ? Math.floor(component.packQty / perRound) : null,
       fromStock: perRound > 0 && component ? Math.floor(componentStock(state, component.id) / perRound) : null,
-      noPrice: !(unitPrice(component) > 0),
+      noPrice: !(price > 0),
     };
   });
 }
@@ -244,7 +267,12 @@ export function shotsCost(state, list) {
 
 /** Рядки рецепта, що обмежують спорядження (без гільз — вони багаторазові). */
 function consumable(state, recipe) {
-  return recipeLines(state, recipe).filter((l) => l.component && l.component.kind !== 'case' && l.fromStock !== null);
+  return recipeLines(state, recipe).filter((l) => l.component && l.fromStock !== null);
+}
+
+/** Гільза рецепта (перший компонент типу «гільза») або null. */
+export function recipeCase(state, recipe) {
+  return recipe?.items.map((i) => state.components.find((c) => c.id === i.componentId)).find((c) => c?.kind === 'case') ?? null;
 }
 
 /** Скільки патронів можна спорядити з наявних компонентів. */
@@ -270,7 +298,7 @@ export function componentRunway(state, component) {
 
 /** Вартість залишку компонентів за ціною упаковки. */
 export function stockValue(state) {
-  return state.components.reduce((sum, c) => sum + Math.max(0, componentStock(state, c.id)) * unitPrice(c), 0);
+  return state.components.reduce((sum, c) => sum + Math.max(0, componentStock(state, c.id)) * unitPrice(state, c), 0);
 }
 
 // ---------- кучність ----------

@@ -9,8 +9,8 @@ import { cartridgeIcon, caliberHue } from './ammo.js';
 import { lineChart, barChart } from './chart.js';
 import { ammoLevel, shotLevel, levelArt } from './levels.js';
 import { timerPanel, stopTimerPanel } from './timer.js';
-import { exercisesPanel, exerciseName } from './exercises.js';
-import { h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy } from './ui.js';
+import { exercisesPanel, exerciseName, newExercise } from './exercises.js';
+import { h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn } from './ui.js';
 
 let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [] };
 let tab = 'ammo';
@@ -233,21 +233,6 @@ function box(title, content, { fold, count } = {}) {
   return el;
 }
 
-const TOOL_ICON = {
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
-  archive: '<path d="M3 4h18v5H3z"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/>',
-  delete: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-  copy: '<path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/>',
-  share: '<path d="M12 3v13"/><path d="M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/>',
-};
-
-/** Кнопка-іконка в шапці шторки. */
-function toolBtn(icon, label, onclick, cls = '') {
-  const el = h('button', { type: 'button', class: `icon-btn tool ${cls}`, 'aria-label': label, title: label, onclick });
-  el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TOOL_ICON[icon]}</svg>`;
-  return el;
-}
-
 /** «Змінити» і «В архів» / «Видалити» (якщо рухів немає) — іконками в шапці шторки. */
 function cardTools(onEdit, hasMoves, onRemove) {
   return [
@@ -321,12 +306,84 @@ function cartridgeCard(c) {
         h('div', { class: 'card-title' }, c.name),
         h('div', { class: 'muted small' }, cartridgeDetails(c))),
       h('div', { class: `big ${stock < 0 ? 'neg' : stock === 0 ? 'zero' : ''}` }, fmt.num(stock))));
+  const recipe = recipeOf(c);
   return swipeable(card, {
-    rightLabel: t('+ Купить'), leftLabel: t('Списать −'),
-    onRight: () => buySheet(c),
+    rightLabel: recipe ? t('Снарядить') : t('+ Купить'), leftLabel: t('Списать −'),
+    onRight: () => (recipe ? reloadSheet(recipe) : buySheet(c)),
     onLeft: () => shootSheet({ cartridge: c }),
     onTap: () => cartridgeDetail(c),
   });
+}
+
+/** Рецепт, за яким спорядили набій; видалений рецепт — null. */
+const recipeOf = (c) => (c?.recipeId ? state.recipes.find((r) => r.id === c.recipeId) ?? null : null);
+
+/**
+ * Поле «Зібрав гільз» при списанні свого набою — порожнє: гільзи збирають не завжди, рахуються лише вписані.
+ * cartridgeId() — поточний набій форми; value() — {component, qty} або null.
+ */
+function collectField(cartridgeId) {
+  const input = h('input', { type: 'number', min: 0, step: 1, inputmode: 'numeric', autocomplete: 'off', placeholder: t('если собирал') });
+  const label = h('span', { class: 'field-label' });
+  const el = h('label', { class: 'field wide' }, label, input);
+  const target = () => cartridgeCaseTarget(findCartridge(cartridgeId()));
+  const update = () => {
+    const c = target();
+    el.hidden = !c;
+    if (c) label.textContent = t('Собрал гильз → «{name}»', { name: c.name });
+  };
+  update();
+  return {
+    el, update,
+    value: () => {
+      const c = target();
+      const n = Math.max(0, Math.round(Number(String(input.value).replace(',', '.')) || 0));
+      return c && n ? { component: c, qty: n } : null;
+    },
+  };
+}
+
+// Як називають гільзи після першого пострілу — шукаємо пару обома мовами.
+const FIRED = ['стріляні', 'стреляные'];
+const FIRED_END = /\s(стріляні|стреляные|fired)$/i;
+const NEW_END = /\s+(нові|новые|new)$/i;
+
+/** Компонент «гільза» з назвою «{base} стріляні» (будь-якою мовою) або заготовка для нього без id. */
+function firedCase(bases) {
+  return state.components.find((c) => c.kind === 'case' && bases.some((b) => FIRED.some((w) => c.name === `${b} ${w}`)))
+    ?? { name: `${bases[0]} ${t('стреляные')}` };
+}
+
+/**
+ * Куди повертаються зібрані гільзи набоїв за рецептом: стріляні — туди ж, нові — у «… стріляні» тієї ж гільзи.
+ * Нові чи стріляні — спершу за назвою, без підказки в назві — за ціною (стріляні зазвичай без ціни).
+ * Без id — такого компонента ще немає, він з'явиться при першому зборі.
+ */
+function caseTarget(recipe) {
+  const own = M.recipeCase(state, recipe);
+  if (!own) return null;
+  if (FIRED_END.test(own.name)) return own;
+  if (!NEW_END.test(own.name) && !(M.unitPrice(state, own) > 0)) return own;
+  return firedCase([own.name.replace(NEW_END, '')]);
+}
+
+/** Куди йдуть гільзи набою: самоспоряджений — за рецептом, заводський — у «Гільза {калібр} стріляні». */
+function cartridgeCaseTarget(c) {
+  if (!c) return null;
+  if (c.recipeId) return caseTarget(recipeOf(c));
+  return c.caliber ? firedCase([`${t('Гильза')} ${c.caliber}`, `Гільза ${c.caliber}`, `Гильза ${c.caliber}`]) : null;
+}
+
+/** Записує стрільбу; зібрані гільзи — окремим рухом у тій самій пачці, тож видаляються разом зі стрільбою. */
+async function addShot(shot, collected, message, extra = {}) {
+  if (!collected) { await addMovements([shot], message, extra); return; }
+  let target = collected.component;
+  if (!target.id) {
+    target = { id: db.uid(), created: Date.now(), updated: Date.now(), name: target.name, kind: 'case', unit: 'шт' };
+    extra = { ...extra, components: { put: [target] } };
+  }
+  const batch = db.uid();
+  await addMovements([{ ...shot, batch }, movement({ kind: 'collect', batch, componentId: target.id, qty: collected.qty, date: shot.date })], message, extra);
 }
 
 function openFold(key) {
@@ -342,7 +399,7 @@ function renderAmmo() {
   if (!active.length) {
     return h('div', {}, empty(t('Пока нет патронов'), t('Нажмите «+», чтобы добавить позицию, или импортируйте данные в настройках (⚙ вверху).')), archived);
   }
-  $('subtitle').textContent = t('Свайп → купить, ← списать');
+  $('subtitle').textContent = active.some(recipeOf) ? t('Свайп → купить или снарядить, ← списать') : t('Свайп → купить, ← списать');
   const groups = groupBy(active, (c) => c.caliber || t('Без калибра'))
     .map(([caliber, list]) => ({ caliber, list: list.sort(byName), sum: list.reduce((s, c) => s + M.cartridgeStock(state, c.id), 0) }));
   const total = groups.reduce((s, g) => s + g.sum, 0);
@@ -415,7 +472,7 @@ function cartridgeForm(c = null) {
 
 /** Ціна одного набою в покупці: сума / кількість; null — чогось не вказали. */
 function buyUnitPrice(m) {
-  return m.kind === 'buy' && m.cartridgeId && m.qty > 0 && Number(m.price) > 0 ? Number(m.price) / m.qty : null;
+  return m.kind === 'buy' && (m.cartridgeId || m.componentId) && m.qty > 0 && Number(m.price) > 0 ? Number(m.price) / m.qty : null;
 }
 
 function buySheet(c) {
@@ -458,12 +515,11 @@ function foreignLabel(name) {
   return name ? t('{name} (чужое)', { name }) : t('Чужое оружие');
 }
 
-/** Підпис ствола в записі стрільби: свій (з прицелом), чужий або нічого. */
-function shotGunLabel(m) {
+/** Ствол у записі стрільби: свій (і приціл окремо), чужий або нічого. */
+function shotGun(m) {
   const w = findWeapon(m.weaponId);
-  const scope = w?.scopes?.find((s) => s.id === m.scopeId);
-  if (w) return scope ? `${w.name} (${scope.name})` : w.name;
-  return m.foreignWeapon ? foreignLabel(m.foreignWeaponName) : null;
+  if (w) return { name: w.name, scope: w.scopes?.find((s) => s.id === m.scopeId)?.name ?? null };
+  return m.foreignWeapon ? { name: foreignLabel(m.foreignWeaponName), scope: null } : null;
 }
 
 /** Підказки для назви чужого ствола — назви з попередніх записів. */
@@ -482,7 +538,7 @@ function foreignShotSheet() {
     { name: 'qty', label: t('Выстрелов, шт'), type: 'number', step: 1, min: 1, required: true, half: true },
     { name: 'foreignName', label: t('Какое оружие'), placeholder: t('АКМ'), list: 'foreign-list', half: true },
     { name: 'date', label: t('Дата'), type: 'date', value: M.today(), half: true },
-    { name: 'note', label: t('Где / что'), placeholder: t('Учебный центр, БЗВП…') },
+    { name: 'note', label: t('Где / что'), placeholder: t('Полигон, тренировка…') },
   ]);
   f.el.append(caliberList(), foreignList());
   qtyChips(f.inputs.qty);
@@ -575,9 +631,13 @@ function shootSheet({ cartridge = null, weapon = null }) {
       : c ? t('Цена патрона неизвестна — укажите сумму при покупке') : '';
   };
   f.inputs.qty.closest('.field').after(costLine);
-  f.inputs.qty.addEventListener('input', updateCost);
-  f.inputs.cartridgeId?.addEventListener('change', updateCost);
-  f.el.addEventListener('click', () => setTimeout(updateCost));
+  const collect = collectField(() => cartridge?.id ?? f.inputs.cartridgeId?.value);
+  // Під кнопками кількості (10 / 20 / 50…), щоб не розривати їх із полем пострілів.
+  (costLine.nextElementSibling?.classList.contains('chips') ? costLine.nextElementSibling : costLine).after(collect.el);
+  const updateAll = () => { updateCost(); collect.update(); };
+  f.inputs.qty.addEventListener('input', updateAll);
+  f.inputs.cartridgeId?.addEventListener('change', updateAll);
+  f.el.addEventListener('click', () => setTimeout(updateAll));
   updateCost();
   const withTarget = h('input', { type: 'checkbox', id: 'shot-target' });
   const targetRow = h('label', { class: 'check', for: 'shot-target' }, withTarget,
@@ -620,7 +680,9 @@ function shootSheet({ cartridge = null, weapon = null }) {
       foreignAmmo: (!cartridge && !c) || undefined,
     };
     const shot = movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, scopeId, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, note: v.note, ...foreign });
-    await addMovements([shot], message);
+    const collected = collect.value();
+    if (collected) message += ` · ${t('гильз +{n}', { n: fmt.num(collected.qty) })}`;
+    await addShot(shot, collected, message);
     // Мішень чіпляється до запису, тож питаємо одразу після збереження, поки стрілець не пішов із екрана.
     if (withTarget.checked) newTarget({ movement: shot });
   }
@@ -667,18 +729,27 @@ function cartridgeBody(c, close) {
   const moves = state.movements.filter((m) => m.cartridgeId === c.id);
   const bought = moves.filter((m) => m.kind === 'buy');
   const boughtQty = bought.reduce((s, m) => s + m.qty, 0);
+  const loadedQty = moves.filter((m) => m.kind === 'reload').reduce((s, m) => s + m.qty, 0);
+  const recipe = recipeOf(c);
   const priced = bought.filter((m) => m.price > 0);
   const avg = priced.length ? priced.reduce((s, m) => s + m.price, 0) / priced.reduce((s, m) => s + m.qty, 0) : null;
   const fired = -moves.filter((m) => m.kind === 'shot').reduce((s, m) => s + m.qty, 0);
   return h('div', {},
     h('p', { class: 'muted' }, [c.caliber, cartridgeDetails(c)].filter(Boolean).join(' · ')),
+    c.recipeId ? h('p', { class: 'muted small' }, `${t('Рецепт')}: `, recipe
+      ? h('button', { type: 'button', class: 'link-btn', onclick: () => { close(); recipeDetail(recipe); } }, recipe.name)
+      : t('(удалён)')) : null,
     h('div', { class: 'stats' },
       stat(t('остаток'), fmt.num(M.cartridgeStock(state, c.id)), 'accent'),
-      stat(t('куплено'), fmt.num(boughtQty), 'minor'),
+      // Самоспорядження не купують: «куплено 0» біля сотні споряджених тільки збиває з пантелику.
+      boughtQty || !loadedQty ? stat(t('куплено'), fmt.num(boughtQty), 'minor') : null,
+      loadedQty ? stat(t('снаряжено'), fmt.num(loadedQty), 'minor') : null,
       stat(t('выстрелено'), fmt.num(fired), 'minor'),
       avg ? stat(t('ср. цена'), fmt.money(avg), 'minor') : null),
     h('div', { class: 'btn-row' },
-      btn(t('+ Купить'), () => { close(); buySheet(c); }, 'buy'),
+      recipe
+        ? btn(t('Снарядить'), () => { close(); reloadSheet(recipe); }, 'buy')
+        : btn(t('+ Купить'), () => { close(); buySheet(c); }, 'buy'),
       btn(t('Списать −'), () => { close(); shootSheet({ cartridge: c }); }, 'shoot'),
       btn(t('Пересчёт'), () => { close(); adjustSheet(c, 'cartridges'); })),
     box(t('История'), movementRows(moves, { skip: { cartridge: true } }), { fold: `hist:${c.id}`, count: moves.length }));
@@ -845,16 +916,21 @@ function cleanSheet(w) {
 function weaponCard(w) {
   const shots = M.weaponShots(state, w);
   const meters = [progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true }), permitMeter(w, { inline: true }), cleanRow(w, { inline: true })].filter(Boolean);
+  // Кожна частина переноситься цілком: «№» не відривається від номера, калібр — від своїх цифр.
+  const info = [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean)
+    .flatMap((x, i) => [i ? ' · ' : null, h('span', { class: 'nw' }, x)]).filter(Boolean);
   const card = h('article', { class: 'card tall' },
     h('div', { class: 'swipe-body wrap' },
       weaponThumb(w),
       h('div', { class: 'card-main' },
         h('div', { class: 'card-title' }, w.name),
-        h('div', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ')),
-        scopeList(w)),
+        info.length ? h('div', { class: 'muted small' }, info) : null),
+      // Настріл і розкид — значками замість підписів: колонка вужча, назві й номеру лишається місце.
       h('div', { class: 'big-col' },
-        h('div', { class: 'big' }, fmt.num(shots), h('div', { class: 'muted small unit' }, t('настрел'))),
+        h('div', { class: 'big', title: t('настрел') }, bigIco(KIND_ICON.shot), fmt.num(shots), h('span', { class: 'sr' }, t('настрел'))),
         precisionBadge(w)),
+      // Приціл — рядком на всю ширину: між фото й настрілом на телефоні його назва рвалась посеред слова.
+      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w)) : null,
       meters.length ? h('div', { class: 'card-foot meters' }, meters) : null));
   return swipeable(card, {
     rightLabel: t('✓ Почистил'), leftLabel: t('Настрел −'),
@@ -1444,10 +1520,13 @@ function permitsReminder() {
 const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   shot: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-  reload: '<path d="M6 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M6 14h4M17 7v8M13 11h8"/>',
+  // Набій і лійка з порохом: споряджено власноруч.
+  reload: '<path d="M4 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M4 14h4"/><path d="M12.5 4h9l-3.5 4v4h-2V8z"/><path d="M17 15.5h0M17 19h0"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
   adjust: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   // Крапля мастила над лінією ствола: чистка — це догляд, а не прибирання.
+  // Гільза й стрілка вниз: зібране повертається на склад.
+  collect: '<path d="M6 21v-9l.8-1.6V8c0-1.3.5-2.5 1.2-3.2.7.7 1.2 1.9 1.2 3.2v2.4L10 12v9z"/><path d="M17 4v9M13.5 9.5 17 13l3.5-3.5M14 18h6"/>',
   clean: '<path d="M4 17.5h16"/><path d="M12 4c2.2 2.8 3.4 4.8 3.4 6.4a3.4 3.4 0 0 1-6.8 0C8.6 8.8 9.8 6.8 12 4z"/>',
 };
 
@@ -1468,9 +1547,11 @@ function movementTitle(m) {
  */
 function logRow(m, { date = false, skip = {} } = {}) {
   const money = m.kind === 'shot' ? M.shotCost(state, m) : m.price;
-  const gun = m.kind === 'clean' || skip.weapon ? null : shotGunLabel(m);
+  const gun = m.kind === 'clean' || skip.weapon ? null : shotGun(m);
   // У картці набій — поруч із датою в заголовку; стрільба без набою з БК — калібр і чому без списання.
-  const name = date && m.kind !== 'clean' && !(skip.cartridge && m.cartridgeId) ? movementTitle(m) : null;
+  const name = date && m.kind !== 'clean' && !(skip.cartridge && m.cartridgeId) && !(skip.component && m.componentId) ? movementTitle(m) : null;
+  // Витрата компонента — на який рецепт пішла.
+  const forRecipe = m.kind === 'consume' && m.recipeId ? state.recipes.find((r) => r.id === m.recipeId)?.name : null;
   const noStock = date && m.kind === 'shot' && !m.cartridgeId && !m.foreignAmmo ? t('без списания из БК') : null;
   const title = date ? [fmt.date(m.date), name].filter(Boolean).join(' · ') : movementTitle(m);
   const each = buyUnitPrice(m);
@@ -1480,16 +1561,19 @@ function logRow(m, { date = false, skip = {} } = {}) {
   const score = m.kind === 'shot' ? state.scores.find((x) => x.movementId === m.id) : null;
   const fromExercise = score ? t('упражнение: {name}', { name: exerciseName(score.exercise) ?? '—' }) : null;
   // Вправу виділяємо жирним — у списку одразу видно, що стрільба з тренування.
-  const parts = [date ? null : t(M.KINDS[m.kind]), gun,
-    fromExercise ? h('b', { class: 'row-ex' }, fromExercise) : null,
+  const rest = [forRecipe, fromExercise ? h('b', { class: 'row-ex' }, fromExercise) : null,
     m.foreignAmmo ? t('чужие патроны') : noStock,
     fromExercise ? null : m.note, money ? fmt.money(money) : null,
-    each ? t('{price} за шт', { price: fmt.money(each) }) : null].filter(Boolean);
-  const sub = parts.flatMap((p, i) => (i ? [' · ', p] : [p]));
+    each ? t('{price} за {unit}', { price: fmt.money(each), unit: m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт' }) : null];
+  // Ствол і приціл — кожен своїм рядком: «ствол (приціл) · вправа · …» в одному рядку на телефоні рвався посеред назви.
+  const lines = [[date ? null : t(M.KINDS[m.kind]), gun?.name], [gun?.scope], rest]
+    .map((line) => line.filter(Boolean))
+    .filter((line) => line.length)
+    .map((line) => h('span', { class: 'muted small' }, line.flatMap((p, i) => (i ? [' · ', p] : [p]))));
   const unit = m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : '';
   return h('button', { type: 'button', class: `row kind-${m.kind}`, onclick: () => movementDetail(m) },
     kindIcon(m.kind),
-    h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub.length ? h('span', { class: 'muted small' }, sub) : null),
+    h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), ...lines),
     m.kind === 'clean' ? null : h('span', { class: 'row-side' },
       h('span', { class: `row-qty ${m.qty < 0 ? 'neg' : m.qty > 0 ? 'pos' : ''}` }, `${fmt.signed(m.qty)}${unit ? ` ${unit}` : ''}`),
       // Значок мішені з числом: у будь-якому списку стрільб видно, що її вже розібрано по фото.
@@ -1560,12 +1644,21 @@ function targetIco() {
 
 /** Мішені запису стрільби: кожна відкривається, «+» додає ще одну (100 і 300 м за одну стрільбу тощо). */
 function shotTargets(m, closeSheet) {
-  const list = state.targets.filter((x) => x.movementId === m.id).sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
+  return targetsBlock(state.targets.filter((x) => x.movementId === m.id), { movement: m }, closeSheet);
+}
+
+/** Мішені результату вправи, коли набої не списували: запису стрільби немає, тож мішень тримається за сам результат. */
+function scoreTargets(score, closeSheet) {
+  return targetsBlock(state.targets.filter((x) => x.scoreId === score.id), { score }, closeSheet);
+}
+
+function targetsBlock(targets, prefill, closeSheet) {
+  const list = [...targets].sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
   return h('div', {},
     list.length ? box(t('Мишени'), h('div', { class: 'rows' }, list.map((tg) => targetRow(tg, closeSheet)))) : null,
     h('div', { class: 'btn-row' }, btn([targetIco(), list.length ? t('+ ещё мишень') : t('+ Мишень')], () => {
       closeSheet();
-      newTarget({ movement: m });
+      newTarget(prefill);
     })));
 }
 
@@ -1604,7 +1697,9 @@ function movementBody(m, close, edit = false) {
     onchange: (e) => onSave(e.target.value.trim()),
   });
   // Пачку (спорядження зі списанням компонентів) кількістю не правлять: її треба перераховувати по всьому рецепту.
-  const editQty = m.kind !== 'clean' && batch.length === 1;
+  // Зібрані гільзи — окремий рух у пачці стрільби: кількість і стрільби, і збору правиться.
+  const linked = batch.filter((x) => x.id !== m.id);
+  const editQty = m.kind !== 'clean' && (m.kind === 'collect' || linked.every((x) => x.kind === 'collect'));
   const editPrice = m.kind === 'buy' || Number(m.price) > 0;
   const dateInput = input({ type: 'date', value: m.date ?? M.today(), 'aria-label': t('Дата') }, (v) => save({ date: v || m.date }));
   const qtyInput = h('input', {
@@ -1646,7 +1741,8 @@ function movementBody(m, close, edit = false) {
       ? h('p', { class: 'muted small' }, m.foreignAmmo ? t('Чужие патроны: склад БК не меняется, выстрелы идут в настрел.') : t('Запись без списания из БК — учитывается только в настреле.'))
       : null,
     m.kind === 'shot' ? shotTargets(m, close) : null,
-    batch.length > 1 ? box(t('Списано компонентов'), h('div', { class: 'rows' }, batch.filter((x) => x.id !== m.id).map((x) => logRow(x)))) : null);
+    linked.length ? box(m.kind === 'shot' ? t('Собранные гильзы') : m.kind === 'collect' ? t('Стрельба') : t('Списано компонентов'),
+      h('div', { class: 'rows' }, linked.map((x) => logRow(x)))) : null);
 }
 
 /** Настріл по місяцях: скільки стріляв і на скільки — видно сезонність і темп. */
@@ -1747,7 +1843,7 @@ function renderLog() {
   const guns = state.weapons.filter((w) => !w.archived || state.movements.some((m) => m.weaponId === w.id)).sort(byName);
   if (logWeapon && !findWeapon(logWeapon)) logWeapon = '';
   const list = state.movements
-    .filter((m) => m.kind !== 'consume' && (logFilter === 'all' || m.kind === logFilter) && (!logWeapon || m.weaponId === logWeapon))
+    .filter((m) => m.kind !== 'consume' && m.kind !== 'collect' && (logFilter === 'all' || m.kind === logFilter) && (!logWeapon || m.weaponId === logWeapon))
     .sort(M.byDateDesc);
   $('subtitle').textContent = t('записей: {n}', { n: list.length });
   // Три ряди фільтрів з'їдали пів екрана: період лишили перемикачем, тип і зброю звели у два списки в один рядок.
@@ -1811,7 +1907,17 @@ function precisionBadge(w) {
   const best = bestSpread(state.targets.filter((x) => x.weaponId === w.id));
   if (!best) return null;
   const main = best.distance > 0 ? length(best.spread, 'moa', best.distance) : length(best.spread, 'cm');
-  return h('div', { class: 'big small-big' }, main, h('div', { class: 'muted small unit' }, t('размах')));
+  return h('div', { class: 'big small-big', title: t('размах') }, bigIco(GROUP_ICO), main, h('span', { class: 'sr' }, t('размах')));
+}
+
+// Купка пробоїн у колі — значок розкиду поруч із числом.
+const GROUP_ICO = '<circle cx="12" cy="12" r="8.5"/><circle cx="10" cy="10" r="1.4"/><circle cx="14.5" cy="11" r="1.4"/><circle cx="11" cy="14.5" r="1.4"/>';
+
+/** Значок перед великим числом картки: підпис замінює, текст лишається для читалки екрана. */
+function bigIco(svg) {
+  const el = h('span', { class: 'big-ico', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="0 0 24 24">${svg}</svg>`;
+  return el;
 }
 
 /** Найкраща група мішені — з найменшим розмахом; min — скільки пробоїн щонайменше. */
@@ -1855,10 +1961,13 @@ function targetsTile(weapon, closeSheet = null) {
 function precisionChart(w) {
   const series = M.precisionSeries(state.targets, state.photos, w.id);
   if (series.length < 2) return null;
-  // Менший радіус — краще, тож лінія «вниз» зелена.
-  return box(t('Купчастость со временем'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: x.value })), {
+  // Шкала — одразу в одиницях показу, щоб поділки були круглими в MOA чи см, а не в мм. Менший радіус — краще.
+  const angular = targetUnit !== 'cm';
+  const shown = (mm) => (angular ? M.toAngle(mm, 100, targetUnit) : mm / 10);
+  const unit = angular ? (targetUnit === 'moa' ? 'MOA' : 'MRAD') : t('см');
+  return box(t('Купчастость со временем'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: shown(x.value) })), {
     up: false,
-    format: (mm) => length(mm, targetUnit, 100),
+    format: (v) => `${num(v, angular ? 2 : 1)} ${unit}`,
   }), { fold: `pchart:${w.id}` });
 }
 
@@ -1938,7 +2047,7 @@ function renderRange() {
     remember('shooters-log:range-seg', v);
     render();
   });
-  seg.classList.add('segmented', 'range-seg');
+  seg.classList.add('segmented', 'tab-seg');
   return h('div', {}, seg, rangeSeg === 'timer' ? renderTimer() : rangeSeg === 'exercises' ? renderExercises() : renderTargets());
 }
 
@@ -1952,6 +2061,7 @@ function renderExercises() {
     scores: state.scores, weapons, cartridges, drills: state.drills, box, stat,
     lastAmmo: (weaponId) => M.lastAmmo(state, weaponId),
     pickAmmo: (select) => ammoPicker(select),
+    collectField,
     // Свої вправи лежать у базі поряд з рештою — отже, їдуть і в копію, і на Диск.
     custom: state.exercises,
     onSaveExercise: (rec) => saveEntity('exercises', { id: db.uid(), created: Date.now(), ...rec }, t('Сохранено')),
@@ -1968,10 +2078,10 @@ function renderExercises() {
     },
     openTimer: timerSheet,
     mismatch: (cartridgeId, weaponId) => caliberMismatch(findCartridge(cartridgeId), findWeapon(weaponId)),
-    // Мішені чіпляються до руху стрільби, тож у результату вони є лише там, де списували набої.
+    // Списували набої — мішені на записі стрільби, як у звичайної стрільби; ні (чужі набої, «не списувати») — на самому результаті.
     targetsOf: (r) => {
       const m = state.movements.find((x) => x.id === r.movementId);
-      return m ? shotTargets(m, () => {}) : null;
+      return m ? shotTargets(m, () => {}) : scoreTargets(r, () => {});
     },
     onSave: async (r, consume) => {
       const score = { id: db.uid(), created: Date.now(), ...r };
@@ -1985,7 +2095,7 @@ function renderExercises() {
         price: unit ? +(unit * consume.qty).toFixed(2) : null, note: consume.note,
       });
       score.movementId = m.id;
-      await addMovements([m], t('Результат сохранён · −{n}', { n: fmt.num(consume.qty) }), { scores: { put: [score] } });
+      await addShot(m, consume.collect, t('Результат сохранён · −{n}', { n: fmt.num(consume.qty) }), { scores: { put: [score] } });
     },
     onDelete: async (r) => {
       await db.write({ scores: { del: [r.id] } });
@@ -2125,9 +2235,9 @@ async function runMarking(blob, tg) {
   }
 }
 
-function targetForm(tg, { photo = null, movement = null, weaponId = null } = {}) {
+function targetForm(tg, { photo = null, movement = null, score = null, weaponId = null } = {}) {
   const lastOf = (id) => state.targets.filter((x) => x.weaponId === id).sort(M.byDateDesc)[0];
-  const gunId = [tg?.weaponId, movement?.weaponId, weaponId, recall('shooters-log:target-gun')].find((id) => id && findWeapon(id)) ?? '';
+  const gunId = [tg?.weaponId, movement?.weaponId, score?.weaponId, weaponId, recall('shooters-log:target-gun')].find((id) => id && findWeapon(id)) ?? '';
   const guns = state.weapons.filter((w) => !w.archived || w.id === gunId).sort(byName);
   const ammoId = [tg?.cartridgeId, movement?.cartridgeId, gunId && recall(`ammo:${gunId}`)].find((id) => id && findCartridge(id)) ?? '';
   const ammo = (id) => [['', t('— не указывать —')],
@@ -2138,7 +2248,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
   const pickScope = (wid) => [movement?.weaponId === wid ? movement.scopeId : null, lastOf(wid)?.scopeId]
     .map((id) => scopeOf(wid, id)).find(Boolean) ?? M.defaultScope(findWeapon(wid));
   const scope0 = tg && 'scopeId' in tg ? scopeOf(gunId, tg.scopeId) : pickScope(gunId);
-  const distance0 = tg?.distance ?? lastOf(gunId)?.distance ?? (Number(recall('shooters-log:target-distance')) || 100);
+  const distance0 = tg?.distance ?? score?.distance ?? lastOf(gunId)?.distance ?? (Number(recall('shooters-log:target-distance')) || 100);
   // «Влучання вище» — як у останній мішені з тим самим прицілом на тій самій дистанції
   const lastZeroUp = (sid, distance) => (sid
     ? state.targets.filter((x) => x.scopeId === sid && x.distance === distance && x.zeroUp).sort(M.byDateDesc)[0]?.zeroUp ?? '' : '');
@@ -2150,7 +2260,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
     { name: 'zeroUp', label: t('Попадание выше точки прицеливания, см'), type: 'number', step: 'any', wide: true,
       value: tg ? tg.zeroUp ?? '' : lastZeroUp(scope0?.id, distance0),
       hint: t('Если пристрелка на другую дистанцию — сколько по баллистической таблице, ниже — с минусом. Пусто — в точку прицеливания.') },
-    { name: 'date', label: t('Дата'), type: 'date', value: tg?.date ?? movement?.date ?? M.today() },
+    { name: 'date', label: t('Дата'), type: 'date', value: tg?.date ?? movement?.date ?? score?.date ?? M.today() },
     { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true, options: CLICKS.map(([k, label]) => [k, t(label)]),
       value: tg?.click ?? scope0?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
     { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', value: tg?.temp ?? '' },
@@ -2241,7 +2351,7 @@ function targetForm(tg, { photo = null, movement = null, weaponId = null } = {})
       return;
     }
     // Нова мішень пишеться одним записом уже з розміткою; скасували розмітку — нічого не зберігаємо.
-    const draft = { id: db.uid(), created: Date.now(), photoId: db.uid(), movementId: movement?.id ?? null, scale: null, poa: null, groups: [], ...fields };
+    const draft = { id: db.uid(), created: Date.now(), photoId: db.uid(), movementId: movement?.id ?? null, scoreId: score?.id ?? null, scale: null, poa: null, groups: [], ...fields };
     const marks = await runMarking(photo.blob, draft);
     if (!marks) { toast(t('Мишень не сохранена')); return; }
     const record = { ...draft, ...marks };
@@ -2391,6 +2501,7 @@ async function shareTarget(tg) {
 function targetDetail(tg) {
   const photo = targetPhoto(tg);
   const shot = tg.movementId ? state.movements.find((m) => m.id === tg.movementId) : null;
+  const result = tg.scoreId ? state.scores.find((x) => x.id === tg.scoreId) : null;
   const figure = h('canvas', { class: 'tg-figure' });
   // фото перемальовуємо разом із цифрами: підписи на фігурах — у тих самих одиницях,
   // тап по СТВ групи підсвічує її на фото; focus має бути оголошений до першого малювання
@@ -2436,6 +2547,7 @@ function targetDetail(tg) {
       shot ? [h('dt', {}, t('Стрельба')), h('dd', {}, h('button', {
         type: 'button', class: 'link-btn', onclick: () => { close(); movementDetail(shot); },
       }, `${fmt.date(shot.date)} · ${fmt.signed(shot.qty)}`))] : null,
+      result ? [h('dt', {}, t('Упражнение')), h('dd', {}, `${exerciseName(result.exercise) ?? '—'} · ${fmt.date(result.date)} · ${fmt.num(result.score)}`)] : null,
       tg.note ? [h('dt', {}, t('Примечание')), h('dd', {}, tg.note)] : null)),
     h('div', { class: 'btn-row' },
       btn(t('Разметка'), () => { close(); editMarks(tg); }, 'primary'))), {
@@ -2449,7 +2561,7 @@ function targetDetail(tg) {
 let reloadPane = recall('shooters-log:pane') === 'stock' ? 'stock' : 'recipes';
 
 function componentLevel(c, runway) {
-  if (c.kind === 'case' || !runway.length) return '';
+  if (!runway.length) return '';
   const least = runway[0].rounds;
   if (least === 0) return 'out';
   return least < LOW_ROUNDS ? 'low' : '';
@@ -2457,7 +2569,7 @@ function componentLevel(c, runway) {
 
 function componentCard(c) {
   const stock = M.componentStock(state, c.id);
-  const price = M.unitPrice(c);
+  const price = M.unitPrice(state, c);
   const unit = c.unit || 'шт';
   const runway = M.componentRunway(state, c);
   const card = h('article', { class: `card level-${componentLevel(c, runway) || 'ok'}` },
@@ -2465,13 +2577,12 @@ function componentCard(c) {
       h('div', { class: 'card-main' },
         h('div', { class: 'card-title' }, c.name),
         h('div', { class: 'muted small' }, [
-          price ? t('{price} за {unit}', { price: fmt.money(price), unit }) : t('цена не указана'),
-          c.packQty ? t('уп. {qty} {unit} = {price}', { qty: fmt.num(c.packQty), unit, price: fmt.money(c.packPrice) }) : null,
+          price ? t('{price} за {unit}', { price: fmt.money(price), unit }) : c.kind === 'case' ? t('без цены') : t('цена не указана'),
           stock > 0 && price ? t('на сумму {sum}', { sum: fmt.money(stock * price) }) : null].filter(Boolean).join(' · ')),
         runway.length
           ? h('div', { class: 'runway' }, runway.map((r) => h('div', { class: 'runway-row small' },
-            h('span', { class: 'runway-name' }, r.recipe.name),
-            h('b', { class: r.rounds === 0 ? 'neg' : r.rounds < LOW_ROUNDS && c.kind !== 'case' ? 'warn-text' : '' },
+            h('span', { class: 'runway-name' }, r.recipe.name), ' · ',
+            h('b', { class: r.rounds === 0 ? 'neg' : r.rounds < LOW_ROUNDS ? 'warn-text' : '' },
               t('хватит на {n} шт', { n: fmt.num(r.rounds) })))))
           : h('div', { class: 'muted small' }, t('не используется в рецептах'))),
       h('div', { class: `big ${stock < 0 ? 'neg' : stock === 0 ? 'zero' : ''}` }, fmt.num(stock), h('div', { class: 'muted small unit' }, unit))));
@@ -2479,7 +2590,7 @@ function componentCard(c) {
     rightLabel: t('+ Купить'), leftLabel: t('Пересчёт'),
     onRight: () => buyComponentSheet(c),
     onLeft: () => adjustSheet(c, 'components'),
-    onTap: () => componentForm(c),
+    onTap: () => componentDetail(c),
   });
 }
 
@@ -2508,9 +2619,43 @@ function recipesPane() {
   $('subtitle').textContent = t('Свайп → снарядить');
   if (!state.recipes.length) return empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.'));
   // Групи за калібром — як набої на вкладці БК.
-  return h('div', {}, groupBy(state.recipes, (r) => r.caliber || t('Без калибра')).map(([caliber, list]) => fold(`recipes:${caliber}`,
+  return h('div', {}, loadedHero(), groupBy(state.recipes, (r) => r.caliber || t('Без калибра')).map(([caliber, list]) => fold(`recipes:${caliber}`,
     [cartridgeIcon(caliber), h('span', { class: 'fold-title' }, caliber), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
     list.sort(byName).map(recipeCard))));
+}
+
+/** Скільки всього споряджено й на яку суму — за собівартістю на день спорядження. */
+function loadedHero() {
+  const loads = state.movements.filter((m) => m.kind === 'reload');
+  if (!loads.length) return null;
+  const qty = loads.reduce((s, m) => s + m.qty, 0);
+  const sum = loads.reduce((s, m) => s + (m.price || 0), 0);
+  return h('section', { class: 'hero badge-hero' },
+    h('div', {},
+      h('div', { class: 'hero-label' }, t('снаряжено')),
+      h('div', { class: 'hero-value' }, fmt.num(qty), h('span', { class: 'hero-unit' }, t('шт')))),
+    h('div', { class: 'hero-badges' },
+      heroBadge(`${fmt.num(Math.round(sum))} ${t('грн')}`, ''),
+      qty ? heroBadge(fmt.money(sum / qty), t('за шт')) : null));
+}
+
+/** Плашка праворуч у підсумку: жирне значення й підпис; cls — neg / warn. */
+function heroBadge(value, label, cls = '') {
+  return h('span', { class: `hero-badge ${cls}` }, h('b', {}, value), label ? ` ${label}` : null);
+}
+
+/** Склад: сума ліворуч, праворуч плашки — скільки позицій, яких немає й які закінчуються. */
+function stockHero(value, count, out, low) {
+  const badge = (n, label, cls) => heroBadge(fmt.num(n), label, cls);
+  return h('section', { class: 'hero badge-hero' },
+    h('div', {},
+      h('div', { class: 'hero-label' }, t('Склад на сумму')),
+      // Копійки в підсумку лише заважають читати — точна сума видна в картках компонентів.
+      h('div', { class: 'hero-value' }, fmt.num(Math.round(value)), h('span', { class: 'hero-unit' }, t('грн')))),
+    h('div', { class: 'hero-badges' },
+      badge(count, plural(count, [t('позиция'), t('позиции'), t('позиций')])),
+      out ? badge(out, t('нет в наличии'), 'neg') : null,
+      low ? badge(low, t('заканчивается'), 'warn') : null));
 }
 
 function stockPane() {
@@ -2523,10 +2668,7 @@ function stockPane() {
   const groups = kinds.map((kind) => [kind, state.components.filter((c) => (kinds.includes(c.kind) ? c.kind : 'other') === kind).sort(byName)])
     .filter(([, list]) => list.length);
   return h('div', {},
-    hero(t('Склад компонентов на сумму'), fmt.money(M.stockValue(state)),
-      [t('позиций: {n}', { n: state.components.length }),
-        out ? h('span', { class: 'neg' }, ` · ${t('нет в наличии: {n}', { n: out })}`) : null,
-        low ? h('span', { class: 'warn-text' }, ` · ${t('заканчивается: {n}', { n: low })}`) : null]),
+    stockHero(M.stockValue(state), state.components.length, out, low),
     groups.map(([kind, list]) => fold(`stock:${kind}`,
       [h('span', { class: 'fold-title' }, t(M.COMPONENT_KINDS[kind])), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
       list.map(componentCard))));
@@ -2538,7 +2680,7 @@ function renderReload() {
     remember('shooters-log:pane', v);
     render();
   });
-  seg.classList.add('segmented');
+  seg.classList.add('segmented', 'tab-seg');
   return h('div', {}, seg, reloadPane === 'stock' ? stockPane() : recipesPane());
 }
 
@@ -2550,31 +2692,69 @@ function componentForm(c = null) {
     { name: 'packQty', label: t('В упаковке (шт или г)'), type: 'number', step: 'any', value: c?.packQty },
     { name: 'packPrice', label: t('Цена упаковки'), type: 'number', step: 'any', value: c?.packPrice },
     { name: 'note', label: t('Примечание'), value: c?.note, wide: true },
+    // Що вже лежить удома: із сумою — покупка (йде в ціну), без суми — початковий залишок.
+    ...(c ? [] : [
+      { name: 'initial', label: t('Сейчас в наличии (шт или г)'), type: 'number', step: 'any', min: 0, half: true },
+      { name: 'initialPrice', label: t('Сумма покупки (необязательно)'), type: 'number', step: 'any', half: true },
+    ]),
   ]);
-  const used = c && state.movements.some((m) => m.componentId === c.id);
-  const inRecipe = c && state.recipes.some((r) => r.items.some((i) => i.componentId === c.id));
-  const runway = c ? M.componentRunway(state, c) : [];
-  const close = sheet(c ? c.name : t('Новый компонент'), h('div', {},
-    c ? h('div', { class: 'stats' },
-      stat(t('остаток, {unit}', { unit: c.unit || 'шт' }), fmt.num(M.componentStock(state, c.id)), 'accent'),
-      runway.map((r) => stat(r.recipe.name, t('{n} шт', { n: fmt.num(r.rounds) })))) : null,
-    c ? h('div', { class: 'btn-row' },
-      btn(t('+ Купить'), () => { close(); buyComponentSheet(c); }, 'buy'),
-      btn(t('Пересчёт'), () => { close(); adjustSheet(c, 'components'); })) : null,
-    f.el,
-    c ? h('div', { class: 'btn-row' }, btn(t('Удалить'), () => {
-      if (used || inRecipe) { toast(inRecipe ? t('Компонент используется в рецепте') : t('По компоненту есть движения')); return; }
-      close();
-      confirmSheet(t('Удалить компонент?'), c.name, t('Удалить'), async () => { await db.write({ components: { del: [c.id] } }); await refresh(); });
-    }, 'danger')) : null), {
+  const close = sheet(c ? t('Изменить: {name}', { name: c.name }) : t('Новый компонент'), f.el, {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
   });
   async function save() {
     if (invalidToast(f)) return;
-    const v = f.values();
+    const { initial, initialPrice, ...v } = f.values();
     close();
-    await saveEntity('components', { ...(c ?? { id: db.uid(), created: Date.now() }), ...v }, c ? t('Сохранено') : t('Добавлено: {name}', { name: v.name }));
+    const obj = { ...(c ?? { id: db.uid(), created: Date.now() }), ...v };
+    if (!c && initial > 0) {
+      const buying = initialPrice > 0;
+      await addMovements([movement({
+        kind: buying ? 'buy' : 'adjust', componentId: obj.id, qty: initial,
+        price: buying ? initialPrice : undefined, note: buying ? undefined : t('Начальный остаток'),
+      })], t('Добавлено: {name}', { name: obj.name }), { components: { put: [obj] } });
+      return;
+    }
+    await saveEntity('components', obj, c ? t('Сохранено') : t('Добавлено: {name}', { name: v.name }));
   }
+}
+
+/** Картка компонента: залишок, ціна, на скільки вистачить, покупки й витрати; правка й видалення — значками вгорі. */
+function componentDetail(c) {
+  const fresh = () => findComponent(c.id);
+  const body = () => { const cur = fresh(); return cur ? componentBody(cur, () => close()) : null; };
+  const tools = [
+    toolBtn('edit', t('Изменить'), () => { close(); componentForm(fresh() ?? c); }),
+    toolBtn('delete', t('Удалить'), () => {
+      const cur = fresh() ?? c;
+      if (state.recipes.some((r) => r.items.some((i) => i.componentId === cur.id))) { toast(t('Компонент используется в рецепте')); return; }
+      if (state.movements.some((m) => m.componentId === cur.id)) { toast(t('По компоненту есть движения')); return; }
+      close();
+      confirmSheet(t('Удалить компонент?'), cur.name, t('Удалить'), async () => { await db.write({ components: { del: [cur.id] } }); await refresh(); });
+    }, 'danger'),
+  ];
+  const close = sheet(c.name, body(), { live: body, tools });
+}
+
+function componentBody(c, close) {
+  const unit = c.unit || 'шт';
+  const stock = M.componentStock(state, c.id);
+  const price = M.unitPrice(state, c);
+  const moves = state.movements.filter((m) => m.componentId === c.id);
+  const runway = M.componentRunway(state, c);
+  return h('div', {},
+    h('p', { class: 'muted' }, [t(M.COMPONENT_KINDS[c.kind] ?? 'Другое'),
+      price && stock > 0 ? t('на сумму {sum}', { sum: fmt.money(stock * price) }) : null, c.note].filter(Boolean).join(' · ')),
+    h('div', { class: 'stats even' },
+      stat(t('остаток, {unit}', { unit }), fmt.num(stock), 'accent'),
+      stat(t('цена за {unit}', { unit }), price ? fmt.money(price) : t('без цены'))),
+    runway.length ? h('div', { class: 'runway' }, runway.map((r) => h('div', { class: 'runway-row small' },
+      h('span', { class: 'runway-name' }, r.recipe.name), ' · ',
+      h('b', { class: r.rounds === 0 ? 'neg' : r.rounds < LOW_ROUNDS ? 'warn-text' : '' }, t('хватит на {n} шт', { n: fmt.num(r.rounds) }))))) : null,
+    h('div', { class: 'btn-row' },
+      btn(t('+ Купить'), () => { close(); buyComponentSheet(c); }, 'buy'),
+      btn(t('Пересчёт'), () => { close(); adjustSheet(c, 'components'); })),
+    // Покупки, витрата на спорядження, зібрані гільзи — найновіше зверху.
+    box(t('История'), movementRows(moves, { skip: { component: true } }), { fold: `chist:${c.id}`, count: moves.length }));
 }
 
 function buyComponentSheet(c) {
@@ -2614,29 +2794,57 @@ function recipeForm(r = null) {
   f.el.append(caliberList());
   const options = [...state.components].sort(byName).map((c) => [c.id, `${c.name} (${c.unit || 'шт'})`]);
   const itemsBox = h('div', { class: 'items' });
+  // Рядки рецепта: значення кожного рахує сам рядок.
+  const rows = [];
   const addItem = (item = {}) => {
     const select = h('select', {}, options.map(([id, label]) => h('option', { value: id, selected: id === item.componentId }, label)));
     const per = h('input', { type: 'number', step: 'any', inputmode: 'decimal', placeholder: t('на 1 шт') });
-    per.value = item.perRound ?? 1;
-    const row = h('div', { class: 'item-row' }, select, per, h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Убрать'), onclick: () => row.remove() }, '✕'));
+    // Компонент у грамах (порох) — навеску можна вводити в гранах, як у таблицях навесок; зберігається в грамах.
+    const unitSel = h('select', { class: 'item-unit', 'aria-label': t('Единица') },
+      h('option', { value: 'g' }, t('г')), h('option', { value: 'gr' }, 'gr'));
+    const inGrams = () => !unitSel.classList.contains('off');
+    // Точна навеска за показаним числом: поки його не правили, перемикач і збереження рахують від неї, а не від округленого.
+    let exact = null;
+    const show = (grams, unit) => {
+      per.value = String(unit === 'gr' ? +(grams / M.GRAIN).toFixed(2) : +grams.toFixed(3));
+      exact = { text: per.value, grams };
+    };
+    const typed = () => Number(String(per.value).replace(',', '.')) || 0;
+    const grams = (unit) => (exact?.text === per.value ? exact.grams : unit === 'gr' ? typed() * M.GRAIN : typed());
+    unitSel.value = item.grains ? 'gr' : 'g';
+    if (item.grains) show(Number(item.perRound), 'gr');
+    else per.value = item.perRound ?? 1;
+    // Не в грамах — місце лишається, щоб колонки рядків не роз'їжджалися.
+    const syncUnit = () => {
+      unitSel.classList.toggle('off', findComponent(select.value)?.unit !== 'г');
+      if (!inGrams()) unitSel.value = 'g';
+    };
+    select.addEventListener('change', syncUnit);
+    syncUnit();
+    // Перемкнули г ↔ gr — число в полі перераховується, навеска та сама.
+    unitSel.addEventListener('change', () => {
+      const g = grams(unitSel.value === 'gr' ? 'g' : 'gr');
+      if (g > 0) show(g, unitSel.value);
+    });
+    const row = h('div', { class: 'item-row' }, select, per, unitSel, h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Убрать'), onclick: () => row.remove() }, '✕'));
+    rows.push({
+      row,
+      value: () => {
+        const gr = inGrams() && unitSel.value === 'gr';
+        return { componentId: select.value, perRound: inGrams() ? +grams(unitSel.value).toFixed(6) : typed(), ...(gr ? { grains: true } : {}) };
+      },
+    });
     itemsBox.append(row);
   };
   (r?.items ?? [{}]).forEach(addItem);
   const close = sheet(r ? t('Изменить рецепт') : t('Новый рецепт'), h('div', {},
     f.el, h('h3', {}, t('Компоненты и расход на 1 патрон')), itemsBox,
-    btn(t('+ компонент'), () => addItem()),
-    r ? h('div', { class: 'btn-row' }, btn(t('Удалить рецепт'), () => {
-      close();
-      confirmSheet(t('Удалить рецепт?'), t('Снаряжённые патроны и журнал останутся.'), t('Удалить'), async () => { await db.write({ recipes: { del: [r.id] } }); await refresh(); });
-    }, 'danger')) : null), {
+    btn(t('+ компонент'), () => addItem())), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
   });
   async function save() {
     if (invalidToast(f)) return;
-    const items = [...itemsBox.querySelectorAll('.item-row')].map((row) => ({
-      componentId: row.querySelector('select').value,
-      perRound: Number(String(row.querySelector('input').value).replace(',', '.')) || 0,
-    })).filter((i) => i.componentId && i.perRound > 0);
+    const items = rows.filter((x) => x.row.isConnected).map((x) => x.value()).filter((i) => i.componentId && i.perRound > 0);
     if (!items.length) { toast(t('Добавьте хотя бы один компонент')); return; }
     close();
     await saveEntity('recipes', { ...(r ?? { id: db.uid(), created: Date.now() }), ...f.values(), items }, t('Рецепт сохранён'));
@@ -2644,23 +2852,55 @@ function recipeForm(r = null) {
 }
 
 function recipeDetail(r) {
+  const body = () => { const cur = state.recipes.find((x) => x.id === r.id); return cur ? recipeBody(cur, () => close()) : null; };
+  // Правка й видалення — значками в шапці, як у картках набою, зброї й вправи.
+  const tools = [
+    toolBtn('edit', t('Изменить'), () => { close(); recipeForm(state.recipes.find((x) => x.id === r.id) ?? r); }),
+    toolBtn('delete', t('Удалить'), () => {
+      close();
+      confirmSheet(t('Удалить рецепт?'), t('Снаряжённые патроны и журнал останутся.'), t('Удалить'), async () => { await db.write({ recipes: { del: [r.id] } }); await refresh(); });
+    }, 'danger'),
+  ];
+  const close = sheet(r.name, body(), { live: body, tools });
+}
+
+function recipeBody(r, close) {
   const lines = M.recipeLines(state, r);
-  const close = sheet(r.name, h('div', {},
+  const loads = state.movements.filter((m) => m.kind === 'reload' && m.recipeId === r.id);
+  const loaded = loads.reduce((s, m) => s + m.qty, 0);
+  const cartridge = state.cartridges.find((c) => c.recipeId === r.id && !c.archived) ?? state.cartridges.find((c) => c.recipeId === r.id);
+  return h('div', {},
     h('p', { class: 'muted' }, [r.caliber, r.note].filter(Boolean).join(' · ')),
-    h('div', { class: 'stats' },
+    h('div', { class: 'stats even' },
       stat(t('себестоимость'), fmt.money(M.recipeCost(state, r)), 'accent'),
-      stat(t('из запасов'), t('{n} шт', { n: fmt.num(M.recipeEnough(state, r)) }))),
+      stat(t('из запасов'), t('{n} шт', { n: fmt.num(M.recipeEnough(state, r)) })),
+      loaded ? stat(t('снаряжено'), t('{n} шт', { n: fmt.num(loaded) })) : null),
     h('table', { class: 'lines' },
       h('thead', {}, h('tr', {}, h('th', {}, t('Компонент')), h('th', {}, t('на 1')), h('th', {}, t('цена')), h('th', {}, t('хватит')))),
       h('tbody', {}, lines.map((l) => h('tr', { class: l.noPrice && l.component?.kind !== 'case' ? 'warn' : '' },
         h('td', {}, l.component?.name ?? t('(удалён)')),
-        h('td', {}, `${fmt.num(l.perRound)} ${l.component?.unit || 'шт'}`),
+        h('td', {}, l.grains
+          ? [`${fmt.num(+l.grains.toFixed(2))} gr`, h('div', { class: 'muted small' }, `${fmt.num(+l.perRound.toFixed(3))} ${t('г')}`)]
+          : `${fmt.num(l.perRound)} ${l.component?.unit || 'шт'}`),
         h('td', {}, l.noPrice ? '—' : fmt.money(l.cost)),
         h('td', {}, l.fromStock === null ? '—' : fmt.num(Math.max(0, l.fromStock))))))),
-    h('p', { class: 'muted small' }, t('«Хватит» — на сколько патронов хватит остатка на складе. Гильзы при снаряжении не списываются — они многоразовые.')),
+    h('p', { class: 'muted small' }, t('«Хватит» — на сколько патронов хватит остатка на складе.')),
+    caseNote(r),
     h('div', { class: 'btn-row' },
-      btn(t('Снарядить'), () => { close(); reloadSheet(r); }, 'primary'),
-      btn(t('Изменить'), () => { close(); recipeForm(r); }))));
+      btn(t('Снарядить'), () => { close(); reloadSheet(r); }, 'primary')),
+    // Що вийшло: набій на складі й коли скільки спорядили.
+    cartridge ? h('p', { class: 'muted small' }, `${t('Патрон')}: `,
+      h('button', { type: 'button', class: 'link-btn', onclick: () => { close(); cartridgeDetail(cartridge); } }, cartridge.name),
+      ` · ${t('остаток')} ${fmt.num(M.cartridgeStock(state, cartridge.id))}`) : null,
+    loads.length ? box(t('Снаряжения'), movementRows(loads), { fold: `rhist:${r.id}`, count: loads.length }) : null);
+}
+
+/** Куди повертаються гільзи, зібрані після стрільби. */
+function caseNote(r) {
+  const back = caseTarget(r);
+  if (!back) return null;
+  return h('p', { class: 'muted small' }, t('Собранные гильзы → «{name}»', { name: back.name }),
+    back.id ? null : ` ${t('(появится при первом сборе)')}`);
 }
 
 function reloadSheet(r) {
@@ -2690,7 +2930,7 @@ function reloadSheet(r) {
     const common = { batch, date: v.date || null, note: v.note };
     const moves = [movement({ ...common, kind: 'reload', cartridgeId: cartridge.id, caliber: r.caliber, recipeId: r.id, qty, price: +(M.recipeCost(state, r) * qty).toFixed(2) })];
     for (const line of M.recipeLines(state, r)) {
-      if (!line.component || line.component.kind === 'case') continue;
+      if (!line.component) continue;
       moves.push(movement({ ...common, kind: 'consume', componentId: line.component.id, recipeId: r.id, qty: -+(line.perRound * qty).toFixed(3) }));
     }
     close();
@@ -3015,20 +3255,16 @@ function ammoAddMenu() {
             h('span', { class: 'row-qty' }, fmt.num(M.cartridgeStock(state, c.id))))))))) : null));
 }
 
-function addMenu() {
-  const close = sheet(t('Добавить'), h('div', { class: 'btn-col' },
-    btn(t('Новый компонент на склад'), () => { close(); componentForm(); }),
-    btn(t('Новый рецепт'), () => { close(); recipeForm(); })));
-}
-
 const VIEWS = {
   ammo: { title: 'Патроны', render: renderAmmo, fab: ammoAddMenu },
   guns: { title: 'Оружие', render: renderGuns, fab: () => weaponForm() },
   log: { title: 'Журнал', render: renderLog, fab: foreignShotSheet },
-  reload: { title: 'Рецепты', render: renderReload, fab: addMenu },
+  // «+» — у відкритому розділі: на «Складі» компонент, у «Рецептах» рецепт.
+  reload: { title: 'Рецепты', render: renderReload, fab: () => (reloadPane === 'stock' ? componentForm() : recipeForm()) },
   settings: { title: 'Настройки', render: renderSettings },
   guide: { title: 'Справочник', render: renderGuide, tab: 'settings' },
-  targets: { title: 'Полигон', render: renderRange, fab: () => newTarget({ weaponId: targetWeapon || null }), noFab: () => rangeSeg !== 'targets' },
+  // «+» — у розділі, що відкритий: своя вправа або нова мішень; у таймера кнопки немає.
+  targets: { title: 'Полигон', render: renderRange, fab: () => (rangeSeg === 'exercises' ? newExercise() : newTarget({ weaponId: targetWeapon || null })), noFab: () => rangeSeg === 'timer' },
 };
 
 function render() {
