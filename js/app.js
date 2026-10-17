@@ -1827,8 +1827,8 @@ function movementBody(m, close, edit = false) {
     class: 'inline-select', autocomplete: 'off', ...attrs,
     onchange: (e) => onSave(e.target.value.trim()),
   });
-  // Пачку (спорядження зі списанням компонентів) кількістю не правлять: її треба перераховувати по всьому рецепту.
-  // Зібрані гільзи — окремий рух у пачці стрільби: кількість і стрільби, і збору правиться.
+  // Пачку зі списанням компонентів звичайним полем кількості не правлять: спорядження перераховується
+  // окремо (resizeReload), а зібрані гільзи — окремий рух у пачці стрільби, кількість і стрільби, і збору правиться.
   const linked = batch.filter((x) => x.id !== m.id);
   const editQty = m.kind !== 'clean' && (m.kind === 'collect' || linked.every((x) => x.kind === 'collect'));
   const editPrice = m.kind === 'buy' || Number(m.price) > 0;
@@ -1936,6 +1936,15 @@ function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dat
   const name = ammo ? h('span', { class: 'ammo-name' }, cartridgeIcon(ammo.caliber), ammo.name) : (part?.name ?? movementTitle(m));
   const open = ammo ? () => cartridgeDetail(ammo) : part ? () => componentDetail(part) : null;
   const link = (label, onclick) => h('button', { type: 'button', class: 'link-btn', onclick }, label);
+  // Кількість спорядження правиться разом зі списаними компонентами й собівартістю
+  const reloadQty = edit && m.kind === 'reload' ? h('input', {
+    class: 'inline-select', type: 'number', step: 1, min: 1, inputmode: 'numeric', autocomplete: 'off', value: n, 'aria-label': t('Количество'),
+    onchange: (e) => {
+      const qty = Math.round(Number(e.target.value.replace(',', '.')));
+      if (!(qty > 0) || qty === n) { e.target.value = n; return; }
+      resizeReload(m, linked, qty);
+    },
+  }) : null;
   return h('div', {},
     edit ? null : h('div', { class: 'stats even' },
       stat(t(m.kind === 'buy' ? 'куплено' : 'снаряжено'), h('span', { class: 'nw' }, fmt.num(n), h('small', { class: 'unit' }, ` ${unit}`)), 'accent'),
@@ -1943,7 +1952,7 @@ function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dat
       price && n ? stat(t('за {unit}', { unit }), tileMoney(price / n)) : null),
     box(t('Запись'), kv(
       row('Дата', edit ? dateInput : fmt.date(m.date)),
-      edit ? row('Количество', editQty ? qtyInput : fmt.num(n)) : null,
+      edit ? row('Количество', reloadQty ?? (editQty ? qtyInput : fmt.num(n))) : null,
       edit && editPrice ? row('Сумма', priceInput) : null,
       edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null)),
     box(t(part ? 'Компонент' : 'Патроны'), lead(
@@ -1952,6 +1961,27 @@ function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dat
       recipe ? row('Рецепт', link(recipe.name, () => recipeDetail(recipe))) : null,
       stock === null ? null : row('Сейчас на складе', `${fmt.num(stock)} ${unit}`))),
     linked.length ? box(t('Списано компонентов'), h('div', { class: 'rows' }, linked.map((x) => logRow(x)))) : null);
+}
+
+/**
+ * Нова кількість спорядження: списані компоненти й собівартість — у тій самій пропорції, однією правкою.
+ * Пропорція, а не рецепт заново: рецепт могли змінити після спорядження, а списано було за старим.
+ */
+async function resizeReload(m, linked, qty) {
+  const k = qty / Math.abs(m.qty);
+  const before = [m, ...linked];
+  const after = [
+    { ...m, qty, price: Number(m.price) > 0 ? +(m.price * k).toFixed(2) : m.price },
+    ...linked.map((x) => (x.kind === 'consume' ? { ...x, qty: -+(Math.abs(x.qty) * k).toFixed(3) } : x)),
+  ];
+  await db.write({ movements: { put: after } });
+  await refresh();
+  confirmed([m.id, m.cartridgeId]);
+  if (linked.some((x) => x.componentId && M.componentStock(state, x.componentId) < 0)) toast(t('Компоненты ушли в минус'));
+  setUndo(t('Снаряжено {n} · {name}', { n: qty, name: findCartridge(m.cartridgeId)?.name ?? '' }), async () => {
+    await db.write({ movements: { put: before } });
+    await refresh();
+  });
 }
 
 /** Настріл по місяцях: скільки стріляв і на скільки — видно сезонність і темп. */
