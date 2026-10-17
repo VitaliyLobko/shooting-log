@@ -25,6 +25,7 @@ const ASSETS = [
   './js/exercises.js',
   './js/changelog.js',
   './js/shot-detector.js',
+  './js/pdf.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',
   './guide/img/prone-bipod.jpg',

@@ -11,6 +11,7 @@ import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
 import { timerPanel, stopTimerPanel } from './timer.js';
 import { exercisesPanel, exerciseName, newExercise, openScore } from './exercises.js';
 import { CHANGES, newer } from './changelog.js';
+import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn,
   confirmed, setUndo, fieldError, formError,
@@ -1488,10 +1489,10 @@ function dopeCard(w, d) {
     table, h('div', { class: `dope-calc ${windy ? 'windy' : ''}` }, at, windy ? speed : null, windy ? clock : null), out);
 }
 
-/** Форма таблиці DOPE: приціл, набій, одиниці й рядки «дистанція — поправка» (плюс — вгору). */
 /**
- * «Вставити таблицю» у формі DOPE: текст зі Strelok, Excel чи блокнота → рядки форми.
- * Дистанція — перша колонка; яка колонка поправка, а яка вітер — вибирають (у Strelok їх багато).
+ * «Вставити таблицю» у формі DOPE: PDF зі «Стрільця» — одразу в рядки; текст з Excel чи блокнота —
+ * дистанція першою колонкою, а яка колонка поправка й яка вітер — вибирають.
+ * onRows(rows, { unit, windSpeed, note }) — другий аргумент лише з PDF.
  */
 function dopePaste(onRows) {
   const text = h('textarea', { class: 'dope-paste-text', rows: 5, placeholder: '100  0\n200  0,9  0,3\n300  2,1  0,6', 'aria-label': t('Таблица') });
@@ -1517,8 +1518,40 @@ function dopePaste(onRows) {
   };
   text.addEventListener('input', read);
   const cell = (row, col) => (col === '' || row[col] === undefined ? '' : String(row[col]).replace('.', ','));
+  const decimal = (v) => (v === null || v === undefined ? '' : String(v).replace('.', ','));
+  const pdfInput = h('input', {
+    type: 'file', accept: '.pdf,application/pdf', hidden: true,
+    onchange: async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) await importStrilets(file);
+    },
+  });
+  async function importStrilets(file) {
+    let runs;
+    try { runs = await pdfRuns(await file.arrayBuffer()); } catch { runs = []; }
+    if (!runs.length) { fieldError(text, t('В PDF не нашёл текста — это скан или картинка?')); return; }
+    const dope = M.striletsDope(pdfTable(runs));
+    if (!dope) {
+      // не «Стрілець» — віддаємо текст у поле: колонки людина вибере сама
+      text.value = runsToLines(runs).join('\n');
+      read();
+      found.textContent = t('Не похоже на таблицу Стрільця — выберите колонки ниже');
+      return;
+    }
+    onRows(dope.rows.map((r) => ({ distance: r.distance, value: decimal(r.value), wind: decimal(r.wind) })),
+      { unit: dope.unit, windSpeed: dope.windSpeed, note: dope.note });
+    panel.hidden = true;
+    const skipped = {
+      angle: t('Колонку ветра не перенёс: в Стрільці ветер под углом {deg}°. Посчитайте таблицу с боковым ветром (90°) — и колонка появится.', { deg: fmt.num(dope.windAngle) }),
+      derivation: t('Колонку ветра не перенёс: в Стрільці включена деривация, горизонтальная поправка — не только от ветра.'),
+      calm: t('Колонку ветра не перенёс: в Стрільці ветер не задан.'),
+    }[dope.windSkipped];
+    toast([t('Из Стрільця: строк {n}', { n: dope.rows.length }), skipped].filter(Boolean).join('. '), { timeout: skipped ? 9000 : 3500 });
+  }
   const panel = h('div', { class: 'dope-paste', hidden: true },
-    h('p', { class: 'muted small' }, t('Скопируйте таблицу из баллистического калькулятора (Стрілець, Strelok) или Excel либо напишите строками: дистанция, поправка, ветер. Числа — в единицах, выбранных выше.')),
+    h('div', { class: 'btn-row' }, btn(t('PDF из Стрільця'), () => pdfInput.click(), 'primary')), pdfInput,
+    h('p', { class: 'muted small' }, t('PDF с таблицей поправок из Стрільця — кнопкой выше. Или скопируйте таблицу из Excel либо напишите строками: дистанция, поправка, ветер — числа в единицах, выбранных выше.')),
     text, found,
     h('div', { class: 'dope-paste-cols' },
       h('label', { class: 'small' }, t('Поправка — колонка'), valueCol),
@@ -1528,7 +1561,7 @@ function dopePaste(onRows) {
       onRows(table.map((r) => ({ distance: Math.round(r[0]), value: cell(r, Number(valueCol.value)), wind: cell(r, windCol.value === '' ? '' : Number(windCol.value)) }))
         .filter((r) => r.value !== ''));
       panel.hidden = true;
-    }, 'primary'));
+    }));
   read();
   const button = btn(t('Вставить таблицу'), () => {
     panel.hidden = !panel.hidden;
@@ -1537,6 +1570,7 @@ function dopePaste(onRows) {
   return { button, panel };
 }
 
+/** Форма таблиці DOPE: приціл, набій, одиниці й рядки «дистанція — поправка» (плюс — вгору). */
 function dopeForm(w, d = null) {
   const scopes = w.scopes ?? [];
   const cartridges = caliberOptions(state.cartridges.filter((c) => !c.archived || c.id === d?.cartridgeId), w.caliber);
@@ -1603,9 +1637,14 @@ function dopeForm(w, d = null) {
   else (scope()?.zero >= 100 ? [200, 300, 400, 500] : [100, 200, 300]).forEach((x) => addRow(x));
   f.inputs.scopeId.addEventListener('change', drawUnits);
   windForm.el.classList.add('dope-wind');
-  const paste = dopePaste((rows) => {
+  const paste = dopePaste((rows, from = {}) => {
+    // PDF зі «Стрільця» приходить у своїх одиницях (см) і зі швидкістю вітру — перемикаємо форму під них
+    if (from.unit) unit = from.unit;
+    if (from.windSpeed) windForm.inputs.windSpeed.value = from.windSpeed;
+    if (from.note && !f.inputs.note.value.trim()) f.inputs.note.value = from.note;
     rowsBox.replaceChildren();
     rows.forEach((r) => addRow(r.distance, r.value, r.wind));
+    drawUnits();
   });
   const body = h('div', {}, f.el, h('h3', {}, t('Поправки')), units, unitHint, windForm.el,
     h('div', { class: 'dope-row dope-cols muted small' }, h('span', {}, t('Дистанция, м')), h('span', {}, t('Поправка')), h('span', {}, t('Ветер'))),

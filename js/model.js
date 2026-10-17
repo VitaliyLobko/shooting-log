@@ -350,7 +350,7 @@ export function parseSpeeds(text) {
 }
 
 /**
- * Таблиця з буфера (Strelok, Excel, блокнот) → рядки чисел. Колонки ділять табуляція, пробіли чи «;» —
+ * Таблиця з буфера (Стрілець, Excel, блокнот) → рядки чисел. Колонки ділять табуляція, пробіли чи «;» —
  * тоді кома в числі десяткова; рядок лише з комами (CSV) ділиться комами. Заголовки й рядки без
  * дистанції на початку пропускаються.
  */
@@ -360,6 +360,45 @@ export function parseTable(text) {
     const cells = /[\s;]/.test(s) ? s.split(/[\s;]+/) : s.split(',');
     return cells.map((c) => c.match(/^[+-]?\d+(?:[.,]\d+)?/)?.[0]).filter(Boolean).map((c) => Number(c.replace(',', '.')));
   }).filter((row) => row.length >= 2 && row[0] > 0);
+}
+
+/**
+ * Таблиця «Стрільця» (PDF, розібраний pdfTable) → рядки DOPE.
+ * Поправку беремо в сантиметрах — вони точніші за MRAD, округлені до десятої. Горизонтальна поправка
+ * стає колонкою вітру лише за бокового вітру й вимкненої деривації: інакше в ній не тільки вітер.
+ * null — це не таблиця «Стрільця» (немає колонок дистанції й вертикальної поправки).
+ */
+export function striletsDope(table) {
+  if (!table) return null;
+  // «см» шукаємо з межами вручну: межа слова в регулярних виразах JS не бачить кирилиці
+  const CM = /(^|[\s,])см([\s,.]|$)/;
+  const col = (...res) => table.labels.findIndex((label) => res.every((re) => re.test(label)));
+  const meta = (re) => Object.entries(table.meta).find(([k]) => re.test(k))?.[1] ?? '';
+  const number = (s) => Number(String(s).replace(',', '.').match(/[+-]?\d+(?:\.\d+)?/)?.[0] ?? NaN);
+  const dist = col(/Дистанц/i);
+  const upCm = col(/Вертикальн/i, CM);
+  const upMrad = col(/Вертикальн/i, /MRAD|MIL/i);
+  const unit = upCm >= 0 ? 'cm' : upMrad >= 0 ? 'mil' : null;
+  if (dist < 0 || !unit) return null;
+  const up = unit === 'cm' ? upCm : upMrad;
+  const side = unit === 'cm' ? col(/Горизонтальн/i, CM) : col(/Горизонтальн/i, /MRAD|MIL/i);
+  const speed = number(meta(/Швидкість вітру/i));
+  const dir = number(meta(/Напрямок вітру/i));
+  const derivation = /\bON\b/i.test(meta(/^Деривація/i));
+  const cross = speed > 0 && Number.isFinite(dir) && Math.abs(Math.sin((dir * Math.PI) / 180)) >= 0.97;
+  const wind = side >= 0 && cross && !derivation;
+  const rows = table.rows.filter((r) => r[dist] > 0 && Number.isFinite(r[up]))
+    .map((r) => ({ distance: Math.round(r[dist]), value: r[up], wind: wind && Number.isFinite(r[side]) ? Math.abs(r[side]) : null }));
+  if (!rows.length) return null;
+  const note = [meta(/Драг-функц/i) && `${meta(/Драг-функц/i)} ${meta(/Балістичний коеф/i)}`.trim(),
+    meta(/Початкова швидкість/i) && `${meta(/Початкова швидкість/i)} м/с`,
+    meta(/Температура/i) && `${meta(/Температура/i)} °C`,
+    meta(/тиск/i) && `${meta(/тиск/i)} мм рт. ст.`].filter(Boolean).join(', ');
+  return {
+    unit, rows, windSpeed: wind ? speed : null, note: note ? `Стрілець: ${note}` : 'Стрілець',
+    // чому вітер не перенесено — щоб людина знала, що порахувати в «Стрільці» інакше
+    windSkipped: side >= 0 && !wind ? (derivation ? 'derivation' : speed > 0 ? 'angle' : 'calm') : null, windAngle: dir,
+  };
 }
 
 export function drillStats(shots) {
