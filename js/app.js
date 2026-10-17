@@ -391,13 +391,33 @@ function cartridgeCaseTarget(c) {
 /** Записує стрільбу; зібрані гільзи — окремим рухом у тій самій пачці, тож видаляються разом зі стрільбою. */
 async function addShot(shot, collected, label, extra = {}, warning = null) {
   if (!collected) { await addMovements([shot], label, extra, warning); return; }
+  const batch = db.uid();
+  const c = collectMovement(collected, batch, shot.date, extra);
+  await addMovements([{ ...shot, batch }, c.move], label, c.extra, warning);
+}
+
+/** Рух зібраних гільз у пачці стрільби; компонента «… стріляні» ще немає — він додається в extra. */
+function collectMovement(collected, batch, date, extra = {}) {
   let target = collected.component;
   if (!target.id) {
     target = { id: db.uid(), created: Date.now(), updated: Date.now(), name: target.name, kind: 'case', unit: 'шт' };
     extra = { ...extra, components: { put: [target] } };
   }
-  const batch = db.uid();
-  await addMovements([{ ...shot, batch }, movement({ kind: 'collect', batch, componentId: target.id, qty: collected.qty, date: shot.date })], label, extra, warning);
+  return { move: movement({ kind: 'collect', batch, componentId: target.id, qty: collected.qty, date }), extra };
+}
+
+/**
+ * Гільзи до вже записаної стрільби. Стрільба без пачки отримує її окремим записом —
+ * «Скасувати» прибирає лише збір, а видалення стрільби забирає й гільзи.
+ */
+async function addCollected(shot, collected) {
+  let batch = shot.batch;
+  if (!batch) {
+    batch = db.uid();
+    await db.write({ movements: { put: [{ ...shot, batch }] } });
+  }
+  const c = collectMovement(collected, batch, shot.date);
+  await addMovements([c.move], t('Собранные гильзы → «{name}»', { name: collected.component.name }), c.extra);
 }
 
 function openFold(key) {
@@ -1784,7 +1804,9 @@ function movementDetail(m) {
     refreshSheets();
   });
   const del = toolBtn('delete', t('Удалить запись'), () => {
-    const batch = m.batch ? state.movements.filter((x) => x.batch === m.batch) : [m];
+    // Свіжий запис: пачка могла з'явитися вже в цій шторці (гільзи, додані з правки)
+    const cur = freshMovement(m);
+    const batch = cur.batch ? state.movements.filter((x) => x.batch === cur.batch) : [cur];
     close();
     confirmSheet(t('Удалить запись?'), batch.length > 1 ? t('Вместе со связанными движениями ({n}).', { n: batch.length }) : t('Остатки и настрел пересчитаются.'), t('Удалить'), async () => {
       await db.write({ movements: { del: batch.map((x) => x.id) } });
@@ -1838,6 +1860,18 @@ function movementBody(m, close, edit = false) {
     const row = (label, value) => [h('dt', {}, t(label)), h('dd', {}, value)];
     // Головне значення блоку — без підпису: заголовок блоку вже каже, що це
     const lead = (value, ...pairs) => [h('div', { class: 'kv-lead' }, value), pairs.some(Boolean) ? kv(...pairs) : null];
+    // Гільзи, не вписані під час запису, додаються з правки — так само окремим рухом у пачці стрільби
+    const caseTo = edit && !linked.some((x) => x.kind === 'collect') ? cartridgeCaseTarget(ammo) : null;
+    const collectRow = caseTo ? [h('dt', {}, t('Собранные гильзы')), h('dd', {},
+      h('input', {
+        class: 'inline-select', type: 'number', min: 0, step: 1, inputmode: 'numeric', autocomplete: 'off',
+        placeholder: t('если собирал'), 'aria-label': t('Собрал гильз → «{name}»', { name: caseTo.name }),
+        onchange: (e) => {
+          const qty = Math.round(Number(e.target.value.replace(',', '.')));
+          if (qty > 0) addCollected(freshMovement(m), { component: caseTo, qty });
+        },
+      }),
+      h('div', { class: 'muted small' }, `→ «${caseTo.name}»`))] : null;
     return h('div', {},
       edit ? null : h('div', { class: 'stats even' },
         stat(t('выстрелов'), fmt.num(n), 'accent'),
@@ -1864,7 +1898,8 @@ function movementBody(m, close, edit = false) {
           edit ? shotCartridgeSelect(m)
             : ammo ? h('span', { class: 'ammo-name' }, cartridgeIcon(ammo.caliber), ammo.name)
               : (m.foreignAmmo ? t('Чужие патроны') : t('без списания из БК')),
-          m.caliber ? row('Калибр', m.caliber) : null),
+          m.caliber ? row('Калибр', m.caliber) : null,
+          collectRow),
         m.cartridgeId ? null : h('p', { class: 'muted small' }, m.foreignAmmo
           ? t('Чужие патроны: склад БК не меняется, выстрелы идут в настрел.')
           : t('Запись без списания из БК — учитывается только в настреле.')))),
