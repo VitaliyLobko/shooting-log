@@ -420,14 +420,26 @@ const round2 = (v) => Math.round(v * 100) / 100;
  * onSave(record, consume) зберігає (consume = {cartridgeId, qty, collect} або null; collect — зібрані гільзи з collectField), onDelete(record) видаляє,
  * targetsOf(record) віддає блок мішеней результату (або null).
  */
-export function exercisesPanel({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null }) {
+/** Контекст вправ із того, що дає застосунок; свої вправи — одразу в довідник назв. */
+function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null }) {
   CUSTOM = custom;
-  const ctx = { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, collectField, custom, onSaveExercise, onDeleteExercise };
+  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, collectField, custom, onSaveExercise, onDeleteExercise };
+}
+
+export function exercisesPanel(args) {
+  const ctx = makeCtx(args);
   CTX = ctx;
   // Плиткою: шість вправ видно одним екраном, рекорд одразу під назвою, решта — у картці вправи.
   return h('div', {},
-    planBox(cartridges, box),
+    planBox(ctx.cartridges, ctx.box),
     h('div', { class: 'ex-grid' }, exerciseList().map((ex) => exerciseTile(ex, ctx))));
+}
+
+/** Картка результату з іншого місця (картка стрільби): той самий контекст, що й у панелі вправ. */
+export function openScore(s, args) {
+  const ctx = makeCtx(args);
+  const ex = exById(s.exercise);
+  if (ex) scoreCard(ex, s, ctx);
 }
 
 // Контекст останньої відмальованої панелі — для кнопки «+» внизу екрана, яка живе поза панеллю.
