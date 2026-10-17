@@ -1602,12 +1602,13 @@ function permitDatesToAll(w, v) {
 /** Раз на день при відкритті: дозволи, що скінчилися або лишилося менше місяця. */
 function permitsReminder() {
   const urgent = urgentPermits();
-  if (!urgent.length || recall('shooters-log:docs-reminded') === M.today()) return;
+  if (!urgent.length || recall('shooters-log:docs-reminded') === M.today()) return false;
   remember('shooters-log:docs-reminded', M.today());
   toast(t('Разрешение на оружие: {names}', { names: urgent.map((w) => w.name).join(', ') }), {
     action: t('Показать'),
     onAction: () => { location.hash = '#guns'; },
   });
+  return true;
 }
 
 // ---------- журнал ----------
@@ -3610,10 +3611,29 @@ async function exportData(share) {
   if (share) {
     const file = new File([payload], name, { type: 'application/json' });
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; }
+      try { await navigator.share({ files: [file], title: name }); remember(BACKUP_KEY, M.today()); return; } catch (e) { if (e.name === 'AbortError') return; }
     }
   }
   download(name, payload);
+  remember(BACKUP_KEY, M.today());
+}
+
+// Коли востаннє зберігали копію — для нагадування й рядка в ⚙ (лише на цьому пристрої).
+const BACKUP_KEY = 'shooters-log:backup-at';
+const BACKUP_EVERY = 30;
+
+/** Без Google Диска раз на місяць: дані лише на пристрої — нагадати зберегти копію. */
+function backupReminder() {
+  // демодані мають id 'mv-…', свої записи — UUID: на демо не нагадуємо
+  const own = state.movements.filter((m) => !String(m.id).startsWith('mv-')).length;
+  const last = [recall(BACKUP_KEY), recall('shooters-log:backup-reminded')].filter(Boolean).sort().pop();
+  if (sync.enabled() || own < 20 || (last && M.addDays(last, BACKUP_EVERY) > M.today())) return false;
+  remember('shooters-log:backup-reminded', M.today());
+  toast(t('Данные только на этом устройстве — сохраните копию'), {
+    action: t('Сохранить'),
+    onAction: () => exportData(true),
+  });
+  return true;
 }
 
 function importData(file) {
@@ -3774,11 +3794,14 @@ function aboutPanel() {
       h('p', {}, t('Google Диск подключается по желанию: копия ложится в ваш Диск, приложение видит только свои файлы. Браузеру запрещено отправлять данные куда-либо ещё — это прописано в коде страницы (Content Security Policy).')),
       h('p', {}, t('Резервная копия — ⚙ → «Поделиться копией». Она же переносит данные на другое устройство через «Импорт».')))),
     more(t('С чего начать'), h('ol', { class: 'ex-rules' },
+      h('li', {}, t('Установите приложение: Android — Chrome → ⋮ → «Установить приложение»; iPhone — Safari → «Поделиться» → «На экран „Домой“».')),
       h('li', {}, t('Заведите ствол на вкладке «Оружие» и патрон на вкладке «Набої».')),
       h('li', {}, t('Свайп по карточке патрона: вправо — покупка, влево — списание на стрельбу.')),
       h('li', {}, t('После стрельбы сфотографируйте мишень: «Полигон» → «Мишени» → «+». Отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
-      h('li', {}, t('Не хотите вводить своё — ⚙ → «Загрузить демо-данные», там готовый учёт с 2022 года.')))),
+      h('li', {}, t('Хотите сначала посмотреть — ⚙ → «Загрузить демо-данные», там готовый учёт с 2022 года. Перед своими записями удалите демо: ⚙ → «Удалить данные с устройства».')),
+      h('li', {}, t('Без Google Диска данные лежат только на этом устройстве — подключите его в ⚙ или время от времени сохраняйте копию.')))),
     h('p', { class: 'muted small' },
+      link('https://github.com/VitaliyLobko/shooting-log/issues/new', t('Сообщить об ошибке')), ' · ',
       link('https://github.com/VitaliyLobko/shooting-log', t('Исходный код')), ' · ',
       link('https://github.com/VitaliyLobko/shooting-log/blob/main/PRIVACY.md', t('Приватность')), ' · ',
       link('https://github.com/VitaliyLobko/shooting-log/blob/main/LICENSE', t('Лицензия MIT'))));
@@ -3835,6 +3858,7 @@ function renderSettings() {
       h('p', { class: 'muted small' }, sync.enabled()
         ? t('Основная копия — на Google Диске. Файл ниже — дополнительный снимок на всякий случай.')
         : t('Без синхронизации данные хранятся только на этом устройстве. Делайте экспорт после каждой стрельбы — например, «Поделиться» → Google Диск или Telegram «Избранное».')),
+      h('p', { class: 'muted small' }, t('Последняя копия: {when}', { when: recall(BACKUP_KEY) ? fmt.date(recall(BACKUP_KEY)) : t('ещё не было') })),
       h('p', { class: 'muted small' }, t('В файл копии попадают только миниатюры фото; сами фото хранятся на Google Диске.')),
       h('div', { class: 'btn-row' },
         btn(t('Поделиться копией'), () => exportData(true), 'primary'),
@@ -3849,7 +3873,8 @@ function renderSettings() {
       }))),
     h('section', { class: 'panel' },
       h('h3', {}, t('Установка на телефон')),
-      h('p', { class: 'muted small' }, t('Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.'))),
+      h('p', { class: 'muted small' }, t('Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.')),
+      h('p', { class: 'muted small' }, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.'))),
     h('section', { class: 'panel' },
       h('h3', {}, t('Опасная зона')),
       btn(t('Удалить данные с устройства'), () => confirmSheet(t('Удалить данные с устройства?'), sync.enabled()
@@ -4049,8 +4074,11 @@ registerWorker();
 navigator.storage?.persist?.().catch(() => {});
 state = await db.loadAll();
 route();
-// два нагадування разом — друге після першого, щоб не перекрило
-if (cleaningReminder()) setTimeout(permitsReminder, 8500); else permitsReminder();
+// нагадування по черзі — наступне після показаного, щоб не перекрило
+(function remind([first, ...rest]) {
+  if (!first) return;
+  if (first()) setTimeout(() => remind(rest), 8500); else remind(rest);
+})([cleaningReminder, permitsReminder, backupReminder]);
 showNews();
 sync.onStatus(renderSyncChip);
 sync.preload();
