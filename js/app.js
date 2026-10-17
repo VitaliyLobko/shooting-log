@@ -1309,12 +1309,46 @@ function printReport(report) {
   window.print();
 }
 
-/** Таблиця звіту; numeric — індекси колонок із числами (вирівнювання праворуч). */
-function reportTable(head, rows, numeric = []) {
-  const cls = (i) => (numeric.includes(i) ? 'num' : null);
+/**
+ * Таблиця звіту; numeric — індекси колонок із числами (праворуч), narrow — інших колонок за шириною вмісту.
+ * Рядок — масив клітинок, { cells, cls } або { group } — підзаголовок на всю ширину; foot — рядок підсумку.
+ */
+function reportTable(head, rows, { numeric = [], narrow = [], foot = null } = {}) {
+  const cls = (i) => (numeric.includes(i) ? 'num' : narrow.includes(i) ? 'narrow' : null);
+  const cells = (r, tag) => r.map((x, i) => h(tag, { class: cls(i) }, x ?? ''));
   return h('div', { class: 'report-scroll' }, h('table', {},
-    h('thead', {}, h('tr', {}, head.map((x, i) => h('th', { class: cls(i) }, x)))),
-    h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x, i) => h('td', { class: cls(i) }, x ?? '')))))));
+    h('thead', {}, h('tr', {}, cells(head, 'th'))),
+    h('tbody', {}, rows.map((r) => {
+      if (r.group) return h('tr', { class: 'report-group' }, h('th', { colspan: head.length }, r.group));
+      return h('tr', { class: r.cls ?? null }, cells(r.cells ?? r, 'td'));
+    })),
+    foot ? h('tfoot', {}, h('tr', {}, cells(foot, 'td'))) : null));
+}
+
+/** Стрільби й чистки за період; якщо років кілька — підзаголовок року з його настрілом і сумою. */
+function reportMoves(moves) {
+  const money = (m) => (m.kind === 'shot' ? M.shotCost(state, m) : 0);
+  const shots = (list) => list.filter((m) => m.kind === 'shot');
+  const fired = (list) => shots(list).reduce((s, m) => s - m.qty, 0);
+  const spent = (list) => list.reduce((s, m) => s + money(m), 0);
+  const totals = (list) => [t('{n} выстр.', { n: fmt.num(fired(list)) }), spent(list) ? `${fmt.num(Math.round(spent(list)))} грн` : null].filter(Boolean).join(' · ');
+  const years = [...new Set(moves.map((m) => (m.date ?? '').slice(0, 4)))];
+  const rows = moves.flatMap((m, i) => {
+    const year = (m.date ?? '').slice(0, 4);
+    const head = years.length > 1 && (i === 0 || (moves[i - 1].date ?? '').slice(0, 4) !== year)
+      ? [{ group: `${year} · ${totals(moves.filter((x) => (x.date ?? '').startsWith(year)))}` }] : [];
+    // Примітка — другим рядком під назвою: окрема колонка на телефоні стискається до кількох літер.
+    const title = (name) => [name, m.note && m.note !== name ? h('div', { class: 'report-note' }, m.note) : null];
+    const row = m.kind === 'shot'
+      ? [fmt.date(m.date), title(movementTitle(m)), fmt.num(-m.qty), money(m) ? tileMoney(money(m)) : '']
+      : { cls: 'report-clean', cells: [fmt.date(m.date), title(t('Чистка')), '', ''] };
+    return [...head, row];
+  });
+  return reportTable([t('Дата'), t('Патрон'), t('Кол-во'), t('Сумма')], rows, {
+    numeric: [2, 3],
+    narrow: [0],
+    foot: shots(moves).length ? [t('Итого'), '', fmt.num(fired(moves)), spent(moves) ? tileMoney(spent(moves)) : ''] : null,
+  });
 }
 
 /** Зміст звіту: підсумки за період, купчастість за набоями й таблиця стрільб і чисток. */
@@ -1330,41 +1364,44 @@ function weaponReport(w, [from, to]) {
   const lastClean = all.filter((m) => m.kind === 'clean').sort(M.byDateDesc)[0];
   const p = w.permit;
   const permit = p ? [p.number && `№ ${p.number}`, p.expires && t('действует до {date}', { date: fmt.date(p.expires) })].filter(Boolean).join(' · ') : '';
-  const summary = [
-    [t('Настрел за период'), fmt.num(fired)],
-    [t('Настрел всего'), fmt.num(total)],
-    [t('Дней со стрельбой'), fmt.num(new Set(shots.map((m) => m.date)).size)],
-    cost ? [t('Стоимость стрельб'), fmt.money(cost)] : null,
-    cost && fired ? [t('Средняя за выстрел'), fmt.money(cost / fired)] : null,
-    [t('Чисток за период'), fmt.num(moves.length - shots.length)],
-    lastClean ? [t('Последняя чистка'), fmt.date(lastClean.date)] : null,
-    [t('Выстрелов после чистки'), fmt.num(M.cleaningStatus(state, w).since)],
-    life > 0 ? [t('Ресурс ствола'), `${fmt.num(total)} / ${fmt.num(life)} (${Math.round((total / life) * 100)}%)`] : null,
+  const kv = (rows) => h('dl', { class: 'kv' }, rows.filter(Boolean).flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]));
+  const days = new Set(shots.map((m) => m.date)).size;
+  const barrel = [
+    progress(t('Ресурс ствола'), total, life),
+    kv([
+      from || to || !(life > 0) ? [t('Настрел всего'), fmt.num(total)] : null,
+      [t('Чисток за период'), fmt.num(moves.length - shots.length)],
+      lastClean ? [t('Последняя чистка'), fmt.date(lastClean.date)] : null,
+      [t('Выстрелов после чистки'), fmt.num(M.cleaningStatus(state, w).since)],
+    ]),
+  ];
+  const papers = [
     permit ? [t('Разрешение на оружие'), permit] : null,
     w.scopes?.length ? [t('Прицелы'), w.scopes.map((s) => s.name).join(', ')] : null,
+    kitText(w) ? [t('Оснащение'), kitText(w)] : null,
   ].filter(Boolean);
   const len = (mm) => length(mm, targetUnit, 100);
   const precision = M.ammoPrecision(state.targets.filter((x) => x.weaponId === w.id && inRange(x)), state.photos);
   return h('article', { class: 'report' },
-    h('h2', {}, w.name),
-    h('p', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ')),
-    h('p', { class: 'muted small' }, from || to
-      ? t('Период: {from} — {to}', { from: from ? fmt.date(from) : '…', to: fmt.date(to) })
-      : t('Период: всё время')),
-    h('dl', { class: 'kv report-kv' }, summary.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
-    precision.length ? [h('h3', {}, t('Кучность по патронам (на 100 м)')),
+    h('header', { class: 'report-head' },
+      h('div', {},
+        h('h2', {}, w.name),
+        h('div', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`].filter(Boolean).join(' · '))),
+      h('span', { class: 'report-period' }, from || to
+        ? `${from ? fmt.date(from) : '…'} — ${fmt.date(to)}`
+        : t('всё время'))),
+    h('div', { class: 'stats report-stats' },
+      stat(t('настрел'), fmt.num(fired), 'accent'),
+      stat(t('дней'), fmt.num(days)),
+      cost ? stat(t('стоимость'), tileMoney(cost)) : null,
+      cost && fired ? stat(t('за выстрел'), tileMoney(cost / fired)) : null),
+    box(t('Ствол'), barrel),
+    papers.length ? box(t('Документы и оснащение'), kv(papers)) : null,
+    precision.length ? box(t('Кучность по патронам (на 100 м)'),
       reportTable([t('Патрон'), t('Групп'), t('Выстр.'), t('Ср. радиус'), t('Лучший размах')],
         precision.map((r) => [findCartridge(r.cartridgeId)?.name ?? t('(удалено)'), fmt.num(r.groups), fmt.num(r.shots), len(r.meanRadius), len(r.best)]),
-        [1, 2, 3, 4])] : null,
-    h('h3', {}, t('Стрельбы и чистки')),
-    moves.length
-      ? reportTable([t('Дата'), t('Тип'), t('Патрон'), t('Кол-во'), t('Сумма'), t('Примечание')],
-        moves.map((m) => {
-          const money = m.kind === 'shot' ? M.shotCost(state, m) : 0;
-          return [fmt.date(m.date), t(M.KINDS[m.kind]), m.kind === 'shot' ? movementTitle(m) : '',
-            m.kind === 'shot' ? fmt.num(-m.qty) : '', money ? fmt.money(money) : '', m.note ?? ''];
-        }), [3, 4])
-      : h('p', { class: 'muted small' }, t('За период записей нет')),
+        { numeric: [1, 2, 3, 4] })) : null,
+    box(t('Стрельбы и чистки'), moves.length ? reportMoves(moves) : h('p', { class: 'muted small' }, t('За период записей нет'))),
     h('p', { class: 'muted small report-foot' }, t('Создано в Shooters Log {date}', { date: fmt.date(M.today()) })));
 }
 
