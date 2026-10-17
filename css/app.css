@@ -840,7 +840,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row {
   display: grid;
   grid-template-columns: 1fr 1fr 40px;
-  grid-template-areas: "name name del" "kind ret ret" "zero click click" "note note note" "def def def";
+  grid-template-areas: "name name del" "kind ret ret" "zero click click" "own own own" "note note note" "def def def";
   gap: 6px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -852,6 +852,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row .sc-ret { grid-area: ret; }
 .scope-row .sc-zero { grid-area: zero; }
 .scope-row .sc-click { grid-area: click; }
+.scope-row .sc-own { grid-area: own; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.scope-row .sc-own[hidden] { display: none; }
 .scope-row .sc-note { grid-area: note; }
 .scope-row .sc-def { grid-area: def; display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
 .scope-row .sc-def input { width: 20px; min-height: 20px; height: 20px; padding: 0; accent-color: var(--accent); }

@@ -9,7 +9,7 @@ import { cartridgeIcon, caliberHue } from './ammo.js';
 import { lineChart, barChart } from './chart.js';
 import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
 import { timerPanel, stopTimerPanel } from './timer.js';
-import { exercisesPanel, exerciseName, newExercise } from './exercises.js';
+import { exercisesPanel, exerciseName, newExercise, openScore } from './exercises.js';
 import { CHANGES, newer } from './changelog.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn,
@@ -1044,9 +1044,20 @@ function weaponForm(w = null) {
       Object.entries(SCOPE_KINDS).map(([k, label]) => h('option', { value: k, selected: k === (s.kind ?? 'optic') }, t(label))));
     const zero = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: t('Пристрелка, м'), class: 'sc-zero' });
     zero.value = s.zero ?? '';
-    // ціна клацання прицілу — підставляється в мішень, коли вибрали цей приціл
+    // ціна клацання прицілу — підставляється в мішень, коли вибрали цей приціл; нестандартна — «Своє значення»
+    const own = s.click && !CLICKS.some(([k]) => k === s.click) ? CLICK_KEY.exec(s.click) : null;
     const click = h('select', { class: 'sc-click', 'aria-label': t('Цена щелчка прицела') },
-      [['', t('— цена щелчка —')], ...CLICKS].map(([k, label]) => h('option', { value: k, selected: k === (s.click ?? '') }, k ? t(label) : label)));
+      [['', t('— цена щелчка —')], ...CLICKS, [OWN_CLICK, 'Своё значение…']]
+        .map(([k, label]) => h('option', { value: k, selected: k === (own ? OWN_CLICK : s.click ?? '') }, k ? t(label) : label)));
+    const ownValue = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: t('Цена щелчка'), class: 'sc-own-value' });
+    ownValue.value = own ? Number(own[2]) : '';
+    const ownUnit = h('select', { class: 'sc-own-unit', 'aria-label': t('Единица') },
+      [['mil', 'MRAD'], ['moa', 'MOA'], ['mm', t('мм / 100 м')]].map(([k, label]) => h('option', { value: k, selected: k === (own?.[1] ?? 'mil') }, label)));
+    const ownBox = h('div', { class: 'sc-own', hidden: !own }, ownValue, ownUnit);
+    click.addEventListener('change', () => {
+      ownBox.hidden = click.value !== OWN_CLICK;
+      if (!ownBox.hidden) ownValue.focus();
+    });
     const reticle = h('select', { class: 'sc-ret', 'aria-label': t('Сетка') },
       [['', t('— сетка —')], ...RETICLES].map(([k, label]) => h('option', { value: k, selected: k === (s.reticle ?? '') }, k ? t(label) : label)));
     const note = h('input', { type: 'text', placeholder: t('Кронштейн, сетка, серийный №…'), autocomplete: 'off', class: 'sc-note' });
@@ -1058,7 +1069,7 @@ function weaponForm(w = null) {
     });
     const row = h('div', { class: 'scope-row', dataset: { id: s.id ?? db.uid() } }, name,
       h('button', { type: 'button', class: 'icon-btn sc-del', 'aria-label': t('Убрать прицел'), onclick: () => row.remove() }, '✕'),
-      kind, reticle, zero, click, note,
+      kind, reticle, zero, click, ownBox, note,
       h('label', { class: 'sc-def small' }, def, t('Использовать по умолчанию при записи стрельбы')));
     scopesBox.append(row);
   };
@@ -1069,15 +1080,24 @@ function weaponForm(w = null) {
   });
   async function save() {
     if (invalidField(f) || permit.invalid()) return;
+    // «Своє значення» без числа інакше тихо стерло б ціну клацання
+    const noOwn = [...scopesBox.querySelectorAll('.scope-row')].find((row) => row.querySelector('.sc-click').value === OWN_CLICK
+      && row.querySelector('.sc-name').value.trim() && !ownClickKey(row.querySelector('.sc-own-value').value, 'mil'));
+    if (noOwn) {
+      fieldError(noOwn.querySelector('.sc-own-value'), t('Укажите цену щелчка'));
+      noOwn.querySelector('.sc-own-value').focus();
+      return;
+    }
     const v = f.values();
     const scopes = [...scopesBox.querySelectorAll('.scope-row')].map((row) => {
       const zero = Number(String(row.querySelector('.sc-zero').value).replace(',', '.'));
+      const click = row.querySelector('.sc-click').value;
       return {
         id: row.dataset.id,
         name: row.querySelector('.sc-name').value.trim(),
         kind: row.querySelector('.sc-kind').value,
         zero: zero > 0 ? zero : null,
-        click: row.querySelector('.sc-click').value || null,
+        click: click === OWN_CLICK ? ownClickKey(row.querySelector('.sc-own-value').value, row.querySelector('.sc-own-unit').value) : click || null,
         reticle: row.querySelector('.sc-ret').value || null,
         note: row.querySelector('.sc-note').value.trim(),
         default: row.querySelector('.sc-def input').checked,
@@ -1826,7 +1846,9 @@ function movementBody(m, close, edit = false) {
       box(t('Запись'), kv(
         row('Дата', edit ? dateInput : targetWhen(m)),
         edit ? row('Время', timeInput) : null,
-        score ? row('Упражнение', [h('b', {}, exerciseName(score.exercise) ?? '—'), ` · ${fmt.num(score.score)}`]) : null,
+        // Тап — картка результату вправи поверх картки стрільби
+        score ? row('Упражнение', h('button', { type: 'button', class: 'link-btn', onclick: () => openScore(score, exerciseCtx()) },
+          h('b', {}, exerciseName(score.exercise) ?? '—'), ` · ${fmt.num(score.score)}`)) : null,
         edit ? row('Количество', editQty ? qtyInput : fmt.num(n)) : null,
         edit && editPrice ? row('Стоимость', priceInput) : null,
         edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null)),
@@ -2217,11 +2239,16 @@ function renderRange() {
 
 function renderExercises() {
   $('subtitle').textContent = t('результатов: {n}', { n: state.scores.length });
+  return exercisesPanel(exerciseCtx());
+}
+
+/** Що панель і картка результату беруть із застосунку: стволи, набої, збереження, мішені. */
+function exerciseCtx() {
   const weapons = state.weapons.filter((w) => !w.archived).sort(byName).map((w) => [w.id, w.name]);
   const cartridges = state.cartridges.filter((c) => !c.archived)
     .sort((a, b) => collate(a.caliber, b.caliber) || collate(a.name, b.name))
     .map((c) => [c.id, `${c.name} · ${c.caliber}`, M.cartridgeStock(state, c.id)]);
-  return exercisesPanel({
+  return {
     scores: state.scores, weapons, cartridges, drills: state.drills, box, stat,
     lastAmmo: (weaponId) => M.lastAmmo(state, weaponId),
     pickAmmo: (select) => ammoPicker(select),
@@ -2267,7 +2294,7 @@ function renderExercises() {
       await refresh();
       confirmed();
     },
-  });
+  };
 }
 
 /** Таймер прямо з результату вправи: серія зберігається як завжди, а її час іде в поле. */
@@ -2611,7 +2638,8 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
   const f = form([
     { name: 'weaponId', label: t('Оружие'), type: 'select', value: gunId, options: [['', t('— не указывать —')], ...guns.map((w) => [w.id, w.name])] },
     { name: 'scopeId', label: t('Прицел'), type: 'select', value: scope0?.id ?? '', options: scopeOptions(findWeapon(gunId)) },
-    { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true, options: CLICKS.map(([k, label]) => [k, t(label)]),
+    { name: 'click', label: t('Цена щелчка прицела'), type: 'chips', wide: true,
+      options: clickChoices(tg?.click, ...guns.flatMap((w) => (w.scopes ?? []).map((s) => s.click))),
       value: tg?.click ?? scope0?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
     { name: 'cartridgeId', label: t('Патроны'), type: 'select', value: ammoId, options: ammo(gunId) },
     { name: 'distance', label: t('Дистанция, м'), type: 'number', step: 'any', min: 0, required: true, value: distance0 },
@@ -2847,9 +2875,30 @@ function scopeText(s) {
   return [s.name, s.zero ? t('пристрелка {n} м', { n: fmt.num(s.zero) }) : null].filter(Boolean).join(' · ');
 }
 
+// Ключ ціни клацання: одиниця й число — 'mil0.1', 'moa0.25', 'mm13' (мм на 100 м).
+const CLICK_KEY = /^(mil|moa|mm)([\d.]+)$/;
+const OWN_CLICK = 'own';
+
+/** Своє значення ціни клацання → ключ виду 'mil0.2'; null — порожньо або не додатне число. */
+function ownClickKey(value, unit) {
+  const v = Number(String(value).replace(',', '.'));
+  return v > 0 ? `${unit}${+v.toFixed(4)}` : null;
+}
+
+/** Підпис ціни клацання: зі списку або своє значення — «0,2 MRAD», «0,24 MOA», «10 мм / 100 м». */
 function clickLabel(key) {
   const row = CLICKS.find(([k]) => k === key);
-  return row ? t(row[1]) : null;
+  if (row) return t(row[1]);
+  const m = CLICK_KEY.exec(key ?? '');
+  if (!m) return null;
+  const v = String(Number(m[2])).replace('.', ',');
+  return m[1] === 'mm' ? t('{v} мм / 100 м', { v }) : `${v} ${m[1] === 'moa' ? 'MOA' : 'MRAD'}`;
+}
+
+/** Чіпи ціни клацання в мішені: стандартні плюс свої значення з прицілів і самої мішені. */
+function clickChoices(...keys) {
+  const own = [...new Set(keys.filter((k) => k && !CLICKS.some(([c]) => c === k) && CLICK_KEY.test(k)))];
+  return [...CLICKS.map(([k, label]) => [k, t(label)]), ...own.map((k) => [k, clickLabel(k)])];
 }
 
 /** Ціна клацання плюс скільки це сантиметрів на цій дистанції: «0,1 MRAD · 3,0 см на 300 м». */
@@ -3474,7 +3523,7 @@ function importData(file) {
   reader.readAsText(file);
 }
 
-/** Демодані з комплекту: рік обліку з мішенями, вправами й серіями таймера — подивитися, як воно працює. */
+/** Демодані з комплекту: облік з 2022 року з мішенями, вправами й серіями таймера — подивитися, як воно працює. */
 async function loadDemo() {
   toast(t('Загружаю демо-данные…'));
   try {
@@ -3625,7 +3674,7 @@ function aboutPanel() {
       h('li', {}, t('Заведите ствол на вкладке «Оружие» и патрон на вкладке «Набої».')),
       h('li', {}, t('Свайп по карточке патрона: вправо — покупка, влево — списание на стрельбу.')),
       h('li', {}, t('После стрельбы сфотографируйте мишень: «Полигон» → «Мишени» → «+». Отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
-      h('li', {}, t('Не хотите вводить своё — ⚙ → «Загрузить демо-данные», там готовый год учёта.')))),
+      h('li', {}, t('Не хотите вводить своё — ⚙ → «Загрузить демо-данные», там готовый учёт с 2022 года.')))),
     h('p', { class: 'muted small' },
       link('https://github.com/VitaliyLobko/shooting-log', t('Исходный код')), ' · ',
       link('https://github.com/VitaliyLobko/shooting-log/blob/main/PRIVACY.md', t('Приватность')), ' · ',
@@ -3669,7 +3718,7 @@ function renderSettings() {
       h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
       h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => changesSheet(CHANGES)))),
     h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
-      h('p', { class: 'muted small' }, t('Год учёта для примера: три ствола, покупки и стрельбы, размеченные мишени, упражнения и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
+      h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: шесть стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
       h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))),
     h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
     h('section', { class: 'panel' }, h('h3', {}, t('Тема')), (() => {
