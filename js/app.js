@@ -1264,9 +1264,107 @@ function gallery(weaponId) {
 
 function weaponDetail(w) {
   const body = () => { const cur = findWeapon(w.id); return cur ? weaponBody(cur, () => close()) : null; };
-  const tools = cardTools(() => { close(); weaponForm(findWeapon(w.id) ?? w); }, weaponHasMoves(w),
-    () => { close(); removeWeapon(findWeapon(w.id) ?? w); });
+  const tools = [toolBtn('report', t('Отчёт'), () => reportSheet(findWeapon(w.id) ?? w)),
+    ...cardTools(() => { close(); weaponForm(findWeapon(w.id) ?? w); }, weaponHasMoves(w),
+      () => { close(); removeWeapon(findWeapon(w.id) ?? w); })];
   const close = sheet(w.name, body(), { live: body, tools });
+}
+
+const REPORT_PERIODS = [['all', 'За всё время'], ['year', 'Этот год'], ['last', 'Прошлый год'], ['12m', 'Последние 12 месяцев']];
+
+/** Межі періоду звіту [від, до] включно; null — без межі. */
+function reportRange(period) {
+  const today = M.today();
+  const y = Number(today.slice(0, 4));
+  if (period === 'year') return [`${y}-01-01`, today];
+  if (period === 'last') return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+  if (period === '12m') return [M.addDays(today, -365), today];
+  return [null, null];
+}
+
+/** Звіт по стволу: перегляд у шторці, а PDF — з вікна друку браузера («Зберегти як PDF»). */
+function reportSheet(w) {
+  let period = REPORT_PERIODS.some(([k]) => k === recall('shooters-log:report-period')) ? recall('shooters-log:report-period') : 'all';
+  const preview = h('div', { class: 'report-preview' });
+  const draw = () => preview.replaceChildren(weaponReport(findWeapon(w.id) ?? w, reportRange(period)));
+  const periods = chips(REPORT_PERIODS.map(([k, label]) => [k, t(label)]), period, (v) => {
+    period = v;
+    remember('shooters-log:report-period', v);
+    draw();
+  });
+  draw();
+  const close = sheet(t('Отчёт по оружию'),
+    h('div', {}, periods, h('p', { class: 'muted small' }, t('В окне печати выберите «Сохранить как PDF», чтобы получить файл.')), preview), {
+      actions: [btn(t('Закрыть'), () => close()), btn(t('Печать / PDF'), () => printReport(preview.firstChild), 'primary')],
+    });
+}
+
+/** Друк: копія звіту поверх застосунку (решту ховає @media print), після друку прибирається. */
+function printReport(report) {
+  document.getElementById('print-report')?.remove();
+  const page = h('div', { id: 'print-report' }, report.cloneNode(true));
+  document.body.append(page);
+  window.addEventListener('afterprint', () => page.remove(), { once: true });
+  window.print();
+}
+
+/** Таблиця звіту; numeric — індекси колонок із числами (вирівнювання праворуч). */
+function reportTable(head, rows, numeric = []) {
+  const cls = (i) => (numeric.includes(i) ? 'num' : null);
+  return h('div', { class: 'report-scroll' }, h('table', {},
+    h('thead', {}, h('tr', {}, head.map((x, i) => h('th', { class: cls(i) }, x)))),
+    h('tbody', {}, rows.map((r) => h('tr', {}, r.map((x, i) => h('td', { class: cls(i) }, x ?? '')))))));
+}
+
+/** Зміст звіту: підсумки за період, купчастість за набоями й таблиця стрільб і чисток. */
+function weaponReport(w, [from, to]) {
+  const inRange = (x) => (!from || (x.date ?? '') >= from) && (!to || (x.date ?? '') <= to);
+  const all = state.movements.filter((m) => m.weaponId === w.id && (m.kind === 'shot' || m.kind === 'clean'));
+  const moves = all.filter(inRange).sort((a, b) => M.byDateDesc(b, a));
+  const shots = moves.filter((m) => m.kind === 'shot');
+  const fired = -M.sumBy(shots, () => true);
+  const cost = M.shotsCost(state, shots);
+  const total = M.weaponShots(state, w);
+  const life = Number(w.barrelLife);
+  const lastClean = all.filter((m) => m.kind === 'clean').sort(M.byDateDesc)[0];
+  const p = w.permit;
+  const permit = p ? [p.number && `№ ${p.number}`, p.expires && t('действует до {date}', { date: fmt.date(p.expires) })].filter(Boolean).join(' · ') : '';
+  const summary = [
+    [t('Настрел за период'), fmt.num(fired)],
+    [t('Настрел всего'), fmt.num(total)],
+    [t('Дней со стрельбой'), fmt.num(new Set(shots.map((m) => m.date)).size)],
+    cost ? [t('Стоимость стрельб'), fmt.money(cost)] : null,
+    cost && fired ? [t('Средняя за выстрел'), fmt.money(cost / fired)] : null,
+    [t('Чисток за период'), fmt.num(moves.length - shots.length)],
+    lastClean ? [t('Последняя чистка'), fmt.date(lastClean.date)] : null,
+    [t('Выстрелов после чистки'), fmt.num(M.cleaningStatus(state, w).since)],
+    life > 0 ? [t('Ресурс ствола'), `${fmt.num(total)} / ${fmt.num(life)} (${Math.round((total / life) * 100)}%)`] : null,
+    permit ? [t('Разрешение на оружие'), permit] : null,
+    w.scopes?.length ? [t('Прицелы'), w.scopes.map((s) => s.name).join(', ')] : null,
+  ].filter(Boolean);
+  const len = (mm) => length(mm, targetUnit, 100);
+  const precision = M.ammoPrecision(state.targets.filter((x) => x.weaponId === w.id && inRange(x)), state.photos);
+  return h('article', { class: 'report' },
+    h('h2', {}, w.name),
+    h('p', { class: 'muted small' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ')),
+    h('p', { class: 'muted small' }, from || to
+      ? t('Период: {from} — {to}', { from: from ? fmt.date(from) : '…', to: fmt.date(to) })
+      : t('Период: всё время')),
+    h('dl', { class: 'kv report-kv' }, summary.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
+    precision.length ? [h('h3', {}, t('Кучность по патронам (на 100 м)')),
+      reportTable([t('Патрон'), t('Групп'), t('Выстр.'), t('Ср. радиус'), t('Лучший размах')],
+        precision.map((r) => [findCartridge(r.cartridgeId)?.name ?? t('(удалено)'), fmt.num(r.groups), fmt.num(r.shots), len(r.meanRadius), len(r.best)]),
+        [1, 2, 3, 4])] : null,
+    h('h3', {}, t('Стрельбы и чистки')),
+    moves.length
+      ? reportTable([t('Дата'), t('Тип'), t('Патрон'), t('Кол-во'), t('Сумма'), t('Примечание')],
+        moves.map((m) => {
+          const money = m.kind === 'shot' ? M.shotCost(state, m) : 0;
+          return [fmt.date(m.date), t(M.KINDS[m.kind]), m.kind === 'shot' ? movementTitle(m) : '',
+            m.kind === 'shot' ? fmt.num(-m.qty) : '', money ? fmt.money(money) : '', m.note ?? ''];
+        }), [3, 4])
+      : h('p', { class: 'muted small' }, t('За период записей нет')),
+    h('p', { class: 'muted small report-foot' }, t('Создано в Shooters Log {date}', { date: fmt.date(M.today()) })));
 }
 
 const weaponHasMoves = (w) => state.movements.some((m) => m.weaponId === w.id);
@@ -1391,6 +1489,54 @@ function dopeCard(w, d) {
 }
 
 /** Форма таблиці DOPE: приціл, набій, одиниці й рядки «дистанція — поправка» (плюс — вгору). */
+/**
+ * «Вставити таблицю» у формі DOPE: текст зі Strelok, Excel чи блокнота → рядки форми.
+ * Дистанція — перша колонка; яка колонка поправка, а яка вітер — вибирають (у Strelok їх багато).
+ */
+function dopePaste(onRows) {
+  const text = h('textarea', { class: 'dope-paste-text', rows: 5, placeholder: '100  0\n200  0,9  0,3\n300  2,1  0,6', 'aria-label': t('Таблица') });
+  const valueCol = h('select', { 'aria-label': t('Поправка — колонка') });
+  const windCol = h('select', { 'aria-label': t('Ветер — колонка') });
+  const found = h('small', { class: 'muted' });
+  let table = [];
+  // Колонку вітру, вибрану руками (зокрема «без вітру»), нове вставлення не перебиває
+  let windPicked = false;
+  windCol.addEventListener('change', () => { windPicked = true; });
+  const read = () => {
+    table = M.parseTable(text.value);
+    const n = Math.max(0, ...table.map((r) => r.length));
+    const first = table[0] ?? [];
+    const cols = Array.from({ length: Math.max(0, n - 1) }, (_, i) => i + 1)
+      .map((i) => [i, `${t('колонка {n}', { n: i + 1 })}${first[i] === undefined ? '' : ` · ${num(first[i], 2)}`}`]);
+    const keep = (sel, fallback) => (cols.some(([i]) => String(i) === sel.value) ? sel.value : fallback);
+    const value = keep(valueCol, 1);
+    const wind = windPicked ? keep(windCol, '') : n >= 3 ? 2 : '';
+    valueCol.replaceChildren(...selectOptions(cols, value));
+    windCol.replaceChildren(...selectOptions([['', t('без ветра')], ...cols], wind));
+    found.textContent = text.value.trim() ? t('Строк: {n}', { n: table.length }) : '';
+  };
+  text.addEventListener('input', read);
+  const cell = (row, col) => (col === '' || row[col] === undefined ? '' : String(row[col]).replace('.', ','));
+  const panel = h('div', { class: 'dope-paste', hidden: true },
+    h('p', { class: 'muted small' }, t('Скопируйте таблицу из баллистического калькулятора (Стрілець, Strelok) или Excel либо напишите строками: дистанция, поправка, ветер. Числа — в единицах, выбранных выше.')),
+    text, found,
+    h('div', { class: 'dope-paste-cols' },
+      h('label', { class: 'small' }, t('Поправка — колонка'), valueCol),
+      h('label', { class: 'small' }, t('Ветер — колонка'), windCol)),
+    btn(t('Заполнить строки'), () => {
+      if (!table.length) { fieldError(text, t('Не нашёл строк: в начале строки — дистанция, дальше поправка')); return; }
+      onRows(table.map((r) => ({ distance: Math.round(r[0]), value: cell(r, Number(valueCol.value)), wind: cell(r, windCol.value === '' ? '' : Number(windCol.value)) }))
+        .filter((r) => r.value !== ''));
+      panel.hidden = true;
+    }, 'primary'));
+  read();
+  const button = btn(t('Вставить таблицу'), () => {
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) text.focus();
+  });
+  return { button, panel };
+}
+
 function dopeForm(w, d = null) {
   const scopes = w.scopes ?? [];
   const cartridges = caliberOptions(state.cartridges.filter((c) => !c.archived || c.id === d?.cartridgeId), w.caliber);
@@ -1457,9 +1603,13 @@ function dopeForm(w, d = null) {
   else (scope()?.zero >= 100 ? [200, 300, 400, 500] : [100, 200, 300]).forEach((x) => addRow(x));
   f.inputs.scopeId.addEventListener('change', drawUnits);
   windForm.el.classList.add('dope-wind');
+  const paste = dopePaste((rows) => {
+    rowsBox.replaceChildren();
+    rows.forEach((r) => addRow(r.distance, r.value, r.wind));
+  });
   const body = h('div', {}, f.el, h('h3', {}, t('Поправки')), units, unitHint, windForm.el,
     h('div', { class: 'dope-row dope-cols muted small' }, h('span', {}, t('Дистанция, м')), h('span', {}, t('Поправка')), h('span', {}, t('Ветер'))),
-    rowsBox, btn(t('+ строка'), () => addRow()));
+    rowsBox, h('div', { class: 'btn-row' }, btn(t('+ строка'), () => addRow()), paste.button), paste.panel);
   drawUnits();
   const remove = d ? () => confirmSheet(t('Удалить таблицу?'), dopeTitle(w, d), t('Удалить'), async () => {
     close();
@@ -2138,13 +2288,14 @@ function renderLog() {
     class: 'log-sel', 'aria-label': t('Оружие'),
     onchange: (e) => { logWeapon = e.target.value; render(); },
   }, h('option', { value: '' }, t('Всё оружие')), guns.map((w) => h('option', { value: w.id, selected: w.id === logWeapon }, w.name))) : null;
+  const csv = toolBtn('share', t('Экспорт в CSV'), () => exportCsv(list));
   return h('div', {},
     logWeapon
       ? hero(findWeapon(logWeapon).name, fmt.num(M.weaponShots(state, findWeapon(logWeapon))), t('настрел всего, вместе с настрелом до начала учёта'))
       : shotsPanel(),
     // Як і блоки над ним — залежить лише від вибраної зброї, не від типу записів
     periodChartBox(logWeapon ? state.movements.filter((m) => m.weaponId === logWeapon) : state.movements),
-    h('div', { class: 'log-controls' }, period, h('div', { class: 'log-selects' }, typeSelect, gunSelect)),
+    h('div', { class: 'log-controls' }, period, h('div', { class: 'log-selects' }, typeSelect, gunSelect, csv)),
     list.length
       ? logGroups(list)
       : empty(t('Записей нет'), t('Свайпните патрон в разделе БК, чтобы купить или списать.')));
@@ -3605,17 +3756,43 @@ function download(name, content) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function exportData(share) {
-  const payload = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data: state }, null, 1);
-  const name = `shooters-log-${M.today()}.json`;
+/** Файл — через «Поділитися» (на телефоні: Telegram, Диск…), де не вміє — завантаженням; false — скасували. */
+async function offerFile(name, content, type, share = true) {
   if (share) {
-    const file = new File([payload], name, { type: 'application/json' });
+    const file = new File([content], name, { type });
     if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name }); remember(BACKUP_KEY, M.today()); return; } catch (e) { if (e.name === 'AbortError') return; }
+      try { await navigator.share({ files: [file], title: name }); return true; } catch (e) { if (e.name === 'AbortError') return false; }
     }
   }
-  download(name, payload);
-  remember(BACKUP_KEY, M.today());
+  download(name, new Blob([content], { type }));
+  return true;
+}
+
+async function exportData(share) {
+  const payload = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data: state }, null, 1);
+  if (await offerFile(`shooters-log-${M.today()}.json`, payload, 'application/json', share)) remember(BACKUP_KEY, M.today());
+}
+
+/**
+ * Журнал у CSV для Excel — ті записи, що зараз на екрані (тип і зброя з фільтра), від старих до нових.
+ * «;» і десяткова кома — як чекає Excel з українськими налаштуваннями; BOM — щоб не поламалась кирилиця.
+ */
+async function exportCsv(list) {
+  if (!list.length) { toast(t('Нет записей для экспорта')); return; }
+  const cell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  const dec = (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : '');
+  const rows = [...list].sort((a, b) => M.byDateDesc(b, a)).map((m) => {
+    const gun = m.kind === 'clean' ? findWeapon(m.weaponId)?.name : shotGun(m)?.name;
+    const unit = m.kind === 'clean' ? '' : m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт';
+    return [fmt.date(m.date), m.time ?? '', t(M.KINDS[m.kind]), gun ?? '', m.kind === 'clean' ? '' : movementTitle(m),
+      m.kind === 'clean' ? '' : String(m.qty).replace('.', ','), unit, dec(m.kind === 'shot' ? M.shotCost(state, m) : m.price), m.note ?? ''];
+  });
+  const head = [t('Дата'), t('Время'), t('Тип'), t('Оружие'), t('Патрон / компонент'), t('Количество'), t('Ед.'), t('Сумма'), t('Примечание')];
+  const text = `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
+  await offerFile(`shooters-log-journal-${M.today()}.csv`, text, 'text/csv');
 }
 
 // Коли востаннє зберігали копію — для нагадування й рядка в ⚙ (лише на цьому пристрої).

@@ -349,6 +349,19 @@ export function parseSpeeds(text) {
     .filter(Boolean).map(Number);
 }
 
+/**
+ * Таблиця з буфера (Strelok, Excel, блокнот) → рядки чисел. Колонки ділять табуляція, пробіли чи «;» —
+ * тоді кома в числі десяткова; рядок лише з комами (CSV) ділиться комами. Заголовки й рядки без
+ * дистанції на початку пропускаються.
+ */
+export function parseTable(text) {
+  return String(text ?? '').split(/\r?\n/).map((line) => {
+    const s = line.trim().replaceAll('−', '-');
+    const cells = /[\s;]/.test(s) ? s.split(/[\s;]+/) : s.split(',');
+    return cells.map((c) => c.match(/^[+-]?\d+(?:[.,]\d+)?/)?.[0]).filter(Boolean).map((c) => Number(c.replace(',', '.')));
+  }).filter((row) => row.length >= 2 && row[0] > 0);
+}
+
 export function drillStats(shots) {
   const list = [...(shots ?? [])].sort((a, b) => a - b);
   const splits = list.slice(1).map((x, i) => x - list[i]);

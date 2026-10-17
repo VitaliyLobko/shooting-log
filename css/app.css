@@ -1541,3 +1541,31 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 
 .changes { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .row-day { color: var(--text); font-weight: 700; }
+
+/* DOPE: вставка таблиці */
+.dope-paste { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.dope-paste[hidden] { display: none; }
+.dope-paste-text { width: 100%; font: 14px/1.4 ui-monospace, monospace; }
+.dope-paste-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dope-paste-cols label { display: grid; gap: 4px; }
+
+/* Звіт по стволу: перегляд у шторці й друк */
+.report h2 { margin: 4px 0 2px; }
+.report h3 { margin: 16px 0 6px; font-size: 15px; }
+.report-kv { margin: 10px 0; }
+.report-scroll { overflow-x: auto; }
+.report table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report th, .report td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.report th { font-weight: 700; color: var(--muted); }
+.report .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.report-foot { margin-top: 14px; }
+#print-report { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  body > *:not(#print-report) { display: none !important; }
+  html, body { background: #fff !important; }
+  #print-report { display: block; color: #000; font-size: 12px; }
+  #print-report * { color: #000 !important; border-color: #bbb !important; background: transparent !important; }
+  #print-report .report-scroll { overflow: visible; }
+  #print-report tr { break-inside: avoid; }
+}
