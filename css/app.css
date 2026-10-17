@@ -1248,7 +1248,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tg-group { padding: 10px 0 0; border-top: 1px solid var(--line-soft); }
 .tg-group h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; }
 .tg-group .kv { font-variant-numeric: tabular-nums; }
-.box > legend .tg-swatch { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.box > legend /* Вибрана пробоїна — номери груп підсвічені пунктиром: туди її можна перенести. */
+.tg-move { border-style: dashed !important; color: var(--accent-2); }
+
+.tg-swatch { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
 .box > legend .box-count { margin-left: 6px; text-transform: none; }
 .box > legend .icon-btn.tool.small { display: inline-grid; width: 30px; height: 30px; margin-left: 8px; vertical-align: middle; }
 .box > legend .icon-btn.tool.small svg { width: 16px; height: 16px; }
