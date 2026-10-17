@@ -557,8 +557,24 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       findBtn.title = findBtn.disabled ? t('Сначала задайте масштаб') : t('Ищет в видимой части фото');
       groupRow.replaceChildren(
         ...st.groups.map((g, i) => h('button', {
-          type: 'button', class: i === active ? 'on' : '',
-          onclick: () => { active = i; selected = null; paint(); },
+          // Вибрана пробоїна — тап по номеру групи переносить її туди: інакше довелося б
+          // видаляти й ставити заново (а на одній мішені буває дві серії).
+          type: 'button', class: `${i === active ? 'on' : ''} ${selected?.kind === 'hole' && selected.g !== i ? 'tg-move' : ''}`.trim(),
+          onclick: () => {
+            if (selected?.kind === 'hole' && selected.g !== i) {
+              snapshot();
+              const [p] = st.groups[selected.g].holes.splice(selected.i, 1);
+              st.groups[i].holes.push(p);
+              active = i;
+              selected = { kind: 'hole', g: i, i: st.groups[i].holes.length - 1 };
+              vibrate();
+              paint();
+              return;
+            }
+            active = i;
+            selected = null;
+            paint();
+          },
         }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`)),
         h('button', {
           type: 'button',
@@ -587,7 +603,9 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             scaleNote()].filter(Boolean).join(' '))
         : mode === 'poa'
           ? t('Отметьте точку, в которую целились.')
-          : notice ?? t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.');
+          : notice ?? (selected?.kind === 'hole' && st.groups.length > 1
+            ? t('Пробоина выбрана: ✕ удалит её, а номер группы — перенесёт в ту группу.')
+            : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.'));
       const k = M.mmPerPx(st.scale, { w: W, h: H });
       const group = M.targetStats(st, { w: W, h: H })[active];
       if (!k) stats.textContent = t('Задайте масштаб — без него размеры не посчитать');
@@ -659,8 +677,11 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     }
     /** Мітка поточного режиму під пальцем. */
     function hitTest(at) {
+      // Пробоїни беремо з усіх груп: інакше чужу не вибрати, щоб перенести чи прибрати.
+      // Своя група першою — коли пробоїни двох груп злиплися, перемагає активна.
       const list = mode === 'holes'
-        ? st.groups[active].holes.map((p, i) => ({ kind: 'hole', g: active, i, p }))
+        ? [active, ...st.groups.keys()].filter((g, i, a) => a.indexOf(g) === i)
+          .flatMap((g) => st.groups[g].holes.map((p, i) => ({ kind: 'hole', g, i, p })))
         : mode === 'poa'
           ? (st.poa ? [{ kind: 'poa', p: st.poa }] : [])
           : Object.entries(END).filter(([, [l, end]]) => l === line && st[l][end]).map(([kind, [l, end]]) => ({ kind, p: st[l][end] }));
@@ -741,7 +762,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       const { hit, moved, mouse } = action;
       action = null;
       if (e.type === 'pointercancel') { paint(); return; }
-      if (hit && !moved) selected = { kind: hit.kind, g: hit.g, i: hit.i };
+      if (hit && !moved) {
+        selected = { kind: hit.kind, g: hit.g, i: hit.i };
+        if (hit.kind === 'hole') active = hit.g;
+      }
       else if (!hit && !(mouse && moved)) {
         const n = toNorm(at);
         if (inside(n)) place(n);
