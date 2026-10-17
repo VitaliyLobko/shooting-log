@@ -78,10 +78,9 @@ export function elevText(mrad, click) {
   return `${text} = ${Math.round(Number((angle / c.value).toFixed(6)))} ${t('щелч.')}`;
 }
 
-/** Винос у сітці прицілу: 'mil' чи 'moa' — у поділках сітки, інакше (точка, без сітки) — сантиметри на цілі. */
-export function holdText(mrad, distance, reticle) {
+/** Винос у сітці прицілу: 'mil' чи 'moa' — у поділках сітки, інакше (точка, без сітки) — сантиметри на цілі; arrow — напрям (для вітру ← →). */
+export function holdText(mrad, distance, reticle, arrow = mrad > 0 ? '↑' : '↓') {
   if (Math.abs(mrad) < 0.0005) return '0';
-  const arrow = mrad > 0 ? '↑' : '↓';
   const cm = `${num(Math.abs(M.fromMrad(mrad, 'cm', distance)), 0)} ${t('см')}`;
   if (reticle !== 'mil' && reticle !== 'moa') return `${arrow} ${cm}`;
   return `${arrow} ${num(Math.abs(M.fromMrad(mrad, reticle)), 1)} ${reticle === 'moa' ? 'MOA' : 'MRAD'} · ${cm}`;

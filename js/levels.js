@@ -37,45 +37,26 @@ function star(cx, cy, r, fill) {
 }
 
 /**
- * Жетон звання: диск із металу (бронза → срібло → золото), зірки за рівнем, вінок і промені на вершині.
- * Без металу — порожній пунктирний контур: настрілу ще немає.
+ * Лички звання: шеврони з металу (бронза → срібло → золото), зірки над ними й вінок на вершині.
+ * Без металу — порожній пунктирний шеврон: настрілу ще немає.
  */
-function badge(metal, stars, { wreath = false, rays = false } = {}) {
-  const cx = 48;
-  const cy = 30;
-  const R = 19;
-  const dark = { bronze: '#6b3a1c', silver: '#6d757c', gold: '#7d5610' }[metal] ?? '#8c958a';
+function chevrons(metal, count, { stars = 0, wreath = false } = {}) {
+  if (!metal) return '<path d="M30 30 L48 41 L66 30 L66 37 L48 48 L30 37 Z" fill="none" stroke="#8c958a" stroke-width="2" stroke-dasharray="4 3"/>';
+  const dark = { bronze: '#6b3a1c', silver: '#6d757c', gold: '#7d5610' }[metal];
+  const fill = `url(#lv-${metal})`;
+  const top = 46 - count * 9;
   let out = '';
-  if (rays) {
-    for (let i = 0; i < 12; i++) {
-      const a = (Math.PI / 6) * i;
-      out += `<line x1="${(cx + Math.cos(a) * (R + 3)).toFixed(1)}" y1="${(cy + Math.sin(a) * (R + 3)).toFixed(1)}"`
-        + ` x2="${(cx + Math.cos(a) * (R + 8)).toFixed(1)}" y2="${(cy + Math.sin(a) * (R + 8)).toFixed(1)}"`
-        + ' stroke="#e0ad3e" stroke-width="2" stroke-linecap="round" opacity=".55"/>';
-    }
+  for (let i = 0; i < count; i++) {
+    const y = top + i * 9;
+    out += `<path d="M30 ${y} L48 ${y + 11} L66 ${y} L66 ${y + 7} L48 ${y + 18} L30 ${y + 7} Z" fill="${fill}" stroke="${dark}" stroke-width="1"/>`;
   }
-  if (metal) {
-    out += `<path d="M${cx - 15} ${cy + R - 4} h30 l-4 ${R + 14} -11 -7 -11 7z" fill="url(#lv-ribbon)"/>`;
-    out += `<path d="M${cx - 15} ${cy + R - 4} h30 l-1.6 6 h-26.8z" fill="#000" opacity=".18"/>`;
-  }
-  out += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${metal ? `url(#lv-${metal})` : 'none'}" stroke="${dark}"`
-    + ` stroke-width="${metal ? 1.2 : 2.4}"${metal ? '' : ' stroke-dasharray="4 4"'}/>`;
-  if (metal) out += `<circle cx="${cx}" cy="${cy}" r="${R - 3.5}" fill="none" stroke="${dark}" stroke-width="1" opacity=".6"/>`;
+  if (stars >= 1) out += star(48, top - 9, 7, fill);
+  if (stars >= 3) out += star(34, top - 5, 5, fill) + star(62, top - 5, 5, fill);
   if (wreath) {
     for (const dir of [-1, 1]) {
-      out += `<path d="M${cx + dir * 10} ${cy + 11} q${dir * 7} -6 ${dir * 6} -16" fill="none" stroke="${dark}" stroke-width="1.6" opacity=".85"/>`;
-      for (let i = 0; i < 3; i++) {
-        const k = 0.25 + i * 0.3;
-        const px = (cx + dir * 10 + dir * (7 * k * (2 - k))).toFixed(1);
-        const py = (cy + 11 - 16 * k).toFixed(1);
-        out += `<ellipse cx="${px}" cy="${py}" rx="2.6" ry="1.4" fill="${dark}" opacity=".85" transform="rotate(${dir * -40} ${px} ${py})"/>`;
-      }
+      out += `<path d="M${48 + dir * 24} ${top + 30} q${dir * 8} -14 ${dir * 2} -32" fill="none" stroke="#e0ad3e" stroke-width="2" stroke-linecap="round" opacity=".8"/>`;
     }
   }
-  if (!stars) out += `<circle cx="${cx}" cy="${cy}" r="2.4" fill="${dark}" opacity=".6"/>`;
-  else if (stars === 1) out += star(cx, cy - 1, 8.5, dark);
-  else if (stars === 2) out += star(cx - 6.5, cy - 1, 6.5, dark) + star(cx + 6.5, cy - 1, 6.5, dark);
-  else out += star(cx, cy - 6, 6.2, dark) + star(cx - 8, cy + 3, 6.2, dark) + star(cx + 8, cy + 3, 6.2, dark);
   return out;
 }
 
@@ -112,13 +93,13 @@ const AMMO = [
 ];
 
 const SHOTS = [
-  { max: 0, name: 'Всё впереди', art: () => badge(null, 0) },
-  { max: 199, name: 'Пристрелка', art: () => badge('bronze', 1) },
-  { max: 749, name: 'Стрелок', art: () => badge('bronze', 2) },
-  { max: 1999, name: 'Опытный', art: () => badge('silver', 3) },
-  { max: 4999, name: 'Ветеран', art: () => badge('silver', 3, { wreath: true }) },
-  { max: 9999, name: 'Мастер', art: () => badge('gold', 3, { wreath: true }) },
-  { max: Infinity, name: 'Легенда', art: () => badge('gold', 3, { wreath: true, rays: true }) },
+  { max: 0, name: 'Всё впереди', art: () => chevrons(null, 0) },
+  { max: 199, name: 'Пристрелка', art: () => chevrons('bronze', 1) },
+  { max: 749, name: 'Стрелок', art: () => chevrons('bronze', 2) },
+  { max: 1999, name: 'Опытный', art: () => chevrons('silver', 3) },
+  { max: 4999, name: 'Ветеран', art: () => chevrons('silver', 3, { stars: 1 }) },
+  { max: 9999, name: 'Мастер', art: () => chevrons('gold', 3, { stars: 3 }) },
+  { max: Infinity, name: 'Легенда', art: () => chevrons('gold', 3, { stars: 3, wreath: true }) },
 ];
 
 /** Рівень запасу набоїв за кількістю. */
@@ -158,5 +139,16 @@ export function levelArt(level) {
   const [dx, dy] = centerOffset(art);
   const el = h('div', { class: 'lv-art', 'aria-hidden': 'true' });
   el.innerHTML = `<svg viewBox="0 0 96 76"><g transform="translate(${dx.toFixed(1)} ${dy.toFixed(1)})">${art}</g></svg>`;
+  return el;
+}
+
+/** Лички звання в кільці, що заповнюється до наступного звання (progress — 0..1). */
+export function rankRing(level) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const el = h('div', { class: 'rank-ring', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg class="rank-ring-track" viewBox="0 0 92 92"><circle cx="46" cy="46" r="${r}" class="rank-ring-bg"/>`
+    + `<circle cx="46" cy="46" r="${r}" class="rank-ring-fill" stroke-dasharray="${(c * level.progress).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+  el.append(levelArt(level));
   return el;
 }
