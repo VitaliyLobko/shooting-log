@@ -178,7 +178,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .rank-ring-fill { stroke: var(--accent); stroke-linecap: round; }
 .rank-ring .lv-art { position: absolute; left: 50%; top: 50%; width: 84px; height: 66px; transform: translate(-50%, -50%); }
 .lv-wide { grid-column: 1 / -1; margin-top: -4px; }
-.lv-wide > span { white-space: nowrap; }
+.lv-wide .hint-legend { gap: 6px; }
+.lv-wide .hint-legend li { display: grid; grid-template-columns: 4.5em 1fr; gap: 10px; align-items: baseline; }
+.lv-wide .hint-legend b { text-align: right; font-variant-numeric: tabular-nums; }
 /* Підсумок з плашками праворуч (Склад, Усього споряджено) */
 .hero.badge-hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .badge-hero .hero-value { font-size: clamp(28px, 9vw, 34px); white-space: nowrap; }
@@ -1384,6 +1386,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .chrono-head { display: flex; align-items: center; gap: 8px; }
 .chrono-head > .stats { flex: 1; min-width: 0; }
 .hint-legend { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.hero-label .hint-btn { display: inline-grid; width: 24px; height: 24px; margin-left: 8px; font-size: 12px; vertical-align: middle; text-transform: none; letter-spacing: 0; }
 .box > legend .hint-btn { display: inline-grid; margin-left: 8px; vertical-align: middle; text-transform: none; }
 .chrono-weather { grid-template-columns: 1fr auto; }
 .tm-at { font-size: 20px; font-weight: 800; }

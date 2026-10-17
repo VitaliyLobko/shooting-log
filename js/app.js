@@ -1003,12 +1003,12 @@ function renderGuns() {
   // Загальний настріл зі званням — лише тут; розбивка: свої стволи, чужа зброя, без ствола, до початку обліку.
   const shots = M.totalShots(state);
   const split = [
-    t('стволов: {n}', { n: active.length }),
-    shots.foreign || shots.noGun ? t('свои: {n}', { n: fmt.num(shots.own) }) : null,
-    shots.foreign ? t('чужое оружие: {n}', { n: fmt.num(shots.foreign) }) : null,
-    shots.noGun ? t('без ствола: {n}', { n: fmt.num(shots.noGun) }) : null,
-    shots.initial ? t('до начала учёта: {n}', { n: fmt.num(shots.initial) }) : null,
-  ].filter(Boolean).map((part, i) => [i ? ' · ' : null, h('span', {}, part)]);
+    [fmt.num(active.length), t('стволов')],
+    shots.foreign || shots.noGun ? [fmt.num(shots.own), t('из своих стволов')] : null,
+    shots.foreign ? [fmt.num(shots.foreign), t('из чужого оружия')] : null,
+    shots.noGun ? [fmt.num(shots.noGun), t('без ствола')] : null,
+    shots.initial ? [fmt.num(shots.initial), t('до начала учёта — из карточек стволов')] : null,
+  ].filter(Boolean);
   $('subtitle').textContent = t('Свайп ← записать стрельбу, → почистил');
   return h('div', {},
     shotsHero(shots.total, split),
@@ -2046,17 +2046,21 @@ function groupSummary(rows) {
 }
 
 /** Загальний настріл: усі калібри й стволи разом, з настрілом до початку обліку. */
-/** Підсумок настрілу: число, звання й скільки до наступного; праворуч лички в кільці прогресу. */
-function shotsHero(total, sub) {
+/**
+ * Підсумок настрілу: число, звання й скільки до наступного; праворуч лички в кільці прогресу.
+ * З чого складається (split — пари [число, підпис]) — під «i», щоб не займати рядок.
+ */
+function shotsHero(total, split) {
   const level = shotLevel(total);
+  const legend = h('div', { class: 'lv-wide' }, hintLegend(t('Из чего складывается'), split));
   return h('section', { class: 'hero lv' },
     h('div', {},
-      h('div', { class: 'hero-label' }, t('Общий настрел')),
+      h('div', { class: 'hero-label' }, t('Общий настрел'), hintButton(legend, 'shots')),
       h('div', { class: 'hero-value' }, fmt.num(total)),
       h('div', { class: 'lv-sub' }, h('b', { class: 'rank-name' }, t(level.name)), ' · ',
         level.next ? t('ещё {n} до «{rank}»', { n: fmt.num(level.left), rank: t(level.next.name) }) : t('высшее звание'))),
     rankRing(level),
-    h('div', { class: 'lv-sub lv-wide' }, sub));
+    legend);
 }
 
 function shotsPanel() {
