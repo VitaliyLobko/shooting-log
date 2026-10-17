@@ -22,7 +22,6 @@ const END = { a: ['scale', 'a'], b: ['scale', 'b'], c: ['scale2', 'a'], d: ['sca
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 // Ключ пробоїни для позначок «знайдено автоматично»: переживає ↶ (історія — JSON), а перетягнута пробоїна — вже своя.
-const holeKey = (p) => `${p[0]},${p[1]}`;
 const color = (i) => COLORS[i % COLORS.length];
 // Кольори розмітки — поза палітрою пробоїн і лінії масштабу: світлі відтінки зливалися з папером.
 const SPAN = '#ff2d95';   // лінія між двома найдальшими пробоїнами — розкид
@@ -139,10 +138,9 @@ export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
 /**
  * Мітки поверх зображення. map(p) — частки фото → пікселі полотна, r — розмір мітки.
  * active — група, що редагується (інші блідіші), selected — виділена мітка, scale — показати масштаб.
- * holeR — радіус кулі в пікселях полотна (кільце пробоїни не менше за нього), found / unsure — ключі
- * пробоїн, знайдених автоматично (пунктир) і в злиплих місцях («?»).
+ * holeR — радіус кулі в пікселях полотна: кільце пробоїни не менше за нього.
  */
-export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0, found = null, unsure = null } = {}) {
+export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0 } = {}) {
   const halo = (draw, stroke, width) => {
     ctx.lineWidth = width + r * 0.35;
     ctx.strokeStyle = 'rgb(0 0 0 / .65)';
@@ -242,14 +240,12 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       const [x, y] = map(hole);
       const sel = isSel('hole', g, i);
       const R = Math.max(r, holeR) + (sel ? r * 0.35 : 0);
-      if (found?.has(holeKey(hole))) ctx.setLineDash([r * 0.55, r * 0.4]);
       halo(() => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); }, sel ? '#fff' : c, r * 0.3);
       ctx.setLineDash([]);
       ctx.fillStyle = c;
       ctx.beginPath();
       ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
-      if (unsure?.has(holeKey(hole))) tag('?', x + R * 0.8, y - R * 0.8, c, 'left');
     });
     if (group.holes.length >= 2) {
       const n = group.holes.length;
@@ -372,9 +368,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
   let active = st.groups.length - 1;
   let selected = null;
   const history = [];
-  // знайдені автоматично (пунктир) і в злиплих місцях («?»); notice — що сказав пошук
-  const found = new Set();
-  const unsure = new Set();
+  // notice — що сказала розмітка (поділ груп, масштаб)
   let notice = null;
   // fitted — зображення вписане в екран: тоді при зміні розміру сцени вписуємо заново
   const view = { k: 1, x: 0, y: 0, fit: 1, fitted: true };
@@ -404,8 +398,6 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       }, num(v, v % 1 ? 1 : 0)))));
     const hint = h('div', { class: 'tg-hint' });
     const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
-    const findBtn = h('button', { type: 'button', onclick: () => autoFind() }, t('🔍 Найти пробоины'));
-    const findRow = h('div', { class: 'chips tg-find' }, findBtn);
     const undoBtn = tool('↶', t('Отменить последнее'), undo);
     const delBtn = tool('✕', t('Удалить метку'), removeSelected);
 
@@ -448,7 +440,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.drawImage(src, view.x, view.y, W * view.k, H * view.k);
       const mm = mmPerCanvasPx(st, { w: W, h: H }, W * view.k);
       drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' ? active : null, selected, scale: true,
-        aspect: aspectOf(st, { w: W, h: H }), mm, unit, distance, holeR: holeR(mm), found, unsure });
+        aspect: aspectOf(st, { w: W, h: H }), mm, unit, distance, holeR: holeR(mm) });
       panel();
     }
     function paintLoupe(at, n) {
@@ -464,7 +456,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.fillRect(0, 0, LOUPE, LOUPE);
       ctx.drawImage(src, c - n[0] * W * z, c - n[1] * H * z, W * z, H * z);
       drawMarks(ctx, st, map, 8, { active: mode === 'holes' ? active : null, selected, scale: true, aspect: aspectOf(st, { w: W, h: H }),
-        holeR: holeR(mmPerCanvasPx(st, { w: W, h: H }, W * z)), found, unsure });
+        holeR: holeR(mmPerCanvasPx(st, { w: W, h: H }, W * z)) });
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgb(0 0 0 / .7)';
       const cross = () => {
@@ -489,51 +481,6 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
 
     /** Радіус кулі в пікселях полотна; mm — міліметрів у пікселі полотна. */
     const holeR = (mm) => (holeMm && mm ? holeMm / 2 / mm : 0);
-
-    /**
-     * Пошук пробоїн у видимій частині фото: збільшена мішень — менше чужого (цифри, тло) і видніші пробоїни.
-     * Знайдене стає пробоїнами активної групи з позначкою «перевірити»; ↶ прибирає все разом.
-     */
-    function autoFind() {
-      const k = M.mmPerPx(st.scale, { w: W, h: H });
-      if (!k) return;
-      const holePx = (holeMm || 5.6) / k;
-      const rect = [Math.max(0, -view.x / view.k), Math.max(0, -view.y / view.k),
-        Math.min(W, (stage.clientWidth - view.x) / view.k), Math.min(H, (stage.clientHeight - view.y) / view.k)];
-      findBtn.disabled = true;
-      findBtn.textContent = t('Ищу…');
-      // дати кнопці перемалюватися: пошук займає до секунди
-      setTimeout(() => {
-        const { holes, error } = findHoles(src, rect, holePx);
-        findBtn.disabled = false;
-        findBtn.textContent = t('🔍 Найти пробоины');
-        if (error) {
-          notice = error === 'zoom' ? t('Увеличьте мишень на экране — пробоины слишком мелкие, чтобы их различить.')
-            : t('Пробоины на фото слишком мелкие — снимите мишень ближе.');
-          paint();
-          return;
-        }
-        const group = st.groups[active].holes;
-        const near = (p) => group.some((q) => Math.hypot((p[0] - q[0]) * W, (p[1] - q[1]) * H) < holePx * 0.6);
-        const fresh = holes.filter((x) => !near(x.p));
-        if (fresh.length) {
-          snapshot();
-          for (const x of fresh) {
-            group.push(x.p);
-            found.add(holeKey(x.p));
-            if (!x.sure) unsure.add(holeKey(x.p));
-          }
-          vibrate();
-        }
-        const doubt = fresh.filter((x) => !x.sure).length;
-        notice = fresh.length
-          ? [t('Найдено {n} — проверьте: лишнюю коснитесь и ✕, пропущенную поставьте сами.', { n: fresh.length }),
-            doubt ? t('Со знаком «?» — {n}: в слипшихся пробоинах или неуверенно.', { n: doubt }) : null].filter(Boolean).join(' ')
-          : t('Новых пробоин не нашёл — поставьте вручную или увеличьте мишень на экране.');
-        selected = null;
-        paint();
-      }, 30);
-    }
 
     /**
      * Розділити активну групу за відстанню: пробоїни, ближчі за шість калібрів одна до одної,
@@ -592,9 +539,6 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         onclick: () => { mode = key; selected = null; paint(); },
       }, label)));
       groupRow.hidden = mode !== 'holes';
-      findRow.hidden = mode !== 'holes';
-      findBtn.disabled = !M.mmPerPx(st.scale, { w: W, h: H });
-      findBtn.title = findBtn.disabled ? t('Сначала задайте масштаб') : t('Ищет в видимой части фото');
       groupRow.replaceChildren(
         ...st.groups.map((g, i) => h('button', {
           // Вибрана пробоїна — тап по номеру групи переносить її туди: інакше довелося б
@@ -651,7 +595,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
           ? t('Отметьте точку, в которую целились.')
           : notice ?? (selected?.kind === 'hole' && st.groups.length > 1
             ? t('Пробоина выбрана: ✕ удалит её, а номер группы — перенесёт в ту группу.')
-            : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.'));
+            : t('Нажмите на пробоину — точка станет в её центр. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.'));
       const k = M.mmPerPx(st.scale, { w: W, h: H });
       const group = M.targetStats(st, { w: W, h: H })[active];
       if (!k) stats.textContent = t('Задайте масштаб — без него размеры не посчитать');
@@ -699,13 +643,40 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       selected = null;
       paint();
     }
+    /**
+     * Точку ставимо не там, де палець, а в центрі пробоїни під ним: шукаємо в квадраті
+     * близько трьох калібрів навколо тапу. Місце вказує людина, тож зайвого не знайдеться;
+     * без калібру чи масштабу лишаємо як є.
+     */
+    function snapHole(n) {
+      const mm = M.mmPerPx(st.scale, { w: W, h: H });
+      const holePx = holeMm && mm ? holeMm / mm : 0;
+      if (holePx < 4) return n;
+      const r = holePx * 1.6;
+      const x = n[0] * W;
+      const y = n[1] * H;
+      const rect = [Math.max(0, x - r), Math.max(0, y - r), Math.min(W, x + r), Math.min(H, y + r)];
+      if (rect[2] - rect[0] < holePx * 3 || rect[3] - rect[1] < holePx * 3) return n;
+      let best = n;
+      let bd = Infinity;
+      try {
+        const { holes } = findHoles(src, rect, holePx);
+        for (const hole of holes ?? []) {
+          const d = Math.hypot((hole.p[0] - n[0]) * W, (hole.p[1] - n[1]) * H);
+          if (d < bd) { bd = d; best = hole.p; }
+        }
+      } catch { return n; }
+      // далі ніж за півкалібру — це вже інша пробоїна чи друк, лишаємо палець
+      return bd <= holePx * 0.8 ? best : n;
+    }
+
     function place(n) {
       const s = st[line];
       // Обидві точки лінії вже стоять — тап нічого не зсуває: точку переставляють перетягуванням.
       if (mode === 'scale' && s.a && s.b) return;
       snapshot();
       notice = null;
-      if (mode === 'holes') st.groups[active].holes.push(n);
+      if (mode === 'holes') st.groups[active].holes.push(snapHole(n));
       else if (mode === 'poa') st.poa = n;
       else if (!s.a) s.a = n;
       else {
@@ -856,7 +827,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: cancel }, '✕')),
       stage,
       h('div', { class: 'tg-panel' },
-        modeRow, groupRow, findRow, scaleRow, hint,
+        modeRow, groupRow, scaleRow, hint,
         h('div', { class: 'editor-row' }, undoBtn, delBtn, tool('⤢', t('Вписать в экран'), () => { fit(); paint(); }))),
       h('footer', { class: 'viewer-actions' },
         h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')),
