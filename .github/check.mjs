@@ -28,6 +28,12 @@ for (const path of ['sw.js', 'version.js']) {
   try { new vm.Script(read(path), { filename: path }); } catch (e) { errors.push(`${path}: ${e.message}`); }
 }
 
+// новий модуль, якого немає в кеші service worker'а, офлайн не завантажиться — і застосунок разом з ним
+const assets = read('sw.js');
+for (const file of readdirSync('js').filter((f) => f.endsWith('.js'))) {
+  if (!assets.includes(`'./js/${file}'`)) errors.push(`sw.js: js/${file} немає в ASSETS — офлайн не завантажиться`);
+}
+
 for (const path of ['demo.json', 'manifest.webmanifest']) {
   try { JSON.parse(read(path)); } catch (e) { errors.push(`${path}: ${e.message}`); }
 }
