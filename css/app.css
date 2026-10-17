@@ -1514,6 +1514,18 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-hit.zero .ex-hit-sum { color: var(--muted); }
 .ex-hit.miss { color: var(--muted); }
 .ex-hit.penalty .ex-hit-sum { color: var(--shoot); }
+/* Картка вправи: рекорд у кільці звання, рядок «середнє · останній · спроби», правила під «i». */
+.ex-rec { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 14px; border-radius: 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--surface-2)), var(--surface-2)); }
+.ex-rec-value { font-size: 40px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.ex-ring { width: 84px; height: 84px; }
+.ex-ring-name { position: absolute; inset: 12px; display: grid; place-items: center; text-align: center; font-size: 12px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
+.ex-mini { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 2px 4px; font-size: 13px; color: var(--muted); }
+.ex-mini b { color: var(--text); font-size: 15px; }
+.ex-info { display: grid; gap: 12px; margin: 4px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.ex-info[hidden] { display: none; }
+.sheet-tools .hint-btn { width: 40px; height: 40px; font-size: 16px; }
+.ex-info .ex-scoring { margin-bottom: 0; }
 .ex-scoring-title { margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .ex-scoring-note { margin: 0; }
 .ex-zones { margin: 0; grid-template-columns: max-content max-content; gap: 4px 18px; }

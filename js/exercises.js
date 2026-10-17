@@ -289,9 +289,6 @@ const TRIATHLON = {
   uk: 'Скаутське триборство: База-20 + П\'ятірка Уайта + Nordic-10 = 35 пострілів, очки етапів складаються.',
 };
 
-/** Довгий текст під розкриттям: правила й підрахунок читають раз, а блок відкривають щоразу. */
-const more = (title, node) => h('details', { class: 'ex-more' }, h('summary', {}, title), node);
-
 /**
  * Рядки правил → пункти: «Заголовок: текст» виділяє заголовок, рядок з «- » — підпункт попереднього.
  * Та сама розмітка працює і у своїх вправах — правила там пишуть у полі, по рядку на пункт.
@@ -314,7 +311,7 @@ function textItems(lines) {
 }
 
 /** Підрахунок: таблиця зон з очками (зі самої вправи — є й у своїх) і пояснення пунктами. */
-function scoringBlock(ex) {
+function scoringContent(ex) {
   // Одна зона по очку — таблиця нічого не додає; у П'ятірці Уайта ціна залежить від часу — пояснено текстом.
   const zones = ex.zones?.length > 1 && !ex.perHit
     ? h('dl', { class: 'kv ex-zones' }, ex.zones.map(([, label, pts]) => [h('dt', {}, L(label)), h('dd', {}, fmt.num(pts))]))
@@ -326,7 +323,7 @@ function scoringBlock(ex) {
     ? h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Звания')),
       h('dl', { class: 'kv ex-zones' }, list.map(([min, name]) => [h('dt', {}, L(name)), h('dd', {}, t('от {n}', { n: fmt.num(min) }))])))
     : h('p', { class: 'muted small ex-scoring-note' }, t('Пороги званий не заданы — укажите их в настройках упражнения (✎).'));
-  return more(t('Подсчёт очков'), h('div', { class: 'ex-scoring' }, zones, notes.length ? h('ul', { class: 'ex-points' }, notes) : null, ranks));
+  return h('div', { class: 'ex-scoring' }, zones, notes.length ? h('ul', { class: 'ex-points' }, notes) : null, ranks);
 }
 
 /** Пороги звань: свої (localStorage) або зашиті у вправі. */
@@ -467,20 +464,16 @@ function exerciseTile(ex, ctx) {
     h('span', { class: 'ex-tile-foot' }, [rank && L(rank), mine.length ? t('попыток: {n}', { n: mine.length }) : t('нет результатов')].filter(Boolean).join(' · ')));
 }
 
-/** Картка вправи: свої цифри, кнопки, список результатів, правила під розкриттям. */
+/** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — під «i» в шапці. */
 function exerciseSheet(ex, ctx) {
   const body = () => {
     const mine = myScores(ex, ctx);
     const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
-    const avgOf = Math.min(3, mine.length);
     const series = M.scoreSeries(ctx.scores, ex.id);
     return h('div', {},
       h('p', { class: 'muted' }, L(ex.sub)),
-      mine.length ? h('div', { class: 'stats even' },
-        ctx.stat(t('рекорд'), fmt.num(best), 'accent'),
-        ctx.stat(t('среднее из {n}', { n: avgOf }), fmt.num(Math.round(mine.slice(0, avgOf).reduce((s, x) => s + x.score, 0) / avgOf))),
-        ctx.stat(t('последний'), fmt.num(mine[0].score))) : null,
-      nextRank(ex, best),
+      infoPanel(ex),
+      mine.length ? recordHero(ex, best, mine) : null,
       ex.zones ? h('div', { class: 'btn-row' },
         btn(t('Записать результат'), () => { close(); scoreSheet(ex, ctx); }, 'primary')) : null,
       series.length > 1 ? ctx.box(t('Динамика'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: x.value })), {
@@ -489,29 +482,78 @@ function exerciseSheet(ex, ctx) {
         // Пороги звань — лініями: видно, скільки до наступного.
         refs: (ranksOf(ex) ?? []).map(([min, name]) => [min, L(name)]),
       })) : null,
-      mine.length ? ctx.box(t('Результаты'), h('div', { class: 'rows' }, mine.map((x) => scoreRow(ex, x, best, ctx)))) : null,
-      L(ex.rules)?.length ? more(t('Правила'), h('ul', { class: 'ex-rules' }, textItems(L(ex.rules)))) : null,
-      scoringBlock(ex));
+      mine.length ? ctx.box(t('Результаты'), h('div', { class: 'rows' }, mine.map((x) => scoreRow(ex, x, best, ctx))),
+        { fold: 'ex-results', count: mine.length }) : null);
   };
   // Правка й видалення (для вбудованої — «повернути як було») — іконками в шапці, як у картках зброї й набою.
   const own = ctx.custom.find((r) => r.id === ex.id);
-  const tools = ctx.onSaveExercise ? [
+  const tools = [infoButton(), ...(ctx.onSaveExercise ? [
     toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ?? asRecord(ex), ctx); }),
     own ? (ex.builtIn
       ? toolBtn('reset', t('Вернуть встроенную'), () => { close(); ctx.onDeleteExercise?.(own); })
       : toolBtn('delete', t('Удалить'), () => { close(); ctx.onDeleteExercise?.(own); }, 'danger')) : null,
-  ].filter(Boolean) : [];
+  ].filter(Boolean) : [])];
   const close = sheet(L(ex.name), body(), { live: body, tools });
 }
 
-/** Скільки очок лишилось до наступного звання — видно, куди тягнутись. */
-function nextRank(ex, best) {
-  const list = ranksOf(ex);
-  if (best === null || !list?.length) return null;
-  // Пороги впорядковані від більшого: беремо найнижчий, якого ще не дотягнули.
-  const next = [...list].sort((a, b) => a[0] - b[0]).find(([min]) => min > best);
-  if (!next) return h('p', { class: 'muted small' }, t('Высшее звание взято'));
-  return h('p', { class: 'muted small' }, t('До звания {name}: ещё {n}', { name: L(next[1]), n: fmt.num(next[0] - best) }));
+// Панель правил відкрита чи ні — одна на всі вправи, поки застосунок відкритий.
+let infoOpen = false;
+
+/** Правила й підрахунок очок: читають раз, тож вони під «i», а не в самій картці. */
+function infoPanel(ex) {
+  const rules = L(ex.rules)?.length
+    ? h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Правила')), h('ul', { class: 'ex-rules' }, textItems(L(ex.rules))))
+    : null;
+  return h('div', { class: 'ex-info', hidden: !infoOpen }, rules,
+    h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Подсчёт очков')), scoringContent(ex)));
+}
+
+/** «i» у шапці картки: ховає й показує панель правил (тіло картки перемальовується — стан у infoOpen). */
+function infoButton() {
+  const button = h('button', {
+    type: 'button', class: 'hint-btn', 'aria-label': t('Правила и подсчёт очков'), 'aria-expanded': String(infoOpen),
+    onclick: () => {
+      infoOpen = !infoOpen;
+      button.setAttribute('aria-expanded', String(infoOpen));
+      const panel = button.closest('.sheet')?.querySelector('.ex-info');
+      if (panel) panel.hidden = !infoOpen;
+    },
+  }, 'i');
+  return button;
+}
+
+/** Рекорд крупно, звання й скільки до наступного, праворуч кільце прогресу; під ним середнє, останній і спроби. */
+function recordHero(ex, best, mine) {
+  const list = [...(ranksOf(ex) ?? [])].sort((a, b) => a[0] - b[0]);
+  const cur = [...list].reverse().find(([min]) => best >= min);
+  const next = list.find(([min]) => min > best);
+  const from = cur?.[0] ?? 0;
+  const progress = next ? Math.max(0, Math.min(1, (best - from) / (next[0] - from))) : 1;
+  const avgOf = Math.min(3, mine.length);
+  const avg = Math.round(mine.slice(0, avgOf).reduce((s, x) => s + x.score, 0) / avgOf);
+  return h('div', {},
+    h('section', { class: 'ex-rec' },
+      h('div', {},
+        h('div', { class: 'hero-label' }, t('рекорд')),
+        h('div', { class: 'ex-rec-value' }, fmt.num(best)),
+        list.length ? h('div', { class: 'muted small' }, cur ? [h('b', { class: 'rank-name' }, L(cur[1])), ' · '] : null,
+          next ? t('ещё {n} до «{rank}»', { n: fmt.num(next[0] - best), rank: L(next[1]) }) : t('высшее звание')) : null),
+      list.length ? progressRing(progress, cur ? L(cur[1]) : '—') : null),
+    h('div', { class: 'ex-mini' },
+      h('span', {}, t('среднее из {n}', { n: avgOf }), ' ', h('b', {}, fmt.num(avg))),
+      h('span', {}, t('последний'), ' ', h('b', {}, fmt.num(mine[0].score))),
+      h('span', {}, t('попыток'), ' ', h('b', {}, fmt.num(mine.length)))));
+}
+
+/** Кільце прогресу до наступного звання (progress — 0..1), усередині — поточне звання. */
+function progressRing(progress, name) {
+  const r = 36;
+  const c = 2 * Math.PI * r;
+  const el = h('div', { class: 'rank-ring ex-ring', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg class="rank-ring-track" viewBox="0 0 84 84"><circle cx="42" cy="42" r="${r}" class="rank-ring-bg"/>`
+    + `<circle cx="42" cy="42" r="${r}" class="rank-ring-fill" stroke-dasharray="${(c * progress).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+  el.append(h('span', { class: 'ex-ring-name' }, name));
+  return el;
 }
 
 /** Вбудована вправа у вигляді запису — щоб відкрити її в тій самій формі правки. */
