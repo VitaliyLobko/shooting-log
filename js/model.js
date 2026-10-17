@@ -150,6 +150,21 @@ export function barrelLifeFor(caliber) {
   return row ? { min: row[1], max: row[2] } : null;
 }
 
+/**
+ * Діаметр кулі, мм, за написом калібру — щоб знати розмір пробоїни на фото. 5.56×45, 9 мм, 6.5 Creedmoor —
+ * міліметри; .223, .22 LR, 300 Win Mag, 30-06 — частки дюйма. Дробовий калібр і незрозумілий напис — null.
+ */
+export function bulletMm(caliber) {
+  const c = String(caliber ?? '').toLowerCase().replace(',', '.');
+  if (!c || /(^|[^\d])(10|12|16|20|28|32)\s*(кал|ga|g\b|калібр)/.test(c)) return null;
+  const mm = c.match(/(\d+(?:\.\d+)?)\s*(?:[x×х*]\s*\d|мм|mm)/) ?? c.match(/(?:^|[^\d.])(\d\.\d+)/);
+  if (mm && Number(mm[1]) >= 4 && Number(mm[1]) <= 13) return Number(mm[1]);
+  const inch = c.match(/(?:^|[^\d])\.?(\d{2,3})(?![\d.])/);
+  if (!inch) return null;
+  const v = Number(inch[1]) / (inch[1].length === 3 ? 1000 : 100);
+  return v >= 0.17 && v <= 0.5 ? Math.round(v * 25.4 * 100) / 100 : null;
+}
+
 // Різні написання одного калібру: .223 Rem і 5.56×45, .308 Win і 7.62×51 тощо.
 const CALIBER_SAME = [
   [/(^|[^\d.,])[.,]?(223|5[.,]56)/, '5.56x45'],

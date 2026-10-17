@@ -2928,6 +2928,7 @@ async function runMarking(blob, tg) {
   try {
     const marks = await markTarget(blob, tg, {
       distance: tg.distance, unit: targetUnit, click: tg.click, scaleMm: Number(recall('shooters-log:scale-mm')) || 100,
+      holeMm: M.bulletMm(findWeapon(tg.weaponId)?.caliber ?? findCartridge(tg.cartridgeId)?.caliber),
     });
     if (marks?.scale?.mm) remember('shooters-log:scale-mm', marks.scale.mm);
     return marks;
