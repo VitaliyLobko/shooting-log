@@ -1,0 +1,43 @@
+name: Перевірка й публікація
+
+# Перевірка — на кожен пуш; публікація на Pages — лише з main і лише коли перевірка пройшла.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node --experimental-vm-modules .github/check.mjs
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v5
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v3
+      - id: deployment
+        uses: actions/deploy-pages@v4
