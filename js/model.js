@@ -325,6 +325,30 @@ export function clickValue(key) {
  * Підсумок серії таймера; shots — секунди від сигналу. first — реакція й перший постріл, total — останній,
  * splits — інтервали між сусідніми, avg — середній інтервал, best — найкоротший.
  */
+/**
+ * Серія хронографа, м/с: середня, мін і макс, ES (найшвидший мінус найповільніший) і SD — вибіркове (n − 1),
+ * як рахують хронографи; з одного пострілу SD немає.
+ */
+export function chronoStats(speeds) {
+  const list = (speeds ?? []).filter((v) => v > 0);
+  const n = list.length;
+  if (!n) return { n: 0, avg: null, min: null, max: null, es: null, sd: null };
+  const avg = list.reduce((sum, v) => sum + v, 0) / n;
+  const [min, max] = [Math.min(...list), Math.max(...list)];
+  const sd = n > 1 ? Math.sqrt(list.reduce((sum, v) => sum + (v - avg) ** 2, 0) / (n - 1)) : null;
+  return { n, avg, min, max, es: max - min, sd };
+}
+
+/**
+ * Швидкості з тексту. Роздільники — пробіл, новий рядок, «;» і кома; але «812,5» (одна-дві цифри після коми) —
+ * десятковий дріб, бо в українській розкладці дріб пишуть через кому.
+ */
+export function parseSpeeds(text) {
+  return String(text ?? '').trim().split(/[\s;]+/)
+    .flatMap((part) => (/^\d+,\d{1,2}$/.test(part) ? [part.replace(',', '.')] : part.split(',')))
+    .filter(Boolean).map(Number);
+}
+
 export function drillStats(shots) {
   const list = [...(shots ?? [])].sort((a, b) => a - b);
   const splits = list.slice(1).map((x, i) => x - list[i]);
@@ -376,12 +400,27 @@ export function dopeRows(rows, zero = null) {
  * траєкторія не пряма, тож вгадувати далі останнього рядка не беремося.
  */
 export function dopeAt(rows, distance, zero = null) {
-  const list = dopeRows(rows, zero);
+  return lerpAt(dopeRows(rows, zero), distance, 'mrad');
+}
+
+/**
+ * Знос вітром на довільну дистанцію, мрад (за швидкості, на яку складена колонка, вітер збоку):
+ * лінійно між рядками з вітром, від нуля біля дула; далі останнього рядка — null.
+ */
+export function windAt(rows, distance) {
+  const list = (rows ?? []).filter((r) => r.wind > 0).sort((a, b) => a.distance - b.distance);
+  return list.length ? lerpAt([{ distance: 0, wind: 0 }, ...list], distance, 'wind') : null;
+}
+
+/** Частка бокового вітру за годинником: 3 і 9 — повний, 12 і 6 — нуль. */
+export const windShare = (clock) => Math.abs(Math.sin((clock * Math.PI) / 6));
+
+function lerpAt(list, distance, key) {
   const exact = list.find((r) => r.distance === distance);
-  if (exact) return exact.mrad;
+  if (exact) return exact[key];
   for (let i = 1; i < list.length; i += 1) {
     const [a, b] = [list[i - 1], list[i]];
-    if (a.distance < distance && distance < b.distance) return a.mrad + ((b.mrad - a.mrad) * (distance - a.distance)) / (b.distance - a.distance);
+    if (a.distance < distance && distance < b.distance) return a[key] + ((b[key] - a[key]) * (distance - a.distance)) / (b.distance - a.distance);
   }
   return null;
 }
@@ -537,11 +576,12 @@ export function precisionSeries(targets, photos, weaponId) {
 
 /** Постріли й гроші по місяцях: [{ key: '2026-10', shots, cost }], останні limit місяців із записами. */
 /** list — рухи, які потрапили у фільтри журналу; ціни однаково беруться з усього обліку. */
-export function shotsByMonth(state, limit = 12, list = state.movements) {
+/** Настріл і вартість за періодами: keyOf(date) — ключ періоду, що сортується як рядок; останні limit періодів. */
+export function shotsByPeriod(state, keyOf, limit = 12, list = state.movements) {
   const map = new Map();
   for (const m of list) {
     if (m.kind !== 'shot' || !m.date) continue;
-    const key = m.date.slice(0, 7);
+    const key = keyOf(m.date);
     const row = map.get(key) ?? { key, shots: 0, cost: 0 };
     row.shots += -(Number(m.qty) || 0);
     row.cost += shotCost(state, m) ?? 0;

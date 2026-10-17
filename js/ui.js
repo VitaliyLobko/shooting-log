@@ -104,6 +104,92 @@ export function toast(message, { action, onAction, timeout = action ? 8000 : 350
   toastTimer = setTimeout(() => el.remove(), timeout);
 }
 
+/**
+ * Перша видима «точка» елемента: він сам або заголовок згорнутої групи, в якій він лежить
+ * (групу не розгортаємо — вона пам'ятає свій стан).
+ */
+function visibleAnchor(el) {
+  // вміст закритого <details> Chrome не ховає з розкладки — getClientRects його не відсіює
+  let hidden = null;
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if ((p.tagName === 'DETAILS' && !p.open) || p.classList.contains('closed')) hidden = p;
+  }
+  const target = hidden ? hidden.querySelector(':scope > summary, :scope > legend') : el;
+  return target?.getClientRects().length ? target : null;
+}
+
+/** Підтвердження без таблички: коротка вібрація й підсвічені картки того, що змінилося. */
+export function confirmed(ids = []) {
+  navigator.vibrate?.(20);
+  for (const id of new Set(ids.filter(Boolean))) {
+    for (const el of document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`)) {
+      const target = visibleAnchor(el);
+      if (!target) continue;
+      target.classList.remove('flash');
+      void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
+      target.classList.add('flash');
+      target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+    }
+  }
+}
+
+let undoFn = null;
+let undoBtn = null;
+
+/** «Скасувати» в шапці: без таймера, живе до наступної зміни даних. */
+export function setUndo(label, fn) {
+  if (!undoBtn) {
+    undoBtn = h('button', { type: 'button', class: 'undo-btn', hidden: true }, h('span', { 'aria-hidden': 'true' }, '↶'), h('span', {}, t('Отменить')));
+    undoBtn.addEventListener('click', async () => {
+      const run = undoFn;
+      clearUndo();
+      await run?.();
+      confirmed();
+    });
+    document.querySelector('.topbar-actions')?.prepend(undoBtn);
+  }
+  undoFn = fn;
+  undoBtn.title = label;
+  undoBtn.setAttribute('aria-label', `${t('Отменить')}: ${label}`);
+  undoBtn.hidden = false;
+}
+
+export function clearUndo() {
+  undoFn = null;
+  if (undoBtn) undoBtn.hidden = true;
+}
+
+// Будь-який новий запис робить скасування застарілим (синхронізація цієї події не шле).
+window.addEventListener('db-change', clearUndo);
+
+/** Помилка під полем: рамка й текст, зникають, щойно поле виправляють. */
+export function fieldError(input, message) {
+  const field = input?.closest('.field');
+  if (!field) { formError(message); return; }
+  field.querySelector(':scope > .field-error')?.remove();
+  field.classList.add('invalid');
+  const note = h('small', { class: 'field-error', role: 'alert' }, message);
+  field.append(note);
+  const clear = () => { field.classList.remove('invalid'); note.remove(); };
+  input.addEventListener('input', clear, { once: true });
+  input.addEventListener('change', clear, { once: true });
+  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  input.focus?.({ preventScroll: true });
+}
+
+/** Помилка без окремого поля — рядком над кнопками відкритої шторки; немає шторки — тостом. */
+export function formError(message) {
+  const panel = [...document.querySelectorAll('.sheet')].pop();
+  const foot = panel?.querySelector('.sheet-actions');
+  if (!foot) { toast(message); return; }
+  panel.querySelector('.form-error')?.remove();
+  const note = h('p', { class: 'form-error', role: 'alert' }, message);
+  foot.before(note);
+  const clear = () => note.remove();
+  panel.addEventListener('input', clear, { once: true });
+  panel.addEventListener('change', clear, { once: true });
+}
+
 /** Пункти <select>: [value, label] або група { group, options: [[value, label], …] }. */
 export function selectOptions(options, selected) {
   const option = ([value, label]) => h('option', { value, selected: String(value) === String(selected ?? '') }, label);
@@ -292,6 +378,8 @@ const TOOL_ICON = {
   copy: '<path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/>',
   share: '<path d="M12 3v13"/><path d="M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/>',
   reset: '<path d="M4 4v6h6"/><path d="M5.6 15a7 7 0 1 0 1.5-7.4L4 10"/>',
+  map: '<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+  locate: '<path d="M12 21s-6.5-5.8-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/>',
 };
 
 /** Кнопка-іконка в шапці шторки. */

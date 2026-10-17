@@ -23,6 +23,7 @@ const ASSETS = [
   './js/levels.js',
   './js/timer.js',
   './js/exercises.js',
+  './js/changelog.js',
   './js/shot-detector.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',

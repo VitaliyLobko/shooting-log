@@ -117,6 +117,26 @@ export async function connect() {
   await syncNow();
 }
 
+let lastRefresh = 0;
+
+/**
+ * Ключ Диска діє годину, у фоні його не продовжити. Тож оновлюємо його з натискання, яке людина й так
+ * зробила, — збереження запису: вікно Google мелькає й закривається само (згоду вже дано).
+ * Браузер дозволяє вікно лише кілька секунд після натискання — без активного жесту не пробуємо.
+ */
+function refreshOnSave() {
+  if (!conf.enabled || !conf.consented || tokenValid() || authWaiter || !navigator.onLine) return;
+  if (navigator.userActivation && !navigator.userActivation.isActive) return;
+  if (Date.now() - lastRefresh < 60_000) return;
+  const c = client();
+  if (!c) { preload(); return; }
+  lastRefresh = Date.now();
+  new Promise((resolve, reject) => {
+    authWaiter = { resolve, reject };
+    c.requestAccessToken({ prompt: '', hint: conf.email || undefined });
+  }).then(syncNow, () => set('auth', t('Нажмите, чтобы войти в Google')));
+}
+
 export function disconnect() {
   if (conf.token) window.google?.accounts?.oauth2?.revoke?.(conf.token, () => {});
   conf = {};
@@ -323,7 +343,8 @@ export async function syncNow() {
   if (!configured()) { set('unconfigured'); return; }
   if (!conf.enabled) { set('off'); return; }
   if (!navigator.onLine) { set('offline'); return; }
-  if (!tokenValid()) { set('auth', t('Нажмите, чтобы войти в Google')); return; }
+  // Вікно входу вже відкрите (оновлення по збереженню) — синхронізація піде, щойно прийде ключ
+  if (!tokenValid()) { if (!authWaiter) set('auth', t('Нажмите, чтобы войти в Google')); return; }
   if (running) { again = true; return; }
   running = true;
   set('syncing');
@@ -367,7 +388,11 @@ export function schedule(ms = 2000) {
   timer = setTimeout(syncNow, ms);
 }
 
-window.addEventListener('db-change', () => { if (conf.enabled) schedule(); });
+window.addEventListener('db-change', () => {
+  if (!conf.enabled) return;
+  refreshOnSave();
+  schedule();
+});
 window.addEventListener('online', () => { if (conf.enabled) { preload(); schedule(500); } });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && conf.enabled) schedule(300);

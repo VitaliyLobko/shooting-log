@@ -1,7 +1,7 @@
 // Стрілецькі вправи: правила (за відео RIFLEMAN і Стрілецької ліги) і підрахунок очок.
 // Тексти правил двомовні прямо тут — це довідка, а не рядки інтерфейсу.
 import { t, lang } from './i18n.js';
-import { h, form, sheet, toast, chips, confirmSheet, fmt, toolBtn } from './ui.js';
+import { h, form, sheet, chips, confirmSheet, fmt, toolBtn, fieldError, formError } from './ui.js';
 import * as M from './model.js';
 import { lineChart, sparkline } from './chart.js';
 
@@ -447,7 +447,7 @@ function exerciseTile(ex, ctx) {
   const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
   const rank = best === null ? null : rankOf(ex, best);
   const series = M.scoreSeries(ctx.scores, ex.id);
-  return h('button', { type: 'button', class: 'ex-tile', onclick: () => exerciseSheet(ex, ctx) },
+  return h('button', { type: 'button', class: 'ex-tile', 'data-id': ex.id, onclick: () => exerciseSheet(ex, ctx) },
     h('span', { class: 'ex-tile-name' }, L(ex.name)),
     h('span', { class: 'ex-tile-sub' }, ex.shots ? t('{n} выстр.', { n: ex.shots }) : L(ex.sub)),
     h('span', { class: `ex-tile-score ${best === null ? 'empty' : ''}` }, best === null ? '—' : fmt.num(best)),
@@ -565,7 +565,7 @@ function exerciseForm(rec, ctx) {
   const f = form(fields);
   const save = () => {
     const v = f.values();
-    if (!v.name) { toast(t('Заполните поле «{label}»', { label: t('Название') })); return; }
+    if (!v.name) { fieldError(f.inputs.name, t('Заполните поле «{label}»', { label: t('Название') })); return; }
     const list = [];
     for (let i = 0; i < ZONES; i += 1) {
       const label = v[`z${i}n`];
@@ -573,7 +573,7 @@ function exerciseForm(rec, ctx) {
       // Ключ зони лишаємо старий, інакше вже записані результати втратять свої влучання.
       list.push({ key: rec?.zones?.[i]?.key ?? `z${i + 1}`, label, pts: Number(v[`z${i}p`]) || 0 });
     }
-    if (!list.length) { toast(t('Добавьте хотя бы одну зону')); return; }
+    if (!list.length) { formError(t('Добавьте хотя бы одну зону')); return; }
     const rankList = [];
     for (let i = 0; i < RANKS; i += 1) {
       const name = v[`r${i}n`];
@@ -627,7 +627,7 @@ function scoreRow(ex, s, best, ctx) {
   const sub = [variant && L(variant), ctx.weapons.find(([id]) => id === s.weaponId)?.[1],
     s.distance ? t('{n} м', { n: fmt.num(s.distance) }) : null,
     s.time ? `${fmt.num(s.time)} ${t('с')}` : null, s.note].filter(Boolean).join(' · ');
-  return h('button', { type: 'button', class: 'row', onclick: () => scoreCard(ex, s, ctx) },
+  return h('button', { type: 'button', class: 'row', 'data-id': s.id, onclick: () => scoreCard(ex, s, ctx) },
     h('span', { class: 'row-main' },
       // Дата першою: результати шукають за днем стрільби.
       h('span', { class: 'row-title' }, `${fmt.date(s.date)} · ${hitsOf(s)}/${ex.shots} ${t('попад.')}`, rank ? ` · ${L(rank)}` : '', s.score === best ? ' ★' : ''),
@@ -810,9 +810,9 @@ function scoreSheet(ex, ctx, prev = null) {
       : h('p', { class: 'muted small' }, t('Списание из БК остаётся как было — правьте его в журнале.')),
     noteF.el), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), () => {
-      if (Number.isNaN(f.values().date)) { toast(t('Заполните поле «{label}»', { label: t('Дата') })); return; }
+      if (Number.isNaN(f.values().date)) { fieldError(f.inputs.date, t('Заполните поле «{label}»', { label: t('Дата') })); return; }
       const r = record();
-      if (hitsOf(r) > ex.shots) { toast(t('больше {n} выстрелов', { n: ex.shots })); return; }
+      if (hitsOf(r) > ex.shots) { formError(t('больше {n} выстрелов', { n: ex.shots })); return; }
       const v = f.values();
       const qty = Math.max(0, Math.round(v.qty || 0));
       close();

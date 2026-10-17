@@ -1647,6 +1647,80 @@
     "late": 1,
     "score": 76
    }
+  ],
+  "chrono": [
+   {
+    "id": "ch-0001",
+    "created": 1789000000001,
+    "date": "2026-09-20",
+    "weaponId": "w-ar",
+    "cartridgeId": "c-m855",
+    "temp": 18,
+    "note": null,
+    "speeds": [
+     908,
+     899,
+     912,
+     903,
+     896,
+     910,
+     905,
+     901,
+     914,
+     898
+    ]
+   },
+   {
+    "id": "ch-0002",
+    "created": 1789000000002,
+    "date": "2026-09-20",
+    "weaponId": "w-ar",
+    "cartridgeId": "c-ggg77",
+    "temp": 18,
+    "note": null,
+    "speeds": [
+     828,
+     831,
+     826,
+     830,
+     829,
+     833,
+     827
+    ]
+   },
+   {
+    "id": "ch-0003",
+    "created": 1789000000003,
+    "date": "2026-08-15",
+    "weaponId": "w-bolt",
+    "cartridgeId": "c-308f",
+    "temp": 24,
+    "note": null,
+    "speeds": [
+     781,
+     786,
+     779,
+     784,
+     790
+    ]
+   },
+   {
+    "id": "ch-0004",
+    "created": 1789000000004,
+    "date": "2026-08-15",
+    "weaponId": "w-bolt",
+    "cartridgeId": "c-308r",
+    "temp": 24,
+    "note": "Навіска 43,5 гр",
+    "speeds": [
+     776,
+     791,
+     768,
+     785,
+     795,
+     772
+    ]
+   }
   ]
  }
 }
