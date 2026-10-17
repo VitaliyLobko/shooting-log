@@ -1615,8 +1615,8 @@ function permitsReminder() {
 const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   shot: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-  // Набій і лійка з порохом: споряджено власноруч.
-  reload: '<path d="M4 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M4 14h4"/><path d="M12.5 4h9l-3.5 4v4h-2V8z"/><path d="M17 15.5h0M17 19h0"/>',
+  // Набій і велика лійка з порохом: споряджено власноруч.
+  reload: '<path d="M2.5 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M2.5 14h4"/><path d="M9.5 3h13l-5 6v4.5h-3V9z"/><path d="M16 16.8h0M16 20.3h0"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
   adjust: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   // Крапля мастила над лінією ствола: чистка — це догляд, а не прибирання.
@@ -1851,15 +1851,16 @@ function movementBody(m, close, edit = false) {
   const shotCost = M.shotCost(state, m);
   // Набій у покупці й перерахунку можна змінити; спорядження прив'язане до рецепта й списаних компонентів
   const swapCartridge = Boolean(m.cartridgeId) && (m.kind === 'buy' || m.kind === 'adjust') && !linked.length;
+  const kv = (...pairs) => h('dl', { class: 'kv' }, pairs);
+  const row = (label, value) => [h('dt', {}, t(label)), h('dd', {}, value)];
+  // Головне значення блоку — без підпису: заголовок блоку вже каже, що це
+  const lead = (value, ...pairs) => [h('div', { class: 'kv-lead' }, value), pairs.some(Boolean) ? kv(...pairs) : null];
+  if (m.kind === 'buy' || m.kind === 'reload') return stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, noteInput, kv, row, lead });
   if (m.kind === 'shot') {
     const n = Math.abs(m.qty);
     const ammo = findCartridge(m.cartridgeId);
     // Стрільба з результату вправи — як у журналі, назва вправи жирним
     const score = state.scores.find((x) => x.movementId === m.id);
-    const kv = (...pairs) => h('dl', { class: 'kv' }, pairs);
-    const row = (label, value) => [h('dt', {}, t(label)), h('dd', {}, value)];
-    // Головне значення блоку — без підпису: заголовок блоку вже каже, що це
-    const lead = (value, ...pairs) => [h('div', { class: 'kv-lead' }, value), pairs.some(Boolean) ? kv(...pairs) : null];
     // Гільзи, не вписані під час запису, додаються з правки — так само окремим рухом у пачці стрільби
     const caseTo = edit && !linked.some((x) => x.kind === 'collect') ? cartridgeCaseTarget(ammo) : null;
     const collectRow = caseTo ? [h('dt', {}, t('Собранные гильзы')), h('dd', {},
@@ -1918,6 +1919,39 @@ function movementBody(m, close, edit = false) {
       ...(edit || m.note ? [h('dt', {}, t('Примечание')), h('dd', {}, edit ? noteInput : m.note)] : [])),
     linked.length ? box(m.kind === 'collect' ? t('Стрельба') : t('Списано компонентов'),
       h('div', { class: 'rows' }, linked.map((x) => logRow(x)))) : null);
+}
+
+/**
+ * Картка покупки й спорядження: плитки «скільки · сума · за одиницю», блоки Запис і Набої / Компонент;
+ * назва й рецепт — посилання на їхні картки, внизу — списані на спорядження компоненти.
+ */
+function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, noteInput, kv, row, lead }) {
+  const ammo = findCartridge(m.cartridgeId);
+  const part = ammo ? null : findComponent(m.componentId);
+  const recipe = m.kind === 'reload' ? findRecipe(m.recipeId) : null;
+  const unit = part?.unit || t('шт');
+  const n = Math.abs(m.qty);
+  const price = Number(m.price) > 0 ? Number(m.price) : null;
+  const stock = ammo ? M.cartridgeStock(state, ammo.id) : part ? M.componentStock(state, part.id) : null;
+  const name = ammo ? h('span', { class: 'ammo-name' }, cartridgeIcon(ammo.caliber), ammo.name) : (part?.name ?? movementTitle(m));
+  const open = ammo ? () => cartridgeDetail(ammo) : part ? () => componentDetail(part) : null;
+  const link = (label, onclick) => h('button', { type: 'button', class: 'link-btn', onclick }, label);
+  return h('div', {},
+    edit ? null : h('div', { class: 'stats even' },
+      stat(t(m.kind === 'buy' ? 'куплено' : 'снаряжено'), h('span', { class: 'nw' }, fmt.num(n), h('small', { class: 'unit' }, ` ${unit}`)), 'accent'),
+      price ? stat(t(m.kind === 'buy' ? 'стоимость' : 'себестоимость'), tileMoney(price)) : null,
+      price && n ? stat(t('за {unit}', { unit }), tileMoney(price / n)) : null),
+    box(t('Запись'), kv(
+      row('Дата', edit ? dateInput : fmt.date(m.date)),
+      edit ? row('Количество', editQty ? qtyInput : fmt.num(n)) : null,
+      edit && editPrice ? row('Сумма', priceInput) : null,
+      edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null)),
+    box(t(part ? 'Компонент' : 'Патроны'), lead(
+      edit && swapCartridge ? movementCartridgeSelect(m) : open ? link(name, open) : name,
+      m.caliber ? row('Калибр', m.caliber) : null,
+      recipe ? row('Рецепт', link(recipe.name, () => recipeDetail(recipe))) : null,
+      stock === null ? null : row('Сейчас на складе', `${fmt.num(stock)} ${unit}`))),
+    linked.length ? box(t('Списано компонентов'), h('div', { class: 'rows' }, linked.map((x) => logRow(x)))) : null);
 }
 
 /** Настріл по місяцях: скільки стріляв і на скільки — видно сезонність і темп. */
