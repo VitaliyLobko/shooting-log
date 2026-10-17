@@ -535,6 +535,46 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       }, 30);
     }
 
+    /**
+     * Розділити активну групу за відстанню: пробоїни, ближчі за шість калібрів одна до одної,
+     * лишаються разом (одиночне зчеплення). Дві серії на одній мішені розходяться самі.
+     */
+    function splitGroup() {
+      const holes = st.groups[active].holes;
+      const mm = M.mmPerPx(st.scale, { w: W, h: H });
+      // діаметр кулі в пікселях фото; без калібру й масштабу беремо 2% ширини
+      const px = holeMm && mm ? holeMm / mm : W * 0.02;
+      const limit = px * 6;
+      const parent = holes.map((_, i) => i);
+      const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+      for (let i = 0; i < holes.length; i += 1) {
+        for (let j = i + 1; j < holes.length; j += 1) {
+          const dx = (holes[i][0] - holes[j][0]) * W;
+          const dy = (holes[i][1] - holes[j][1]) * H;
+          if (Math.hypot(dx, dy) <= limit) parent[find(i)] = find(j);
+        }
+      }
+      const buckets = new Map();
+      holes.forEach((hole, i) => {
+        const root = find(i);
+        if (!buckets.has(root)) buckets.set(root, []);
+        buckets.get(root).push(hole);
+      });
+      if (buckets.size < 2) {
+        notice = t('Все пробоины рядом — делить не на что.');
+        paint();
+        return;
+      }
+      snapshot();
+      const parts = [...buckets.values()].sort((a, b) => b.length - a.length);
+      st.groups[active].holes = parts[0];
+      for (const rest of parts.slice(1)) st.groups.push({ holes: rest });
+      selected = null;
+      notice = t('Групп стало: {n}', { n: st.groups.length });
+      vibrate();
+      paint();
+    }
+
     /** Активну групу видаляє кнопка поруч із «+ група» — помилку повертає ↶. */
     function dropGroup() {
       snapshot();
@@ -586,6 +626,12 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             paint();
           },
         }, t('+ группа')),
+        // ділити є сенс лише коли пробоїн достатньо, щоб вийшло дві купи
+        h('button', {
+          type: 'button',
+          disabled: st.groups[active].holes.length < 4,
+          onclick: () => splitGroup(),
+        }, t('⫲ Разделить')),
         h('button', {
           type: 'button',
           disabled: st.groups.length === 1 && !st.groups[0].holes.length,
