@@ -4322,6 +4322,19 @@ applyTheme();
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
 $('sync-chip').addEventListener('click', onSyncChip);
 window.addEventListener('hashchange', route);
+// Мобільний Chrome то показує, то ховає адресний рядок: видима частина екрана стає нижчою
+// за сторінку, і нижня панель вкладок опиняється під краєм. Піднімаємо її на цю різницю.
+// Великий відступ (клавіатура) ігноруємо — там панель має лишатись унизу.
+if (window.visualViewport) {
+  const placeTabs = () => {
+    const vv = window.visualViewport;
+    const gap = Math.round(document.documentElement.clientHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--vv-gap', `${gap > 0 && gap < 120 ? gap : 0}px`);
+  };
+  window.visualViewport.addEventListener('resize', placeTabs);
+  window.visualViewport.addEventListener('scroll', placeTabs);
+  placeTabs();
+}
 window.addEventListener('sync-applied', refresh);
 window.addEventListener('db-blocked', () => toast(t('Закройте другие вкладки приложения — база обновляется')));
 registerWorker();

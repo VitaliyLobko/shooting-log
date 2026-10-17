@@ -49,6 +49,10 @@ body {
   padding-bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + 84px);
   overscroll-behavior-y: contain;
   -webkit-tap-highlight-color: transparent;
+  /* Застосунок вертикальний: якщо щось одне вилізе вбік, сторінка не має роз'їжджатися,
+     інакше нижня панель вкладок з'їжджає з екрана. Де горизонтальна прокрутка потрібна,
+     вона задана на самому блоці (галерея, таблиці довідника, звіт). */
+  overflow-x: clip;
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -535,7 +539,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: linear-gradient(90deg, var(--accent) var(--w), color-mix(in srgb, var(--muted) 18%, transparent) var(--w));
 }
 .shots-note { margin: 6px 0 0; }
-.log-controls { display: grid; gap: 8px; margin: 4px 0 12px; }
+/* minmax(0, 1fr) — інакше сітка розтягується під найширшу дитину (ряд фільтрів),
+   сторінка стає ширшою за екран, і нижня панель вкладок виїжджає за край. */
+.log-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 4px 0 12px; }
 .log-controls .chips.segmented { margin: 0; }
 .log-selects { display: flex; gap: 8px; }
 .log-sel {
@@ -795,7 +801,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .chips.segmented {
   display: grid;
-  grid-auto-columns: 1fr;
+  /* minmax(0, 1fr) — інакше колонка не може стати вужчою за свій текст,
+     і на вузькому екрані ряд «День · Тиждень · Місяць · Рік» вилазить за край. */
+  grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   gap: 4px;
   padding: 4px;
@@ -804,7 +812,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
-.chips.segmented button { min-height: 38px; border: 0; border-radius: 10px; background: transparent; font-weight: 650; color: var(--muted); }
+.chips.segmented button { min-height: 38px; min-width: 0; padding: 6px 8px; border: 0; border-radius: 10px;
+  background: transparent; font-weight: 650; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) { .chips.segmented button { font-size: 14px; padding: 6px 4px; } }
 .chips.segmented button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }
 .panel .chips.segmented { margin-bottom: 0; }
 
@@ -902,7 +913,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* --vv-gap ставить app.js: наскільки видима частина екрана нижча за сторінку
+     (мобільний Chrome із показаним адресним рядком). Без цього панель їде під край. */
+  bottom: var(--vv-gap, 0px);
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -956,7 +969,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fab {
   position: fixed;
   right: max(16px, calc((100vw - 720px) / 2 + 16px));
-  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + 16px);
+  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + var(--vv-gap, 0px) + 16px);
   z-index: 9;
   width: 58px;
   height: 58px;
@@ -1015,7 +1028,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + 12px);
+  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + var(--vv-gap, 0px) + 12px);
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1437,14 +1450,18 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .spark svg { width: 100%; height: 26px; display: block; }
 .spark .ch-line { stroke: var(--accent-2); stroke-width: 1.8; }
 
-.bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; }
+/* overflow — щоб підписи місяців не вилазили за правий край на вузькому екрані:
+   інакше сторінка стає ширшою за вікно й нижня панель вкладок їде вбік. */
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; overflow: hidden; }
 /* Три рядки: число, сам стовпчик (його висота у відсотках рахується від цього рядка) і підпис. */
 .bar-col { flex: 1 1 0; min-width: 0; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 2px; height: 100%; }
 .bar-val { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bar-fill { width: 100%; min-height: 2px; align-self: end; border-radius: 6px 6px 0 0; background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
 .bar-col.top .bar-fill { background: var(--accent); }
 .bar-col.top .bar-val { color: var(--accent-2); font-weight: 700; }
-.bar-lbl { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.bar-lbl { font-size: 10px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; }
+.bar-val { max-width: 100%; overflow: hidden; }
+@media (max-width: 420px) { .bar-lbl, .bar-val { font-size: 9px; } .bars { gap: 3px; } }
 
 /* Вправи — плитками: назва, рекорд, звання. Решта в картці вправи. */
 .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
