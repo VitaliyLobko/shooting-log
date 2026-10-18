@@ -43,6 +43,40 @@ export function vibrate(ms = 12) {
   navigator.vibrate?.(ms);
 }
 
+/**
+ * Свайп по панелі перемикачів: step(1) — ліворуч (наступний), step(-1) — праворуч (попередній);
+ * step повертає true, якщо перемкнув. Горизонтальний рух захоплює панель, тож відпускання й клік
+ * дістаються їй, а не кнопці під пальцем — та не перемкне ще раз.
+ */
+export function swipeStep(el, step) {
+  el.classList.add('seg-swipe');
+  let start = null;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button === 0) start = { x: e.clientX, y: e.clientY, id: e.pointerId, axis: null };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!start || e.pointerId !== start.id || start.axis) return;
+    const mx = e.clientX - start.x;
+    const my = e.clientY - start.y;
+    if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+    start.axis = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+    if (start.axis === 'x') el.setPointerCapture(e.pointerId);
+  });
+  const finish = (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    const { x, axis } = start;
+    start = null;
+    const dx = e.clientX - x;
+    if (e.type !== 'pointerup' || axis !== 'x' || Math.abs(dx) < 40) return;
+    if (step(dx < 0 ? 1 : -1)) vibrate();
+  };
+  el.addEventListener('pointerup', finish);
+  el.addEventListener('pointercancel', finish);
+  // Посилання мишею інакше починають системне перетягування, і свайп обривається
+  el.addEventListener('dragstart', (e) => e.preventDefault());
+  return el;
+}
+
 /** Нижня шторка. Повертає close(). */
 // Відкриті «живі» шторки: картка під іншою шторкою має побачити, що там змінили чи видалили.
 const liveSheets = new Set();
@@ -52,14 +86,86 @@ export function refreshSheets() {
   for (const s of [...liveSheets]) s();
 }
 
-/** live — функція, що будує тіло заново; з нею шторка оновлюється після refreshSheets(). */
-export function sheet(title, body, { actions = [], onClose, live, tools = [] } = {}) {
+// Шари поверх екрана (шторки, редактори, перегляд фото) мають по запису в історії: «Назад» закриває
+// лише верхній, вкладка під ним лишається. Записи вирівнюємо з шарами пачкою після поточного коду —
+// закрити й одразу відкрити наступну шторку не смикає історію двічі.
+const layers = [];
+let entries = 0;
+let waiting = false;
+let queued = false;
+let nextHash = null;
+
+function settle() {
+  queued = false;
+  if (waiting) return;
+  const diff = layers.length - entries;
+  for (let i = 0; i < diff; i += 1) history.pushState({ layer: true }, '');
+  entries = layers.length;
+  if (diff < 0) {
+    waiting = true;
+    history.go(diff);
+    return;
+  }
+  if (nextHash) {
+    location.hash = nextHash;
+    nextHash = null;
+  }
+}
+function schedule() {
+  if (queued) return;
+  queued = true;
+  queueMicrotask(settle);
+}
+window.addEventListener('popstate', () => {
+  if (waiting) {
+    waiting = false;
+    settle();
+    return;
+  }
+  if (!entries) return;
+  entries -= 1;
+  layers.pop()?.();
+});
+
+/** Запис в історії для шару: onBack — що зробити на «Назад». Повертає функцію — викликати, коли шар закрили самі. */
+export function backLayer(onBack) {
+  layers.push(onBack);
+  schedule();
+  return () => {
+    const i = layers.lastIndexOf(onBack);
+    if (i < 0) return;
+    layers.splice(i, 1);
+    schedule();
+  };
+}
+
+/** Перейти на вкладку; щойно закритий шар спершу прибирає свій запис, інакше відступ історії скасував би перехід. */
+export function goTab(hash) {
+  if (queued || waiting) nextHash = hash;
+  else location.hash = hash;
+}
+
+/**
+ * live — функція, що будує тіло заново; з нею шторка оновлюється після refreshSheets().
+ * full — на весь екран (картка з великим фото), а не до 92% висоти.
+ */
+/** lead — кнопка ліворуч від заголовка, окремо від решти (видалення: щоб не натиснути випадково). */
+export function sheet(title, body, { actions = [], onClose, live, tools = [], lead = null, full = false } = {}) {
   const layer = document.getElementById('layer');
+  const opener = document.activeElement;
+  let closed = false;
   const close = () => {
+    // Шторка зникає 180 мс — увесь цей час вона глуха: другий тап по «Зберегти» не запише вдруге
+    if (closed) return;
+    closed = true;
+    backdrop.inert = true;
+    document.removeEventListener('keydown', onKey);
+    // Фокус — назад на кнопку, що відкрила; поле вводу не чіпаємо, щоб на телефоні не вискакувала клавіатура
+    if (opener?.isConnected && !opener.matches('input, textarea') && backdrop.contains(document.activeElement)) opener.focus({ preventScroll: true });
     liveSheets.delete(rebuild);
     backdrop.classList.remove('open');
     setTimeout(() => backdrop.remove(), 180);
-    window.removeEventListener('popstate', close);
+    unlayer();
     onClose?.();
   };
   const rebuild = () => {
@@ -67,13 +173,18 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [] } =
     if (!next) { close(); return; }
     const box = panel.querySelector('.sheet-body');
     const top = box.scrollTop;
+    // Фокус (клавіатура, читалка екрана) — на той самий за порядком елемент, інакше він злітає на початок сторінки
+    const focusable = () => [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]')];
+    const at = box.contains(document.activeElement) ? focusable().indexOf(document.activeElement) : -1;
     box.replaceChildren(next);
     box.scrollTop = top;
+    if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
   };
   if (live) liveSheets.add(rebuild);
-  const panel = h('section', { class: 'sheet', role: 'dialog', 'aria-label': title },
+  const panel = h('section', { class: full ? 'sheet full' : 'sheet', role: 'dialog', 'aria-label': title },
     h('div', { class: 'sheet-grip' }),
     h('header', { class: 'sheet-head' },
+      lead ? h('div', { class: 'sheet-lead' }, lead) : null,
       h('h2', {}, title),
       h('div', { class: 'sheet-tools' }, tools,
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕'))),
@@ -87,9 +198,19 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [] } =
     onpointerdown: (e) => { downOnBackdrop = e.target === backdrop; },
     onclick: (e) => { if (e.target === backdrop && downOnBackdrop) close(); downOnBackdrop = false; },
   }, panel);
+  // Кнопки закритої шторки мовчать і для клавіатури, і для кліку з коду — inert зупиняє лише дотик
+  panel.addEventListener('click', (e) => { if (closed) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  panel.tabIndex = -1;
+  // Escape закриває лише верхню шторку; редактор мішені чи фото поверх неї слухає свій
+  const onKey = (e) => { if (e.key === 'Escape' && layer.lastElementChild === backdrop) { e.preventDefault(); close(); } };
+  document.addEventListener('keydown', onKey);
   layer.append(backdrop);
-  requestAnimationFrame(() => backdrop.classList.add('open'));
-  window.addEventListener('popstate', close, { once: true });
+  requestAnimationFrame(() => {
+    backdrop.classList.add('open');
+    // Читалка й клавіатура опиняються в шторці, а не на сторінці під нею
+    if (!closed && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+  });
+  const unlayer = backLayer(close);
   return close;
 }
 
@@ -161,6 +282,8 @@ export function clearUndo() {
 
 // Будь-який новий запис робить скасування застарілим (синхронізація цієї події не шле).
 window.addEventListener('db-change', clearUndo);
+// Синхронізація принесла чужі зміни — старий знімок для скасування перетер би новішу правку з іншого пристрою
+window.addEventListener('sync-applied', (e) => { if (e.detail?.remote) clearUndo(); });
 
 /** Помилка під полем: рамка й текст, зникають, щойно поле виправляють. */
 export function fieldError(input, message) {
@@ -224,7 +347,8 @@ export function form(fields) {
       input.value = f.value ?? '';
     }
     inputs[f.name] = input;
-    el.append(h('label', { class: `field ${f.wide ? 'wide' : ''} ${f.half ? 'half' : ''}` },
+    // Чипи — не в <label>: тап по підпису «натискав» би перший чип
+    el.append(h(f.type === 'chips' ? 'div' : 'label', { class: `field ${f.wide ? 'wide' : ''} ${f.half ? 'half' : ''}` },
       f.label ? h('span', { class: 'field-label' }, f.label) : null, input,
       f.hint ? h('small', { class: 'muted' }, f.hint) : null));
   }
@@ -381,7 +505,46 @@ const TOOL_ICON = {
   map: '<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
   report: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 12h7M9 16h7"/>',
   locate: '<path d="M12 21s-6.5-5.8-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/>',
+  drill: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.7 3.6M16 6h2.5a2.5 2.5 0 0 1-2.7 3.6"/><path d="M12 13v4M8.5 20h7M10 17h4v3h-4z"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  speed: '<path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.5-5.5"/><path d="M6 17h1.5M16.5 17H18M12 8.5V10M7.5 11l1 1"/>',
+  timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9M10 2.5h4M12 2.5V6M18.2 6.8l1.6-1.6"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  camera: '<path d="M3 8.5h4l2-3h6l2 3h4V19H3z"/><circle cx="12" cy="13" r="3.5"/>',
+  gallery: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15.5l-5-5-8.5 9"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  holes: '<circle cx="8.5" cy="9" r="2.6"/><circle cx="15.5" cy="8" r="2.6"/><circle cx="12" cy="15.5" r="2.6"/>',
+  poa: '<circle cx="12" cy="12" r="7"/><path d="M12 2.5v6M12 15.5v6M2.5 12h6M15.5 12h6"/>',
+  scale: '<path d="M3 15.5L15.5 3 21 8.5 8.5 21z"/><path d="M7 11.5l2 2M10 8.5l2 2M13 5.5l2 2"/>',
+  filter: '<path d="M4 5h16l-6.2 7.6V19l-3.6 1.6v-8z"/>',
+  // кут між двома променями з дугою — кутова мінута
+  angle: '<path d="M4 19h16"/><path d="M4 19 16.5 6.5"/><path d="M11.5 19a7.5 7.5 0 0 0-2.2-5.3"/>',
+  // сітка прицілу з мілрадіанними точками
+  mil: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/><circle cx="12" cy="7.5" r=".9"/><circle cx="12" cy="16.5" r=".9"/><circle cx="7.5" cy="12" r=".9"/><circle cx="16.5" cy="12" r=".9"/>',
+  // колба з рівнем пороху — рецепт спорядження
+  recipe: '<path d="M9 3h6M10 3v6L5 18.2A2 2 0 0 0 6.8 21h10.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.4 15h9.2"/>',
+  // склад: дах і полиці
+  ammo: '<path d="M9 21V11l1-2V6.5C10 4.6 10.8 3 12 2c1.2 1 2 2.6 2 4.5V9l1 2v10z"/><path d="M9 15h6"/>',
+  view: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11.5V6a1.5 1.5 0 0 1 3 0v7.5"/><path d="M17 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.5 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14"/>',
+  align: '<path d="M5 6.5L19 4v16l-14-2.5z"/><path d="M9.7 5.7v12.6M14.3 4.9v14.2"/>',
+  stock: '<path d="M3 21V8.5L12 3l9 5.5V21"/><path d="M7 21v-9h10v9M7 15h10M7 18h10"/>',
+  split: '<circle cx="6" cy="8" r="2"/><circle cx="7.5" cy="15.5" r="2"/><circle cx="17.5" cy="8.5" r="2"/><circle cx="16.5" cy="16" r="2"/><path d="M12 3v2.5M12 8.5v2M12 13.5v2M12 18.5V21"/>',
 };
+
+/** Зірка «найкраще»: SVG, бо гліф ★ у кожному шрифті сидить на своїй висоті й не стає по цифрах поруч. */
+export function starIcon(label) {
+  const el = h('span', { class: 'star-ico', role: 'img', title: label, 'aria-label': label });
+  el.innerHTML = '<svg viewBox="1.7 1.5 20.6 19.6" aria-hidden="true"><path d="M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.6l-6.4 3.5L7 14l-5.3-5 7.2-.9z"/></svg>';
+  return el;
+}
+
+/** Іконка з набору TOOL_ICON — для своїх кнопок. */
+export function icon(name) {
+  const el = h('span', { class: 'ico', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="0 0 24 24">${TOOL_ICON[name]}</svg>`;
+  return el;
+}
 
 /** Кнопка-іконка в шапці шторки. */
 export function toolBtn(icon, label, onclick, cls = '') {

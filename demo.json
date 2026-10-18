@@ -86,7 +86,8 @@
     "cleanUnit": "shots",
     "cleanDelay": 0,
     "note": "полювання",
-    "scopes": []
+    "scopes": [],
+    "choke": "mod"
    },
    {
     "id": "w-h22",
@@ -176,7 +177,40 @@
       "note": "EBR-2C MRAD",
       "default": true
      }
-    ]
+    ],
+    "bipod": true
+   },
+   {
+    "id": "w-h338",
+    "created": 1773126000000,
+    "name": "Sako TRG M10",
+    "caliber": ".338 Lapua Mag",
+    "serial": "S4M10882",
+    "initialShots": 0,
+    "barrelLife": 3000,
+    "cleanEvery": 3,
+    "cleanUnit": "sessions",
+    "cleanDelay": 0,
+    "note": "дуже дальня",
+    "permit": {
+     "number": "АБ-311906",
+     "issued": "2026-03-02",
+     "expires": "2031-03-02"
+    },
+    "scopes": [
+     {
+      "id": "sc-h338",
+      "name": "Schmidt & Bender PM II 5-25×56",
+      "kind": "optic",
+      "zero": 100,
+      "click": "mil0.1",
+      "reticle": "mil",
+      "note": "P4FL MRAD",
+      "default": true
+     }
+    ],
+    "suppressor": true,
+    "bipod": true
    }
   ],
   "cartridges": [
@@ -262,6 +296,15 @@
     "bulletWeight": 140,
     "weightUnit": "gr",
     "note": "матчевий"
+   },
+   {
+    "id": "c-h338",
+    "created": 1773471600000,
+    "name": "Lapua Scenar 250 gr",
+    "caliber": ".338 Lapua Mag",
+    "bulletWeight": 250,
+    "weightUnit": "gr",
+    "note": "заводські"
    }
   ],
   "components": [
@@ -4711,6 +4754,97 @@
     "qty": -20,
     "foreignAmmo": true,
     "note": "чужі набої"
+   },
+   {
+    "created": 1773471600000,
+    "date": "2026-03-14",
+    "kind": "buy",
+    "cartridgeId": "c-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": 20,
+    "price": 5800,
+    "note": "Тетраедр",
+    "id": "mv-h0400"
+   },
+   {
+    "created": 1774076400000,
+    "date": "2026-03-21",
+    "kind": "shot",
+    "cartridgeId": "c-h338",
+    "weaponId": "w-h338",
+    "scopeId": "sc-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": -10,
+    "price": 2900.0,
+    "note": "Пристрілка 100 м",
+    "id": "mv-h0401",
+    "suppressor": true,
+    "bipod": true
+   },
+   {
+    "created": 1777100400000,
+    "date": "2026-04-25",
+    "kind": "shot",
+    "cartridgeId": "c-h338",
+    "weaponId": "w-h338",
+    "scopeId": "sc-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": -5,
+    "price": 1450.0,
+    "note": "1000 м",
+    "id": "mv-h0402",
+    "suppressor": true,
+    "bipod": true
+   },
+   {
+    "created": 1781938800000,
+    "date": "2026-06-20",
+    "kind": "buy",
+    "cartridgeId": "c-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": 20,
+    "price": 6000,
+    "note": "Зброяр",
+    "id": "mv-h0403"
+   },
+   {
+    "created": 1782543600000,
+    "date": "2026-06-27",
+    "kind": "shot",
+    "cartridgeId": "c-h338",
+    "weaponId": "w-h338",
+    "scopeId": "sc-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": -8,
+    "price": 2384.0,
+    "note": "1000 м",
+    "id": "mv-h0404",
+    "suppressor": true,
+    "bipod": true
+   },
+   {
+    "created": 1782558000000,
+    "date": "2026-06-27",
+    "kind": "clean",
+    "weaponId": "w-h338",
+    "qty": 0,
+    "note": "Чистка, мідь",
+    "id": "mv-h0405"
+   },
+   {
+    "created": 1790406000000,
+    "date": "2026-09-26",
+    "kind": "shot",
+    "cartridgeId": "c-h338",
+    "weaponId": "w-h338",
+    "scopeId": "sc-h338",
+    "caliber": ".338 Lapua Mag",
+    "qty": -6,
+    "price": 1788.0,
+    "note": "1200 м",
+    "id": "mv-h0406",
+    "suppressor": true,
+    "bipod": true
    }
   ],
   "photos": [
@@ -5201,7 +5335,7 @@
      }
     ],
     "movementId": "mv-0043",
-    "note": "найкраща",
+    "note": null,
     "temp": 9,
     "wind": 0
    },

@@ -1,6 +1,6 @@
 // Перевірка перед публікацією: зламаний модуль кладе весь застосунок у всіх, хто оновився.
 // Модулі розбираються й зв'язуються без виконання — ловить синтаксис і імпорт імені, якого немає.
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 const errors = [];
@@ -32,6 +32,10 @@ for (const path of ['sw.js', 'version.js']) {
 const assets = read('sw.js');
 for (const file of readdirSync('js').filter((f) => f.endsWith('.js'))) {
   if (!assets.includes(`'./js/${file}'`)) errors.push(`sw.js: js/${file} немає в ASSETS — офлайн не завантажиться`);
+}
+// і навпаки: файл з ASSETS, якого нема, валить установку кешу цілком (addAll — все або нічого)
+for (const [, path] of assets.matchAll(/'\.\/([^']+)'/g)) {
+  if (!existsSync(path)) errors.push(`sw.js: ${path} є в ASSETS, але файлу немає — офлайн-копія не встановиться`);
 }
 
 for (const path of ['demo.json', 'manifest.webmanifest']) {

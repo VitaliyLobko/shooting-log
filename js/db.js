@@ -13,6 +13,7 @@ const BLOBS = 'blobs';
 let opening;
 
 function open() {
+  // Невдале відкриття не запам'ятовуємо: наступний запит (чи «Спробувати ще раз») відкриває заново
   opening ??= new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
@@ -24,11 +25,16 @@ function open() {
     // Нову версію бази відкрили в іншій вкладці — віддаємо з'єднання, інакше там оновлення зависне
     req.onsuccess = () => {
       req.result.onversionchange = () => { req.result.close(); location.reload(); };
+      // Браузер сам закрив з'єднання (iOS після сну, очищення сховища) — наступний запис відкриє нове
+      req.result.onclose = () => { opening = undefined; };
       resolve(req.result);
     };
     req.onerror = () => reject(req.error);
     // Стара вкладка тримає попередню версію (без обробника вище) — без підказки застосунок мовчки порожній
     req.onblocked = () => window.dispatchEvent(new Event('db-blocked'));
+  }).catch((err) => {
+    opening = undefined;
+    throw err;
   });
   return opening;
 }
@@ -37,7 +43,15 @@ async function run(stores, mode, fn) {
   const db = await open();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(stores, mode);
-    const out = fn(tx);
+    let out;
+    // Запис, що впав одразу (битий id у копії), інакше лишив би транзакцію напівзробленою: вона закомітилась би сама
+    try {
+      out = fn(tx);
+    } catch (err) {
+      try { tx.abort(); } catch { /* уже завершена */ }
+      reject(err);
+      return;
+    }
     tx.oncomplete = () => resolve(out);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
@@ -71,10 +85,13 @@ export async function write(changes) {
     const graves = tx.objectStore('tombstones');
     for (const name of names) {
       const store = tx.objectStore(name);
-      for (const obj of changes[name].put ?? []) store.put({ ...obj, updated: now });
+      // Правка новіша за те, що правили, навіть коли годинник іншого пристрою поспішав: інакше синхронізація її відкинула б
+      for (const obj of changes[name].put ?? []) store.put({ ...obj, updated: Math.max(now, stamp(obj) + 1) });
       for (const id of changes[name].del ?? []) {
-        store.delete(id);
-        graves.put({ id, store: name, updated: now });
+        store.get(id).onsuccess = (e) => {
+          graves.put({ id, store: name, updated: Math.max(now, stamp(e.target.result) + 1) });
+          store.delete(id);
+        };
       }
     }
     if (blobs) {
@@ -93,7 +110,7 @@ export function patch(name, id, fields) {
     const store = tx.objectStore(name);
     store.get(id).onsuccess = (e) => {
       if (!e.target.result) return;
-      store.put({ ...e.target.result, ...fields, updated: Date.now() });
+      store.put({ ...e.target.result, ...fields, updated: Math.max(Date.now(), stamp(e.target.result) + 1) });
       result.ok = true;
     };
     return result;

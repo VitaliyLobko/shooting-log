@@ -1,7 +1,9 @@
 // Залишки й настріл не зберігаються — завжди рахуються з журналу рухів.
 //
 // movement: { id, batch, date, kind, qty, caliber, cartridgeId?, componentId?,
-//             weaponId?, recipeId?, price?, note?, foreignWeapon?, foreignWeaponName?, foreignAmmo? }
+//             weaponId?, recipeId?, price?, note?, foreignWeapon?, foreignWeaponName?, foreignAmmo?,
+//             suppressor?, bipod? }
+//   suppressor / bipod — стріляли з глушником / із сошок (лише свій ствол; так само в мішені).
 //   kind: buy | shot | reload | consume | adjust
 //   qty: зі знаком, у штуках патронів або в одиницях компонента.
 //   shot без cartridgeId — історичний запис або чужі набої (foreignAmmo): рахується в настріл, але не в залишок БК.

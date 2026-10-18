@@ -11,12 +11,16 @@ export function caliberHue(caliber) {
 
 const PISTOL_CAL = /(9\s*[x×х*]\s*1[789]|\.?45\s*acp|\.?40\s*s&?w|\.?380|9\s*(mm|мм)|luger|para|makarov|макаров|5[.,]7\s*[x×х*]\s*28|7[.,]62\s*[x×х*]\s*25)/i;
 
-/** Тип за калібром: shot — гладкий ствол, rimfire — кільцевий запал, pistol, rifle. */
+// Крупні гвинтівкові: магнуми й великокаліберні. «Magnum» без марки не беремо — це й револьверні .357/.44.
+const MAGNUM_CAL = /(\.?338|\.?375|\.?408|\.?416|\.?50\s*bmg|12[.,]7\s*[x×х*]\s*(99|108)|14[.,]5\s*[x×х*]\s*114|(win|rem|norma|wby|weatherby|lapua|ultra|winchester|remington)\.?\s*mag|\bprc\b|\d\s*wm\b)/i;
+
+/** Тип за калібром: shot — гладкий ствол, rimfire — кільцевий запал, pistol, magnum — крупний гвинтівковий, rifle. */
 export function caliberKind(caliber) {
   const c = String(caliber ?? '');
   if (M.barrelLifeFor(c)?.smooth) return 'shot';
   if (/22\s*(lr|wmr|short)/i.test(c)) return 'rimfire';
-  return PISTOL_CAL.test(c) ? 'pistol' : 'rifle';
+  if (PISTOL_CAL.test(c)) return 'pistol';
+  return MAGNUM_CAL.test(c) ? 'magnum' : 'rifle';
 }
 
 // ---------- іконка набою ----------
@@ -40,6 +44,11 @@ function ensureGradients() {
 
 // Набій збоку, куля вгорі; viewBox обрізаний під кожен тип, щоб короткі набої не губились.
 const CARTRIDGE_SVG = {
+  // Крупний: гільза майже на всю ширину, довга куля, латунний поясок над проточкою — щоб відрізнявся від .308 і в маленькій плитці
+  magnum: ['0 0 22 64', `<path fill="url(#sl-copper)" d="M7.6 18C7.6 10 9.8 3.4 11 0.6 12.2 3.4 14.4 10 14.4 18Z"/>
+    <path fill="url(#sl-brass)" d="M7.5 17h7v6.5l5 4V51h-17V27.5l5-4Z"/>
+    <rect fill="url(#sl-brass)" x="1.8" y="50.6" width="18.4" height="4.6" rx=".7"/><rect fill="#5e3f0e" x="1.8" y="50.6" width="18.4" height=".8"/>
+    <rect fill="#5e3f0e" x="4" y="55.2" width="14" height="2.2"/><rect fill="url(#sl-brass)" x="1.8" y="57.4" width="18.4" height="5.2" rx="1"/>`],
   rifle: ['0 0 20 64', `<path fill="url(#sl-copper)" d="M7 15C7 9 9 4 10 1.5 11 4 13 9 13 15Z"/>
     <path fill="url(#sl-brass)" d="M7 14h6v6l3 5v32H4V25l3-5Z"/><rect fill="#5e3f0e" x="5" y="57" width="10" height="2"/><rect fill="url(#sl-brass)" x="3.5" y="59" width="13" height="3.5" rx="1"/>`],
   pistol: ['0 23 20 40', `<path fill="url(#sl-copper)" d="M4.5 37C4.5 29 7 25.5 10 24.5 13 25.5 15.5 29 15.5 37Z"/>

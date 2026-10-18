@@ -1,7 +1,7 @@
 // Фото зброї: стиснення на пристрої, мініатюра для списку, перегляд на весь екран.
 // Мініатюра (~10 КБ) їде в запис photos і синхронізується в JSON, повне фото — окремим файлом.
 import * as db from './db.js';
-import { h } from './ui.js';
+import { h, backLayer } from './ui.js';
 import { t } from './i18n.js';
 
 const FULL = 1600;
@@ -23,7 +23,7 @@ export async function decode(file) {
   }
 }
 
-function draw(src, max) {
+export function draw(src, max) {
   const k = Math.min(1, max / Math.max(src.width, src.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(src.width * k));
@@ -54,7 +54,7 @@ export async function prepare(file, { max = FULL } = {}) {
 }
 
 /** Готове полотно → { blob, thumb, w, h }, як у prepare(). */
-async function pack(canvas) {
+export async function pack(canvas) {
   return { blob: await jpeg(canvas, 0.85), thumb: draw(canvas, THUMB).toDataURL('image/jpeg', 0.7), w: canvas.width, h: canvas.height };
 }
 
@@ -206,7 +206,7 @@ export async function editPhoto(blob, { square = false } = {}) {
     const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
     const close = (result) => {
       root.remove();
-      window.removeEventListener('popstate', cancel);
+      unlayer();
       window.removeEventListener('resize', relayout);
       document.removeEventListener('keydown', onKey);
       src.close?.();
@@ -247,7 +247,7 @@ export async function editPhoto(blob, { square = false } = {}) {
       h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')), saveBtn));
 
     document.getElementById('layer').append(root);
-    window.addEventListener('popstate', cancel, { once: true });
+    const unlayer = backLayer(cancel);
     window.addEventListener('resize', relayout);
     document.addEventListener('keydown', onKey);
     paint(true);
@@ -269,7 +269,7 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
   const close = () => {
     if (url) URL.revokeObjectURL(url);
     root.remove();
-    window.removeEventListener('popstate', close);
+    unlayer();
     document.removeEventListener('keydown', onKey);
   };
   const go = (step) => {
@@ -342,7 +342,7 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
   }
 
   document.getElementById('layer').append(root);
-  window.addEventListener('popstate', close, { once: true });
+  const unlayer = backLayer(close);
   document.addEventListener('keydown', onKey);
   show();
   return close;

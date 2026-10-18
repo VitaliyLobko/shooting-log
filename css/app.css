@@ -32,11 +32,18 @@
   --muted: #646d60;
   --accent: #d96a1c;
   --accent-2: #c45f14;
+  /* темніші за темну тему: на білому світлі відтінки ледь читались (жовтий — 2:1) */
+  --buy: #26803f;
+  --shoot: #b83a2b;
+  --warn: #946800;
+  --clean: #2a7fa6;
   --shadow: 0 1px 2px rgb(30 40 25 / .06), 0 6px 16px rgb(30 40 25 / .06);
   color-scheme: light;
 }
 
 * { box-sizing: border-box; }
+/* hidden ховає завжди: правило з display у класі (flex, grid) інакше перебиває атрибут */
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -81,8 +88,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .topbar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .app-icon { width: 30px; height: 30px; flex: none; border-radius: 8px; object-fit: cover; }
-.icon-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-.icon-preview img { width: 64px; height: 64px; flex: none; border-radius: 16px; object-fit: cover; }
 .sync-chip {
   min-height: 32px;
   padding: 4px 12px;
@@ -94,10 +99,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-.sync-chip[hidden] { display: none; }
 /* «Скасувати» в шапці: живе до наступної зміни даних. */
 .undo-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 16px; background: var(--accent-soft); color: var(--accent-2); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.undo-btn[hidden] { display: none; }
 .undo-btn > span:first-child { font-size: 16px; line-height: 1; }
 /* Підтвердження: картка, що змінилася, коротко світиться. */
 .flash { animation: flash 1.1s ease-out; }
@@ -136,7 +139,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--accent);
 }
 .update button { border: 0; border-radius: 10px; padding: 8px 14px; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
-.update[hidden] { display: none; }
 
 .view { padding: 14px 16px; max-width: 720px; margin: 0 auto; }
 
@@ -174,6 +176,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lv-art { width: 96px; height: 76px; }
 .lv-art svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 3px rgb(0 0 0 / .4)); }
 .lv-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
+/* Усього набоїв: «вистачить на ≈ N виїздів» — у правому верхньому куті, картинка під ним */
+/* Висота — як у підсумку «Компонентів»: число того ж розміру, праворуч лише картинка. */
+.ammo-hero { align-items: center; }
+.hero.ammo-hero .hero-value { font-size: clamp(28px, 9vw, 34px); white-space: nowrap; }
+.ammo-runway { margin: -6px 4px 10px; text-align: right; }
+.ammo-runway::first-letter { text-transform: uppercase; }
+.ammo-hero .lv-art { width: 64px; height: 50px; }
 .rank-name { color: var(--accent-2); font-weight: 800; }
 .rank-ring { position: relative; flex: none; width: 92px; height: 92px; }
 .rank-ring-track { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
@@ -203,20 +212,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .item-row .item-unit.off { visibility: hidden; }
 .hero-unit { font-size: 18px; font-weight: 600; color: var(--muted); }
 .hero-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
-.hero-split { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.pill {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  min-height: 34px;
-  padding: 6px 12px;
-  border-radius: 17px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
-  font-size: 13px;
-  cursor: pointer;
-}
-.pill b { font-variant-numeric: tabular-nums; }
 
 /* Іконка набою: плитка кольору калібру, набій навскіс. */
 .ammo-ico { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
@@ -230,25 +225,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ammo-ico svg.rimfire { height: 26px; }
 .ammo-ico svg.shot { height: 37px; }
 /* у заголовку групи калібру — менша */
-:is(.fold-head, .shots-head) .ammo-ico { width: 32px; height: 32px; border-radius: 10px; }
-:is(.fold-head, .shots-head) .ammo-ico svg { height: 27px; }
-:is(.fold-head, .shots-head) .ammo-ico svg.pistol { height: 21px; }
-:is(.fold-head, .shots-head) .ammo-ico svg.rimfire { height: 18px; }
-:is(.fold-head, .shots-head) .ammo-ico svg.shot { height: 25px; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico { width: 32px; height: 32px; border-radius: 10px; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico svg { height: 27px; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.pistol { height: 21px; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.rimfire { height: 18px; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.shot { height: 25px; }
 
 /* --- групи, що згортаються --- */
-.group { margin-bottom: 18px; }
-.group-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin: 6px 2px 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
 .fold { margin-bottom: 10px; }
 .fold-head {
   display: flex;
@@ -312,8 +295,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card { margin: 0; border-radius: 0; }
-.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card .swipe-body {
+/* Набої: калібр — картка, шапка в кольорі калібру (--h) з сумою, позиції — рядками під нею. */
+.cal-group { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+.cal-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; list-style: none; cursor: pointer;
+  user-select: none; -webkit-user-select: none;
+  background: color-mix(in srgb, hsl(var(--h) 45% 45%) 14%, var(--surface)); }
+.cal-head::-webkit-details-marker { display: none; }
+.cal-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-group[open] > .cal-head { border-bottom: 1px solid var(--line-soft); }
+.cal-group[open] > .cal-head .chevron { transform: rotate(90deg); }
+.cal-name { min-width: 0; line-height: 1.2; }
+.cal-title { font-size: 16px; font-weight: 800; }
+.cal-meta { font-size: 12.5px; color: var(--muted); }
+.cal-total { margin-left: auto; font-size: 20px; font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cal-total small { margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
+:is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) > .card { margin: 0; border-radius: 0; }
+:is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) > .card .swipe-body {
   min-height: 54px;
   padding: 8px 14px;
   border: 0;
@@ -321,8 +318,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   box-shadow: none;
   background: var(--surface);
 }
-.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body > .card + .card .swipe-body { border-top: 1px solid var(--line-soft); }
-.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body .big { font-size: 22px; }
+:is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) > .card + .card .swipe-body { border-top: 1px solid var(--line-soft); }
+:is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) .big { font-size: 22px; }
 .fold-cost { margin-left: 8px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
 .cost-line { grid-column: 1 / -1; margin-top: -4px; color: var(--accent-2); font-weight: 600; }
 .cost-line:empty { display: none; }
@@ -335,7 +332,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: color-mix(in srgb, var(--shoot) 12%, transparent);
   font-weight: 600;
 }
-.caliber-warn[hidden] { display: none; }
 
 /* --- картки зі свайпом --- */
 .card {
@@ -371,14 +367,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
   inset: 0;
   display: none;
   align-items: center;
+  gap: 8px;
   padding: 0 20px;
   font-weight: 800;
   color: #fff;
 }
+.swipe-ico { display: flex; transition: transform .15s ease; }
+.swipe-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* Поріг пройдено — іконка підростає разом із вібрацією: відпускай, спрацює */
+.card.armed .swipe-ico { transform: scale(1.25); }
 .swipe-bg.right { background: var(--buy); justify-content: flex-start; }
 .swipe-bg.left { background: var(--shoot); justify-content: flex-end; }
 .card.dir-right .swipe-bg.right, .card.dir-left .swipe-bg.left { display: flex; opacity: .55; }
-.card.armed .swipe-bg { opacity: 1; }
+/* .right/.left — інакше правило «бліде» вище за специфічністю й підкладка не яскравішає на порозі */
+.card.armed .swipe-bg.right, .card.armed .swipe-bg.left { opacity: 1; }
 
 .card-main { flex: 1; min-width: 0; }
 .card-title { font-weight: 700; overflow-wrap: anywhere; }
@@ -543,18 +545,46 @@ button, input, select, textarea { font: inherit; color: inherit; }
    сторінка стає ширшою за екран, і нижня панель вкладок виїжджає за край. */
 .log-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 4px 0 12px; }
 .log-controls .chips.segmented { margin: 0; }
-.log-selects { display: flex; gap: 8px; }
-.log-sel {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: 12px;
+.log-bar { display: flex; align-items: center; gap: 8px; }
+.log-bar .chips.segmented { flex: 1; min-width: 0; display: flex; }
+/* поруч зі значком фільтра місця менше: ширина кнопки за текстом — «Рік» віддає місце «Тижню» */
+.log-bar .chips.segmented button { flex: 1 1 auto; padding-inline: 6px; }
+.log-filter {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   border: 1px solid var(--line);
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  font: inherit;
+  cursor: pointer;
 }
+.log-filter.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+.log-filter .ico { display: grid; }
+.log-filter svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.log-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: 10px; background: var(--accent); color: #fff; font-size: 11px; box-shadow: 0 0 0 2px var(--bg); }
+/* Вивантаження — рідко потрібне, тож не в ряду фільтрів, а скромною кнопкою під записами */
+.log-export { display: flex; justify-content: center; margin: 18px 0 6px; }
+.log-export button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--line);
+  border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.log-export .ico { display: grid; }
+.log-export svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+/* Увімкнені фільтри: тап знімає фільтр, тож і вигляд — «зняти»: з ✕ */
+.log-on { margin: 0; }
+.log-on button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 3px 10px 3px 6px; border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.log-on button:not([class*="kind-"]) { padding-left: 12px; }
+.log-x { font-size: 12px; opacity: .65; }
+.log-on .row-icon, .log-pick .row-icon { width: 26px; height: 26px; border-radius: 50%; }
+.log-on .row-icon svg, .log-pick .row-icon svg { width: 15px; height: 15px; }
+.log-pick { margin: 0; }
+.log-pick button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+.log-pick button[class*="kind-"] { padding-left: 7px; }
+.log-pick button.on .row-icon { color: #fff; background: rgb(255 255 255 / .22); }
 
 /* Блок із заголовком на лінії рамки (fieldset + legend, як в 1С). */
 .box { min-width: 0; margin: 16px 0 12px; padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 12px; }
@@ -572,6 +602,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .box.closed { padding: 0; border-width: 1px 0 0; border-radius: 0; }
 .box.closed > legend { margin-left: 0; padding-left: 0; }
 .box.closed > .box-body { display: none; }
+/* Кнопка на рамці праворуч: кругла, зі своїм тлом — сидить на лінії, як заголовок ліворуч */
+.box { position: relative; }
+.box > .icon-btn.box-corner {
+  position: absolute;
+  /* центр кнопки — на лінії рамки (середина легенди) */
+  top: -26px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.box > .icon-btn.box-corner svg { width: 16px; height: 16px; }
 .box-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .box-chevron { display: inline-block; font-size: 16px; line-height: 1; color: var(--accent-2); transform: rotate(90deg); transition: transform .15s; }
 .box.closed .box-chevron { transform: none; }
@@ -750,6 +793,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .editor-aspects button.on { background: var(--accent); border-color: var(--accent); }
 .viewer-actions .btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); border-color: var(--accent); }
+/* «Вирівняти мішень»: полотно на всю сцену, кути тягнуться пальцем */
+.align-stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
+.align-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.align .viewer-head .editor-tool { width: 44px; height: 40px; }
+.align-hint { margin: 0; text-align: center; font-size: 13px; opacity: .8; }
+.align-crop { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; }
+.align-crop input { width: 20px; height: 20px; accent-color: var(--accent); }
+.align-sheet { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.align-sheet > span { font-size: 12px; opacity: .7; }
 
 /* --- кнопки й поля --- */
 .btn {
@@ -777,6 +829,32 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .btn-row .btn { flex: 1 1 auto; }
 .btn-col { display: flex; flex-direction: column; gap: 8px; }
+.btn.with-ico { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.with-ico .ico { display: grid; }
+.btn.with-ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+/* Звідки фото мішені: дві плитки поруч, камера — основна */
+.photo-srcs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photo-src {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.photo-src b { font-weight: 650; }
+.photo-src small { color: var(--muted); font-size: 12px; }
+.photo-src-ico { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 6px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.photo-src-ico .ico { display: grid; }
+.photo-src-ico svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
+.photo-src.main { border-color: var(--accent); background: var(--accent-soft); }
+.photo-src.main .photo-src-ico { background: var(--accent); color: #fff; }
+.photo-src:active { transform: scale(.98); }
 
 .icon-btn {
   width: 40px;
@@ -798,6 +876,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+/* Підказки значень під полем (дистанція) — дрібніші за звичайні чипи, щоб не тягнули увагу з поля */
+.chips.chips-sm { gap: 5px; margin-top: 0; }
+.chips.chips-sm button { min-height: 30px; padding: 3px 11px; border-radius: 15px; font-size: 13px; }
+/* Числа (кількість, дистанція) — одним рядком рівної ширини: не переносяться по одному. */
+.chips.chips-num { flex-wrap: nowrap; }
+.chips.chips-num button { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
 
 .chips.segmented {
   display: grid;
@@ -821,8 +905,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form > .chips { grid-column: 1 / -1; margin-top: -4px; }
+.form > .check { grid-column: 1 / -1; margin: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; grid-column: 1 / -1; }
 .field.half { grid-column: span 1; min-width: 0; justify-content: flex-end; }
+/* Дата ширша за час: на телефоні вона буває «18 жовт. 2026 р.» і в пів рядка не влазить. */
+.form.when { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.form + .form.when { margin-top: 10px; }
+.field input[type="date"], .field input[type="time"] { min-width: 0; padding-inline: 10px 8px; }
 /* Нагадування про чистку у формі зброї. */
 .remind { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
 .remind-field { display: flex; flex-direction: column; gap: 4px; }
@@ -865,20 +954,50 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row .sc-ret { grid-area: ret; }
 .scope-row .sc-zero { grid-area: zero; }
 .scope-row .sc-click { grid-area: click; }
-.scope-row .sc-own { grid-area: own; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.scope-row .sc-own[hidden] { display: none; }
+.scope-row .sc-own { grid-area: own; display: grid; gap: 6px; }
 .scope-row .sc-note { grid-area: note; }
 .scope-row .sc-def { grid-area: def; display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
 .scope-row .sc-def input { width: 20px; min-height: 20px; height: 20px; padding: 0; accent-color: var(--accent); }
 .scope.default .scope-mark { color: var(--accent-2); }
-.field[hidden] { display: none; }
+.scope-stack { display: inline-flex; align-items: center; gap: 1px; align-self: center; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.scope-stack .btn-ico svg { width: 14px; height: 14px; }
 /* Вибір набою: кнопка виглядає як поле, праворуч шеврон; список — у шторці. */
 .picker { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
   padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .picker:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .picker .picker-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker .picker-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.picker .picker-sub { font-size: 12px; color: var(--muted); }
+.picker .thumb { width: 32px; height: 32px; border-radius: 8px; font-size: 13px; }
+.picker .ammo-ico { width: 32px; height: 32px; border-radius: 8px; }
+.picker .ammo-ico svg { transform: rotate(-28deg) scale(.7); }
+.picker-list .thumb { width: 44px; height: 44px; border-radius: 10px; font-size: 16px; }
+.picker-list .rows + .rows { margin-top: 10px; }
+.picker-cap { margin: 14px 2px 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.rows .row.on { border-color: var(--accent); background: var(--accent-soft); }
 .picker .chevron { transform: rotate(90deg); opacity: .6; }
+.inline-picker { min-width: 0; font-weight: 400; }
+/* Короткий вибір кнопками у формі: висотою з поле, без нижнього відступу. */
+.field > .chips.segmented, .sc-own > .chips.segmented { margin: 0; }
+.field > .chips:not(.segmented) { margin: 2px 0 0; }
+.dope-paste-cols .chips { margin: 4px 0 0; }
+.item-row .chips.seg-unit { grid-area: unit; margin: 0; padding: 2px; gap: 2px; border-radius: 10px; }
+.item-row .chips.seg-unit button { min-height: 38px; padding: 0; border-radius: 8px; }
+.item-row .item-unit.off + .chips { visibility: hidden; }
+/* Звідки вітер: циферблат, 12 — з боку цілі; 3, 6, 9, 12 — опорні, яскравіші. */
+.clock-pick { position: relative; width: 176px; aspect-ratio: 1; margin: 6px auto 2px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--surface-2); }
+.clock-pick button { position: absolute; left: calc(50% + var(--x) * 39% - 17px); top: calc(50% + var(--y) * 39% - 17px);
+  width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent;
+  color: var(--muted); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.clock-pick button:nth-of-type(3n) { color: var(--text); font-weight: 800; }
+.clock-pick button.on { background: var(--accent); color: #fff; }
+.clock-pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.clock-pick .clock-arrow { position: absolute; inset: 31%; color: var(--accent-2); transform: rotate(var(--r)); pointer-events: none; }
+.clock-pick .clock-arrow svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.clock-pick .clock-none { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; pointer-events: none; }
+.tg-weather .field:has(> .clock-pick) { grid-column: 1 / -1; }
 .scope-row input, .scope-row select {
   width: 100%;
   min-height: 44px;
@@ -887,7 +1006,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
   background: var(--bg);
 }
-.item-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px 58px 40px; gap: 6px; align-items: center; }
+.item-row { display: grid; grid-template-columns: 84px 64px minmax(0, 1fr) 36px; grid-template-areas: "pick pick pick del" "per unit lab .";
+  gap: 6px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 12px; }
+.item-row .picker { grid-area: pick; }
+.item-row .item-del { grid-area: del; justify-self: end; }
+.item-row .item-lab { grid-area: lab; }
+.item-row > input { grid-area: per; }
+.item-row .item-unit { grid-area: unit; }
+.items-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.items-foot .cost-line { margin: 0; }
+/* «Спорядити»: що спишеться — назва, скільки, з якого залишку. */
+.consume { display: grid; gap: 6px; }
+.consume-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: baseline; }
+.consume-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.consume-row b { font-variant-numeric: tabular-nums; }
+.consume-row.neg b, .consume-row.neg .small { color: var(--shoot); }
 
 .lines { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
 .lines th { text-align: left; font-weight: 400; color: var(--muted); font-size: 12px; }
@@ -895,7 +1028,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lines td:not(:first-child), .lines th:not(:first-child) { text-align: right; white-space: nowrap; }
 .lines tr.warn td { color: var(--warn); }
 
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 12px; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0 0 12px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 .kv { align-items: center; }
@@ -918,7 +1051,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   bottom: var(--vv-gap, 0px);
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   height: calc(var(--tabs-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -932,16 +1065,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
 }
+/* Чотири вкладки замість п'яти — значки й підписи крупніші */
 .tabs svg {
-  width: 56px;
-  height: 30px;
-  padding: 3px 16px;
-  border-radius: 15px;
+  width: 64px;
+  height: 34px;
+  padding: 3px 18px;
+  border-radius: 17px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -950,7 +1084,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transition: background .15s ease;
 }
 /* Довга тонка гвинтівка — крупніше на 25 %, лінія тонша на стільки ж, щоб товщина збігалася з сусідніми */
-.tabs svg.wide { padding: 3px 13px; stroke-width: 1.36; }
+.tabs svg.wide { padding: 3px 14.5px; stroke-width: 1.36; }
 .tabs a.active { color: var(--accent-2); }
 .tabs a.active svg { background: var(--accent-soft); }
 .tabs a { position: relative; }
@@ -983,7 +1117,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .fab:active { transform: scale(.96); }
-.fab[hidden] { display: none; }
 
 /* --- шторка й тост --- */
 .backdrop {
@@ -1011,10 +1144,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding-bottom: env(safe-area-inset-bottom);
 }
 .backdrop.open .sheet { transform: none; }
+.sheet:focus { outline: none; }
+/* Картка з великим фото — на весь екран: шапка під вирізом камери, без заокруглення */
+.sheet.full { height: 100dvh; max-height: 100dvh; border-radius: 0; border-top: 0; padding-top: env(safe-area-inset-top); }
+.sheet.full .sheet-grip { display: none; }
+.sheet.full .sheet-body { flex: 1; }
 .sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 8px auto 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; }
 .sheet-head h2 { margin: 0; font-size: 19px; font-weight: 800; overflow-wrap: anywhere; }
 .sheet-tools { display: flex; flex: none; gap: 6px; }
+.sheet-lead { display: flex; flex: none; }
+.sheet-lead + h2 { flex: 1; min-width: 0; }
 .icon-btn.tool { display: grid; place-items: center; color: var(--text); }
 .icon-btn.tool svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .icon-btn.tool.danger { color: var(--shoot); }
@@ -1090,7 +1230,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide li::marker { color: var(--muted); }
 .guide a { color: var(--accent-2); text-underline-offset: 3px; }
 .guide strong { font-weight: 700; }
-.guide em.term { font-style: normal; font: .88em var(--mono); background: var(--olive-soft); color: var(--olive); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .guide code, .guide .mono { font: .9em var(--mono); }
 .guide .num { font-variant-numeric: tabular-nums; }
 
@@ -1169,7 +1308,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .f-bg { fill: var(--bg); }
 .guide .f-accs { fill: var(--acc-soft); }
 .guide .f-ols { fill: var(--olive-soft); }
-.guide .f-line { fill: var(--line); }
 .guide svg text { font-family: var(--mono); font-size: 12px; fill: var(--fg); }
 .guide svg text.m { fill: var(--mute); }
 .guide svg text.a { fill: var(--acc); }
@@ -1242,16 +1380,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tg-best { flex: none; font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tg-best.col { display: grid; justify-items: end; line-height: 1.15; }
 .tg-best.col small { font-weight: 600; font-size: 11px; }
+/* ширина — під «0,00 MRAD», щоб перемикач одиниць не зсував назву */
+.tg-spread { width: 4.5em; }
+.tg-spread .tg-unit { margin-left: 3px; font-size: 11px; font-weight: 700; }
 .tg-row { color: var(--text); }
 .tg-thumb { flex: none; width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: #000; }
 .tg-figure { display: block; width: 100%; height: auto; margin-bottom: 12px; border-radius: 12px; background: #000; }
 .tg-group { padding: 10px 0 0; border-top: 1px solid var(--line-soft); }
 .tg-group h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; }
 .tg-group .kv { font-variant-numeric: tabular-nums; }
-.box > legend /* Вибрана пробоїна — номери груп підсвічені пунктиром: туди її можна перенести. */
+/* Вибрана пробоїна — номери груп підсвічені пунктиром: туди її можна перенести. */
 .tg-move { border-style: dashed !important; color: var(--accent-2); }
 
-.tg-swatch { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+.box > legend .tg-swatch { width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
 .box > legend .box-count { margin-left: 6px; text-transform: none; }
 .box > legend .icon-btn.tool.small { display: inline-grid; width: 30px; height: 30px; margin-left: 8px; vertical-align: middle; }
 .box > legend .icon-btn.tool.small svg { width: 16px; height: 16px; }
@@ -1275,7 +1416,6 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .metric-ico svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .tg-swatch { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgb(0 0 0 / .35); }
 .tg-gps { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.tg-gps[hidden] { display: none; }
 .tg-gps .icon-btn.tool.small, .kv-gps .icon-btn.tool.small { flex: none; width: 30px; height: 30px; }
 .tg-gps .icon-btn.tool.small svg, .kv-gps .icon-btn.tool.small svg { width: 16px; height: 16px; }
 .kv-gps { display: flex; align-items: center; gap: 8px; }
@@ -1287,11 +1427,10 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ammo-name { display: inline-flex; align-items: center; gap: 8px; }
 .ammo-name .ammo-ico { zoom: .6; }
 .tg-unit-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
-.tg-unit-row > .chips { flex: 1; margin: 0; }
+.tg-unit-row > .range-seg { flex: 1; margin: 0; }
 .hint-btn { flex: none; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: none; color: var(--muted); font: 700 14px/1 Georgia, serif; cursor: pointer; }
 .hint-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft); }
 .tg-legend { margin: 0 0 12px; }
-.tg-legend[hidden] { display: none; }
 .tg-legend-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .tg-legend-list > li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; }
 .tg-legend-list b { font-weight: 700; }
@@ -1309,18 +1448,48 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   box-shadow: 0 6px 18px rgb(0 0 0 / .6);
   pointer-events: none;
 }
-.tg-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 0; }
+/* Розмітка мішені: інструменти й «Зберегти» в шапці, під фото — режим і рядок поточного режиму. */
+.tg-head { gap: 8px; padding: 8px 10px; }
+.tg-tools { display: flex; gap: 4px; margin-left: auto; }
+.tg-tool { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 12px;
+  background: rgb(255 255 255 / .1); color: #fff; cursor: pointer; }
+.tg-tool svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.tg-tool:disabled { opacity: .35; cursor: default; }
+.tg-tool.tg-del { margin-left: 6px; color: #ff8a7a; }
+.tg-tool .ico { display: grid; }
+.tg-save { flex: none; min-height: 42px; padding: 0 14px; border-color: var(--accent); background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: #fff; }
+.tg-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 10px; }
+.tg-panel .range-seg { margin: 0; background: rgb(255 255 255 / .08); border-color: rgb(255 255 255 / .12); }
+.tg-panel .range-seg button { color: rgb(255 255 255 / .7); }
+.tg-panel .range-seg button.on { color: #fff; }
 .tg-panel .chips { justify-content: center; margin: 0; }
 .tg-panel .chips button { background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .18); color: #fff; }
 .tg-panel .chips button.on { background: var(--accent); border-color: var(--accent); }
-.tg-panel .tg-find button { border-color: var(--accent); }
-.tg-panel .tg-find button:disabled { opacity: .45; }
+.tg-bar { height: 42px; }
+.tg-dist { color: var(--text); font-weight: 700; }
+/* Низ зірки — на базовій лінії, верх — на висоті цифр: стоїть рівно поруч із текстом у будь-якому шрифті */
+.star-ico { display: inline-block; margin-left: .35em; color: var(--accent); }
+.star-ico svg { display: block; width: .74em; height: .7em; fill: currentColor; }
+.tg-ctx { display: flex; align-items: center; gap: 8px; }
+.tg-ctx .tg-groups { flex: 1; min-width: 0; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+.tg-ctx .tg-groups button { flex: none; }
+.tg-ctx .tg-tool { flex: none; border: 1px solid var(--accent); }
 .tg-groups button { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
-.tg-scale { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
-.tg-scale label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.tg-scale .tg-lines { flex-basis: 100%; }
+.tg-scale { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.tg-scale .tg-lines { flex-wrap: nowrap; gap: 6px; }
+.tg-scale .tg-lines button { padding: 6px 10px; white-space: nowrap; }
+.tg-scale label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.tg-preset-btn, .tg-poa-clear { flex: none; height: 36px; padding: 0 12px; border: 1px solid rgb(255 255 255 / .25); border-radius: 18px;
+  background: rgb(255 255 255 / .1); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.tg-preset-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent); }
+.tg-poa-clear:disabled { opacity: .35; cursor: default; }
+/* Готові розміри — меню над рядом масштабу, поверх фото */
+.tg-scale .tg-presets { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 2; flex-wrap: nowrap; gap: 6px; padding: 6px;
+  border: 1px solid rgb(255 255 255 / .18); border-radius: 14px; background: rgb(20 20 20 / .94); box-shadow: 0 6px 18px rgb(0 0 0 / .5); }
+.tg-poa { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tg-poa-note { min-width: 0; font-size: 13px; color: rgb(255 255 255 / .75); }
 .tg-scale input {
-  width: 84px;
+  width: 64px;
   padding: 6px 8px;
   border: 1px solid rgb(255 255 255 / .25);
   border-radius: 8px;
@@ -1328,7 +1497,22 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   color: #fff;
   font: inherit;
 }
-.tg-hint { font-size: 13px; text-align: center; opacity: .75; }
+/* Підказка — поверх низу фото, пропускає дотики до мішені. */
+.tg-hint {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / .62);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+.tg-hint:empty { display: none; }
 /* Підсумок активної групи — поверх фото, щоб було видно одразу під час розмітки. */
 .tg-stats {
   position: absolute;
@@ -1345,8 +1529,6 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   pointer-events: none;
 }
 .tg-stats:empty { display: none; }
-.tg-panel .editor-tool:disabled { opacity: .35; }
-.tg-panel [hidden], .tg-loupe[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .sheet, .backdrop, .swipe-body, .chevron, .toast { transition: none !important; animation: none !important; }
@@ -1364,7 +1546,8 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .dope td:first-child { font-weight: 800; width: 3.5em; }
 .dope tr.zero td { color: var(--muted); }
 .dope-calc { display: grid; grid-template-columns: minmax(0, 11em); align-items: center; gap: 8px; }
-.dope-calc.windy { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dope-calc.windy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dope-calc .clock-pick { grid-column: 1 / -1; }
 
 .dope-out { margin: 0; font-weight: 650; color: var(--accent-2); white-space: pre-line; }
 .dope-out:empty { display: none; }
@@ -1375,12 +1558,26 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .dope-wind { margin-top: 14px; }
 
 /* Перемикач розділів вкладки (Полігон, Рецепти): активний — акцентом */
-.tab-seg { margin-bottom: 14px; }
-.chips.segmented.tab-seg button.on { background: var(--accent); color: #fff; }
+/* Розділи «Полігона»: круглі іконки, вибраний розтягується й показує назву */
+.range-seg { display: flex; gap: 6px; padding: 4px; margin: 0 0 14px; border-radius: 26px; background: var(--surface-2); border: 1px solid var(--line); }
+.range-seg button { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; height: 44px; padding: 0 11px;
+  border: 0; border-radius: 22px; background: transparent; color: var(--muted); font: inherit; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
+.range-seg button:hover { color: var(--text); }
+.range-seg button.on { flex: 1; background: var(--accent); color: #fff; }
+.range-seg button > span:not(.ico) { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.range-seg button.on > span:not(.ico) { display: inline; }
+.seg-swipe { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.range-seg .ico { display: grid; }
+.range-seg svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+/* Одиниці купчастості — той самий вигляд, але тихіший, щоб не плутати з розділами «Полігону» над ним. */
+.unit-seg { padding: 3px; }
+.unit-seg button { flex: 1; height: 38px; gap: 6px; font-size: 14px; }
+.unit-seg button > span:not(.ico) { display: inline; }
+.unit-seg button.on { background: var(--accent-soft); color: var(--accent-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.unit-seg svg { width: 18px; height: 18px; }
 
 /* Таймер пострілів */
 .timer { display: grid; gap: 12px; }
-.timer [hidden] { display: none !important; }
 .tm-face { text-align: center; padding: 18px 12px 10px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .tm-time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .tm-time.over { color: var(--shoot); }
@@ -1400,7 +1597,6 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .chrono-x { width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .chrono-sum { font-weight: 650; color: var(--accent-2); }
 .chrono-sum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; }
-.chrono-sum-row[hidden] { display: none; }
 .chrono-head { display: flex; align-items: center; gap: 8px; }
 .chrono-head > .stats { flex: 1; min-width: 0; }
 .hint-legend { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
@@ -1447,11 +1643,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ch-tip.below { --ty: 14px; }
 .ch-tip b { font-size: 14px; }
 .ch-tip span { color: var(--muted); }
-.ch-tip[hidden], .ch-pt[hidden] { display: none; }
 .chart-legend { display: flex; justify-content: space-between; gap: 8px; padding: 0 2px 0 34px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.spark { display: block; margin: 4px 0 2px; height: 26px; }
-.spark svg { width: 100%; height: 26px; display: block; }
-.spark .ch-line { stroke: var(--accent-2); stroke-width: 1.8; }
 
 /* overflow — щоб підписи місяців не вилазили за правий край на вузькому екрані:
    інакше сторінка стає ширшою за вікно й нижня панель вкладок їде вбік. */
@@ -1467,27 +1659,32 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 @media (max-width: 420px) { .bar-lbl, .bar-val { font-size: 9px; } .bars { gap: 3px; } }
 
 /* Вправи — плитками: назва, рекорд, звання. Решта в картці вправи. */
-.ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+.ex-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+@media (min-width: 720px) { .ex-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
 /* Плитка «+ Своя вправа»: пунктир — одразу видно, що це не вправа, а кнопка. */
 
 .ex-tile {
   display: grid;
+  justify-items: center;
   align-content: start;
   gap: 2px;
-  min-height: 118px;
-  padding: 12px;
+  min-width: 0;
+  padding: 14px 10px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
   color: var(--text);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 .ex-tile:active { transform: scale(.98); }
-.ex-tile-name { font-size: 15px; font-weight: 800; line-height: 1.2; }
-.ex-tile-sub { font-size: 12px; color: var(--muted); }
-.ex-tile-score { margin-top: 6px; font-size: 28px; font-weight: 800; line-height: 1; color: var(--accent-2); font-variant-numeric: tabular-nums; }
-.ex-tile-score.empty { color: var(--muted); }
+.ex-tile-ring { width: 76px; height: 76px; margin-bottom: 4px; }
+.ex-tile-ring .ex-ring-name { inset: 10px; font-size: 22px; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.ex-tile.empty .ex-tile-ring .ex-ring-name { color: var(--muted); }
+.ex-tile.empty .rank-ring-bg { stroke-dasharray: 4 5; stroke-width: 3; }
+.ex-tile-rank { font-size: 12px; font-weight: 800; color: var(--accent); }
+.ex-tile-try { font-size: 12px; font-weight: 700; color: var(--accent); }
+.ex-tile-name { margin-top: 4px; font-size: 15px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
 .ex-tile-foot { font-size: 12px; color: var(--muted); }
 .ex-rules { counter-reset: exr; display: grid; gap: 8px; margin: 4px 0 10px; padding: 0; list-style: none; }
 .ex-rules > li { position: relative; padding-left: 32px; line-height: 1.45; }
@@ -1545,7 +1742,14 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-mini { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 2px 4px; font-size: 13px; color: var(--muted); }
 .ex-mini b { color: var(--text); font-size: 15px; }
 .ex-info { display: grid; gap: 12px; margin: 4px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
-.ex-info[hidden] { display: none; }
+.recipe-info { display: grid; gap: 14px; margin: 4px 0 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.recipe-info section + section { padding-top: 14px; border-top: 1px solid var(--line); }
+.recipe-info h4 { margin: 0 0 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.recipe-info dl { display: grid; gap: 10px; margin: 0; }
+.recipe-info dt { font-size: 14px; font-weight: 700; color: var(--accent-2); }
+.recipe-info dt::first-letter { text-transform: uppercase; }
+.recipe-info dd { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.ri-swatch { display: inline-block; vertical-align: middle; margin-left: 8px; width: 18px; height: 4px; border-radius: 2px; background: var(--warn); }
 .sheet-tools .hint-btn { width: 40px; height: 40px; font-size: 16px; }
 .ex-info .ex-scoring { margin-bottom: 0; }
 .ex-scoring-title { margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -1566,7 +1770,6 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 
 /* DOPE: вставка таблиці */
 .dope-paste { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
-.dope-paste[hidden] { display: none; }
 .dope-paste-text { width: 100%; font: 14px/1.4 ui-monospace, monospace; }
 .dope-paste-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .dope-paste-cols label { display: grid; gap: 4px; }

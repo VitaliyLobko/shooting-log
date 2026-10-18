@@ -25,7 +25,8 @@ async function readObjects(bytes) {
     let data = null;
     if (at >= 0) {
       const from = start + at + body.slice(at).match(/^stream\r?\n/)[0].length;
-      const len = dict.match(/\/Length (\d+)(?! \d+ R)/);
+      // «/Length 12 0 R» — довжина в іншому об'єкті: без (?!\d) відкат узяв би «1» за довжину
+      const len = dict.match(/\/Length (\d+)(?!\d| \d+ R)/);
       const to = len ? from + Number(len[1]) : start + body.lastIndexOf('endstream');
       data = bytes.subarray(from, to);
       if (/\/FlateDecode/.test(dict)) data = await inflate(data).catch(() => null);

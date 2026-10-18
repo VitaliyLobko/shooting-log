@@ -27,6 +27,7 @@ const ASSETS = [
   './js/shot-detector.js',
   './js/pdf.js',
   './js/holes.js',
+  './js/align.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',
   './guide/img/prone-bipod.jpg',

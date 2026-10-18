@@ -34,6 +34,7 @@ export function createEngine() {
   let src = null;
   let stream = null;
   const on = { shot: null, level: null };
+  const beeps = new Set();
   return {
     on(event, fn) { on[event] = fn; },
     async open(source = null) {
@@ -75,14 +76,25 @@ export function createEngine() {
       osc.connect(gain).connect(ctx.destination);
       osc.start(at);
       osc.stop(at + duration + 0.02);
+      beeps.add(osc);
+      osc.onended = () => beeps.delete(osc);
       node.port.postMessage({ mute: [at - 0.02, at + duration + 0.06] });
     },
-    /** Відпустити мікрофон (індикатор запису в системі гасне). */
+    /**
+     * Відпустити мікрофон (індикатор запису в системі гасне), зняти заплановані гудки
+     * (інакше «Стоп» до сигналу все одно пищав би) і приспати звук: детектор не крутиться до наступного «Старт».
+     */
     release() {
+      for (const osc of beeps) {
+        try { osc.stop(0); } catch { /* уже зупинений */ }
+        osc.disconnect();
+      }
+      beeps.clear();
       src?.disconnect();
       stream?.getTracks().forEach((tr) => tr.stop());
       src = null;
       stream = null;
+      ctx?.suspend().catch(() => {});
     },
   };
 }
@@ -100,13 +112,13 @@ export function stopTimerPanel() {
   panel?.stopIfBusy();
 }
 
-export function timerPanel({ weapons, onSave, source = null }) {
-  if (!panel) panel = buildPanel(source);
+export function timerPanel({ weapons, onSave, source = null, pickWeapon = null }) {
+  if (!panel) panel = buildPanel(source, pickWeapon);
   panel.update({ weapons, onSave });
   return panel.el;
 }
 
-function buildPanel(source) {
+function buildPanel(source, pickWeapon) {
   engine ??= createEngine();
   let mode = 'idle'; // idle | check | wait | run | done
   let t0 = 0;
@@ -200,7 +212,11 @@ function buildPanel(source) {
     stopTimer = setTimeout(() => { if (mode === 'run') stop(); }, SILENCE_STOP * 1000);
   }
 
+  // Другий тап, поки мікрофон відкривається, нічого не робить: інакше два потоки, а «Стоп» закриє один
+  let opening = false;
   async function openAudio() {
+    if (opening) return false;
+    opening = true;
     try {
       await engine.open(source);
       placeMark();
@@ -208,7 +224,18 @@ function buildPanel(source) {
     } catch (err) {
       toast(err?.name === 'NotAllowedError' ? t('Нет доступа к микрофону — разрешите его в настройках браузера') : t('Микрофон недоступен: {e}', { e: err?.message ?? err }));
       return false;
+    } finally {
+      opening = false;
     }
+  }
+
+  /** Екран не гасне, поки серія йде: попередній замок відпускаємо, а той, що прийшов уже після «Стоп», — одразу. */
+  async function keepAwake() {
+    const got = await navigator.wakeLock?.request('screen').catch(() => null);
+    if (!got) return;
+    if (mode !== 'wait' && mode !== 'run' && mode !== 'armed') { got.release().catch(() => {}); return; }
+    lock?.release().catch(() => {});
+    lock = got;
   }
 
   /** Чекаємо на звук: мікрофон уже слухає, перший гучний звук запустить затримку й гудок. */
@@ -223,7 +250,7 @@ function buildPanel(source) {
     startBtn.classList.add('stop');
     checkBtn.hidden = true;
     drawShots();
-    lock = await navigator.wakeLock?.request('screen').catch(() => null);
+    keepAwake();
   }
 
   async function start() {
@@ -247,7 +274,7 @@ function buildPanel(source) {
     // Тиша рахується від сигналу; кожен постріл відкладає зупинку (armSilence)
     clearTimeout(stopTimer);
     stopTimer = setTimeout(() => { if (mode === 'run') stop(); }, (Math.max(0.15, wait) + SILENCE_STOP) * 1000);
-    lock = await navigator.wakeLock?.request('screen').catch(() => null);
+    keepAwake();
   }
 
   function stop() {
@@ -307,8 +334,12 @@ function buildPanel(source) {
     });
     reset();
   });
-  // Вкладку сховали посеред серії — мікрофон і екран усе одно зупиняться, тож зупиняємо чесно
-  document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'wait' || mode === 'run' || mode === 'armed')) stop(); });
+  // Вкладку сховали посеред серії чи перевірки — мікрофон не має слухати у фоні
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    if (mode === 'wait' || mode === 'run' || mode === 'armed') stop();
+    else if (mode === 'check') toggleCheck();
+  });
 
   const el = h('div', { class: 'timer' },
     h('div', { class: 'tm-face' }, time, status),
@@ -327,6 +358,8 @@ function buildPanel(source) {
         h('span', { class: 'field-label' }, t('Чувствительность')),
         h('div', { class: 'tm-level' }, fill, mark), sens, checkBtn)));
   placeMark();
+  // Ствол — тим самим вибором, що й у формах; список стволів оновлює update()
+  const paintWeapon = pickWeapon?.(weapon) ?? (() => {});
 
   return {
     el,
@@ -339,6 +372,7 @@ function buildPanel(source) {
       onSave = opts.onSave;
       const keep = weapon.value || recall('shooters-log:timer-weapon', '');
       weapon.replaceChildren(...[['', t('— не указывать —')], ...opts.weapons].map(([id, name]) => h('option', { value: id, selected: id === keep }, name)));
+      paintWeapon();
     },
   };
 }

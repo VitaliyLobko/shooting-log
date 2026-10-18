@@ -1,6 +1,6 @@
 // «Кучність»: розмітка фото мішені (масштаб, точка прицілювання, пробоїни груп) і її вигляд.
 // Координати міток — частки ширини й висоти фото (0–1): мініатюра й статистика не потребують повного файлу.
-import { h, vibrate } from './ui.js';
+import { h, vibrate, icon, backLayer, confirmSheet } from './ui.js';
 import { t, locale } from './i18n.js';
 import { decode } from './photos.js';
 import * as M from './model.js';
@@ -22,7 +22,6 @@ const END = { a: ['scale', 'a'], b: ['scale', 'b'], c: ['scale2', 'a'], d: ['sca
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 // Ключ пробоїни для позначок «знайдено автоматично»: переживає ↶ (історія — JSON), а перетягнута пробоїна — вже своя.
-const holeKey = (p) => `${p[0]},${p[1]}`;
 const color = (i) => COLORS[i % COLORS.length];
 // Кольори розмітки — поза палітрою пробоїн і лінії масштабу: світлі відтінки зливалися з папером.
 const SPAN = '#ff2d95';   // лінія між двома найдальшими пробоїнами — розкид
@@ -139,10 +138,9 @@ export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
 /**
  * Мітки поверх зображення. map(p) — частки фото → пікселі полотна, r — розмір мітки.
  * active — група, що редагується (інші блідіші), selected — виділена мітка, scale — показати масштаб.
- * holeR — радіус кулі в пікселях полотна (кільце пробоїни не менше за нього), found / unsure — ключі
- * пробоїн, знайдених автоматично (пунктир) і в злиплих місцях («?»).
+ * holeR — радіус кулі в пікселях полотна: кільце пробоїни не менше за нього.
  */
-export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0, found = null, unsure = null } = {}) {
+export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0 } = {}) {
   const halo = (draw, stroke, width) => {
     ctx.lineWidth = width + r * 0.35;
     ctx.strokeStyle = 'rgb(0 0 0 / .65)';
@@ -242,14 +240,12 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       const [x, y] = map(hole);
       const sel = isSel('hole', g, i);
       const R = Math.max(r, holeR) + (sel ? r * 0.35 : 0);
-      if (found?.has(holeKey(hole))) ctx.setLineDash([r * 0.55, r * 0.4]);
       halo(() => { ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); }, sel ? '#fff' : c, r * 0.3);
       ctx.setLineDash([]);
       ctx.fillStyle = c;
       ctx.beginPath();
       ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
-      if (unsure?.has(holeKey(hole))) tag('?', x + R * 0.8, y - R * 0.8, c, 'left');
     });
     if (group.holes.length >= 2) {
       const n = group.holes.length;
@@ -366,16 +362,22 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     groups: marks.groups?.length ? structuredClone(marks.groups) : [{ holes: [] }],
   };
   st.scale2 = { a: null, b: null, mm: st.scale.mm, ...structuredClone(marks.scale2 ?? {}) };
-  let mode = st.scale.a && st.scale.b ? 'holes' : 'scale';
+  // Відкриваємо в «Перегляді», і нову мішень теж: випадковий дотик не поставить зайву пробоїну.
+  // Без масштабу — спершу він: без нього пробоїни не порахувати.
+  let mode = st.scale.a && st.scale.b ? 'view' : 'scale';
   // лінія масштабу, яку зараз ставимо: 'scale' — основна, 'scale2' — поперечна
   let line = 'scale';
   let active = st.groups.length - 1;
   let selected = null;
   const history = [];
-  // знайдені автоматично (пунктир) і в злиплих місцях («?»); notice — що сказав пошук
-  const found = new Set();
-  const unsure = new Set();
+  // скасоване, яке можна повернути; нова дія його стирає
+  const future = [];
+  // notice — що сказала розмітка (поділ груп, масштаб)
   let notice = null;
+  // змінили мм масштабу — це правка без запису в ↶, але виходити мовчки після неї не можна
+  let mmTouched = false;
+  // Мм правлять кількома натисками — у історію йде один крок на всю правку
+  let mmTyping = false;
   // fitted — зображення вписане в екран: тоді при зміні розміру сцени вписуємо заново
   const view = { k: 1, x: 0, y: 0, fit: 1, fitted: true };
 
@@ -383,31 +385,52 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     const canvas = h('canvas', { class: 'tg-canvas' });
     const loupe = h('canvas', { class: 'tg-loupe', hidden: true, width: LOUPE, height: LOUPE });
     const stats = h('div', { class: 'tg-stats' });
-    const stage = h('div', { class: 'tg-stage' }, canvas, loupe, stats);
-    const modeRow = h('div', { class: 'chips tg-modes' });
+    const hint = h('div', { class: 'tg-hint' });
+    const stage = h('div', { class: 'tg-stage' }, canvas, loupe, stats, hint);
+    const modeRow = h('div', { class: 'range-seg tg-modes', role: 'tablist' });
     const groupRow = h('div', { class: 'chips tg-groups' });
     const mmInput = h('input', {
       type: 'number', inputmode: 'decimal', step: 'any', min: 0, 'aria-label': t('Между точками, мм'),
       oninput: () => {
         const v = Number(String(mmInput.value).replace(',', '.'));
-        if (v > 0) { st[line].mm = v; paint(); }
+        // Перша цифра правки — крок історії: інакше ↶ наступної мітки тихо повернув би старі мм
+        if (v > 0) { if (!mmTyping) snapshot(); mmTyping = true; st[line].mm = v; mmTouched = true; paint(); }
       },
+      onchange: () => { mmTyping = false; },
     });
     mmInput.value = st.scale.mm ?? '';
     const lineRow = h('div', { class: 'chips tg-lines' });
-    const scaleRow = h('div', { class: 'tg-scale' },
+    // Під смугою режимів завжди один ряд однакової висоти — інакше фото стрибає при зміні режиму.
+    // Тому готові розміри масштабу — не окремим рядом, а меню над кнопкою ▾.
+    const presets = h('div', { class: 'chips tg-presets', hidden: true }, SCALE_MM.map((v) => h('button', {
+      type: 'button',
+      onclick: () => { snapshot(); mmTyping = false; st[line].mm = v; mmInput.value = v; mmTouched = true; showPresets(false); paint(); },
+    }, num(v, v % 1 ? 1 : 0))));
+    const presetBtn = h('button', {
+      type: 'button', class: 'tg-preset-btn', 'aria-label': t('Готовые размеры'), title: t('Готовые размеры'), 'aria-expanded': 'false',
+      onclick: () => showPresets(presets.hidden),
+    }, '▾');
+    function showPresets(on) {
+      presets.hidden = !on;
+      presetBtn.setAttribute('aria-expanded', String(on));
+    }
+    const scaleRow = h('div', { class: 'tg-scale tg-bar' },
       lineRow,
-      h('label', {}, h('span', {}, t('Между точками, мм')), mmInput),
-      h('div', { class: 'chips' }, SCALE_MM.map((v) => h('button', {
-        type: 'button',
-        onclick: () => { st[line].mm = v; mmInput.value = v; paint(); },
-      }, num(v, v % 1 ? 1 : 0)))));
-    const hint = h('div', { class: 'tg-hint' });
-    const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
-    const findBtn = h('button', { type: 'button', onclick: () => autoFind() }, t('🔍 Найти пробоины'));
-    const findRow = h('div', { class: 'chips tg-find' }, findBtn);
-    const undoBtn = tool('↶', t('Отменить последнее'), undo);
-    const delBtn = tool('✕', t('Удалить метку'), removeSelected);
+      h('label', {}, mmInput, h('span', {}, t('мм'))),
+      presetBtn, presets);
+    const poaNote = h('span', { class: 'tg-poa-note' });
+    const poaClear = h('button', {
+      type: 'button', class: 'tg-poa-clear',
+      onclick: () => { if (!st.poa) return; snapshot(); st.poa = null; selected = null; paint(); },
+    }, t('Убрать точку'));
+    const poaRow = h('div', { class: 'tg-poa tg-bar' }, poaNote, poaClear);
+    const tool = (name, title, onclick) => h('button', { type: 'button', class: 'tg-tool', title, 'aria-label': title, onclick }, icon(name));
+    const splitBtn = tool('split', t('Разделить группу по расстоянию'), () => splitGroup());
+    const holesRow = h('div', { class: 'tg-ctx tg-bar' }, groupRow, splitBtn);
+    const undoBtn = tool('undo', t('Отменить последнее'), undo);
+    const redoBtn = tool('redo', t('Повторить отменённое'), redo);
+    const delBtn = tool('delete', t('Удалить метку'), removeSelected);
+    delBtn.classList.add('tg-del');
 
     const toScreen = (p) => [view.x + p[0] * W * view.k, view.y + p[1] * H * view.k];
     const toNorm = ([sx, sy]) => [(sx - view.x) / view.k / W, (sy - view.y) / view.k / H];
@@ -447,8 +470,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, view.x, view.y, W * view.k, H * view.k);
       const mm = mmPerCanvasPx(st, { w: W, h: H }, W * view.k);
-      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' ? active : null, selected, scale: true,
-        aspect: aspectOf(st, { w: W, h: H }), mm, unit, distance, holeR: holeR(mm), found, unsure });
+      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: true,
+        aspect: aspectOf(st, { w: W, h: H }), mm, unit, distance, holeR: holeR(mm) });
       panel();
     }
     function paintLoupe(at, n) {
@@ -463,8 +486,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, LOUPE, LOUPE);
       ctx.drawImage(src, c - n[0] * W * z, c - n[1] * H * z, W * z, H * z);
-      drawMarks(ctx, st, map, 8, { active: mode === 'holes' ? active : null, selected, scale: true, aspect: aspectOf(st, { w: W, h: H }),
-        holeR: holeR(mmPerCanvasPx(st, { w: W, h: H }, W * z)), found, unsure });
+      drawMarks(ctx, st, map, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: true, aspect: aspectOf(st, { w: W, h: H }),
+        holeR: holeR(mmPerCanvasPx(st, { w: W, h: H }, W * z)) });
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgb(0 0 0 / .7)';
       const cross = () => {
@@ -491,48 +514,43 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     const holeR = (mm) => (holeMm && mm ? holeMm / 2 / mm : 0);
 
     /**
-     * Пошук пробоїн у видимій частині фото: збільшена мішень — менше чужого (цифри, тло) і видніші пробоїни.
-     * Знайдене стає пробоїнами активної групи з позначкою «перевірити»; ↶ прибирає все разом.
+     * Розділити активну групу за відстанню: пробоїни, ближчі за шість калібрів одна до одної,
+     * лишаються разом (одиночне зчеплення). Дві серії на одній мішені розходяться самі.
      */
-    function autoFind() {
-      const k = M.mmPerPx(st.scale, { w: W, h: H });
-      if (!k) return;
-      const holePx = (holeMm || 5.6) / k;
-      const rect = [Math.max(0, -view.x / view.k), Math.max(0, -view.y / view.k),
-        Math.min(W, (stage.clientWidth - view.x) / view.k), Math.min(H, (stage.clientHeight - view.y) / view.k)];
-      findBtn.disabled = true;
-      findBtn.textContent = t('Ищу…');
-      // дати кнопці перемалюватися: пошук займає до секунди
-      setTimeout(() => {
-        const { holes, error } = findHoles(src, rect, holePx);
-        findBtn.disabled = false;
-        findBtn.textContent = t('🔍 Найти пробоины');
-        if (error) {
-          notice = error === 'zoom' ? t('Увеличьте мишень на экране — пробоины слишком мелкие, чтобы их различить.')
-            : t('Пробоины на фото слишком мелкие — снимите мишень ближе.');
-          paint();
-          return;
+    function splitGroup() {
+      const holes = st.groups[active].holes;
+      const mm = M.mmPerPx(st.scale, { w: W, h: H });
+      // діаметр кулі в пікселях фото; без калібру й масштабу беремо 2% ширини
+      const px = holeMm && mm ? holeMm / mm : W * 0.02;
+      const limit = px * 6;
+      const parent = holes.map((_, i) => i);
+      const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+      for (let i = 0; i < holes.length; i += 1) {
+        for (let j = i + 1; j < holes.length; j += 1) {
+          const dx = (holes[i][0] - holes[j][0]) * W;
+          const dy = (holes[i][1] - holes[j][1]) * H;
+          if (Math.hypot(dx, dy) <= limit) parent[find(i)] = find(j);
         }
-        const group = st.groups[active].holes;
-        const near = (p) => group.some((q) => Math.hypot((p[0] - q[0]) * W, (p[1] - q[1]) * H) < holePx * 0.6);
-        const fresh = holes.filter((x) => !near(x.p));
-        if (fresh.length) {
-          snapshot();
-          for (const x of fresh) {
-            group.push(x.p);
-            found.add(holeKey(x.p));
-            if (!x.sure) unsure.add(holeKey(x.p));
-          }
-          vibrate();
-        }
-        const doubt = fresh.filter((x) => !x.sure).length;
-        notice = fresh.length
-          ? [t('Найдено {n} — проверьте: лишнюю коснитесь и ✕, пропущенную поставьте сами.', { n: fresh.length }),
-            doubt ? t('Со знаком «?» — {n}: в слипшихся пробоинах или неуверенно.', { n: doubt }) : null].filter(Boolean).join(' ')
-          : t('Новых пробоин не нашёл — поставьте вручную или увеличьте мишень на экране.');
-        selected = null;
+      }
+      const buckets = new Map();
+      holes.forEach((hole, i) => {
+        const root = find(i);
+        if (!buckets.has(root)) buckets.set(root, []);
+        buckets.get(root).push(hole);
+      });
+      if (buckets.size < 2) {
+        notice = t('Все пробоины рядом — делить не на что.');
         paint();
-      }, 30);
+        return;
+      }
+      snapshot();
+      const parts = [...buckets.values()].sort((a, b) => b.length - a.length);
+      st.groups[active].holes = parts[0];
+      for (const rest of parts.slice(1)) st.groups.push({ holes: rest });
+      selected = null;
+      notice = t('Групп стало: {n}', { n: st.groups.length });
+      vibrate();
+      paint();
     }
 
     /** Активну групу видаляє кнопка поруч із «+ група» — помилку повертає ↶. */
@@ -547,14 +565,14 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     }
 
     function panel() {
-      modeRow.replaceChildren(...[['holes', t('Пробоины')], ['poa', t('Точка прицеливания')], ['scale', t('Масштаб')]].map(([key, label]) => h('button', {
-        type: 'button', class: key === mode ? 'on' : '',
+      modeRow.replaceChildren(...[['view', t('Просмотр')], ['holes', t('Пробоины')], ['poa', t('Точка прицеливания')], ['scale', t('Масштаб')]].map(([key, label]) => h('button', {
+        type: 'button', role: 'tab', class: key === mode ? 'on' : null, 'aria-selected': String(key === mode), 'aria-label': label, title: label,
         onclick: () => { mode = key; selected = null; paint(); },
-      }, label)));
-      groupRow.hidden = mode !== 'holes';
-      findRow.hidden = mode !== 'holes';
-      findBtn.disabled = !M.mmPerPx(st.scale, { w: W, h: H });
-      findBtn.title = findBtn.disabled ? t('Сначала задайте масштаб') : t('Ищет в видимой части фото');
+      }, icon(key), h('span', {}, label))));
+      // групи видно й у «Перегляді»: вибрану пробоїну можна перенести в іншу групу
+      holesRow.hidden = mode !== 'holes' && mode !== 'view';
+      // ділити є сенс лише коли пробоїн достатньо, щоб вийшло дві купи
+      splitBtn.disabled = st.groups[active].holes.length < 4;
       groupRow.replaceChildren(
         ...st.groups.map((g, i) => h('button', {
           // Вибрана пробоїна — тап по номеру групи переносить її туди: інакше довелося б
@@ -578,6 +596,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         }, h('i', { class: 'tg-swatch', style: `background:${color(i)}` }), `${i + 1} · ${g.holes.length}`)),
         h('button', {
           type: 'button',
+          title: t('Добавить группу'),
+          'aria-label': t('Добавить группу'),
           onclick: () => {
             snapshot();
             st.groups.push({ holes: [] });
@@ -585,27 +605,40 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
             selected = null;
             paint();
           },
-        }, t('+ группа')),
+        }, '+'),
         h('button', {
           type: 'button',
+          title: t('Удалить группу'),
+          'aria-label': t('Удалить группу'),
           disabled: st.groups.length === 1 && !st.groups[0].holes.length,
           onclick: dropGroup,
-        }, t('✕ группа')));
+        }, '−'));
       scaleRow.hidden = mode !== 'scale';
+      if (mode !== 'scale') showPresets(false);
+      poaRow.hidden = mode !== 'poa';
+      poaNote.textContent = st.poa ? t('Точка стоит — её можно перетащить') : t('Точки ещё нет — нажмите на фото');
+      poaClear.disabled = !st.poa;
       lineRow.replaceChildren(...[['scale', t('Линия 1')], ['scale2', t('Линия 2 ↕')]].map(([key, label]) => h('button', {
         type: 'button', class: key === line ? 'on' : '',
         onclick: () => { line = key; selected = null; mmInput.value = st[line].mm ?? ''; paint(); },
       }, label)));
-      hint.textContent = mode === 'scale'
+      // Підказка поверх фото — лише поки крок не зроблено, далі вона тільки закривала б мішень.
+      const ready = (l) => st[l].a && st[l].b;
+      hint.textContent = (mode === 'view'
+        ? (selected?.kind === 'hole' && st.groups.length > 1 ? t('Пробоина выбрана: ✕ удалит её, а номер группы — перенесёт в ту группу.')
+          : st.groups.some((g) => g.holes.length) ? null
+            : t('Это просмотр: двигайте и увеличивайте фото. Чтобы ставить пробоины, выберите «Пробоины».'))
+        : mode === 'scale'
         ? (line === 'scale'
-          ? t('Отметьте две точки, расстояние между которыми знаете: клетки мишени, линейку, край листа.')
-          : [t('Вторая линия — поперёк первой, лучше вертикально: если фото снято под углом, высота посчитается отдельно. Можно не ставить.'),
+          ? (ready('scale') ? null : t('Отметьте две точки, расстояние между которыми знаете: клетки мишени, линейку, край листа.'))
+          : [ready('scale2') ? null : t('Вторая линия — поперёк первой, лучше вертикально: если фото снято под углом, высота посчитается отдельно. Можно не ставить.'),
             scaleNote()].filter(Boolean).join(' '))
         : mode === 'poa'
-          ? t('Отметьте точку, в которую целились.')
+          ? (st.poa ? null : t('Отметьте точку, в которую целились.'))
           : notice ?? (selected?.kind === 'hole' && st.groups.length > 1
             ? t('Пробоина выбрана: ✕ удалит её, а номер группы — перенесёт в ту группу.')
-            : t('Нажмите на центр пробоины. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.'));
+            : st.groups[active].holes.length ? null
+              : t('Нажмите на пробоину — точка станет в её центр. Держите палец — появится лупа: ведите и отпустите. Двумя пальцами — увеличить.'))) || '';
       const k = M.mmPerPx(st.scale, { w: W, h: H });
       const group = M.targetStats(st, { w: W, h: H })[active];
       if (!k) stats.textContent = t('Задайте масштаб — без него размеры не посчитать');
@@ -619,6 +652,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
           s.offset ? `${t('СТП')} ${offsetText(s.offset, unit, distance)}` : null].filter(Boolean).join(' · ');
       }
       undoBtn.disabled = !history.length;
+      redoBtn.disabled = !future.length;
       delBtn.disabled = !selected;
     }
 
@@ -631,19 +665,26 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       return t('Масштаб по высоте отличается от ширины на {p}%.', { p: num((k.y / k.x - 1) * 100, 1) });
     }
 
+    function snap() { return JSON.stringify({ scale: st.scale, scale2: st.scale2, poa: st.poa, groups: st.groups }); }
     function snapshot() {
-      history.push(JSON.stringify({ scale: st.scale, scale2: st.scale2, poa: st.poa, groups: st.groups }));
+      history.push(snap());
       if (history.length > 200) history.shift();
+      future.length = 0;
     }
-    function undo() {
-      const prev = history.pop();
+    /** Крок по історії: з одного стека знімаємо стан, поточний кладемо в другий. */
+    function step(from, to) {
+      const prev = from.pop();
       if (!prev) return;
+      to.push(snap());
       Object.assign(st, JSON.parse(prev));
+      mmTyping = false;
       mmInput.value = st[line].mm ?? '';
       active = Math.min(active, st.groups.length - 1);
       selected = null;
       paint();
     }
+    function undo() { step(history, future); }
+    function redo() { step(future, history); }
     function removeSelected() {
       if (!selected) return;
       snapshot();
@@ -653,13 +694,41 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       selected = null;
       paint();
     }
+    /**
+     * Точку ставимо не там, де палець, а в центрі пробоїни під ним: шукаємо в квадраті
+     * близько трьох калібрів навколо тапу. Місце вказує людина, тож зайвого не знайдеться;
+     * без калібру чи масштабу лишаємо як є.
+     */
+    function snapHole(n) {
+      const mm = M.mmPerPx(st.scale, { w: W, h: H });
+      const holePx = holeMm && mm ? holeMm / mm : 0;
+      if (holePx < 4) return n;
+      const r = holePx * 1.6;
+      const x = n[0] * W;
+      const y = n[1] * H;
+      const rect = [Math.max(0, x - r), Math.max(0, y - r), Math.min(W, x + r), Math.min(H, y + r)];
+      if (rect[2] - rect[0] < holePx * 3 || rect[3] - rect[1] < holePx * 3) return n;
+      let best = n;
+      let bd = Infinity;
+      try {
+        const { holes } = findHoles(src, rect, holePx);
+        for (const hole of holes ?? []) {
+          const d = Math.hypot((hole.p[0] - n[0]) * W, (hole.p[1] - n[1]) * H);
+          if (d < bd) { bd = d; best = hole.p; }
+        }
+      } catch { return n; }
+      // далі ніж за півкалібру — це вже інша пробоїна чи друк, лишаємо палець
+      return bd <= holePx * 0.8 ? best : n;
+    }
+
     function place(n) {
+      if (mode === 'view') return;
       const s = st[line];
       // Обидві точки лінії вже стоять — тап нічого не зсуває: точку переставляють перетягуванням.
       if (mode === 'scale' && s.a && s.b) return;
       snapshot();
       notice = null;
-      if (mode === 'holes') st.groups[active].holes.push(n);
+      if (mode === 'holes') st.groups[active].holes.push(snapHole(n));
       else if (mode === 'poa') st.poa = n;
       else if (!s.a) s.a = n;
       else {
@@ -679,7 +748,14 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     function hitTest(at) {
       // Пробоїни беремо з усіх груп: інакше чужу не вибрати, щоб перенести чи прибрати.
       // Своя група першою — коли пробоїни двох груп злиплися, перемагає активна.
-      const list = mode === 'holes'
+      // «Перегляд» — вибрати можна будь-яку мітку (щоб прибрати чи перенести), тягнути — ні
+      const all = () => [
+        ...[active, ...st.groups.keys()].filter((g, i, a) => a.indexOf(g) === i)
+          .flatMap((g) => st.groups[g].holes.map((p, i) => ({ kind: 'hole', g, i, p }))),
+        ...(st.poa ? [{ kind: 'poa', p: st.poa }] : []),
+        ...Object.entries(END).filter(([, [l, end]]) => st[l][end]).map(([kind, [l, end]]) => ({ kind, p: st[l][end] })),
+      ];
+      const list = mode === 'view' ? all() : mode === 'holes'
         ? [active, ...st.groups.keys()].filter((g, i, a) => a.indexOf(g) === i)
           .flatMap((g) => st.groups[g].holes.map((p, i) => ({ kind: 'hole', g, i, p })))
         : mode === 'poa'
@@ -713,7 +789,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       if (pointers.size > 2) return;
       const at = pos(e);
       action = { id: e.pointerId, start: at, hit: hitTest(at), moved: false, mouse: e.pointerType === 'mouse', touched: false };
-      if (!action.mouse) paintLoupe(at, action.hit ? action.hit.p : toNorm(at));
+      if (!action.mouse && mode !== 'view') paintLoupe(at, action.hit ? action.hit.p : toNorm(at));
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!pointers.has(e.pointerId)) return;
@@ -732,7 +808,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       }
       if (!action || e.pointerId !== action.id) return;
       if (!action.moved && Math.hypot(at[0] - action.start[0], at[1] - action.start[1]) > MOVE) action.moved = true;
-      if (action.hit && action.moved) {
+      if (action.hit && action.moved && mode !== 'view') {
         if (!action.touched) { snapshot(); action.touched = true; }
         const n = [clamp(toNorm(at)[0], 0, 1), clamp(toNorm(at)[1], 0, 1)];
         setPoint(action.hit, n);
@@ -740,12 +816,12 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         selected = { kind: action.hit.kind, g: action.hit.g, i: action.hit.i };
         paint();
         if (!action.mouse) paintLoupe(at, n);
-      } else if (action.mouse && action.moved) {
+      } else if ((action.mouse || mode === 'view') && action.moved) {
         view.x += at[0] - last[0];
         view.y += at[1] - last[1];
         view.fitted = false;
         paint();
-      } else if (!action.mouse) {
+      } else if (!action.mouse && mode !== 'view') {
         paintLoupe(at, toNorm(at));
       }
     });
@@ -766,6 +842,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         selected = { kind: hit.kind, g: hit.g, i: hit.i };
         if (hit.kind === 'hole') active = hit.g;
       }
+      else if (mode === 'view') {
+        // тап повз мітки — зняти вибір; рух — це був зсув фото
+        if (!moved) selected = null;
+      }
       else if (!hit && !(mouse && moved)) {
         const n = toNorm(at);
         if (inside(n)) place(n);
@@ -784,19 +864,35 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       paint();
     }, { passive: false });
 
+    let unlayer = () => {};
     const close = (result) => {
       root.remove();
       observer.disconnect();
-      window.removeEventListener('popstate', cancel);
+      unlayer();
       document.removeEventListener('keydown', onKey);
       src.close?.();
       done(result);
     };
     const cancel = () => close(null);
+    const dirty = () => history.length > 0 || mmTouched;
+    const leave = () => {
+      if (!dirty()) { cancel(); return; }
+      confirmSheet(t('Выйти без сохранения?'), t('Отметки на фото не сохранятся.'), t('Выйти'), cancel);
+    };
+    // «Назад» уже забрав запис редактора: якщо є що втратити — повертаємо запис і питаємо.
+    const onBack = () => {
+      if (!dirty()) { cancel(); return; }
+      unlayer = backLayer(onBack);
+      leave();
+    };
     const onKey = (e) => {
-      if (e.key === 'Escape') cancel();
+      // поверх відкрите питання — клавіші йому, а не редактору
+      if (root.nextElementSibling) return;
+      if (e.key === 'Escape') leave();
       if ((e.key === 'Delete' || e.key === 'Backspace') && e.target === document.body) removeSelected();
-      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) undo();
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && (e.key === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) redo();
+      else if (mod && e.key === 'z') undo();
     };
     const save = () => close({
       scale: st.scale.a || st.scale.b ? st.scale : (st.scale.mm ? { a: null, b: null, mm: st.scale.mm } : null),
@@ -806,18 +902,17 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     });
 
     const root = h('div', { class: 'viewer tg-editor', role: 'dialog', 'aria-label': t('Разметка мишени') },
-      h('header', { class: 'viewer-head' }, h('span', {}, t('Разметка мишени')),
-        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: cancel }, '✕')),
+      h('header', { class: 'viewer-head tg-head' },
+        h('button', { type: 'button', class: 'icon-btn', title: t('Закрыть'), 'aria-label': t('Закрыть'), onclick: leave }, '✕'),
+        // Видалення — окремо ліворуч, подалі від «Скасувати» й «Зберегти»: не натиснути випадково
+        delBtn,
+        h('div', { class: 'tg-tools' }, undoBtn, redoBtn, tool('fit', t('Вписать в экран'), () => { fit(); paint(); })),
+        h('button', { type: 'button', class: 'btn primary tg-save', onclick: save }, `✓ ${t('Сохранить')}`)),
       stage,
-      h('div', { class: 'tg-panel' },
-        modeRow, groupRow, findRow, scaleRow, hint,
-        h('div', { class: 'editor-row' }, undoBtn, delBtn, tool('⤢', t('Вписать в экран'), () => { fit(); paint(); }))),
-      h('footer', { class: 'viewer-actions' },
-        h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')),
-        h('button', { type: 'button', class: 'btn primary', onclick: save }, t('Сохранить'))));
+      h('div', { class: 'tg-panel' }, modeRow, holesRow, scaleRow, poaRow));
 
     document.getElementById('layer').append(root);
-    window.addEventListener('popstate', cancel, { once: true });
+    unlayer = backLayer(onBack);
     document.addEventListener('keydown', onKey);
     paint();
     observer.observe(stage);

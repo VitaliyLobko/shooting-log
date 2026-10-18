@@ -3,24 +3,6 @@
 import { h } from './ui.js';
 import { locale } from './i18n.js';
 
-const W = 300;
-const H = 110;
-const PAD = { l: 4, r: 4, t: 8, b: 16 };
-
-/** Проєкція значень у координати полотна; однакове значення скрізь — лінія посередині. */
-function scale(values) {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || Math.abs(max) || 1;
-  const lo = max === min ? min - span / 2 : min;
-  const hi = max === min ? max + span / 2 : max;
-  return {
-    min, max,
-    x: (i, n) => PAD.l + (n < 2 ? (W - PAD.l - PAD.r) / 2 : (i * (W - PAD.l - PAD.r)) / (n - 1)),
-    y: (v) => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b),
-  };
-}
-
 /** Круглі поділки шкали: крок 1·2·5 × 10ⁿ, межі — кратні кроку, щоб числа читалися з ходу. */
 function niceTicks(lo, hi, minStep = 0) {
   if (hi === lo) {
@@ -157,13 +139,3 @@ export function barChart(rows, { format = (v) => String(Math.round(v)) } = {}) {
   return el;
 }
 
-/** Мініатюра лінії для плитки: лише форма, без підписів. */
-export function sparkline(values) {
-  if (values.length < 2) return null;
-  const s = scale(values);
-  const n = values.length;
-  const line = values.map((v, i) => `${s.x(i, n).toFixed(1)},${s.y(v).toFixed(1)}`).join(' ');
-  const el = h('span', { class: 'spark', 'aria-hidden': 'true' });
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${line}" class="ch-line"/></svg>`;
-  return el;
-}

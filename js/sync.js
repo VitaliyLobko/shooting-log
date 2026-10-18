@@ -139,7 +139,9 @@ function refreshOnSave() {
 
 export function disconnect() {
   if (conf.token) window.google?.accounts?.oauth2?.revoke?.(conf.token, () => {});
-  conf = {};
+  // Незроблене лишаємо: фото, видалені тут, ще треба прибрати з Диска, а «Заменить всё» — донести до файлу
+  const { trash, restoreAt } = conf;
+  conf = { ...(trash?.length ? { trash } : {}), ...(restoreAt ? { restoreAt } : {}) };
   save();
   set('off');
 }
@@ -373,7 +375,7 @@ export async function syncNow() {
     conf.lastSync = Date.now();
     save();
     set('idle');
-    if (changes || pushed || pulled) window.dispatchEvent(new Event('sync-applied'));
+    if (changes || pushed || pulled) window.dispatchEvent(new CustomEvent('sync-applied', { detail: { remote: !!changes } }));
   } catch (err) {
     if (err instanceof AuthError) set('auth', t('Нажмите, чтобы войти в Google'));
     else set(navigator.onLine ? 'error' : 'offline', err.message);
