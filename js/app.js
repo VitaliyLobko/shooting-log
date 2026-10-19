@@ -285,13 +285,24 @@ function chipPicker(select, { seg = true, label = (o) => o.textContent, cls = ''
   return paint;
 }
 
+// Зони вітру: 2–4 і 8–10 — повний боковий, 1, 5, 7, 11 — половина зносу, 12 і 6 — майже без зносу
+const windZone = (n) => ([2, 3, 4, 8, 9, 10].includes(n) ? 'full' : [1, 5, 7, 11].includes(n) ? 'half' : 'none');
+const WIND_NOTE = { full: 'полный боковой ветер', half: 'половина сноса', none: 'почти без сноса — только высота' };
+// Точка на циферблаті (viewBox 100): кут від 12-ї години за стрілкою, r — відстань від центру
+const dialPt = (deg, r) => [50 + Math.sin((deg * Math.PI) / 180) * r, 50 - Math.cos((deg * Math.PI) / 180) * r];
+const dialWedge = (from, to, r) => {
+  const [x1, y1] = dialPt(from, r);
+  const [x2, y2] = dialPt(to, r);
+  return `M50 50 L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+};
+
 /**
- * Звідки вітер — циферблатом: 12 угорі, тобто з боку цілі. Стрілка в центрі показує, куди дме.
- * Повторний тап по вибраній годині скидає вибір, якщо в select є порожній варіант.
+ * Звідки вітер — циферблатом: 12 угорі, з боку цілі, стрілець у центрі; червоні сектори — зони повного бокового вітру.
+ * Стрілка йде від вибраної години до стрільця. Повторний тап скидає вибір, якщо в select є порожній варіант.
  */
 function clockPicker(select) {
   if (!select) return () => {};
-  const dial = h('div', { class: 'clock-pick', role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
+  const dial = h('div', { class: 'wind-pick', role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
   const canClear = [...select.options].some((o) => o.value === '');
   const current = () => Number(select.value) || 0;
   const set = (value) => {
@@ -303,27 +314,47 @@ function clockPicker(select) {
     const n = i + 1;
     const a = (n / 12) * 2 * Math.PI;
     return h('button', {
-      type: 'button', role: 'radio', 'aria-label': t('на {n} ч', { n }),
+      type: 'button', role: 'radio', class: windZone(n), 'aria-label': t('на {n} ч', { n }),
       style: `--x:${Math.sin(a).toFixed(3)};--y:${(-Math.cos(a)).toFixed(3)}`,
       onclick: () => set(n === current() && canClear ? '' : String(n)),
     }, String(n));
   });
-  const arrow = h('span', { class: 'clock-arrow', 'aria-hidden': 'true' });
-  arrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 20V5M6 11l6-6 6 6"/></svg>';
-  const none = h('span', { class: 'clock-none muted', 'aria-hidden': 'true' }, '—');
-  dial.append(...hours, arrow, none);
+  const face = h('span', { class: 'wp-face', 'aria-hidden': 'true' });
+  // Стрілку вітру намальовано для 12-ї години й повернуто на вибрану
+  face.innerHTML = `<svg viewBox="0 0 100 100">
+    <circle class="wp-ring" cx="50" cy="50" r="38"/>
+    <path class="wp-zone" d="${dialWedge(60, 120, 38)}"/><path class="wp-zone" d="${dialWedge(240, 300, 38)}"/>
+    <line class="wp-aim" x1="50" y1="47" x2="50" y2="19"/><path class="wp-aim-head" d="M50 13.5 L53 19 L47 19 Z"/>
+    <text class="wp-text wp-aim-text" x="53.5" y="25"></text>
+    <g class="wp-wind"><line x1="50" y1="16" x2="50" y2="41"/><path d="M50 44 L52.8 38.8 L47.2 38.8 Z"/></g>
+    <circle class="wp-me" cx="50" cy="50" r="3"/>
+    <text class="wp-text wp-me-text" x="50" y="60" text-anchor="middle"></text></svg>`;
+  face.querySelector('.wp-aim-text').textContent = t('цель');
+  const me = face.querySelector('.wp-me-text');
+  me.textContent = t('стрелок');
+  const [right, left] = face.querySelectorAll('.wp-zone');
+  const wind = face.querySelector('.wp-wind');
+  const note = h('p', { class: 'wp-note', 'aria-live': 'polite' });
+  dial.append(face, ...hours);
   const paint = () => {
     const v = current();
     hours.forEach((b, i) => {
       b.classList.toggle('on', i + 1 === v);
       b.setAttribute('aria-checked', String(i + 1 === v));
     });
-    arrow.style.setProperty('--r', `${v * 30 + 180}deg`);
-    arrow.hidden = !v;
-    none.hidden = Boolean(v);
+    right.classList.toggle('on', v >= 2 && v <= 4);
+    left.classList.toggle('on', v >= 8 && v <= 10);
+    wind.setAttribute('transform', `rotate(${v * 30} 50 50)`);
+    wind.style.display = v ? '' : 'none';
+    // Вітер знизу (4–8) перекрив би підпис під стрільцем — підпис збоку, навпроти стрілки
+    const side = v >= 4 && v <= 8 ? (v < 6 ? -1 : 1) : 0;
+    me.setAttribute('x', side ? 50 + side * 5 : 50);
+    me.setAttribute('y', side ? 51.8 : 60);
+    me.setAttribute('text-anchor', side < 0 ? 'end' : side ? 'start' : 'middle');
+    note.textContent = v ? t('{n} ч — {what}', { n: v, what: t(WIND_NOTE[windZone(v)]) }) : t('коснитесь часа, откуда дует');
   };
   select.hidden = true;
-  select.after(dial);
+  select.after(h('div', { class: 'wind-pick-wrap' }, dial, note));
   paint();
   select.addEventListener('change', paint);
   return paint;

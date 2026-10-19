@@ -12,6 +12,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --buy: #46a862;
   --shoot: #d0503f;
+  --half: #b5b86a;
   --warn: #dbad3a;
   --clean: #4fa7cf;
   --radius: 16px;
@@ -35,6 +36,7 @@
   /* темніші за темну тему: на білому світлі відтінки ледь читались (жовтий — 2:1) */
   --buy: #26803f;
   --shoot: #b83a2b;
+  --half: #7c7f22;
   --warn: #946800;
   --clean: #2a7fa6;
   --shadow: 0 1px 2px rgb(30 40 25 / .06), 0 6px 16px rgb(30 40 25 / .06);
@@ -998,19 +1000,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .item-row .chips.seg-unit { grid-area: unit; margin: 0; padding: 2px; gap: 2px; border-radius: 10px; }
 .item-row .chips.seg-unit button { min-height: 38px; padding: 0; border-radius: 8px; }
 .item-row .item-unit.off + .chips { visibility: hidden; }
-/* Звідки вітер: циферблат, 12 — з боку цілі; 3, 6, 9, 12 — опорні, яскравіші. */
-.clock-pick { position: relative; width: 176px; aspect-ratio: 1; margin: 6px auto 2px; border-radius: 50%;
-  border: 1px solid var(--line); background: var(--surface-2); }
-.clock-pick button { position: absolute; left: calc(50% + var(--x) * 39% - 17px); top: calc(50% + var(--y) * 39% - 17px);
+/* Звідки вітер: циферблат, 12 — з боку цілі, стрілець у центрі; червоне — повний боковий, оливкове — половина зносу. */
+.wind-pick { position: relative; width: min(236px, 100%); aspect-ratio: 1; margin: 6px auto 2px; }
+.wind-pick .wp-face { position: absolute; inset: 0; pointer-events: none; }
+.wind-pick .wp-face svg { width: 100%; height: 100%; overflow: visible; }
+.wp-ring { fill: var(--surface-2); stroke: var(--text); stroke-opacity: .55; stroke-width: .7; }
+.wp-zone { fill: var(--shoot); fill-opacity: .2; transition: fill-opacity .15s; }
+.wp-zone.on { fill-opacity: .34; }
+.wp-aim { stroke: var(--muted); stroke-width: .7; stroke-dasharray: 2 1.6; }
+.wp-aim-head { fill: var(--muted); }
+.wp-text { fill: var(--muted); font-size: 5px; }
+.wp-me { fill: var(--text); }
+.wp-wind line { stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
+.wp-wind path { fill: var(--accent); }
+.wind-pick button { position: absolute; left: calc(50% + var(--x) * 46% - 17px); top: calc(50% + var(--y) * 46% - 17px);
   width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent;
-  color: var(--muted); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
-.clock-pick button:nth-of-type(3n) { color: var(--text); font-weight: 800; }
-.clock-pick button.on { background: var(--accent); color: #fff; }
-.clock-pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.clock-pick .clock-arrow { position: absolute; inset: 31%; color: var(--accent-2); transform: rotate(var(--r)); pointer-events: none; }
-.clock-pick .clock-arrow svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.clock-pick .clock-none { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; pointer-events: none; }
-.tg-weather .field:has(> .clock-pick) { grid-column: 1 / -1; }
+  color: var(--text); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.wind-pick button.full { color: var(--shoot); }
+.wind-pick button.half { color: var(--half); }
+.wind-pick button.on { background: var(--accent); color: #fff; }
+.wind-pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wp-note { margin: 2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.tg-weather .field:has(> .wind-pick-wrap) { grid-column: 1 / -1; }
 .scope-row input, .scope-row select {
   width: 100%;
   min-height: 44px;
@@ -1562,7 +1573,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .dope tr.zero td { color: var(--muted); }
 .dope-calc { display: grid; grid-template-columns: minmax(0, 11em); align-items: center; gap: 8px; }
 .dope-calc.windy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.dope-calc .clock-pick { grid-column: 1 / -1; }
+.dope-calc .wind-pick-wrap { grid-column: 1 / -1; }
 
 .dope-out { margin: 0; font-weight: 650; color: var(--accent-2); white-space: pre-line; }
 .dope-out:empty { display: none; }
