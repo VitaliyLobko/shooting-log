@@ -13,6 +13,7 @@ import { timerPanel, stopTimerPanel } from './timer.js';
 import { exercisesPanel, exerciseName, newExercise, openScore } from './exercises.js';
 import { CHANGES, newer } from './changelog.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
+import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon,
@@ -4957,6 +4958,53 @@ function showNews() {
   if (list.length) changesSheet(list);
 }
 
+/**
+ * Строки наперед — подіями для календаря телефону: дозвіл (за 3 місяці, місяць, тиждень і в останній день)
+ * і відкладена чистка. Минуле не додаємо — про нього й так нагадує сам застосунок.
+ */
+function calendarEvents() {
+  const today = M.today();
+  const out = [];
+  for (const w of state.weapons.filter((x) => !x.archived)) {
+    const end = w.permit?.expires;
+    if (end) {
+      const note = `${t('действует до {date}', { date: fmt.date(end) })} · Shooters Log`;
+      for (const [days, title] of [
+        [90, 'Разрешение на «{name}» — осталось 3 месяца'], [30, 'Разрешение на «{name}» — остался месяц'],
+        [7, 'Разрешение на «{name}» — осталась неделя'], [0, 'Разрешение на «{name}» — последний день']]) {
+        const date = M.addDays(end, -days);
+        if (date >= today) out.push({ uid: `permit-${w.id}-${days}@shooters-log`, date, title: t(title, { name: w.name }), note });
+      }
+    }
+    // Чистка в календарі — лише відкладена: дата відома, тільки коли поріг уже набрано й задано відстрочку
+    const clean = M.cleaningStatus(state, w);
+    if (clean.dueDate && clean.dueDate >= today) {
+      out.push({ uid: `clean-${w.id}@shooters-log`, date: clean.dueDate, title: t('Почистить «{name}»', { name: w.name }),
+        note: t('Напоминание о чистке из Shooters Log. Почистили раньше — удалите событие.') });
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Нагадування в календарі телефону: усі строки одним файлом .ics, найближчі — і по одній у Google Календар. */
+function calendarPanel() {
+  const events = calendarEvents();
+  const head = h('h3', {}, t('Напоминания в календаре'));
+  if (!events.length) {
+    return h('section', { class: 'panel' }, head,
+      h('p', { class: 'muted small' }, t('Пока нечего добавить: укажите в форме оружия, до какого числа действует разрешение, или отсрочку напоминания о чистке.')));
+  }
+  const near = events.slice(0, 6);
+  return h('section', { class: 'panel' }, head,
+    h('p', { class: 'muted small' }, t('Сроки разрешений — за 3 месяца, месяц, неделю и в последний день — и отложенная чистка событиями в календаре телефона: он напомнит, даже когда приложение закрыто. Даты изменились — выгрузите ещё раз.')),
+    h('div', { class: 'rows' }, near.map((e) => h('div', { class: 'row' },
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, e.title), h('span', { class: 'muted small' }, fmt.date(e.date))),
+      toolBtn('calendar', t('Добавить в Google Календарь'), () => window.open(googleCalendarLink(e), '_blank', 'noopener'), 'small')))),
+    events.length > near.length ? h('p', { class: 'muted small' }, t('и ещё {n} — в файле .ics', { n: events.length - near.length })) : null,
+    h('div', { class: 'btn-row' }, btn(t('Все в календарь (.ics)'),
+      () => offerFile('shooters-log.ics', icsCalendar(events, { name: 'Shooters Log' }), 'text/calendar'), 'primary')));
+}
+
 /** Видалені вбудовані вправи — лише сховані: повернути всі разом, якщо прибрали зайве. */
 function hiddenExercisesPanel() {
   const hidden = state.exercises.filter((r) => r.hidden);
@@ -4991,6 +5039,7 @@ function renderSettings() {
     h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
       h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
       h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))),
+    calendarPanel(),
     hiddenExercisesPanel(),
     h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
     h('section', { class: 'panel' }, h('h3', {}, t('Тема')), (() => {

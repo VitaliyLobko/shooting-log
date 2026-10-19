@@ -24,6 +24,7 @@ const ASSETS = [
   './js/timer.js',
   './js/exercises.js',
   './js/changelog.js',
+  './js/ics.js',
   './js/shot-detector.js',
   './js/pdf.js',
   './js/holes.js',
