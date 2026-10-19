@@ -464,7 +464,7 @@ function btn(label, onclick, kind = '') {
  * count — кількість у заголовку, tools — кнопки в заголовку поруч із назвою.
  */
 /** corner — кнопка на рамці праворуч (на лінії, як заголовок ліворуч). */
-function box(title, content, { fold, count, tools = null, corner = null } = {}) {
+function box(title, content, { fold, count, summary = null, tools = null, corner = null } = {}) {
   if (!fold) return h('fieldset', { class: 'box' }, h('legend', {}, title, tools), content, corner);
   const key = `box:${fold}`;
   const el = h('fieldset', { class: `box foldable ${unfolded.has(key) ? '' : 'closed'}` });
@@ -475,7 +475,7 @@ function box(title, content, { fold, count, tools = null, corner = null } = {}) 
       setUnfolded(key, open);
       toggle.setAttribute('aria-expanded', String(open));
     },
-  }, h('span', { class: 'box-chevron', 'aria-hidden': 'true' }, '›'), title, count ? h('span', { class: 'box-count' }, fmt.num(count)) : null);
+  }, h('span', { class: 'box-chevron', 'aria-hidden': 'true' }, '›'), title, count ? h('span', { class: 'box-count' }, fmt.num(count)) : null, summary);
   el.append(h('legend', {}, toggle, tools), h('div', { class: 'box-body' }, content));
   if (corner) el.append(corner);
   return el;
@@ -2491,7 +2491,6 @@ function movementBody(m, close, edit = false) {
     await refresh();
     confirmed([m.id]);
   });
-  const timeInput = input({ type: 'time', value: m.time ?? '', 'aria-label': t('Время') }, (v) => save({ time: v || undefined }));
   const qtyInput = h('input', {
     class: 'inline-select', type: 'number', step: 'any', min: 0, inputmode: 'decimal', autocomplete: 'off', 'aria-label': t('Количество'),
     // Нуль або сміття замість кількості — просто повертаємо попереднє: рух без кількості не має сенсу.
@@ -2538,16 +2537,12 @@ function movementBody(m, close, edit = false) {
         stat(t('выстрелов'), fmt.num(n), 'accent'),
         shotCost ? stat(t('стоимость'), tileMoney(shotCost)) : null,
         shotCost && n ? stat(t('за выстрел'), tileMoney(shotCost / n)) : null),
-      box(t('Запись'), kv(
-        row('Дата', edit ? dateInput : targetWhen(m)),
-        edit ? row('Время', timeInput) : null,
+      score || edit ? box(t('Запись'), kv(
         // Тап — картка результату вправи поверх картки стрільби
         score ? row('Упражнение', h('button', { type: 'button', class: 'link-btn', onclick: () => openScore(score, exerciseCtx()) },
           h('b', {}, exerciseName(score.exercise) ?? '—'), ` · ${fmt.num(score.score)}`)) : null,
         edit ? row('Количество', editQty ? qtyInput : fmt.num(n)) : null,
-        edit && editPrice ? row('Стоимость', priceInput) : null,
-        edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null,
-        weatherRows(m).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
+        edit && editPrice ? row('Стоимость', priceInput) : null)) : null,
       box(t('Оружие'), lead(
         edit ? shotWeaponSelect(m) : (w?.name ?? (m.foreignWeapon ? t('Чужое оружие') : '—')),
         m.foreignWeapon ? row('Какое', edit
@@ -2571,6 +2566,7 @@ function movementBody(m, close, edit = false) {
         m.cartridgeId ? null : h('p', { class: 'muted small' }, m.foreignAmmo
           ? t('Чужие патроны: склад БК не меняется, выстрелы идут в настрел.')
           : t('Запись без списания из БК — учитывается только в настреле.')))),
+      edit ? whenEditBlock(m, linked) : whereWhenView(m, { lead: m.note || null }),
       shotTargets(m, close),
       linked.length ? box(t('Собранные гильзы'), h('div', { class: 'rows' }, linked.map((x) => logRow(x)))) : null);
   }
@@ -3122,7 +3118,7 @@ function exerciseCtx() {
     // Дата результату — текстом ДД.ММ.РРРР, час дня — у clock (time у вправах на час — сума серії)
     whenFields: (prev) => whenFields(prev, { dateType: 'dmy', timeKey: 'clock' }),
     whereWhen: (f, prev) => whereWhenBox(f, { gps: prev?.gps ?? null, timeKey: 'clock' }),
-    weatherRows,
+    whereWhenView: (s) => whereWhenView(s, { timeKey: 'clock' }),
     // Приціл і оснащення результату — рядками умов у його картці
     extrasRows: (s) => {
       const scope = findWeapon(s.weaponId)?.scopes?.find((sc) => sc.id === s.scopeId);
@@ -3745,12 +3741,12 @@ function devicePosition() {
 }
 
 /** Рядок координат у формі: записує їх кнопка погоди, тут їх видно, можна відкрити на карті й прибрати. */
-function gpsEditor(initial = null) {
+function gpsEditor(initial = null, onClear = null) {
   let gps = initial;
   const text = h('span', { class: 'muted small' });
   const el = h('div', { class: 'tg-gps' }, text,
     toolBtn('map', t('Открыть на карте'), () => openMap(gps), 'small'),
-    toolBtn('delete', t('Убрать координаты'), () => set(null), 'small'));
+    toolBtn('delete', t('Убрать координаты'), () => { set(null); onClear?.(); }, 'small'));
   const set = (value) => {
     gps = value;
     el.hidden = !gps;
@@ -3779,10 +3775,10 @@ function whenFields(prev, { date = M.today(), dateType = 'date', timeKey = 'time
  * Блок «Де, коли, погода» — однаковий у стрільбі, мішені й вправі: lead (де / що) зверху, дата й час,
  * погода з кнопкою «Підтягнути», вітер циферблатом, координати. f — форма з полями whenFields().
  */
-function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [] } = {}) {
+function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = null, note = '' } = {}) {
   clockPicker(f.inputs.windClock);
-  const geo = gpsEditor(gps);
-  const info = h('small', { class: 'muted tg-weather-note' });
+  const geo = gpsEditor(gps, onChange);
+  const info = h('small', { class: 'muted tg-weather-note' }, note);
   const button = toolBtn('locate', t('Подтянуть погоду'), async () => {
     const day = f.values().date;
     const w = await pullWeather({ date: typeof day === 'string' ? day : '', time: f.inputs[timeKey], gps: geo, button, info });
@@ -3793,18 +3789,70 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [] } = {}) {
     info.textContent = t('Ветер с {dir} ({deg}°), порывы до {gust} м/с — часы выберите сами.', {
       dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
     });
+    onChange?.();
   }, 'tg-pull');
   const fieldOf = (name) => f.inputs[name].closest('.field');
+  // Згорнутий блок не ховає головного: у шапці — що/де, дата, час і погода
+  const summary = h('span', { class: 'box-sum' });
+  const sum = () => {
+    const v = f.values();
+    summary.textContent = whenSummary({ ...v, date: typeof v.date === 'string' ? v.date : null, time: v[timeKey], note: lead.length ? v.note : null });
+  };
   const el = box(t('Где, когда, погода'), h('div', {},
     lead.length ? h('div', { class: 'form' }, lead) : null,
     h('div', { class: 'form when' }, fieldOf('date'), fieldOf(timeKey)),
     h('div', { class: 'form tg-weather' }, fieldOf('temp'), fieldOf('wind'), button, fieldOf('windClock')),
-    info, geo.el));
+    info, geo.el), { fold: 'when', summary });
+  el.addEventListener('input', sum);
+  el.addEventListener('change', sum);
+  // Чипи «де / що» і «Підтягнути погоду» міняють поля без подій введення
+  el.addEventListener('click', () => setTimeout(sum));
+  if (onChange) el.addEventListener('change', onChange);
+  sum();
   const values = () => {
     const v = f.values();
     return { temp: v.temp, wind: v.wind, windClock: v.windClock ? Number(v.windClock) : null, gps: geo.get() };
   };
-  return { el, values };
+  return { el, values, note: () => info.textContent };
+}
+
+/** Шапка згорнутого блоку «Де, коли, погода»: що/де, дата, час і погода одним рядком. */
+function whenSummary({ note = null, date = null, time = null, temp = null, wind = null }) {
+  return [note, date ? fmt.date(date).slice(0, 5) : null, time,
+    temp !== null && temp !== undefined && temp !== '' ? `${fmt.num(temp)} °C` : null, wind ? `${fmt.num(wind)} ${t('м/с')}` : null].filter(Boolean).join(' · ');
+}
+
+/** Той самий блок для перегляду: що/де (lead), дата з часом, погода й координати; згортається разом із формами. */
+function whereWhenView(x, { timeKey = 'time', lead = null } = {}) {
+  const when = [x.date ? fmt.date(x.date) : null, x[timeKey]].filter(Boolean).join(' ');
+  const rows = [lead ? [t('Где / что'), lead] : null, when ? [t('Дата'), when] : null, ...weatherRows(x)].filter(Boolean);
+  if (!rows.length) return null;
+  const summary = h('span', { class: 'box-sum' }, whenSummary({ ...x, time: x[timeKey], note: lead }));
+  return box(t('Где, когда, погода'), h('dl', { class: 'kv' }, rows.map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), { fold: 'when', summary });
+}
+
+// Підказка «вітер з …» після «Підтягнути погоду» у правці стрільби: шторка перемальовується після збереження
+const pulledNote = new Map();
+
+/** Правка «Де, коли, погода» стрільби в журналі: кожна зміна зберігається одразу; нова дата — і для всієї пачки. */
+function whenEditBlock(m, linked) {
+  const f = form([{ name: 'note', label: t('Где / что'), placeholder: t('Полигон, тренировка…'), value: m.note ?? '' }, ...whenFields(m)]);
+  let block = null;
+  const commit = async () => {
+    const v = f.values();
+    if (!v.date) { fieldError(f.inputs.date, t('Заполните поле «{label}»', { label: t('Дата') })); return; }
+    pulledNote.set(m.id, block.note());
+    const cur = freshMovement(m);
+    // Дата спільна для пачки: зібрані гільзи — того ж дня, що стрільба
+    const moved = v.date !== cur.date ? linked.map((x) => ({ ...x, date: v.date })) : [];
+    await db.write({ movements: { put: [{ ...cur, note: v.note || undefined, date: v.date, time: v.time || undefined, ...block.values() }, ...moved] } });
+    await refresh();
+    confirmed([m.id]);
+  };
+  const noteChips = chips(noteSuggestions(), '', (v) => { f.inputs.note.value = v; commit(); });
+  noteChips.classList.add('chips-sm');
+  block = whereWhenBox(f, { gps: m.gps ?? null, lead: [f.inputs.note.closest('.field'), noteChips], onChange: commit, note: pulledNote.get(m.id) ?? '' });
+  return block.el;
 }
 
 /** Координати рядком картки: цифри й кнопка карти. */
@@ -4113,17 +4161,16 @@ function targetDetail(tg) {
     figure,
     statsBox,
     box(t('Условия'), h('dl', { class: 'kv' },
-      h('dt', {}, t('Дата')), h('dd', {}, targetWhen(tg)),
       h('dt', {}, t('Дистанция')), h('dd', {}, t('{n} м', { n: fmt.num(tg.distance) })),
       targetScope(tg) ? [h('dt', {}, t('Прицел')), h('dd', {}, scopeText(targetScope(tg)))] : null,
       gearText(tg) ? [h('dt', {}, t('Оснащение')), h('dd', {}, gearText(tg))] : null,
       tg.click ? [h('dt', {}, t('Цена щелчка')), h('dd', {}, clickAtDistance(tg.click, tg.distance))] : null,
-      weatherRows(tg).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]),
       shot ? [h('dt', {}, t('Стрельба')), h('dd', {}, h('button', {
         type: 'button', class: 'link-btn', onclick: () => { close(); movementDetail(shot); },
       }, `${fmt.date(shot.date)} · ${fmt.signed(shot.qty)}`))] : null,
       result ? [h('dt', {}, t('Упражнение')), h('dd', {}, `${exerciseName(result.exercise) ?? '—'} · ${fmt.date(result.date)} · ${fmt.num(result.score)}`)] : null,
       tg.note ? [h('dt', {}, t('Примечание')), h('dd', {}, tg.note)] : null)),
+    whereWhenView(tg),
     h('div', { class: 'btn-row' },
       btn([icon('holes'), t('Разметка')], () => { close(); editMarks(tg); }, 'primary with-ico'))), {
     tools: [toolBtn('share', t('Поделиться'), () => shareTarget(tg).catch((err) => toast(err.message))),

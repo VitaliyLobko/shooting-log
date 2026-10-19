@@ -296,6 +296,8 @@ export function fieldError(input, message) {
   const clear = () => { field.classList.remove('invalid'); note.remove(); };
   input.addEventListener('input', clear, { once: true });
   input.addEventListener('change', clear, { once: true });
+  // Поле в згорнутому блоці — спершу розгортаємо, інакше помилку не видно
+  field.closest('.foldable.closed')?.querySelector(':scope > legend > .box-toggle')?.click();
   input.scrollIntoView({ block: 'center', behavior: 'smooth' });
   input.focus?.({ preventScroll: true });
 }

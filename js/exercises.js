@@ -417,9 +417,9 @@ const round2 = (v) => Math.round(v * 100) / 100;
  * targetsOf(record) віддає блок мішеней результату (або null).
  */
 /** Контекст вправ із того, що дає застосунок; свої вправи — одразу в довідник назв. */
-function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], whenFields = null, whereWhen = null, weatherRows = () => [], pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null }) {
+function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], whenFields = null, whereWhen = null, whereWhenView = () => null, pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null }) {
   CUSTOM = custom;
-  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, whenFields, whereWhen, weatherRows, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise };
+  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, whenFields, whereWhen, whereWhenView, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise };
 }
 
 export function exercisesPanel(args) {
@@ -703,11 +703,9 @@ function scoreCard(ex, s, ctx) {
   // Дата — у заголовку картки.
   const cond = [
     variant ? [t('Вариант'), variant] : null,
-    s.clock ? [t('Время'), s.clock] : null,
     weapon ? [t('Оружие'), weapon] : null,
     ...ctx.extrasRows(s),
     s.distance ? [t('Дистанция, м'), fmt.num(s.distance)] : null,
-    ...ctx.weatherRows(s),
     s.note ? [t('Примечание'), s.note] : null,
   ].filter(Boolean);
   const body = h('div', {},
@@ -717,7 +715,8 @@ function scoreCard(ex, s, ctx) {
       ctx.stat(t('попаданий'), ex.shots ? `${fmt.num(hits)}/${fmt.num(ex.shots)}` : fmt.num(hits)),
       s.time ? ctx.stat(t('время, с'), fmt.num(s.time)) : null),
     hitsBox,
-    cond.length ? ctx.box(t('Условия'), h('dl', { class: 'kv' }, cond.map(([k, v]) => [h('dt', {}, k), h('dd', {}, v instanceof Node ? v : String(v))]))) : null,
+    cond.length ? ctx.box(t('Условия'), h('dl', { class: 'kv' }, cond.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v))]))) : null,
+    ctx.whereWhenView(s),
     ctx.targetsOf?.(s) ?? null);
   const del = toolBtn('delete', t('Удалить'), () => {
     close();
