@@ -315,6 +315,123 @@ export function formError(message) {
   panel.addEventListener('change', clear, { once: true });
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+const TURN = Math.PI * 2;
+// Години як на циферблаті Android: зовні 12, 1…11, всередині 00, 13…23
+const outerHour = (i) => (i === 0 ? 12 : i);
+const innerHour = (i) => (i === 0 ? 0 : i + 12);
+// Внутрішнє коло — ближче за цю частку радіуса циферблата
+const INNER_RING = 0.62;
+
+/**
+ * Вибір часу циферблатом, як в Android: тап чи палець по колу — година, далі коло хвилин (крок 5).
+ * Шторка поверх форми; '' — «Без часу», null — закрили без вибору.
+ */
+export function pickTime(value, title) {
+  return new Promise((resolve) => {
+    let [hh, mm] = (value || new Date().toTimeString().slice(0, 5)).split(':').map(Number);
+    let mode = 'h';
+    let result = null;
+    const hBtn = h('button', { type: 'button', class: 'tp-part', onclick: () => { mode = 'h'; draw(); } });
+    const mBtn = h('button', { type: 'button', class: 'tp-part', onclick: () => { mode = 'm'; draw(); } });
+    const dial = h('div', { class: 'tp-dial', role: 'group' });
+    const hand = h('span', { class: 'tp-hand', 'aria-hidden': 'true' });
+    // Позиція на колі: індекс 0–11 від 12-ї години за стрілкою, r — частка радіуса
+    const place = (el, i, r) => {
+      const a = (i / 12) * TURN;
+      el.style.left = `${50 + Math.sin(a) * r * 50}%`;
+      el.style.top = `${50 - Math.cos(a) * r * 50}%`;
+    };
+    const num = (label, on, i, r, pick, inner = false) => {
+      const b = h('button', {
+        type: 'button', class: `tp-num${inner ? ' inner' : ''}${on ? ' on' : ''}`, tabindex: on ? 0 : -1,
+        // Мишею й пальцем обирає коло (pointer-обробник), кнопка — для клавіатури
+        onclick: (e) => { if (e.detail === 0) pick(); },
+      }, label);
+      place(b, i, r);
+      return b;
+    };
+    const draw = () => {
+      hBtn.textContent = pad2(hh);
+      mBtn.textContent = pad2(mm);
+      hBtn.classList.toggle('on', mode === 'h');
+      mBtn.classList.toggle('on', mode === 'm');
+      dial.setAttribute('aria-label', mode === 'h' ? t('Час') : t('Минуты'));
+      const nums = [];
+      let handI;
+      let handR = 0.8;
+      if (mode === 'h') {
+        for (let i = 0; i < 12; i++) {
+          nums.push(num(String(outerHour(i)), hh === outerHour(i), i, 0.8, () => setHour(outerHour(i))));
+          nums.push(num(pad2(innerHour(i)), hh === innerHour(i), i, 0.5, () => setHour(innerHour(i)), true));
+        }
+        handI = hh % 12;
+        if (hh === 0 || hh > 12) handR = 0.5;
+      } else {
+        for (let i = 0; i < 12; i++) nums.push(num(pad2(i * 5), mm === i * 5, i, 0.8, () => setMinute(i * 5)));
+        handI = mm / 5;
+      }
+      hand.style.transform = `rotate(${(handI / 12) * 360}deg)`;
+      hand.style.height = `${handR * 50}%`;
+      dial.replaceChildren(hand, h('span', { class: 'tp-center', 'aria-hidden': 'true' }), ...nums);
+    };
+    const setHour = (v) => { hh = v; mode = 'm'; draw(); };
+    const setMinute = (v) => { mm = v; draw(); };
+    // Палець по колу: найближча поділка; для години — ще й коло (зовнішнє чи внутрішнє)
+    const fromPointer = (e) => {
+      const r = dial.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const i = Math.round((((Math.atan2(dx, -dy) + TURN) % TURN) / TURN) * 12) % 12;
+      if (mode === 'h') hh = Math.hypot(dx, dy) < (r.width / 2) * INNER_RING ? innerHour(i) : outerHour(i);
+      else mm = i * 5;
+      draw();
+    };
+    let dragging = false;
+    dial.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { dial.setPointerCapture(e.pointerId); } catch { /* вказівник уже відпущено */ }
+      fromPointer(e);
+    });
+    dial.addEventListener('pointermove', (e) => { if (dragging) fromPointer(e); });
+    dial.addEventListener('pointerup', () => {
+      if (!dragging) return;
+      dragging = false;
+      if (mode === 'h') { mode = 'm'; draw(); }
+    });
+    dial.addEventListener('pointercancel', () => { dragging = false; });
+    draw();
+    const done = (v) => { result = v; close(); };
+    const close = sheet(title, h('div', { class: 'tp' },
+      h('p', { class: 'tp-now' }, hBtn, h('span', { 'aria-hidden': 'true' }, ':'), mBtn), dial), {
+      actions: [
+        value ? h('button', { type: 'button', class: 'btn', onclick: () => done('') }, t('Без времени')) : null,
+        h('button', { type: 'button', class: 'btn primary', onclick: () => done(`${pad2(hh)}:${pad2(mm)}`) }, t('Готово')),
+      ].filter(Boolean),
+      onClose: () => resolve(result),
+    });
+  });
+}
+
+/** Поле часу замість input type=time: кнопка «ГГ:ХХ» відкриває циферблат; value й події input/change — як у input. */
+function timeInput(value, label) {
+  let current = '';
+  const el = h('button', { type: 'button', class: 'time-field', 'aria-label': label });
+  Object.defineProperty(el, 'value', {
+    get: () => current,
+    set: (v) => { current = v ?? ''; el.textContent = current || '--:--'; },
+  });
+  el.value = value ?? '';
+  el.addEventListener('click', async () => {
+    const v = await pickTime(current, label);
+    if (v === null || v === current) return;
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  return el;
+}
+
 /** Пункти <select>: [value, label] або група { group, options: [[value, label], …] }. */
 export function selectOptions(options, selected) {
   const option = ([value, label]) => h('option', { value, selected: String(value) === String(selected ?? '') }, label);
@@ -340,6 +457,8 @@ export function form(fields) {
       input = chips(f.options, f.value, f.onPick);
     } else if (f.type === 'dmy') {
       input = dmyInput(f.value);
+    } else if (f.type === 'time') {
+      input = timeInput(f.value, f.label);
     } else {
       input = h('input', {
         name: f.name, type: f.type ?? 'text', step: f.step, min: f.min, list: f.list,

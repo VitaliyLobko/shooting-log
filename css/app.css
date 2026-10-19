@@ -930,6 +930,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--bg);
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* час — кнопка «ГГ:ХХ», вибір циферблатом у шторці поверх форми */
+.time-field { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); text-align: left; font-variant-numeric: tabular-nums; cursor: pointer; }
+.time-field:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field.invalid .time-field { border-color: var(--shoot); outline: 1px solid var(--shoot); outline-offset: -1px; }
+.tp-now { display: flex; justify-content: center; align-items: center; gap: 2px; margin: 0 0 14px; font-size: 40px; font-weight: 800; }
+.tp-part { padding: 0 10px; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.tp-part.on { background: var(--accent-soft); color: var(--accent-2); }
+.tp-dial { position: relative; width: min(300px, 100%); aspect-ratio: 1; margin: 0 auto 4px; border-radius: 50%; background: var(--surface-2); touch-action: none; user-select: none; }
+.tp-num { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); font: inherit; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+.tp-num.inner { width: 36px; height: 36px; margin: -18px 0 0 -18px; font-size: 14px; color: var(--muted); }
+.tp-num.on { background: var(--accent); color: var(--bg); }
+.tp-hand { position: absolute; left: 50%; bottom: 50%; width: 2px; margin-left: -1px; background: var(--accent); transform-origin: 50% 100%; }
+.tp-center { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--accent); }
 
 .items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 
