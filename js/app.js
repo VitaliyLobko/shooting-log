@@ -840,8 +840,7 @@ function foreignShotSheet() {
     { name: 'foreignName', label: t('Какое оружие'), placeholder: t('АКМ'), list: 'foreign-list' },
     { name: 'caliber', label: t('Калибр'), required: true, list: 'cal-list' },
     { name: 'note', label: t('Где / что'), placeholder: t('Полигон, тренировка…') },
-    { name: 'date', label: t('Дата'), type: 'date', required: true, value: M.today(), half: true },
-    { name: 'time', label: t('Время'), type: 'time', value: nowHm(), half: true },
+    ...whenFields(null),
   ]);
   const qtyRow = qtyChips(f.inputs.qty, [5, 10, 20, 30, 60, 90]);
   qtyRow.classList.add('chips-sm');
@@ -850,13 +849,12 @@ function foreignShotSheet() {
   // Ті самі блоки, що й у «Списати»: скільки, з чого, де й коли.
   const fieldOf = (name) => f.inputs[name].closest('.field');
   const group = (title, ...parts) => box(title, h('div', { class: 'form' }, parts));
+  const when = whereWhenBox(f, { lead: [fieldOf('note'), noteChips] });
   const close = sheet(t('Стрельба: чужое оружие и патроны'), h('div', {},
     h('p', { class: 'muted small' }, t('Идёт только в общий настрел и настрел по калибрам: склад и свои стволы не меняются. Свою стрельбу записывайте свайпом патрона или ствола; там же есть пункты «Чужое оружие» и «Чужие патроны».')),
     group(t('Выстрелы'), fieldOf('qty'), qtyRow),
     group(t('Оружие'), fieldOf('foreignName'), fieldOf('caliber')),
-    box(t('Где и когда'), h('div', {},
-      h('div', { class: 'form' }, fieldOf('note'), noteChips),
-      h('div', { class: 'form when' }, fieldOf('date'), fieldOf('time')))),
+    when.el,
     caliberList(), foreignList()), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Записать'), save, 'primary shoot')],
   });
@@ -868,7 +866,7 @@ function foreignShotSheet() {
     const qty = Math.round(v.qty);
     await addMovements([movement({
       kind: 'shot', cartridgeId: null, weaponId: null, caliber: v.caliber, qty: -qty, date: v.date || null, time: v.time || undefined, note: v.note,
-      foreignWeapon: true, foreignWeaponName: v.foreignName || undefined, foreignAmmo: true,
+      foreignWeapon: true, foreignWeaponName: v.foreignName || undefined, foreignAmmo: true, ...when.values(),
     })], `−${fmt.num(qty)} · ${foreignLabel(v.foreignName)}`);
   }
 }
@@ -899,8 +897,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
   fields.push(
     { name: 'scopeId', label: t('Прицел'), type: 'select', value: M.defaultScope(gun)?.id ?? '', options: scopeOptions(gun) },
     { name: 'note', label: t('Где / что'), placeholder: t('Полигон, тренировка…') },
-    { name: 'date', label: t('Дата'), type: 'date', required: true, value: M.today(), half: true },
-    { name: 'time', label: t('Время'), type: 'time', value: nowHm(), half: true });
+    ...whenFields(null));
   const f = form(fields);
   ammoPicker(f.inputs.cartridgeId, caliber);
   if (f.inputs.weaponId) weaponPicker(f.inputs.weaponId, caliber);
@@ -929,6 +926,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
     () => cartridge ?? findCartridge(f.inputs.cartridgeId?.value), currentGun, [f.inputs.weaponId, f.inputs.cartridgeId]);
   const noteChips = chips(noteSuggestions(), '', (v) => { f.inputs.note.value = v; });
   noteChips.classList.add('chips-sm');
+  const when = whereWhenBox(f, { lead: [f.inputs.note.closest('.field'), noteChips] });
   const title = cartridge ? t('Списать: {name}', { name: cartridge.name }) : t('Настрел: {name}', { name: weapon.name });
   const info = cartridge ? h('p', { class: 'muted' }, t('В наличии: {n} шт', { n: fmt.num(M.cartridgeStock(state, cartridge.id)) })) : null;
   // Вартість стрільби одразу під кількістю: ціна набою × постріли.
@@ -958,9 +956,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
     group(t('Выстрелы'), fieldOf('qty'), qtyRow, costLine, collect.el, targetRow),
     group(cartridge ? t('Оружие и прицел') : t('Патроны и прицел'),
       fieldOf('weaponId'), fieldOf('foreignName'), fieldOf('cartridgeId'), fieldOf('scopeId'), ...gear.fields),
-    box(t('Где и когда'), h('div', {},
-      h('div', { class: 'form' }, fieldOf('note'), noteChips),
-      h('div', { class: 'form when' }, fieldOf('date'), fieldOf('time')))),
+    when.el,
     f.inputs.foreignName ? foreignList() : null);
   body.addEventListener('click', () => setTimeout(updateAll));
   const close = sheet(title, body, {
@@ -1001,7 +997,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
       foreignWeaponName: (isForeign && v.foreignName) || undefined,
       foreignAmmo: (!cartridge && !c) || undefined,
     };
-    const shot = movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, scopeId, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, time: v.time || undefined, note: v.note, ...foreign, ...gear.values() });
+    const shot = movement({ kind: 'shot', cartridgeId: c?.id ?? null, weaponId: w?.id ?? null, scopeId, caliber: c?.caliber ?? caliber, qty: -qty, price, date: v.date || null, time: v.time || undefined, note: v.note, ...foreign, ...gear.values(), ...when.values() });
     await addShot(shot, collect.value(), label, {}, warnings.filter(Boolean).join(' · ') || null);
     // Мішень чіпляється до запису, тож питаємо одразу після збереження, поки стрілець не пішов із екрана.
     if (withTarget.checked) newTarget({ movement: shot });
@@ -2549,7 +2545,8 @@ function movementBody(m, close, edit = false) {
           h('b', {}, exerciseName(score.exercise) ?? '—'), ` · ${fmt.num(score.score)}`)) : null,
         edit ? row('Количество', editQty ? qtyInput : fmt.num(n)) : null,
         edit && editPrice ? row('Стоимость', priceInput) : null,
-        edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null)),
+        edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null,
+        weatherRows(m).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]))),
       box(t('Оружие'), lead(
         edit ? shotWeaponSelect(m) : (w?.name ?? (m.foreignWeapon ? t('Чужое оружие') : '—')),
         m.foreignWeapon ? row('Какое', edit
@@ -3121,6 +3118,10 @@ function exerciseCtx() {
     pickWeapon: (select) => weaponPicker(select),
     weaponName: (id) => findWeapon(id)?.name ?? null,
     weaponExtras,
+    // Дата результату — текстом ДД.ММ.РРРР, час дня — у clock (time у вправах на час — сума серії)
+    whenFields: (prev) => whenFields(prev, { dateType: 'dmy', timeKey: 'clock' }),
+    whereWhen: (f, prev) => whereWhenBox(f, { gps: prev?.gps ?? null, timeKey: 'clock' }),
+    weatherRows,
     // Приціл і оснащення результату — рядками умов у його картці
     extrasRows: (s) => {
       const scope = findWeapon(s.weaponId)?.scopes?.find((sc) => sc.id === s.scopeId);
@@ -3166,6 +3167,7 @@ function exerciseCtx() {
         time: r.clock || (r.date === M.today() ? nowHm() : undefined),
         weaponId: r.weaponId || null, scopeId: 'scopeId' in r ? r.scopeId : M.defaultScope(findWeapon(r.weaponId))?.id ?? null,
         ...('suppressor' in r ? { suppressor: r.suppressor, bipod: r.bipod } : {}),
+        temp: r.temp ?? null, wind: r.wind ?? null, windClock: r.windClock ?? null, gps: r.gps ?? null,
         price: unit ? +(unit * consume.qty).toFixed(2) : null, note: consume.note,
       });
       score.movementId = m.id;
@@ -3358,7 +3360,7 @@ function chronoForm(c = null) {
   const gps = gpsEditor(c?.gps);
   const weatherInfo = h('small', { class: 'muted tg-weather-note' });
   const weatherBtn = toolBtn('locate', t('Подтянуть погоду'), async () => {
-    const w = await pullWeather({ date: f.inputs.date, time: f.inputs.time, gps, button: weatherBtn, info: weatherInfo });
+    const w = await pullWeather({ date: f.inputs.date.value, time: f.inputs.time, gps, button: weatherBtn, info: weatherInfo });
     if (!w) return;
     f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
     weatherInfo.textContent = t('Это температура воздуха. Патроны, полежавшие на солнце или в машине, бывают теплее — и быстрее.');
@@ -3508,7 +3510,6 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
   const ammoId = [tg?.cartridgeId, movement?.cartridgeId, gunId && recall(`ammo:${gunId}`)].find((id) => id && findCartridge(id)) ?? '';
   const ammo = (id) => [['', t('— не указывать —')],
     ...caliberOptions(state.cartridges.filter((c) => !c.archived || c.id === ammoId), findWeapon(id)?.caliber).options];
-  const hours = Array.from({ length: 12 }, (_, i) => [String(i + 1), t('на {n} ч', { n: i + 1 })]);
   const scopeOf = (wid, sid) => findWeapon(wid)?.scopes?.find((s) => s.id === sid) ?? null;
   // Приціл: із запису стрільби, з останньої мішені цього ствола, інакше основний.
   const pickScope = (wid) => [movement?.weaponId === wid ? movement.scopeId : null, lastOf(wid)?.scopeId]
@@ -3528,8 +3529,8 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     const mrad = table ? M.dopeAt(table.rows, distance, scope.zero) : null;
     return mrad === null ? null : { cm: Math.round(-mrad * distance) / 10, mrad, table };
   };
-  // Нова мішень на сьогодні — зараз; на минулу дату (зі стрільби, вправи) час невідомий.
-  const date0 = tg?.date ?? movement?.date ?? score?.date ?? M.today();
+  // Дата, час, погода й координати — з мішені, інакше зі стрільби чи результату вправи, з яких її відкрили
+  const when0 = tg ?? movement ?? (score ? { ...score, time: score.clock } : null);
   const f = form([
     { name: 'weaponId', label: t('Оружие'), type: 'select', value: gunId, options: [['', t('— не указывать —')], ...guns.map((w) => [w.id, w.name])] },
     { name: 'scopeId', label: t('Какой прицел'), type: 'select', value: scope0?.id ?? '', options: scopeOptions(findWeapon(gunId)) },
@@ -3541,15 +3542,9 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     { name: 'zeroUp', label: t('Попадание выше точки прицеливания, см'), type: 'number', step: 'any', wide: true,
       value: tg ? tg.zeroUp ?? '' : lastZeroUp(scope0?.id, distance0),
       hint: t('Если пристрелка на другую дистанцию — сколько по баллистической таблице, ниже — с минусом. Пусто — в точку прицеливания.') },
-    { name: 'date', label: t('Дата'), type: 'date', required: true, half: true, value: date0 },
-    { name: 'time', label: t('Время'), type: 'time', half: true, value: tg ? tg.time ?? '' : date0 === M.today() ? nowHm() : '' },
-    { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', half: true, value: tg?.temp ?? '' },
-    { name: 'wind', label: t('Ветер, м/с'), type: 'number', step: 'any', min: 0, half: true, value: tg?.wind ?? '' },
-    { name: 'windClock', label: t('Откуда ветер'), type: 'select', value: tg?.windClock ? String(tg.windClock) : '', options: [['', '—'], ...hours],
-      hint: t('По часам относительно направления стрельбы: 12 — в лицо, 3 — справа.') },
+    ...whenFields(when0),
     { name: 'note', label: t('Примечание'), placeholder: t('Положение, упор, серия…'), value: tg?.note ?? '', wide: true },
   ]);
-  clockPicker(f.inputs.windClock);
   const distanceChips = qtyChips(f.inputs.distance, [25, 50, 100, 200, 300, 400, 500]);
   distanceChips.classList.add('chips-sm');
   // Приціл пристріляний на іншу дистанцію — у точку прицілювання на цій дистанції куля не прийде.
@@ -3609,20 +3604,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     scopeField.hidden = !w?.scopes?.length;
     onScope();
   });
-  const gps = gpsEditor(tg?.gps);
-  const weatherInfo = h('small', { class: 'muted tg-weather-note' });
-  const weatherBtn = toolBtn('locate', t('Подтянуть погоду'), async () => {
-    const w = await pullWeather({ date: f.inputs.date, time: f.inputs.time, gps, button: weatherBtn, info: weatherInfo });
-    if (w) weatherInfo.textContent = weatherNote(w);
-  }, 'tg-pull');
-  // Поля числові — значення з крапкою, не через fmt (там кома).
-  function weatherNote(w) {
-    f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
-    f.inputs.wind.value = String(Math.round(w.wind * 10) / 10);
-    return t('Ветер с {dir} ({deg}°), порывы до {gust} м/с — часы выберите сами.', {
-      dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
-    });
-  }
+  const when = whereWhenBox(f, { gps: when0?.gps ?? null });
   // Дванадцять полів поспіль губилися: розкладаємо за змістом — чим стріляли, на яку дистанцію, коли й за якої погоди.
   const fieldOf = (name) => f.inputs[name].closest('.field');
   const group = (title, ...parts) => box(title, h('div', { class: 'form' }, parts));
@@ -3630,10 +3612,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     group(t('Оружие и патрон'), fieldOf('weaponId'), fieldOf('cartridgeId'), ...gear.fields),
     group(t('Прицел'), fieldOf('scopeId'), fieldOf('click')),
     group(t('Дистанция'), fieldOf('distance'), distanceChips, fieldOf('zeroUp')),
-    box(t('Когда и погода'), h('div', {},
-      h('div', { class: 'form when' }, fieldOf('date'), fieldOf('time')),
-      h('div', { class: 'form tg-weather' }, fieldOf('temp'), fieldOf('wind'), weatherBtn, fieldOf('windClock')),
-      weatherInfo, gps.el)),
+    when.el,
     h('div', { class: 'form' }, fieldOf('note')));
   const close = sheet(tg ? t('Мишень: данные') : t('Новая мишень'), body, {
     actions: [btn(t('Отмена'), () => close()), btn(tg ? t('Сохранить') : t('Далее: разметка'), save, 'primary')],
@@ -3644,7 +3623,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     if (!(v.distance > 0)) { fieldError(f.inputs.distance, t('Укажите дистанцию')); return; }
     const fields = {
       weaponId: v.weaponId || null, scopeId: selectedScope()?.id ?? null, cartridgeId: v.cartridgeId || null, distance: v.distance, date: v.date || null,
-      click: f.inputs.click.value || null, zeroUp: Number(v.zeroUp) || null, time: v.time || null, temp: v.temp, wind: v.wind, windClock: v.windClock ? Number(v.windClock) : null, note: v.note, gps: gps.get(),
+      click: f.inputs.click.value || null, zeroUp: Number(v.zeroUp) || null, time: v.time || null, note: v.note, ...when.values(),
       ...gear.values(),
     };
     remember('shooters-log:target-distance', v.distance);
@@ -3780,12 +3759,66 @@ function gpsEditor(initial = null) {
   return { el, get: () => gps, set };
 }
 
+/** Поля блоку «Де, коли, погода» для form(): дата, час і погода; prev — уже записане (його час — у полі timeKey). */
+function whenFields(prev, { date = M.today(), dateType = 'date', timeKey = 'time' } = {}) {
+  const day = prev?.date ?? date;
+  const hours = Array.from({ length: 12 }, (_, i) => [String(i + 1), t('на {n} ч', { n: i + 1 })]);
+  return [
+    { name: 'date', label: t('Дата'), type: dateType, required: true, half: true, value: day },
+    // Новий запис на сьогодні — зараз; на минулу дату час невідомий
+    { name: timeKey, label: t('Время'), type: 'time', half: true, value: prev?.[timeKey] ?? (day === M.today() && !prev?.date ? nowHm() : '') },
+    { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', half: true, value: prev?.temp ?? '' },
+    { name: 'wind', label: t('Ветер, м/с'), type: 'number', step: 'any', min: 0, half: true, value: prev?.wind ?? '' },
+    { name: 'windClock', label: t('Откуда ветер'), type: 'select', value: prev?.windClock ? String(prev.windClock) : '', options: [['', '—'], ...hours],
+      hint: t('По часам относительно направления стрельбы: 12 — в лицо, 3 — справа.') },
+  ];
+}
+
+/**
+ * Блок «Де, коли, погода» — однаковий у стрільбі, мішені й вправі: lead (де / що) зверху, дата й час,
+ * погода з кнопкою «Підтягнути», вітер циферблатом, координати. f — форма з полями whenFields().
+ */
+function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [] } = {}) {
+  clockPicker(f.inputs.windClock);
+  const geo = gpsEditor(gps);
+  const info = h('small', { class: 'muted tg-weather-note' });
+  const button = toolBtn('locate', t('Подтянуть погоду'), async () => {
+    const day = f.values().date;
+    const w = await pullWeather({ date: typeof day === 'string' ? day : '', time: f.inputs[timeKey], gps: geo, button, info });
+    if (!w) return;
+    // Поля числові — значення з крапкою, не через fmt (там кома).
+    f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
+    f.inputs.wind.value = String(Math.round(w.wind * 10) / 10);
+    info.textContent = t('Ветер с {dir} ({deg}°), порывы до {gust} м/с — часы выберите сами.', {
+      dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
+    });
+  }, 'tg-pull');
+  const fieldOf = (name) => f.inputs[name].closest('.field');
+  const el = box(t('Где, когда, погода'), h('div', {},
+    lead.length ? h('div', { class: 'form' }, lead) : null,
+    h('div', { class: 'form when' }, fieldOf('date'), fieldOf(timeKey)),
+    h('div', { class: 'form tg-weather' }, fieldOf('temp'), fieldOf('wind'), button, fieldOf('windClock')),
+    info, geo.el));
+  const values = () => {
+    const v = f.values();
+    return { temp: v.temp, wind: v.wind, windClock: v.windClock ? Number(v.windClock) : null, gps: geo.get() };
+  };
+  return { el, values };
+}
+
+/** Координати рядком картки: цифри й кнопка карти. */
+const gpsValue = (gps) => h('span', { class: 'kv-gps' }, `${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)}`,
+  toolBtn('map', t('Открыть на карте'), () => openMap(gps), 'small'));
+
+/** Погода й координати запису — рядками [підпис, значення] для блоку умов. */
+const weatherRows = (x) => [weatherText(x) ? [t('Погода'), weatherText(x)] : null, x.gps ? [t('Координаты'), gpsValue(x.gps)] : null].filter(Boolean);
+
 /**
  * Погода за координатами (Open-Meteo, без ключа): сьогодні в межах години — поточна, інакше — на дату й годину запису.
- * Координат ще немає — бере з пристрою. null — не вийшло (причину вже показано).
+ * Координат ще немає — бере з пристрою. null — не вийшло (причину вже показано). date — ISO.
  */
-async function pullWeather({ date: dateInput, time: timeInput, gps, button, info }) {
-  const date = dateInput.value || M.today();
+async function pullWeather({ date: day, time: timeInput, gps, button, info }) {
+  const date = day || M.today();
   const time = timeInput.value;
   const now = date === M.today() && (!time || Math.abs(minutesOf(time) - minutesOf(nowHm())) <= 60);
   if (!now && !time) { fieldError(timeInput, t('Укажите время — погода нужна на конкретный час')); return null; }
@@ -4084,9 +4117,7 @@ function targetDetail(tg) {
       targetScope(tg) ? [h('dt', {}, t('Прицел')), h('dd', {}, scopeText(targetScope(tg)))] : null,
       gearText(tg) ? [h('dt', {}, t('Оснащение')), h('dd', {}, gearText(tg))] : null,
       tg.click ? [h('dt', {}, t('Цена щелчка')), h('dd', {}, clickAtDistance(tg.click, tg.distance))] : null,
-      weatherText(tg) ? [h('dt', {}, t('Погода')), h('dd', {}, weatherText(tg))] : null,
-      tg.gps ? [h('dt', {}, t('Координаты')), h('dd', { class: 'kv-gps' }, `${tg.gps.lat.toFixed(5)}, ${tg.gps.lon.toFixed(5)}`,
-        toolBtn('map', t('Открыть на карте'), () => openMap(tg.gps), 'small'))] : null,
+      weatherRows(tg).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]),
       shot ? [h('dt', {}, t('Стрельба')), h('dd', {}, h('button', {
         type: 'button', class: 'link-btn', onclick: () => { close(); movementDetail(shot); },
       }, `${fmt.date(shot.date)} · ${fmt.signed(shot.qty)}`))] : null,

@@ -2,8 +2,9 @@
 //
 // movement: { id, batch, date, kind, qty, caliber, cartridgeId?, componentId?,
 //             weaponId?, recipeId?, price?, note?, foreignWeapon?, foreignWeaponName?, foreignAmmo?,
-//             suppressor?, bipod? }
+//             suppressor?, bipod?, time?, temp?, wind?, windClock?, gps? }
 //   suppressor / bipod — стріляли з глушником / із сошок (лише свій ствол; так само в мішені).
+//   temp / wind / windClock / gps — погода й місце стрільби, як у мішені й результаті вправи (блок «Де, коли, погода»).
 //   kind: buy | shot | reload | consume | adjust
 //   qty: зі знаком, у штуках патронів або в одиницях компонента.
 //   shot без cartridgeId — історичний запис або чужі набої (foreignAmmo): рахується в настріл, але не в залишок БК.

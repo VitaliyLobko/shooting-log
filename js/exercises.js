@@ -417,9 +417,9 @@ const round2 = (v) => Math.round(v * 100) / 100;
  * targetsOf(record) віддає блок мішеней результату (або null).
  */
 /** Контекст вправ із того, що дає застосунок; свої вправи — одразу в довідник назв. */
-function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null }) {
+function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], whenFields = null, whereWhen = null, weatherRows = () => [], pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null }) {
   CUSTOM = custom;
-  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise };
+  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, whenFields, whereWhen, weatherRows, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise };
 }
 
 export function exercisesPanel(args) {
@@ -707,6 +707,7 @@ function scoreCard(ex, s, ctx) {
     weapon ? [t('Оружие'), weapon] : null,
     ...ctx.extrasRows(s),
     s.distance ? [t('Дистанция, м'), fmt.num(s.distance)] : null,
+    ...ctx.weatherRows(s),
     s.note ? [t('Примечание'), s.note] : null,
   ].filter(Boolean);
   const body = h('div', {},
@@ -716,7 +717,7 @@ function scoreCard(ex, s, ctx) {
       ctx.stat(t('попаданий'), ex.shots ? `${fmt.num(hits)}/${fmt.num(ex.shots)}` : fmt.num(hits)),
       s.time ? ctx.stat(t('время, с'), fmt.num(s.time)) : null),
     hitsBox,
-    cond.length ? ctx.box(t('Условия'), h('dl', { class: 'kv' }, cond.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v))]))) : null,
+    cond.length ? ctx.box(t('Условия'), h('dl', { class: 'kv' }, cond.map(([k, v]) => [h('dt', {}, k), h('dd', {}, v instanceof Node ? v : String(v))]))) : null,
     ctx.targetsOf?.(s) ?? null);
   const del = toolBtn('delete', t('Удалить'), () => {
     close();
@@ -745,9 +746,6 @@ function scoreSheet(ex, ctx, prev = null) {
   const keep = prev?.weaponId && !ctx.weapons.some(([id]) => id === prev.weaponId) && ctx.weaponName(prev.weaponId);
   const condF = form([
     { name: 'weaponId', label: t('Оружие'), type: 'select', value: prev?.weaponId ?? '', options: [['', '—'], ...ctx.weapons, ...(keep ? [[prev.weaponId, keep]] : [])], wide: true },
-    { name: 'date', label: t('Дата'), type: 'dmy', value: prev?.date ?? M.today(), half: true },
-    // clock — час дня; time у вправах на час — сума часу серії
-    { name: 'clock', label: t('Время'), type: 'time', value: prev ? prev.clock ?? '' : new Date().toTimeString().slice(0, 5), half: true },
     { name: 'distance', label: t('Дистанция, м'), type: 'number', min: 0, step: 'any', half: true,
       value: prev?.distance ?? ex.distance ?? lastDistance ?? '' },
   ]);
@@ -769,7 +767,10 @@ function scoreSheet(ex, ctx, prev = null) {
     { name: 'qty', label: t('Выстрелов, шт'), type: 'number', min: 0, value: ex.shots ?? '', half: true },
   ]);
   const noteF = form([{ name: 'note', label: t('Примечание'), type: 'text', value: prev?.note ?? '', wide: true }]);
-  const f = joinForms([condF, timeF, hitsF, ammoF, noteF].filter(Boolean));
+  // Дата, час дня (clock), погода й координати — окремим блоком, як у стрільбі й мішені
+  const whenF = form(ctx.whenFields(prev));
+  const f = joinForms([condF, whenF, timeF, hitsF, ammoF, noteF].filter(Boolean));
+  const when = ctx.whereWhen(whenF, prev);
   ctx.pickWeapon?.(f.inputs.weaponId);
   // Приціл, глушник і сошки — одразу під зброєю, як у записі стрільби
   const extras = ctx.weaponExtras?.(f.inputs.weaponId, prev) ?? null;
@@ -810,7 +811,7 @@ function scoreSheet(ex, ctx, prev = null) {
   const record = () => {
     const v = f.values();
     // ...prev — щоб правка зберегла id, зв'язок зі стрільбою й дату створення.
-    const r = { ...(prev ?? {}), exercise: ex.id, date: v.date, clock: v.clock || null, weaponId: v.weaponId || null, distance: v.distance || null, note: v.note, ...(extras?.values() ?? {}), hits: {} };
+    const r = { ...(prev ?? {}), exercise: ex.id, date: v.date, clock: v.clock || null, weaponId: v.weaponId || null, distance: v.distance || null, note: v.note, ...(extras?.values() ?? {}), ...when.values(), hits: {} };
     for (const [k] of ex.zones) r.hits[k] = Math.max(0, Math.round(v[`hit_${k}`] || 0));
     if (ex.perHit) r.pts = Object.fromEntries(ex.zones.map(([k, , pts]) => [k, v[`pts_${k}`] ?? pts]));
     if (ex.time) r.time = v.time;
@@ -864,6 +865,7 @@ function scoreSheet(ex, ctx, prev = null) {
     ctx.box(t('Попадания'), h('div', {}, hitsF.el, summary, hint)),
     ammoF ? ctx.box(t('Списать из БК'), ammoF.el)
       : h('p', { class: 'muted small' }, t('Списание из БК остаётся как было — правьте его в журнале.')),
+    when.el,
     noteF.el), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), () => {
       const date = f.values().date;
