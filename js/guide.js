@@ -235,7 +235,8 @@ function scope(svg, o) {
   // Далекомір: верх цілі на горизонтальній нитці, лівий край — впритул до міток вертикалі (риски DSMR ±0,4, точки Plex ±0,55)
   if (o.mode === 'range') { cx = T.w * H / 2 + (C.u === 'MOA' ? 0.65 : 0.5); top = 0; } else { cx = o.hx * k - (T.ax ?? 0) * (o.flip ? -H : H); top = o.hy * k - T.ap * H; }
   // Лупа дивиться туди, де важливо: у прицілюванні — на точку виносу (після відповіді — щоб влізли центр, попадання й правильна точка), у далекомірі — на ціль; не виходить за коло
-  const half = z > 1 ? R / z : R + 1;
+  // Запас під обвідку кола — пропорційний полю, інакше на малому R (EBR-2C на 16×) ціль виходить дрібнішою за масштаб
+  const half = z > 1 ? R / z : R * 1.034;
   const lim = (v) => Math.max(-(R - half), Math.min(R - half, v));
   const [vx, vy] = z > 1 ? (o.mode === 'range' ? [lim(cx), lim(top + H / 2)] : o.hit ? [lim((Math.min(0, o.hx - o.hit[0], o.hit[0]) + Math.max(0, o.hx - o.hit[0], o.hit[0])) * k / 2), lim((Math.min(0, o.hy - o.hit[1], o.hit[1]) + Math.max(0, o.hy - o.hit[1], o.hit[1])) * k / 2)] : [lim(o.hx * k), lim(o.hy * k)]) : [0, 0];
   svg.setAttribute('viewBox', [vx - half, vy - half, 2 * half, 2 * half].join(' '));
