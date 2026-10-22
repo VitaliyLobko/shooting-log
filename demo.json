@@ -6,6 +6,56 @@
   "weapons": [
    {
     "id": "w-ar",
+    "buyPrice": 52000,
+    "buyDate": "2022-02-20",
+    "buyPlace": "Ібіс",
+    "mods": [
+     {
+      "id": "m-ar-1",
+      "name": "Delta Stryker HD 1-6×24",
+      "price": 34500,
+      "date": "2022-03-15",
+      "place": "Prom"
+     },
+     {
+      "id": "m-ar-2",
+      "name": "Моноблок 30 мм",
+      "price": 12900,
+      "date": "2022-03-15",
+      "place": "Prom"
+     },
+     {
+      "id": "m-ar-3",
+      "name": "AimPoint PRO",
+      "price": 19800,
+      "date": "2022-06-02",
+      "place": "OLX"
+     },
+     {
+      "id": "m-ar-4",
+      "name": "Магазини Magpul PMAG Gen3, 4 шт",
+      "price": 3600,
+      "date": "2022-03-01",
+      "place": "Ібіс"
+     },
+     {
+      "id": "m-ar-5",
+      "name": "Ліхтар на M-LOK",
+      "price": 4800,
+      "date": "2023-02-11",
+      "place": "Rozetka"
+     },
+     {
+      "id": "m-ar-6",
+      "name": "Ремінь двоточковий",
+      "price": 1900,
+      "date": "2022-03-01",
+      "place": "Ібіс",
+      "soldPrice": 1200,
+      "soldDate": "2024-04-20",
+      "soldPlace": "OLX"
+     }
+    ],
     "created": 1645686000000,
     "name": "IWI Zion-15 16\"",
     "caliber": ".223 Rem",
@@ -46,6 +96,25 @@
    },
    {
     "id": "w-bolt",
+    "buyPrice": 48000,
+    "buyDate": "2024-02-24",
+    "buyPlace": "Safari",
+    "mods": [
+     {
+      "id": "m-bolt-1",
+      "name": "Burris Scout 2-7×32",
+      "price": 14500,
+      "date": "2024-02-24",
+      "place": "Safari"
+     },
+     {
+      "id": "m-bolt-2",
+      "name": "Сошки Harris",
+      "price": 6800,
+      "date": "2024-06-08",
+      "place": "Rozetka"
+     }
+    ],
     "created": 1709276400000,
     "name": "Savage 110 Scout",
     "caliber": ".308 Win",
@@ -67,7 +136,7 @@
       "name": "Burris Scout 2-7×32",
       "kind": "optic",
       "zero": 200,
-      "click": "moa0.25",
+      "click": "moa0.2387",
       "reticle": "moa",
       "note": "Ballistic Plex",
       "default": true
@@ -76,6 +145,10 @@
    },
    {
     "id": "w-sg",
+    "buyPrice": 21500,
+    "buyDate": "2026-02-10",
+    "buyPlace": "Мисливець",
+    "mods": [],
     "created": 1771063200000,
     "name": "Hatsan Escort Magnum",
     "caliber": "12 кал",
@@ -91,6 +164,18 @@
    },
    {
     "id": "w-h22",
+    "buyPrice": 23800,
+    "buyDate": "2022-06-01",
+    "buyPlace": "Ібіс",
+    "mods": [
+     {
+      "id": "m-h22-1",
+      "name": "Vortex Crossfire II 4-12×44 AO",
+      "price": 9800,
+      "date": "2022-06-01",
+      "place": "Ібіс"
+     }
+    ],
     "created": 1654326000000,
     "name": "CZ 457 Varmint",
     "caliber": ".22 LR",
@@ -121,6 +206,18 @@
    },
    {
     "id": "w-h762",
+    "buyPrice": 71000,
+    "buyDate": "2023-05-10",
+    "buyPlace": "Safari",
+    "mods": [
+     {
+      "id": "m-h762-1",
+      "name": "Holosun HS510C",
+      "price": 16500,
+      "date": "2023-05-10",
+      "place": "Safari"
+     }
+    ],
     "created": 1683961200000,
     "name": "CZ Bren 2 Ms Carbine",
     "caliber": "7.62×39",
@@ -151,6 +248,25 @@
    },
    {
     "id": "w-h65",
+    "buyPrice": 98000,
+    "buyDate": "2025-08-05",
+    "buyPlace": "Safari",
+    "mods": [
+     {
+      "id": "m-h65-1",
+      "name": "Vortex Viper PST Gen II 5-25×50 FFP",
+      "price": 41000,
+      "date": "2025-08-05",
+      "place": "Safari"
+     },
+     {
+      "id": "m-h65-2",
+      "name": "Сошки Atlas",
+      "price": 14500,
+      "date": "2025-09-02",
+      "place": "OLX"
+     }
+    ],
     "created": 1754722800000,
     "name": "Tikka T3x TAC A1",
     "caliber": "6.5 Creedmoor",
@@ -182,6 +298,25 @@
    },
    {
     "id": "w-h338",
+    "buyPrice": 285000,
+    "buyDate": "2026-03-05",
+    "buyPlace": "Safari",
+    "mods": [
+     {
+      "id": "m-h338-1",
+      "name": "Schmidt & Bender PM II 5-25×56",
+      "price": 160000,
+      "date": "2026-03-05",
+      "place": "Safari"
+     },
+     {
+      "id": "m-h338-2",
+      "name": "Глушник",
+      "price": 38000,
+      "date": "2026-04-12",
+      "place": "Ібіс"
+     }
+    ],
     "created": 1773126000000,
     "name": "Sako TRG M10",
     "caliber": ".338 Lapua Mag",
@@ -5970,6 +6105,121 @@
     "note": "",
     "late": 1,
     "score": 76
+   }
+  ],
+  "gear": [
+   {
+    "id": "g-1",
+    "created": 1646438400000,
+    "name": "Плитоноска",
+    "kind": "armor",
+    "price": 12800,
+    "date": "2022-03-05",
+    "place": "Ukrarmor",
+    "note": ""
+   },
+   {
+    "id": "g-2",
+    "created": 1646438400000,
+    "name": "Плити SAPI, 2 шт",
+    "kind": "armor",
+    "price": 22000,
+    "date": "2022-03-05",
+    "place": "Ukrarmor",
+    "note": ""
+   },
+   {
+    "id": "g-3",
+    "created": 1674172800000,
+    "name": "Шолом FAST",
+    "kind": "armor",
+    "price": 15500,
+    "date": "2023-01-20",
+    "place": "OLX",
+    "note": ""
+   },
+   {
+    "id": "g-4",
+    "created": 1646870400000,
+    "name": "Чест-ріг",
+    "kind": "carry",
+    "price": 3900,
+    "date": "2022-03-10",
+    "place": "Prom",
+    "note": "",
+    "soldPrice": 2500,
+    "soldDate": "2024-05-01",
+    "soldPlace": "OLX"
+   },
+   {
+    "id": "g-5",
+    "created": 1714694400000,
+    "name": "Warbelt з підсумками",
+    "kind": "carry",
+    "price": 8600,
+    "date": "2024-05-03",
+    "place": "Prom",
+    "note": ""
+   },
+   {
+    "id": "g-6",
+    "created": 1649548800000,
+    "name": "Рюкзак 35 л",
+    "kind": "carry",
+    "price": 2300,
+    "date": "2022-04-10",
+    "place": "Rozetka",
+    "note": ""
+   },
+   {
+    "id": "g-7",
+    "created": 1652313600000,
+    "name": "Форма мультикам, літо",
+    "kind": "clothes",
+    "price": 4200,
+    "date": "2022-05-12",
+    "place": "Prom",
+    "note": ""
+   },
+   {
+    "id": "g-8",
+    "created": 1694995200000,
+    "name": "Тактичні черевики",
+    "kind": "clothes",
+    "price": 5600,
+    "date": "2023-09-18",
+    "place": "Rozetka",
+    "note": ""
+   },
+   {
+    "id": "g-9",
+    "created": 1694995200000,
+    "name": "Рукавиці",
+    "kind": "clothes",
+    "price": 950,
+    "date": "2023-09-18",
+    "place": "Rozetka",
+    "note": ""
+   },
+   {
+    "id": "g-10",
+    "created": 1677715200000,
+    "name": "Активні навушники",
+    "kind": "devices",
+    "price": 6900,
+    "date": "2023-03-02",
+    "place": "Prom",
+    "note": ""
+   },
+   {
+    "id": "g-11",
+    "created": 1755648000000,
+    "name": "Далекомір",
+    "kind": "devices",
+    "price": 12500,
+    "date": "2025-08-20",
+    "place": "Safari",
+    "note": ""
    }
   ],
   "chrono": [

@@ -132,7 +132,8 @@ export function barChart(rows, { format = (v) => String(Math.round(v)) } = {}) {
   for (const r of rows) {
     const bar = h('div', { class: `bar-col ${r.value === max ? 'top' : ''}`, title: `${r.label}: ${format(r.value)}` },
       h('span', { class: 'bar-val' }, format(r.value)),
-      h('span', { class: 'bar-fill', style: `height:${Math.max(3, (r.value / max) * 100)}%` }),
+      // Від'ємне (продав більше, ніж купив) — без стовпчика, лише підпис з мінусом.
+      h('span', { class: 'bar-fill', style: `height:${r.value > 0 ? Math.max(3, (r.value / max) * 100) : 0}%` }),
       h('span', { class: 'bar-lbl' }, r.label));
     el.append(bar);
   }

@@ -8,7 +8,7 @@ import { findHoles } from './holes.js';
 
 export const COLORS = ['#ff4d4d', '#38b6ff', '#ffd23f', '#4ade80', '#d27bff', '#ff9f43'];
 export const UNITS = [['cm', 'см'], ['moa', 'MOA'], ['mil', 'MRAD']];
-export const CLICKS = [['mil0.1', '0,1 MRAD'], ['mil0.05', '0,05 MRAD'], ['moa0.25', '¼ MOA'], ['moa0.125', '⅛ MOA'], ['moa0.5', '½ MOA'], ['moa1', '1 MOA'],
+export const CLICKS = [['mil0.1', '0,1 MRAD'], ['mil0.05', '0,05 MRAD'], ['moa0.25', '¼ MOA'], ['moa0.2387', '¼″ / 100 ярдов'], ['moa0.125', '⅛ MOA'], ['moa0.5', '½ MOA'], ['moa1', '1 MOA'],
   ['mm13', '13 мм / 100 м'], ['mm16', '16 мм / 100 м']];
 export const SCALE_MM = [10, 25.4, 50, 100];
 

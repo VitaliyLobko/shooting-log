@@ -386,6 +386,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .card-main { flex: 1; min-width: 0; }
 .card-title { font-weight: 700; overflow-wrap: anywhere; }
+.own-mark { display: inline-block; vertical-align: -3px; margin-right: 6px; color: var(--accent); }
+.own-mark svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .big {
   font-size: 28px;
   font-weight: 800;
@@ -519,6 +521,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .kind-consume .row-icon { color: var(--muted); }
 .kind-adjust .row-icon { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .kind-clean .row-icon { color: var(--clean); background: color-mix(in srgb, var(--clean) 14%, transparent); }
+.kind-tune .row-icon { color: var(--buy); background: color-mix(in srgb, var(--buy) 14%, transparent); }
+.kind-tune .row-icon svg { width: 26px; height: 26px; }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .row-title { font-weight: 600; overflow-wrap: anywhere; }
 .row-qty { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -884,6 +888,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Числа (кількість, дистанція) — одним рядком рівної ширини: не переносяться по одному. */
 .chips.chips-num { flex-wrap: nowrap; }
 .chips.chips-num button { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
+.chips.check button.on::before { content: '✓ '; }
 
 .chips.segmented {
   display: grid;
@@ -1009,7 +1014,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .wp-zone.on { fill-opacity: .34; }
 .wp-aim { stroke: var(--muted); stroke-width: .7; stroke-dasharray: 2 1.6; }
 .wp-aim-head { fill: var(--muted); }
-.wp-text { fill: var(--muted); font-size: 5px; }
+.wind-pick .wp-text { fill: var(--muted); font-size: 5px; }
 .wp-me { fill: var(--text); }
 .wp-wind line { stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
 .wp-wind path { fill: var(--accent); }
@@ -1107,8 +1112,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   stroke-linecap: round;
   transition: background .15s ease;
 }
-/* Довга тонка гвинтівка — крупніше на 25 %, лінія тонша на стільки ж, щоб товщина збігалася з сусідніми */
-.tabs svg.wide { padding: 3px 14.5px; stroke-width: 1.36; }
 .tabs a.active { color: var(--accent-2); }
 .tabs a.active svg { background: var(--accent-soft); }
 .tabs a { position: relative; }
@@ -1141,6 +1144,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .fab:active { transform: scale(.96); }
+.guide-toc { width: 48px; height: 48px; border-radius: 14px; font-size: 22px; }
+.guide-toc[hidden] { display: none; }
 
 /* --- шторка й тост --- */
 .backdrop {
@@ -1222,7 +1227,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   --warn-soft: color-mix(in srgb, var(--warn) 15%, transparent);
   --sky: var(--surface-2);
   --ground: color-mix(in srgb, var(--olive) 22%, var(--surface-2));
-  --tgt: var(--muted);
+  --tgt: #c49a62;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
   line-height: 1.6;
 }
@@ -1339,10 +1344,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .r-l { stroke: var(--fg); fill: none; }
 .guide .r-d { fill: var(--fg); }
 .guide .r-ill { fill: var(--acc); }
+.guide .r-chev { fill: #e8412c; }
+.guide svg.ret text.r-chev-n, .guide svg text.r-chev-n { font: 700 3px system-ui, sans-serif; fill: #e8412c; }
+.guide svg.ret text.r-ebr-n, .guide svg text.r-ebr-n { font: 400 .32px system-ui, sans-serif; fill: var(--fg); }
 .guide .r-sky { fill: var(--sky); }
 .guide .r-gr { fill: var(--ground); }
 .guide .r-tgt { fill: var(--tgt); }
-.guide .r-hold { stroke: var(--acc); fill: none; }
+.guide .r-tgt-d { fill: color-mix(in srgb, var(--tgt) 45%, #1a1d16); }
+.guide .r-hold { stroke: var(--shoot); fill: none; }
+.guide .r-ok { fill: none; stroke: #4cc38a; }
+.guide .r-zone { fill: color-mix(in srgb, var(--tgt) 30%, #14170f); stroke: color-mix(in srgb, var(--tgt) 55%, #000); }
+.guide .quiz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.guide .quiz-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.guide .sim .quiz-legend svg { width: 16px; height: 16px; max-width: none; flex: none; margin: 0; }
+.guide .r-hit { stroke: #ff4d4d; fill: none; stroke-linecap: round; }
 .guide .r-ann { stroke: var(--mute); fill: none; }
 .guide svg.ret text { font-size: 2.1px; fill: var(--fg); }
 .guide svg.ret text.m { fill: var(--mute); }
@@ -1399,6 +1414,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Значок без кружечка й великий: він тут головний, а не підпис. */
 .tg-tile .row-icon { width: auto; height: auto; background: none; color: var(--shoot); }
 .tg-tile .row-icon svg { width: 30px; height: 30px; }
+.cost-tile .row-icon { color: var(--buy); }
 .tg-tile-value { font-size: 15px; font-weight: 800; line-height: 1.1; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .tg-tile-label { font-size: 11px; color: var(--muted); }
 .tg-best { flex: none; font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1845,3 +1861,122 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   #print-report .bar { background: #e5e5e5 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   #print-report .fill { background: #555 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+/* Вправа «Визнач дальність»: поки йде, ховаємо повзунки й підказку — вони видали б відповідь */
+.guide .sim.quiz-on .sim-badge, .guide .sim.quiz-on .sim-pop, .guide .sim.quiz-on .ctl > :not(.quiz):not(.sim-row),
+.guide .sim.quiz-on .sim-mode, .guide .sim.quiz-on label[for="s-tgt"] { display: none; }
+.guide .quiz { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; }
+.guide .quiz p { margin: 0; }
+.guide .quiz select, .guide .quiz input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 16px; }
+.guide .quiz-n { color: var(--muted); font-size: 13px; }
+.guide .quiz-row { display: flex; gap: 8px; }
+.guide .quiz-show { width: 100%; margin: 8px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--fg); font-weight: 650; cursor: pointer; }
+.guide .quiz-opts { display: grid; grid-template-columns: repeat(4, 1fr); }
+.guide .quiz-opts button { font-size: 15px; font-weight: 650; padding: 10px 4px; }
+.guide .quiz-row input { flex: 1; min-width: 0; }
+.guide .quiz-go { padding: 9px 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 650; cursor: pointer; }
+.guide .quiz-stop { justify-self: start; padding: 4px 0; border: 0; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
+.guide .quiz-res { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font: 13.5px/1.5 var(--mono); }
+.guide .quiz-res b { font: 650 16px system-ui, sans-serif; }
+.guide .quiz-res.good b { color: var(--buy); }
+.guide .quiz-res.ok b { color: var(--warn); }
+.guide .quiz-res.bad b { color: var(--shoot); }
+.guide .quiz-res .w { color: var(--warn); }
+.guide .quiz-sum { font-weight: 650; }
+
+.guide .sim-grp { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.guide .sim-grp > summary { display: flex; gap: 8px; align-items: baseline; padding: 11px 12px; font-weight: 650; cursor: pointer; list-style: none; }
+.guide .sim-grp > summary::-webkit-details-marker { display: none; }
+.guide .sim-grp > summary::before { content: '›'; color: var(--muted); transition: transform .15s; }
+.guide .sim-grp[open] > summary::before { transform: rotate(90deg); }
+.guide .sim-grp > summary span { margin-left: auto; font: 13px var(--mono); color: var(--muted); text-align: right; }
+.guide .sim-grp > label { margin: 0 12px 12px; }
+.guide .sim-grp select { background: var(--surface); }
+
+/* Тренажер: сітка, приціл і два повзунки закріплені під шапкою, решта прокручується під ними */
+.guide .sim-stick { position: sticky; top: var(--sim-top, 80px); z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 14px; align-content: start; align-self: start; margin: -14px -14px 0; padding: 10px 14px 10px; background: var(--surface);
+  border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+.guide .sim-stick > .sim-frame { grid-column: 1 / -1; }
+.guide .sim-frame > svg { max-height: 38vh; }
+.guide .sim-stick label { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; row-gap: 2px; align-items: baseline; font-size: 13px; color: var(--muted); }
+.guide .sim-stick label input { grid-column: 1 / -1; }
+.guide .sim-stick label b { font: 600 15px var(--mono); color: var(--text); }
+.guide .sim-stick input[type=range] { width: 100%; accent-color: var(--accent); }
+.guide .sim-help { display: grid; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+.guide .sim-help[hidden] { display: none; }
+.guide .sim-help p { margin: 0; }
+.guide .sim-row { display: grid; gap: 10px; }
+@media (min-width: 640px) { .guide .sim-stick { margin: 0; border: 0; padding: 0; } }
+.guide .sim-zoom { flex: none; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 650 13px system-ui, sans-serif; cursor: pointer; }
+.guide .sim-zoom[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft); }
+.guide .sim-frame > svg { cursor: zoom-in; -webkit-tap-highlight-color: transparent; }
+/* Керування прицілом — у кутах навколо круглої картинки, окремого рядка не займає */
+.guide .sim-frame { position: relative; }
+.guide .sim-frame > button { position: absolute; z-index: 1; }
+.guide .sim-frame > .sim-zoom { right: 0; top: 0; padding: 6px 9px; }
+.guide .sim-frame > .hint-btn { left: 0; top: 0; }
+.guide .sim-frame > button, .guide .sim-frame > button[aria-pressed="true"], .guide .sim-frame > button[aria-expanded="true"] { background: var(--surface-2); }
+/* Вибір прицілу й режим (іконками) — один рядок */
+.guide .sim-line { display: flex; gap: 8px; align-items: center; }
+.guide .sim-line > select { flex: 1; min-width: 0; font-weight: 650; }
+.guide .sim-mode { flex: none; flex-wrap: nowrap; }
+.guide .sim-mode button { display: grid; place-items: center; width: 44px; height: 40px; padding: 0; border-radius: 12px; }
+.guide .sim-mode svg { width: 24px; height: 24px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.guide .quiz-sens { color: var(--muted); }
+/* Вітер, рух, гвинтівка — три іконки в рядок зі значенням під кожною; налаштування — у панелі під рядком */
+.guide .sim-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.guide .sim-tool { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2); color: var(--text); cursor: pointer; min-width: 0; }
+.guide .sim-tool svg { width: 26px; height: 26px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.guide .sim-tool-t { font-size: 12px; color: var(--muted); }
+.guide .sim-tool-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12.5px var(--mono); }
+.guide .sim-tool[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.guide .sim-tool[aria-expanded="true"] svg { color: var(--accent-2); }
+.guide .sim-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); }
+.guide .sim-panel[hidden] { display: none; }
+.guide .sim-panel select { background: var(--surface); }
+/* Плашки дистанції й кратності в нижніх кутах прицілу; повзунок — поверх нижньої частини прицілу */
+.guide .sim-frame > .sim-badge { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--text); cursor: pointer; bottom: 0; }
+.guide .sim-frame > .sim-badge.bl { left: 0; }
+.guide .sim-frame > .sim-badge.br { right: 0; }
+.guide .sim-badge svg { width: 18px; height: 18px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); }
+.guide .sim-badge b { font: 650 14px var(--mono); }
+.guide .sim-frame > .sim-badge[aria-expanded="true"] { border-color: var(--accent); }
+.guide .sim-pop { position: absolute; left: 0; right: 0; bottom: 42px; z-index: 2; display: grid; gap: 4px; padding: 10px 12px;
+  border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
+.guide .sim-pop[hidden] { display: none; }
+.guide .sim-pop input[type=range] { width: 100%; accent-color: var(--accent); }
+/* Ціль: силует на кнопці й сітка силуетів у панелі */
+.guide .sim-tool-ico { display: grid; place-items: center; height: 26px; }
+.guide .tgt-ico { width: auto; height: 26px; max-width: 100%; margin: 0; }
+.guide .tgt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.guide .tgt-opt { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--text); font-size: 12.5px; cursor: pointer; min-width: 0; }
+.guide .tgt-opt .tgt-ico { height: 34px; }
+.guide .tgt-opt small { color: var(--muted); font-size: 11px; }
+.guide .tgt-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+/* Вправи: вибір виду, історія серій, умови й хрестик відповіді */
+.guide .quiz-kind { display: grid; grid-template-columns: 1fr 1fr; }
+.guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
+.guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
+.guide .quiz-hist { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.guide .quiz-hist .spark { width: 100%; height: 28px; }
+.guide .r-mark { stroke: #4da3ff; fill: none; stroke-linecap: round; }
+.guide .sim-frame > svg { touch-action: pan-y; }
+.guide .sim-badge small { font-size: 10.5px; color: var(--muted); }
+.guide .sim-pop .ticks { display: flex; justify-content: space-between; padding: 0 2px; font: 11px var(--mono); color: var(--muted); }
+.guide .sim-pop .ticks span { width: 0; display: flex; justify-content: center; }
+.guide .quiz-hist .spark { display: block; }
+.guide .quiz-hist .spark svg { display: block; width: 100%; height: 28px; max-width: none; }
+.guide .sim-stick label.sim-pop { grid-template-columns: 1fr; }
+.guide .sim-pop .ticks { grid-column: 1 / -1; }
+.guide .sim-tool svg.tgt-ico, .guide .tgt-opt svg.tgt-ico { stroke: none; width: auto; }
+.guide .r-move { stroke: var(--accent); fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.guide .sim-tool:disabled { opacity: .35; cursor: default; }
+/* Вітер у тренажері: опис сили під повзунком і менший циферблат */
+.guide .wind-desc { margin: 0; font-size: 13px; color: var(--muted); }
+.guide .sim-panel .wind-pick { width: min(170px, 100%); }
+.guide .sim-panel .wp-note { margin-top: 0; }
+.guide .quiz-go:disabled { opacity: .45; cursor: default; }
