@@ -75,7 +75,8 @@ export function lineChart(points, { up = true, format = (v) => String(Math.round
   const close = xp(lastAt) - xp(bestAt) < 30 && Math.abs(yp(values[lastAt]) - yp(best)) < 15;
   const label = (i, cls) => {
     const below = (yp(values[i]) < 22) !== (cls === 'best' && close);
-    const edge = i === lastAt ? 'end' : i === 0 ? 'start' : '';
+    // Біля краю (а не лише на крайній точці) підпис притискаємо всередину, щоб не обрізався
+    const edge = i === lastAt || xp(i) > 85 ? 'end' : i === 0 || xp(i) < 15 ? 'start' : '';
     inner.append(h('span', { class: `ch-lab ${cls} ${edge} ${below ? 'below' : ''}`, style: at(xp(i), yp(values[i])) }, format(values[i])));
   };
   label(bestAt, 'best');

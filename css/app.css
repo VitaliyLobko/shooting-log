@@ -1352,8 +1352,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .r-tgt { fill: var(--tgt); }
 .guide .r-tgt-d { fill: color-mix(in srgb, var(--tgt) 45%, #1a1d16); }
 .guide .r-hold { stroke: var(--shoot); fill: none; }
+/* Зона ураження на цілі — світла пляма з білим контуром: видно на піщаному силуеті й не плутається з червоним кільцем виносу */
+.guide .r-kz { fill: rgb(255 255 255 / 0.38); stroke: #fff; stroke-width: 1.5px; }
+.guide .r-kz.o { fill: none; }
+/* Далекомір: скоба на відрізку, яким міряємо */
+.guide .r-meas { fill: none; stroke: #fff; stroke-width: 2.5px; stroke-linecap: round; }
+.guide .sim-meas { margin: 4px 0 8px; }
+.guide .sim-meas[hidden] { display: none; }
 .guide .r-ok { fill: none; stroke: #4cc38a; }
-.guide .r-zone { fill: color-mix(in srgb, var(--tgt) 30%, #14170f); stroke: color-mix(in srgb, var(--tgt) 55%, #000); }
+.guide .r-zone { fill: none; stroke: color-mix(in srgb, var(--tgt) 55%, #000); }
 .guide .quiz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
 .guide .quiz-legend > span { display: inline-flex; align-items: center; gap: 5px; }
 .guide .sim .quiz-legend svg { width: 16px; height: 16px; max-width: none; flex: none; margin: 0; }
@@ -1863,9 +1870,20 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 }
 
 /* Вправа «Визнач дальність»: поки йде, ховаємо повзунки й підказку — вони видали б відповідь */
-.guide .sim.quiz-on .sim-badge, .guide .sim.quiz-on .sim-pop, .guide .sim.quiz-on .ctl > :not(.quiz):not(.sim-row),
+.guide .sim.quiz-on .sim-badge, .guide .sim.quiz-on .sim-pop, .guide .sim.quiz-on .ctl > :not(.quiz-box):not(.sim-row),
 .guide .sim.quiz-on .sim-mode, .guide .sim.quiz-on label[for="s-tgt"] { display: none; }
 .guide .quiz { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 14px; }
+/* Вправи — рамка з назвою кольором акценту, щоб відрізнялись від довідкових цифр */
+.guide .quiz-box { margin: 4px 0 0; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.guide .quiz-box > legend { color: var(--accent); }
+.guide .quiz-box > .quiz { padding-top: 4px; border-top: 0; }
+/* Статистика тренувань — компактні таблички: назва рядка ліворуч, числа праворуч */
+.guide .sim-stats { display: grid; gap: 4px; }
+.guide .sim-stats > b { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.guide .sim-stats table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.guide .sim-stats th { padding: 2px 3px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-align: right; }
+.guide .sim-stats td { padding: 5px 3px; border-top: 1px solid var(--line-soft); text-align: right; }
+.guide .sim-stats td:first-child { text-align: left; }
 .guide .quiz p { margin: 0; }
 .guide .quiz select, .guide .quiz input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 16px; }
 .guide .quiz-n { color: var(--muted); font-size: 13px; }
@@ -1915,6 +1933,8 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .guide .sim-frame { position: relative; }
 .guide .sim-frame > button { position: absolute; z-index: 1; }
 .guide .sim-frame > .sim-zoom { right: 0; top: 0; padding: 6px 9px; }
+.guide .sim-frame > .sim-ret { top: 40px; min-width: 38px; font-size: 16px; }
+.guide .sim-frame > .sim-ret[hidden] { display: none; }
 .guide .sim-frame > .hint-btn { left: 0; top: 0; }
 .guide .sim-frame > button, .guide .sim-frame > button[aria-pressed="true"], .guide .sim-frame > button[aria-expanded="true"] { background: var(--surface-2); }
 /* Вибір прицілу й режим (іконками) — один рядок */
@@ -1926,11 +1946,12 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .guide .quiz-sens { color: var(--muted); }
 /* Вітер, рух, гвинтівка — три іконки в рядок зі значенням під кожною; налаштування — у панелі під рядком */
 .guide .sim-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.guide .sim-tool { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px;
+.guide .sim-tool { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--surface-2); color: var(--text); cursor: pointer; min-width: 0; }
 .guide .sim-tool svg { width: 26px; height: 26px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.guide .sim-tool-t { font-size: 12px; color: var(--muted); }
-.guide .sim-tool-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12.5px var(--mono); }
+/* Назву видно з іконки й підказки; лишаємо її лише для читача екрана — кнопка нижча на рядок */
+.guide .sim-tool-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.guide .sim-tool-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px var(--mono); letter-spacing: -0.04em; }
 .guide .sim-tool[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .guide .sim-tool[aria-expanded="true"] svg { color: var(--accent-2); }
 .guide .sim-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); }
@@ -1968,6 +1989,9 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .guide .sim-badge small { font-size: 10.5px; color: var(--muted); }
 .guide .sim-pop .ticks { display: flex; justify-content: space-between; padding: 0 2px; font: 11px var(--mono); color: var(--muted); }
 .guide .sim-pop .ticks span { width: 0; display: flex; justify-content: center; }
+/* Підписи на своїх місцях шкали (не через рівні проміжки): --p — частка від min до max, 8px — пів повзунка */
+.guide .sim-pop .ticks.at { position: relative; display: block; height: 1.4em; padding: 0; }
+.guide .sim-pop .ticks.at span { position: absolute; left: calc(8px + (100% - 16px) * var(--p)); }
 .guide .quiz-hist .spark { display: block; }
 .guide .quiz-hist .spark svg { display: block; width: 100%; height: 28px; max-width: none; }
 .guide .sim-stick label.sim-pop { grid-template-columns: 1fr; }
@@ -1980,3 +2004,14 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .guide .sim-panel .wind-pick { width: min(170px, 100%); }
 .guide .sim-panel .wp-note { margin-top: 0; }
 .guide .quiz-go:disabled { opacity: .45; cursor: default; }
+
+/* Приблизно в доларах — другим дрібним рядком під сумою (⚙ → «Курс НБУ») */
+.usd { display: block; margin-top: 1px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+
+/* ⚙ Налаштування групами: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток */
+.settings-group { margin: 22px 0 14px; padding: 2px 16px 4px; background: var(--surface); box-shadow: var(--shadow); border-radius: var(--radius); }
+.settings-group > legend { padding: 0 8px; margin-left: -6px; border-radius: 6px; background: var(--surface); color: var(--accent-2); }
+.settings-group > .panel { margin: 0; padding: 14px 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.settings-group > .panel + .panel { border-top: 1px solid var(--line-soft); }
+.settings-group.danger { border-color: color-mix(in srgb, var(--shoot) 45%, var(--line)); }
+.settings-group.danger > legend { color: var(--shoot); }

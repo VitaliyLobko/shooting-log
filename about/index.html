@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Shooters Log — журнал стрілка</title>
+  <meta name="description" content="Безкоштовний застосунок для стрілка: набої й склад, стволи й настріл, мішені по фото, вправи, хронограф, таймер, тренажер сітки й таблиці DOPE. Працює без інтернету, дані лишаються у вас.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Shooters Log — журнал стрілка в телефоні">
+  <meta property="og:description" content="Набої, стволи, настріл, мішені по фото, вправи, тренажер сітки й DOPE. Безкоштовно, без реклами й реєстрації.">
+  <meta property="og:url" content="https://vitaliylobko.github.io/shooting-log/about/">
+  <meta property="og:image" content="https://vitaliylobko.github.io/shooting-log/about/img/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../icons/icon-192.png">
+  <style>
+    :root {
+      --bg: #f2f3ee; --bg-glow: #e7eadf; --surface: #fff; --surface-2: #eef0ea; --line: #dadfd3;
+      --text: #1b2019; --muted: #646d60; --accent: #d96a1c; --accent-2: #c45f14; --on-accent: #fff;
+      --frame: #1b2019;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101310; --bg-glow: #1b2119; --surface: #191e18; --surface-2: #232a22; --line: #2e362d;
+        --text: #eaeee5; --muted: #949e90; --accent: #ec7f2f; --accent-2: #f3a05c; --on-accent: #1b1208;
+        --frame: #000;
+      }
+      /* Чорна рамка на темному тлі зникає — тонка світла обводка */
+      .phone { box-shadow: 0 0 0 1px #3a4438, 0 12px 32px rgb(0 0 0 / .5); }
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(120% 50% at 50% -10%, var(--bg-glow), var(--bg) 60%) fixed, var(--bg);
+      color: var(--text);
+      font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      overflow-x: clip;
+    }
+    a { color: var(--accent-2); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+    header.hero { padding: 48px 0 24px; text-align: center; }
+    .hero img.icon { width: 88px; height: 88px; border-radius: 22px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+    .hero h1 { margin: 16px 0 4px; font-size: clamp(34px, 8vw, 52px); line-height: 1.05; letter-spacing: -.02em; font-weight: 900; }
+    .hero .lead { margin: 10px auto 0; max-width: 34em; font-size: clamp(17px, 2.6vw, 20px); color: var(--muted); }
+    .cta { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 24px 0 8px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px;
+      border-radius: 999px; font-weight: 700; text-decoration: none; border: 1px solid var(--line);
+      color: var(--text); background: var(--surface);
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; padding: 0; list-style: none; }
+    .badges li { padding: 4px 12px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 14px; }
+
+    .strip { display: flex; gap: 14px; justify-content: center; margin: 32px 0 8px; }
+    .strip .phone:nth-child(2) { transform: translateY(-18px); }
+
+    .phone {
+      flex: none; width: 220px; border-radius: 26px; padding: 6px; background: var(--frame);
+      box-shadow: 0 12px 32px rgb(0 0 0 / .22);
+    }
+    .phone picture { display: block; }
+    .phone img { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); }
+
+    section.feat { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; padding: 36px 0; border-top: 1px solid var(--line); }
+    .feat .text h2 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 30px); line-height: 1.15; letter-spacing: -.01em; }
+    .feat .text p { margin: 0 0 10px; }
+    .feat .text ul { margin: 0; padding-left: 20px; }
+    .feat .text li { margin: 4px 0; }
+    .feat .kicker { display: block; margin-bottom: 6px; color: var(--accent-2); font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .feat .shots { display: flex; gap: 14px; justify-content: center; }
+    @media (min-width: 760px) {
+      section.feat { grid-template-columns: 1fr 1fr; gap: 48px; }
+      section.feat.flip .shots { order: -1; }
+    }
+    @media (max-width: 520px) {
+      .strip .phone:nth-child(n+3), .feat .shots .phone + .phone { display: none; }
+      .strip .phone { width: 46%; }
+      .strip .phone:nth-child(2) { transform: none; }
+      .feat .shots .phone { width: min(260px, 78%); }
+    }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+    .card { padding: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+    .card h3 { margin: 0 0 6px; font-size: 18px; }
+    .card p, .card ol { margin: 0; color: var(--muted); font-size: 15px; }
+    .card ol { padding-left: 20px; }
+    .card li { margin: 3px 0; }
+    section.block { padding: 36px 0; border-top: 1px solid var(--line); }
+    section.block > h2 { margin: 0 0 16px; font-size: clamp(24px, 4vw, 30px); }
+
+    footer { padding: 32px 0 48px; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font-size: 15px; }
+    footer .cta { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <img class="icon" src="../icons/icon-192.png" alt="" width="88" height="88">
+      <h1>Shooters Log</h1>
+      <p class="lead">Журнал стрілка в телефоні: скільки набоїв лишилось і почім постріл, що з кожним стволом, як ти стріляєш і чи стаєш кращим.</p>
+      <div class="cta">
+        <a class="btn primary" href="../">Відкрити застосунок</a>
+        <a class="btn" href="#install">Як встановити</a>
+      </div>
+      <ul class="badges">
+        <li>безкоштовно</li><li>без реклами й реєстрації</li><li>працює без інтернету</li><li>дані — тільки у вас</li>
+      </ul>
+      <div class="strip" aria-hidden="true">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/guns.jpg"><img src="img/guns.jpg" alt="" width="412" height="839"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/sim.jpg"><img src="img/sim.jpg" alt="" width="412" height="839"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/target-mark.jpg"><img src="img/target-mark.jpg" alt="" width="412" height="839"></picture></div>
+      </div>
+    </header>
+
+    <section class="feat">
+      <div class="text">
+        <span class="kicker">Склад</span>
+        <h2>Набої завжди пораховані</h2>
+        <p>Свайп по набою вправо — купив, вліво — відстріляв. Залишок, середня ціна й вартість пострілу рахуються самі.</p>
+        <ul>
+          <li>Скільки ще на скільки виїздів вистачить.</li>
+          <li>Релоадінг: компоненти, рецепти, собівартість патрона, спорядження партіями зі списанням пороху, куль і капсулів.</li>
+        </ul>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/ammo.jpg"><img src="img/ammo.jpg" alt="Склад набоїв за калібрами" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/reload.jpg"><img src="img/reload.jpg" alt="Релоадінг: споряджені набої" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat flip">
+      <div class="text">
+        <span class="kicker">Арсенал</span>
+        <h2>Кожен ствол — як на долоні</h2>
+        <p>Настріл, ресурс ствола, коли чистив і коли знову пора, приціли з пристрілкою, дозвіл з нагадуванням до кінця строку.</p>
+        <ul>
+          <li>Кнопки «Записати стрільбу» й «Почистив» — одним дотиком.</li>
+          <li>Звіт по стволу: усі стрільби, покупка й тюнінг, витрати.</li>
+          <li>Звання за загальним настрілом — від новачка до «Легенди».</li>
+        </ul>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/guns.jpg"><img src="img/guns.jpg" alt="Список стволів з настрілом і ресурсом" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/weapon.jpg"><img src="img/weapon.jpg" alt="Картка ствола" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat">
+      <div class="text">
+        <span class="kicker">Гроші</span>
+        <h2>Скільки насправді вкладено</h2>
+        <p>Покупка ствола, тюнінг, екіпірування, продажі — і що вийшло чисто. Витрати за роками на графіку.</p>
+        <p>За бажанням — приблизно в доларах за курсом НБУ на день покупки: видно, що 5 000 грн у 2022-му й зараз — різні гроші.</p>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/gear.jpg"><img src="img/gear.jpg" alt="Екіпірування й вкладення в зброю" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat flip">
+      <div class="text">
+        <span class="kicker">Мішені</span>
+        <h2>Сфотографував мішень — отримав розбір</h2>
+        <p>Познач масштаб і пробоїни на фото — застосунок порахує розкид, середній радіус і СТВ у см, MOA чи MRAD, а ще поправку в клацаннях.</p>
+        <ul>
+          <li>Рейтинг набоїв за купчастістю для кожного ствола.</li>
+          <li>Дистанція, приціл, погода — все поруч з мішенню.</li>
+        </ul>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/target-mark.jpg"><img src="img/target-mark.jpg" alt="Розмічена мішень з розкидом і СТВ" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/target-open.jpg"><img src="img/target-open.jpg" alt="Набої за купчастістю" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat">
+      <div class="text">
+        <span class="kicker">Вправи</span>
+        <h2>Видно, що ростеш</h2>
+        <p>Вправи з правилами й рахунком, рекорди й графік результатів з часом. Є готові — від «Scout-10» до «Скаутського марафону» — і можна завести свої. Поруч — довідник стрільця з курсом марксмана.</p>
+        <p>Таймер пострілів: старт за сигналом, пар-тайм, запуск за звуком.</p>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/exercise-open.jpg"><img src="img/exercise-open.jpg" alt="Вправа з рекордом і графіком" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/timer.jpg"><img src="img/timer.jpg" alt="Таймер пострілів" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat flip">
+      <div class="text">
+        <span class="kicker">Тренажер</span>
+        <h2>Тренуй сітку прицілу вдома</h2>
+        <p>Визначити дальність по сітці, винести на вітер і рух цілі, взяти поправку з таблиці — як задачки з відповіддю. Свайп по прицілу міняє дистанцію й кратність.</p>
+        <p>Дистанції від 25 м, різні сітки, свої таблиці DOPE, статистика тренувань.</p>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/sim.jpg"><img src="img/sim.jpg" alt="Тренажер прицільної сітки" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat">
+      <div class="text">
+        <span class="kicker">Балістика</span>
+        <h2>DOPE і швидкості під рукою</h2>
+        <p>Таблиця поправок для кожного прицілу й набою: клацання барабана, винос по сітці, вітер. Можна імпортувати з «Стрільця».</p>
+        <p>Хронограф: серії швидкостей, середня, SD і ES — щоб знати свій набій, а не вірити коробці.</p>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/dope.jpg"><img src="img/dope.jpg" alt="Таблиця DOPE" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/chrono-open.jpg"><img src="img/chrono-open.jpg" alt="Серія швидкостей з хронографа" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="feat flip">
+      <div class="text">
+        <span class="kicker">Журнал</span>
+        <h2>Уся історія в одному місці</h2>
+        <p>Стрільби, покупки, спорядження, чистки — з фільтрами й графіком настрілу по днях, тижнях, роках. Стрільбу можна додати в календар телефону.</p>
+      </div>
+      <div class="shots">
+        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/log.jpg"><img src="img/log.jpg" alt="Журнал з настрілом за роками" width="412" height="839" loading="lazy"></picture></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Дані — ваші</h2>
+      <div class="cards">
+        <div class="card"><h3>Без сервера</h3><p>Усе зберігається в телефоні. Автор не бачить ні записів, ні статистики — збирати їх просто нікуди.</p></div>
+        <div class="card"><h3>Синхронізація через ваш Google Диск</h3><p>За бажанням: копія лягає у ваш Диск, і телефон з комп’ютером бачать те саме. Застосунок має доступ лише до свого файлу.</p></div>
+        <div class="card"><h3>Працює офлайн</h3><p>На стрільбищі без зв’язку все записується, а синхронізується, щойно з’явиться мережа.</p></div>
+        <div class="card"><h3>Резервна копія</h3><p>Один файл — у Telegram «Збережене» чи куди зручно. Ним же можна перенести все на інший телефон.</p></div>
+      </div>
+    </section>
+
+    <section class="block" id="install">
+      <h2>Як почати</h2>
+      <div class="cards">
+        <div class="card"><h3>Android</h3><ol><li>Відкрийте посилання в Chrome.</li><li>Меню ⋮ → «Встановити застосунок».</li><li>Іконка з’явиться на головному екрані.</li></ol></div>
+        <div class="card"><h3>iPhone</h3><ol><li>Відкрийте посилання в Safari.</li><li>«Поділитися» → «На екран „Додому“».</li><li>Запускайте з іконки, а не з вкладки Safari.</li></ol></div>
+        <div class="card"><h3>Спершу подивитися</h3><p>⚙ → «Завантажити демодані» — готовий облік з 2022 року: сім стволів, стрільби, мішені, вправи. Перед своїми записями демо видаляється там само.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="cta"><a class="btn primary" href="../">Відкрити Shooters Log</a></div>
+      <p>Українською й російською · світла й темна тема · відкритий код (MIT)</p>
+      <p><a href="https://github.com/VitaliyLobko/shooting-log">GitHub</a> · <a href="https://github.com/VitaliyLobko/shooting-log/issues/new">Написати про помилку чи ідею</a></p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -668,8 +668,8 @@ export function calibers(state) {
   return [...set].sort(collate);
 }
 
-export function today() {
-  const d = new Date();
+export function today(when = new Date()) {
+  const d = new Date(when);
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 10);
 }

@@ -29,6 +29,8 @@ const ASSETS = [
   './js/pdf.js',
   './js/holes.js',
   './js/align.js',
+  './js/usd.js',
+  './js/usd-rates.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',
   './guide/img/prone-bipod.jpg',
