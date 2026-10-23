@@ -865,6 +865,13 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     fs.append(qBox);
   }
   const el = (tag, attrs = {}, text = '') => Object.assign(document.createElement(tag), attrs, text ? { textContent: text } : {});
+  // Після «Перевірити» / «Далі» початок вправи має бути одразу під закріпленим прицілом, а не сховатись під ним
+  const reveal = () => {
+    const stick = simBox.querySelector('.sim-stick');
+    if (!stick) return;
+    const gap = qBox.getBoundingClientRect().top - stick.getBoundingClientRect().bottom;
+    if (gap < 0 || gap > 120) window.scrollBy({ top: gap - 8 });
+  };
 
   // «Винос»: дистанція, (вітер), (рух) — тапнути точку сітки, яку наводиш на ціль
   const nextHold = () => {
@@ -957,7 +964,6 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     }
     qBox.append(factsEl);
     if (!q.answer) {
-      qBox.append(el('p', {}, t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой 🔍. Потом «Проверить».')));
       const check = el('button', { type: 'button', className: 'quiz-go' }, t('Проверить'));
       check.disabled = !q.pending;
       check.addEventListener('click', () => {
@@ -968,8 +974,10 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         q.band = hitBand(q.tgt, q.answer[0] + q.hx, q.answer[1] + q.hy, C.size(TGT[q.tgt].h, q.dist), q.vt > 0 && !q.goRight);
         quiz.hits.push(q.band);
         drawQuiz();
+        reveal();
       });
-      qBox.append(check);
+      // «Перевірити» — над підказкою, щоб не гортати до неї
+      qBox.append(check, el('p', {}, t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой 🔍. Потом «Проверить».')));
     } else {
       const [ax, ay] = q.answer; const e = Math.hypot(ax + q.hx, ay + q.hy);
       const cm = moa ? e * 2.9089 * q.dist / 100 : e * q.dist / 10;
@@ -981,18 +989,18 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         el('span', {}, t('Надо вынести: {y} {x} {u}', { y: dir(q.hy, '↑', '↓') || '0', x: dir(q.hx, '←', '→'), u: C.u })),
         el('span', {}, t('Ты вынес: {y} {x}', { y: dir(ay, '↓', '↑') || '0', x: dir(ax, '→', '←') })),
         legend());
-      qBox.append(res);
-      const show = el('button', { type: 'button', className: 'quiz-show' }, q.show ? t('Мой ответ') : t('Покажи, как надо'));
-      show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
-      qBox.append(show);
+      // «Далі» — над розбором, щоб не гортати до неї після кожної цілі
       const done = quiz.errs.length >= SERIES;
       if (done) {
         const r = finishSeries();
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: SERIES, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })));
       }
       const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
-      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); });
-      qBox.append(next);
+      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
+      qBox.append(next, res);
+      const show = el('button', { type: 'button', className: 'quiz-show' }, q.show ? t('Мой ответ') : t('Покажи, как надо'));
+      show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
+      qBox.append(show);
     }
     const stop = el('button', { type: 'button', className: 'quiz-stop' }, t('Выйти из упражнения'));
     stop.addEventListener('click', () => { const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
@@ -1025,7 +1033,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     qBox.replaceChildren();
     qBox.append(el('p', { className: 'quiz-n' }, t('Цель {n} из {total} · кратность {m}×', { n: quiz.errs.length + (q.answer ? 0 : 1), total: SERIES, m: fm(q.mag) })));
     qBox.append(el('p', {}, quiz.level === 'easy' || quiz.level === 'pick' ? t(T.label) : t('Сколько до цели? Размер вспомни сам.')));
-    const take = (a) => { q.answer = a; quiz.errs.push(Math.abs(a - q.dist) / q.dist * 100); quiz.shots.push([q.dist, q.tgt]); drawQuiz(); };
+    const take = (a) => { q.answer = a; quiz.errs.push(Math.abs(a - q.dist) / q.dist * 100); quiz.shots.push([q.dist, q.tgt]); drawQuiz(); reveal(); };
     if (!q.answer && quiz.level === 'pick') {
       // Хибні варіанти — правдоподібні: ±15–40 % від правильної, кратні 10 м
       if (!q.opts) {
@@ -1076,15 +1084,14 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       const span = (n) => `${Math.round(q.dist * base / (base + n * dlt))}–${Math.round(q.dist * base / Math.max(0.01, base - n * dlt))} ${t('м')}`;
       res.append(el('span', { className: 'quiz-sens' }, t('Ошибка чтения ±{a} {u} → {r1}; ±{b} {u} → {r2}', { a: f(dlt, 2), b: f(2 * dlt, 2), u: C.u, r1: span(1), r2: span(2) })));
       if (!C.ffp && q.mag < C.cal) res.append(el('span', { className: 'w' }, t('Кратность была {m}× — по сетке видно {v} {u}, это нужно умножить на {c}, или поставь {cal}×', { m: fm(q.mag), v: f(sz * k, 1), u: C.u, c: f(1 / k, 2), cal: C.cal })));
-      qBox.append(res);
       const done = quiz.errs.length >= SERIES;
       if (done) {
         const r = finishSeries();
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: SERIES })));
       }
       const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
-      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); });
-      qBox.append(next);
+      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
+      qBox.append(next, res);
     }
     const stop = el('button', { type: 'button', className: 'quiz-stop' }, t('Выйти из упражнения'));
     stop.addEventListener('click', () => { const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
@@ -1099,33 +1106,49 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       b.addEventListener('click', () => renderStart(v));
       kind.append(b);
     });
-    // Складність — картками: назва, що саме складніше, і шкала поділок; вибір пам'ятається для кожної вправи
+    // Складність — випадним списком: згорнуто видно лише вибране, розгорнуто — усі рівні з поясненням; вибір пам'ятається для кожної вправи
     const levels = LEVELS[kindNow];
     let picked = levels.some(([v]) => v === localStorage.getItem(LEVEL_KEY(kindNow))) ? localStorage.getItem(LEVEL_KEY(kindNow)) : 'normal';
-    const level = el('div', { className: 'quiz-levels', role: 'radiogroup' });
-    level.setAttribute('aria-label', t('Сложность'));
-    levels.forEach(([v, name, what], i) => {
-      const b = el('button', { type: 'button', className: 'quiz-level', role: 'radio' });
+    const levelBody = (i) => {
+      const [, name, what] = levels[i];
       const bars = el('span', { className: 'ql-bars' });
       bars.setAttribute('aria-hidden', 'true');
       bars.append(...levels.map((_, j) => el('i', { className: j <= i ? 'on' : '' })));
-      b.append(bars, el('b', {}, t(name)), el('small', {}, t(what)));
+      return [bars, el('b', {}, t(name)), el('small', {}, t(what))];
+    };
+    const level = el('div', { className: 'quiz-levels' });
+    const face = el('button', { type: 'button', className: 'quiz-level quiz-level-face' });
+    face.setAttribute('aria-haspopup', 'listbox');
+    const list = el('div', { className: 'quiz-level-list', role: 'listbox' });
+    list.setAttribute('aria-label', t('Сложность'));
+    const open = (on) => { level.classList.toggle('open', on); face.setAttribute('aria-expanded', String(on)); list.hidden = !on; };
+    levels.forEach(([v], i) => {
+      const b = el('button', { type: 'button', className: 'quiz-level', role: 'option' });
+      b.append(...levelBody(i));
       b.dataset.level = v;
       b.addEventListener('click', () => {
         picked = v;
         try { localStorage.setItem(LEVEL_KEY(kindNow), v); } catch { /* приватний режим */ }
         paintLevels();
+        open(false);
       });
-      level.append(b);
+      list.append(b);
     });
-    const paintLevels = () => level.querySelectorAll('.quiz-level').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.level === picked)));
+    face.addEventListener('click', () => open(list.hidden));
+    level.append(face, list);
+    const paintLevels = () => {
+      face.replaceChildren(...levelBody(levels.findIndex(([v]) => v === picked)), el('span', { className: 'ql-chev', 'aria-hidden': 'true' }, '▾'));
+      list.querySelectorAll('.quiz-level').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.level === picked)));
+    };
     paintLevels();
+    open(false);
     const go = el('button', { type: 'button', className: 'quiz-go' }, t('Начать серию из {n}', { n: SERIES }));
     go.addEventListener('click', () => {
       quiz = { kind: kindNow, level: picked, errs: [], hits: [], shots: [] };
       quiz.cur = nextTarget();
       simBox.classList.add('quiz-on');
       drawQuiz();
+      reveal();
     });
     const about = kindNow === 'hold'
       ? t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u: RET[LOADS[$('s-kit').value].ret].u })
@@ -1146,7 +1169,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       more.addEventListener('click', () => renderStats(kindNow));
       prog.append(more);
     }
-    qBox.replaceChildren(kind, el('p', { className: 'quiz-n' }, about), level, go, prog);
+    qBox.replaceChildren(kind, level, go, el('p', { className: 'quiz-n' }, about), prog);
   };
 
   // Статистика тренувань: окремо від журналу справжніх стрільб, лише з цього пристрою

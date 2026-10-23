@@ -1887,14 +1887,21 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .guide .quiz p { margin: 0; }
 .guide .quiz select, .guide .quiz input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 16px; }
 .guide .quiz-n { color: var(--muted); font-size: 13px; }
-/* Складність — картками замість системного списку: шкала поділок, назва, що саме складніше */
+/* Складність — свій випадний список: згорнуто — вибраний рівень зі стрілкою, розгорнуто — усі рівні під ним */
 .guide .quiz-levels { display: grid; gap: 6px; }
 .guide .quiz-level {
   display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center;
   padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2);
   color: var(--fg); text-align: left; cursor: pointer;
 }
-.guide .quiz-level[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.guide .quiz-level-face { grid-template-columns: auto 1fr auto; }
+.guide .quiz-level-face .ql-chev { grid-column: 3; grid-row: 1 / 3; color: var(--muted); font-size: 14px; transition: transform .15s; }
+.guide .quiz-levels.open .ql-chev { transform: rotate(180deg); }
+.guide .quiz-levels.open .quiz-level-face { border-color: var(--accent); }
+.guide .quiz-level-list { display: grid; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide .quiz-level-list[hidden] { display: none; }
+.guide .quiz-level-list .quiz-level { border-color: transparent; background: transparent; }
+.guide .quiz-level-list .quiz-level[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .guide .quiz-level b { font-size: 15px; }
 .guide .quiz-level small { grid-column: 2; color: var(--muted); font-size: 12.5px; line-height: 1.3; }
 .guide .ql-bars { grid-row: 1 / 3; display: flex; align-items: flex-end; gap: 2px; height: 18px; }
