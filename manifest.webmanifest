@@ -28,5 +28,31 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Записати стрільбу",
+      "short_name": "Стрільба",
+      "url": "./?go=shot",
+      "icons": [{ "src": "icons/shortcut-shot.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Нова мішень",
+      "short_name": "Мішень",
+      "url": "./?go=target",
+      "icons": [{ "src": "icons/shortcut-target.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Таймер пострілів",
+      "short_name": "Таймер",
+      "url": "./?go=timer",
+      "icons": [{ "src": "icons/shortcut-timer.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Тренажер сітки",
+      "short_name": "Тренажер",
+      "url": "./?go=sim",
+      "icons": [{ "src": "icons/shortcut-sim.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

@@ -301,6 +301,20 @@ const dialWedge = (from, to, r) => {
  * Звідки вітер — циферблатом: 12 угорі, з боку цілі, стрілець у центрі; червоні сектори — зони повного бокового вітру.
  * Стрілка йде від вибраної години до стрільця. Повторний тап скидає вибір, якщо в select є порожній варіант.
  */
+/** Тренажер: вибір гвинтівки й набою шторкою — свої таблиці DOPE зверху, довідкові набори під підписом. */
+function kitPicker(select) {
+  return listPicker(select, {
+    title: t('Винтовка и патрон'),
+    otherLabel: t('Справочные наборы'),
+    // «Ствол · приціл · набій» — назва рядком, решта дрібніше під нею
+    item: (value) => {
+      const text = [...select.options].find((o) => o.value === value)?.textContent ?? '';
+      const [title, ...rest] = text.split(' · ');
+      return { title, sub: rest.join(' · ') || null, other: !value.startsWith('my:') };
+    },
+  });
+}
+
 function clockPicker(select) {
   if (!select) return () => {};
   const dial = h('div', { class: 'wind-pick', role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
@@ -1495,12 +1509,14 @@ function priceRow(title, sub, price, onclick, icon = null, iso = null) {
 function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell }) {
   const f = form([
     { name: 'name', label: t('Название'), required: true, value: item?.name, placeholder, wide: true },
-    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: item?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]) } : null,
+    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: item?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
     { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: item?.price, half: true },
     { name: 'date', label: t('Дата покупки'), type: 'date', value: item?.date ?? M.today(), half: true },
     { name: 'place', label: t('Где купил'), value: item?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
     { name: 'note', label: t('Примечание'), value: item?.note, wide: true },
   ].filter(Boolean));
+  // Категорія — чипами, як тип компонента: видно всі одразу, без системного списку
+  chipPicker(f.inputs.kind, { seg: false, cls: 'chips-sm' });
   // Видалити й продати — іконками в шапці, як в інших картках; внизу лише «Скасувати» і «Зберегти»
   const close = sheet(title, f.el, {
     lead: item ? toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger') : null,
@@ -2251,7 +2267,12 @@ function trainDope(d, close) {
     localStorage.setItem('shooters-log:sim', JSON.stringify({ ...saved, 's-kit': `my:${d.id}`, mode: 'aim' }));
   } catch { /* приватний режим — тренажер відкриється на першій своїй таблиці */ }
   close?.();
-  rangeSeg = 'sim';
+  goRange('sim');
+}
+
+/** «Полігон» на потрібному розділі (запам'ятовується, як і вибраний вручну). */
+function goRange(seg) {
+  rangeSeg = seg;
   remember('shooters-log:range-seg', rangeSeg);
   if (location.hash === '#targets') render();
   else goTab('#targets');
@@ -5578,7 +5599,7 @@ function renderSim() {
   loadGuide().then((html) => {
     const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    initGuide(box, { clockPicker, myLoads: myDopeLoads });
+    initGuide(box, { clockPicker, kitPicker, myLoads: myDopeLoads });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -5637,7 +5658,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
-    initGuide(list, { clockPicker, myLoads: myDopeLoads });
+    initGuide(list, { clockPicker, kitPicker, myLoads: myDopeLoads });
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -5720,6 +5741,64 @@ function route() {
   tab = VIEWS[next] ? next : 'ammo';
   render();
   window.scrollTo(0, 0);
+}
+
+// ---------- ярлики на іконці (shortcuts у manifest.webmanifest) ----------
+
+/** Дата останнього руху ствола (стрільба чи чистка) — щоб ті, з яких стріляли нещодавно, були зверху. */
+function lastUse() {
+  const at = new Map();
+  for (const m of state.movements) {
+    if (!m.weaponId || (m.kind !== 'shot' && m.kind !== 'clean')) continue;
+    const d = m.date ?? '';
+    if (d > (at.get(m.weaponId) ?? '')) at.set(m.weaponId, d);
+  }
+  return at;
+}
+
+/** Вибір ствола для ярлика; один ствол — одразу далі, жодного — на «Арсенал». */
+function pickWeapon(title, next) {
+  const at = lastUse();
+  const guns = state.weapons.filter((w) => !w.archived)
+    .sort((a, b) => (at.get(b.id) ?? '').localeCompare(at.get(a.id) ?? '') || byName(a, b));
+  if (!guns.length) { goTab('#guns'); toast(t('Сначала добавьте оружие')); return; }
+  if (guns.length === 1) { next(guns[0]); return; }
+  const close = sheet(title, h('div', { class: 'rows' }, guns.map((w) => h('button', {
+    type: 'button', class: 'row', onclick: () => { close(); next(w); },
+  }, h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, w.name),
+    h('span', { class: 'muted small' }, [w.caliber, at.get(w.id) ? fmt.date(at.get(w.id)) : null].filter(Boolean).join(' · ')))))));
+}
+
+/** Вибір набою для ярлика «Купив»: що є на складі — зверху. */
+function pickCartridge(title, next) {
+  const ammo = state.cartridges.filter((c) => !c.archived)
+    .map((c) => ({ c, stock: M.cartridgeStock(state, c.id) }))
+    .sort((a, b) => b.stock - a.stock || byName(a.c, b.c));
+  if (!ammo.length) { goTab('#ammo'); toast(t('Сначала добавьте патрон')); return; }
+  if (ammo.length === 1) { next(ammo[0].c); return; }
+  const close = sheet(title, h('div', { class: 'rows' }, ammo.map(({ c, stock }) => h('button', {
+    type: 'button', class: 'row', onclick: () => { close(); next(c); },
+  }, h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, c.name), h('span', { class: 'muted small' }, c.caliber)),
+    h('span', { class: 'row-qty' }, fmt.num(stock))))));
+}
+
+// Ключ — ?go=… в адресі ярлика; набір ярликів задає manifest, тут — усі можливі дії
+const SHORTCUTS = {
+  shot: () => pickWeapon(t('Записать стрельбу'), (w) => shootSheet({ weapon: w })),
+  target: () => { goRange('targets'); newTarget({ weaponId: targetWeapon || null }); },
+  timer: () => goRange('timer'),
+  sim: () => goRange('sim'),
+  clean: () => pickWeapon(t('Почистил'), cleanSheet),
+  buy: () => pickCartridge(t('Купил патроны'), buySheet),
+  chrono: () => { goRange('chrono'); chronoForm(); },
+};
+
+/** Запуск з ярлика: дія з ?go=…, а сам параметр прибираємо — оновлення сторінки не повторить її. */
+function runShortcut() {
+  const go = new URLSearchParams(location.search).get('go');
+  if (!go) return;
+  history.replaceState(history.state, '', location.pathname + location.hash);
+  SHORTCUTS[go]?.();
 }
 
 /**
@@ -5833,6 +5912,8 @@ route();
   if (first()) setTimeout(() => remind(rest), 8500); else remind(rest);
 })([cleaningReminder, permitsReminder, backupReminder]);
 showNews();
+// Після «Що нового»: шторка з ярлика має бути зверху
+runShortcut();
 sync.onStatus(renderSyncChip);
 sync.preload();
 sync.syncNow();
