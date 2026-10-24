@@ -242,6 +242,18 @@ const MEAS = {
   carf: [['высота', 1.45, ['v', 0.68, 0, 1]], ['ширина', 1.8, ['h', 0.62, -0.62, 0.62]]],
 };
 
+// Іконки кнопок «чим міряти»: силует із заливкою, відрізок, яким міряємо, — стрілкою зі скобами
+const FIG = '<circle cx="10" cy="5" r="2.3" fill="currentColor" stroke="none"/><path d="M6.6 21v-8.5q0-3.2 3.4-3.2t3.4 3.2V21z" fill="currentColor" stroke="none" opacity=".35"/>';
+const MEAS_ICON = {
+  рост: `${FIG}<path d="M19 2.5v19M17 2.5h4M17 21.5h4"/>`,
+  голова: '<circle cx="10" cy="8" r="4.2" fill="currentColor" stroke="none"/><path d="M3 22q0-7 7-7t7 7z" fill="currentColor" stroke="none" opacity=".35"/><path d="M20 3.8v8.4M18 3.8h4M18 12.2h4"/>',
+  плечи: '<circle cx="12" cy="6" r="3.3" fill="currentColor" stroke="none" opacity=".35"/><path d="M3 20q0-8.5 9-8.5t9 8.5z" fill="currentColor" stroke="none" opacity=".35"/><path d="M3 15.5h18M3 13.5v4M21 13.5v4"/>',
+  высота: '<path d="M12 3v18M9 3h6M9 21h6M9.5 6.5 12 3l2.5 3.5M9.5 17.5 12 21l2.5-3.5"/>',
+  ширина: '<path d="M3 12h18M3 9v6M21 9v6M6.5 9.5 3 12l3.5 2.5M17.5 9.5 21 12l-3.5 2.5"/>',
+  диаметр: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
+};
+MEAS_ICON['длина'] = MEAS_ICON['ширина'];
+
 /** Найдальша точка зони ураження від її центру, в одиницях цілі. */
 const kzReach = (key) => {
   const kz = KZ[key];
@@ -716,7 +728,10 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     measBox.hidden = !ranging || !MS.length;
     measBox.replaceChildren(...MS.map(([name, size], i) => {
       const b = document.createElement('button');
-      b.type = 'button'; b.textContent = `${t(name)} ${mFmt(size)} ${t('м')}`;
+      const label = `${t(name)} ${mFmt(size)} ${t('м')}`;
+      b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
+      b.innerHTML = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MEAS_ICON[name] ?? MEAS_ICON['высота']}</svg>`;
+      b.append(Object.assign(document.createElement('span'), { textContent: `${mFmt(size)} ${t('м')}` }));
       b.setAttribute('aria-pressed', String(st.meas === i + 1));
       b.addEventListener('click', () => { st.meas = i + 1; draw(); });
       return b;
@@ -940,6 +955,33 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     return box;
   };
 
+  // Серія кружечками: сірий — ще попереду, зелений — влучив / в межах 10 %, червоний — помилився, обведений — поточна ціль
+  const quizHead = (q) => {
+    const n = quiz.errs.length + (q.answer ? 0 : 1);
+    const ok = (i) => (quiz.kind === 'hold' ? quiz.hits[i] === 'zone' : quiz.errs[i] <= 10);
+    const dots = el('span', { className: 'quiz-dots' });
+    for (let i = 0; i < SERIES; i++) {
+      dots.append(el('i', { className: i < quiz.errs.length ? (ok(i) ? 'good' : 'bad') : i === n - 1 ? 'cur' : '' }));
+    }
+    const head = el('div', { className: 'quiz-n quiz-head' });
+    head.append(dots, el('span', {}, t('Цель {n} из {total} · кратность {m}×', { n, total: SERIES, m: fm(q.mag) })));
+    return head;
+  };
+
+  // Кнопка з іконкою: «Далі», «Покажи, як треба»
+  const BTN_ICON = {
+    next: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+    again: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4v4h-4"/>',
+    show: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    mine: '<circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+  };
+  const iconBtn = (cls, icon, text) => {
+    const b = el('button', { type: 'button', className: `${cls} quiz-ibtn` });
+    b.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${BTN_ICON[icon]}</svg>`;
+    b.append(text);
+    return b;
+  };
+
   const drawHold = () => {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const q = quiz.cur; const moa = C.u === 'MOA';
     // Сітка нерухома; ціль ставиш на мітку виносу. q.pending/q.answer — зсув центру від цілі, тож ціль стоїть у −p
@@ -950,7 +992,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     svg.style.touchAction = q.answer ? '' : 'none';
     paintRetReset(false);
     qBox.replaceChildren();
-    qBox.append(el('p', { className: 'quiz-n' }, t('Цель {n} из {total} · кратность {m}×', { n: quiz.errs.length + (q.answer ? 0 : 1), total: SERIES, m: fm(q.mag) })));
+    qBox.append(quizHead(q));
     const facts = [t(TGT[q.tgt].short), t('Дистанция {d} м', { d: q.dist }),
       q.wind ? t('ветер {w} м/с на {h} ч', { w: fm(q.wind), h: q.hour }) : null,
       q.vt ? t('цель идёт {v} м/с {dir}', { v: fm(q.vt), dir: q.goRight ? t('вправо') : t('влево') }) : null].filter(Boolean).join(' · ');
@@ -995,12 +1037,14 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         const r = finishSeries();
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: SERIES, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })));
       }
-      const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
+      const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ещё серия') : t('Дальше'));
       next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
-      qBox.append(next, res);
-      const show = el('button', { type: 'button', className: 'quiz-show' }, q.show ? t('Мой ответ') : t('Покажи, как надо'));
+      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Мой ответ') : t('Покажи, как надо'));
       show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
-      qBox.append(show);
+      // «Далі» й «Покажи, як треба» — в одному рядку над розбором
+      const row = el('div', { className: 'quiz-row quiz-acts' });
+      row.append(next, show);
+      qBox.append(row, res);
     }
     const stop = el('button', { type: 'button', className: 'quiz-stop' }, t('Выйти из упражнения'));
     stop.addEventListener('click', () => { const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
@@ -1031,7 +1075,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const q = quiz.cur; const T = TGT[q.tgt];
     rangeScope();
     qBox.replaceChildren();
-    qBox.append(el('p', { className: 'quiz-n' }, t('Цель {n} из {total} · кратность {m}×', { n: quiz.errs.length + (q.answer ? 0 : 1), total: SERIES, m: fm(q.mag) })));
+    qBox.append(quizHead(q));
     qBox.append(el('p', {}, quiz.level === 'easy' || quiz.level === 'pick' ? t(T.label) : t('Сколько до цели? Размер вспомни сам.')));
     const take = (a) => { q.answer = a; quiz.errs.push(Math.abs(a - q.dist) / q.dist * 100); quiz.shots.push([q.dist, q.tgt]); drawQuiz(); reveal(); };
     if (!q.answer && quiz.level === 'pick') {
@@ -1089,7 +1133,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         const r = finishSeries();
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: SERIES })));
       }
-      const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
+      const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ещё серия') : t('Дальше'));
       next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
       qBox.append(next, res);
     }
