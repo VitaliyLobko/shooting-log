@@ -242,6 +242,20 @@ const MEAS = {
   carf: [['высота', 1.45, ['v', 0.68, 0, 1]], ['ширина', 1.8, ['h', 0.62, -0.62, 0.62]]],
 };
 
+// Іконки кнопок «чим міряти»: яскраво — саме та частина силуету, яку міряємо, решта — блідо
+const ON = 'fill="currentColor" stroke="none"';
+const OFF = 'fill="currentColor" stroke="none" opacity=".25"';
+const BUST = (head, body) => `<circle cx="12" cy="7" r="4" ${head}/><path d="M3 23q0-8 9-8t9 8z" ${body}/>`;
+const MEAS_ICON = {
+  рост: `<circle cx="12" cy="3.4" r="2.3" ${ON}/><path d="M8.6 7.2h6.8q1.6 0 1.6 1.6v6.4h-2.1V22h-2.5v-6.6h-.8V22H9.1v-6.8H7V8.8q0-1.6 1.6-1.6z" ${ON}/>`,
+  голова: BUST(ON, OFF),
+  плечи: `${BUST(OFF, OFF)}<path d="M3.3 19.6Q4.6 15 12 15t8.7 4.6z" ${ON}/>`,
+  высота: '<path d="M12 3v18M9 3h6M9 21h6M9.5 6.5 12 3l2.5 3.5M9.5 17.5 12 21l2.5-3.5"/>',
+  ширина: '<path d="M3 12h18M3 9v6M21 9v6M6.5 9.5 3 12l3.5 2.5M17.5 9.5 21 12l-3.5 2.5"/>',
+  диаметр: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
+};
+MEAS_ICON['длина'] = MEAS_ICON['ширина'];
+
 /** Найдальша точка зони ураження від її центру, в одиницях цілі. */
 const kzReach = (key) => {
   const kz = KZ[key];
@@ -605,10 +619,11 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   if (!svg) return;
   // ret — зсув прицілу в далекомірі (ціль іде назустріч); не зберігаємо: нова ціль чи приціл починають з цілі на місці
   const st = { mode: 'aim', tgt: 'man', zoom: 1, ret: [0, 0], meas: 1 };
-  // Далекомір: чим міряти — кнопками під налаштуваннями (ріст, голова, плечі, довжина); вибране підсвічене скобою на цілі
+  // Далекомір: чим міряти (ріст, голова, плечі, довжина) — у рядку інструментів замість вітру, руху й гвинтівки;
+  // вибране підсвічене скобою на цілі
   const measBox = document.createElement('div');
-  measBox.className = 'seg sim-meas'; measBox.hidden = true;
-  $('sim-out').before(measBox);
+  measBox.className = 'sim-meas'; measBox.hidden = true;
+  root.querySelector('.sim-tools').append(measBox);
   // Кнопка під лупою — з'являється, коли приціл у далекомірі зсунули
   const retReset = Object.assign(document.createElement('button'), { type: 'button', className: 'sim-zoom sim-ret', textContent: '⟲', hidden: true });
   retReset.setAttribute('aria-label', t('Вернуть цель на место'));
@@ -699,14 +714,15 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     const hold = holdAt(tb.H, d) - (z === 200 && !L.my ? at(tb.H, 200) : 0);
     const wm = ranging || (L.my && !L.windy) ? 0 : at(tb.W, d) * w * share; const k = kOf(C, m); const T = TGT[st.tgt];
     // Упередження: швидкість × час польоту ÷ дистанція; ціль іде праворуч — центр праворуч від неї (мітка ліворуч від центру)
-    // У далекомірі вітер і рух ні на що не впливають — вимикаємо їх, щоб не вводили в оману
-    for (const key of ['sim-wind', 'sim-move']) {
+    // У далекомірі вітер, рух і гвинтівка не потрібні — на їхньому місці кнопки «чим міряти»
+    for (const key of ['sim-wind', 'sim-move', 'sim-gun']) {
       const tool = root.querySelector(`.sim-tool[data-panel="${key}"]`);
       if (!tool) continue;
       // Своя таблиця: руху без часу польоту не порахувати, вітру — без колонки вітру
-      const off = ranging || (L.my && (key === 'sim-move' || !L.windy));
+      const off = key !== 'sim-gun' && L.my && (key === 'sim-move' || !L.windy);
+      tool.hidden = ranging;
       tool.disabled = off;
-      if (off) { tool.setAttribute('aria-expanded', 'false'); $(key).hidden = true; }
+      if (off || ranging) { tool.setAttribute('aria-expanded', 'false'); $(key).hidden = true; }
     }
     const vt = ranging || L.my ? 0 : +$('s-mv').value || 0; const goRight = $('s-mvdir').value === 'R'; const tof = tb.T ? at(tb.T, d) : 0;
     const lead = (vt * tof / d) * (moa ? 3437.75 : 1000);
@@ -716,7 +732,10 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     measBox.hidden = !ranging || !MS.length;
     measBox.replaceChildren(...MS.map(([name, size], i) => {
       const b = document.createElement('button');
-      b.type = 'button'; b.textContent = `${t(name)} ${mFmt(size)} ${t('м')}`;
+      const label = `${t(name)} ${mFmt(size)} ${t('м')}`;
+      b.type = 'button'; b.title = label; b.setAttribute('aria-label', label);
+      b.innerHTML = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MEAS_ICON[name] ?? MEAS_ICON['высота']}</svg>`;
+      b.append(Object.assign(document.createElement('span'), { textContent: `${mFmt(size)} ${t('м')}` }));
       b.setAttribute('aria-pressed', String(st.meas === i + 1));
       b.addEventListener('click', () => { st.meas = i + 1; draw(); });
       return b;
@@ -834,19 +853,69 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       ['normal', 'Нормально', 'выбранная цель · размер помнишь сам'],
       ['varied', 'Трудно', 'разные цели · размер помнишь сам'],
       ['hard', 'Очень трудно', 'разные цели · и кратность не та, и за бруствером'],
+      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · размер помнишь сам'],
     ],
     hold: [
       ['easy', 'Легко', 'выбранная цель · только дистанция'],
       ['normal', 'Нормально', 'выбранная цель · и ветер'],
       ['hard', 'Трудно', 'выбранная цель · ветер и движение'],
       ['varied', 'Очень трудно', 'разные цели · ветер и движение'],
+      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
+      ['timed', 'На время', 'разные цели · ветер и движение · 15 с на цель'],
+    ],
+    combo: [
+      ['normal', 'Нормально', 'выбранная цель · и ветер'],
+      ['varied', 'Трудно', 'разные цели · ветер и движение'],
+      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
+      ['timed', 'На время', 'разные цели · ветер и движение · 25 с на цель'],
+    ],
+    wind: [
+      ['easy', 'Легко', 'две приметы на местности'],
+      ['normal', 'Нормально', 'одна примета, бывает и мираж'],
+      ['timed', 'На время', 'одна примета · 8 с на ответ'],
     ],
   };
+  LEVELS.range.push(['timed', 'На время', 'разные цели · размер помнишь сам · 10 с на ответ']);
+  // Значок рівня: сходинки — «сигнал мережі» на 5 поділок за назвою (у вправах різні ключі, назви ті самі);
+  // режими — свій значок: «Своя дистанція» — як на кнопці «дист.», «На час» — секундомір
+  const LEVEL_BARS = { 'Совсем легко': 1, 'Легко': 2, 'Нормально': 3, 'Трудно': 4, 'Очень трудно': 5 };
+  const MODE_ICON = {
+    near: '<path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/>',
+    timed: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M12 2.5V6M18.5 6.5l1.5-1.5"/>',
+  };
+  // Скільки часу на ціль на рівні «На час»: не встиг — промах
+  const TIME = { range: 10000, hold: 15000, combo: 25000, wind: 8000 };
   // Різні цілі — лише на верхніх сходинках; нижче — та, що вибрана в «Ціль»
-  const variedTargets = () => quiz.level === 'varied' || (quiz.kind === 'range' && quiz.level === 'hard');
+  const variedTargets = () => ['varied', 'timed'].includes(quiz.level) || (quiz.kind === 'range' && quiz.level === 'hard');
   const randomTarget = () => { const keys = Object.keys(TGT); return keys[Math.floor(Math.random() * keys.length)]; };
   const LEVEL_KEY = (kind) => `shooters-log:sim-level-${kind}`;
-  const KINDS = [['range', 'Определи дальность'], ['hold', 'Вынос']];
+  const KINDS = [['range', 'Определи дальность'], ['hold', 'Вынос'], ['combo', 'Дальность + вынос'], ['wind', 'Определи ветер']];
+  // Що зараз на прицілі: у «Дальність + винос» спершу дальність, потім винос
+  const phase = () => quiz.cur.phase ?? quiz.kind;
+  // Ціль серії зарахована: дальність — у межах 10 %, вітер — точно, винос — у зону ураження
+  const okAt = (i) => (quiz.kind === 'range' ? quiz.errs[i] <= 10 : quiz.kind === 'wind' ? quiz.errs[i] === 0 : quiz.hits[i] === 'zone');
+  // center — дистанція «дист.» на старті серії: на рівні «Своя дистанція» цілі лише в межах ±100 м від неї
+  const newQuiz = (kind, level, queue = null, center = +$('s-dist').value) => ({ kind, level, center, errs: [], hits: [], shots: [], done: [], queue, total: queue?.length ?? SERIES });
+  const NEAR = 100;
+  // Межі дистанцій вправи, звужені до «дист.» ± 100 м на рівні «Своя дистанція»; крок — щоб межі лягли на сітку дистанцій
+  const nearBounds = (d0, d1, step) => {
+    if (quiz.level !== 'near') return [d0, d1];
+    const lo = Math.min(d1, Math.max(d0, Math.ceil((quiz.center - NEAR - d0) / step) * step + d0));
+    return [lo, Math.max(lo, Math.min(d1, lo + Math.floor((quiz.center + NEAR - lo) / step) * step))];
+  };
+  // Повтор цілі з помилкою — та сама умова, без відповіді й таймера
+  const replay = ({ answer, pending, show, band, opts, ret, guess, guessErr, deadline, timeout, ...q }) => ({ ...q, ...(q.kind === 'combo' ? { phase: 'range' } : {}) });
+  // Відгук на відповідь: коротка вібрація — лише коли помилився
+  const buzz = (ok) => { if (!ok) navigator.vibrate?.(40); };
+  // Ознаки сили вітру — як у таблиці розділу «Вітер»; міраж — з пояснень під нею
+  const WIND_Q = [
+    ['0–1', ['дым поднимается почти вертикально', 'листья не шевелятся'], 'мираж «кипит» вертикально'],
+    ['1–2', ['ветер чувствуется лицом', 'дым заметно наклоняется', 'листья шевелятся'], 'мираж медленно плывёт наискось'],
+    ['2–4', ['листья и тонкие ветки в постоянном движении', 'лёгкий флаг развевается'], 'мираж течёт ровно, горизонтально'],
+    ['4–6', ['поднимает пыль и бумагу', 'двигаются небольшие ветки', 'трава ложится волнами'], 'мираж бежит быстро, плоскими полосами'],
+    ['6–8', ['раскачиваются небольшие деревья', 'ветер мешает держать изготовку стоя'], null],
+  ];
+  const DIST_BANDS = [[0, 300, 'до 300 м'], [301, 500, '300–500 м'], [501, 1e4, 'дальше 500 м']];
   // Історія серій — лише на цьому пристрої (localStorage). ponytail: перенести в базу, якщо захочеться бачити й на іншому
   const HIST = 'shooters-log:sim-history';
   const history = () => { try { return JSON.parse(localStorage.getItem(HIST)) ?? []; } catch { return []; } };
@@ -878,13 +947,13 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     const kit = $('s-kit').value; const L = LOADS[kit]; const C = RET[L.ret]; const moa = C.u === 'MOA';
     const mv = L.def; const z = +$('s-zero').value;
     const tb = atmTab(kit, mv, airRatio(+$('s-temp').value, +$('s-alt').value));
-    const [d0, d1] = L.my ? [L.dmin, L.dmax] : [100, 600];
+    const [d0, d1] = nearBounds(...(L.my ? [L.dmin, L.dmax] : [100, 600]), 25);
     const dist = d0 + 25 * Math.floor(Math.random() * ((d1 - d0) / 25 + 1));
     const wind = quiz.level === 'easy' || (L.my && !L.windy) ? 0 : Math.round(Math.random() * 12) / 2;
     const hour = 1 + Math.floor(Math.random() * 12);
     // Ціль — вибрана в тренажері, на «дуже важко» — щоразу інша; рухаються боком лише людина й легковик
     const tgt = variedTargets() ? randomTarget() : st.tgt;
-    const vt = ['hard', 'varied'].includes(quiz.level) && !L.my && ['man', 'car'].includes(tgt) ? [0, 1.4, 3.5][Math.floor(Math.random() * 3)] : 0;
+    const vt = ['hard', 'varied', 'timed'].includes(quiz.level) && !L.my && ['man', 'car'].includes(tgt) ? [0, 1.4, 3.5][Math.floor(Math.random() * 3)] : 0;
     const goRight = Math.random() < 0.5;
     const hy = holdAt(tb.H, dist) - (z === 200 && !L.my ? at(tb.H, 200) : 0);
     const wm = at(tb.W, dist) * wind * Math.abs(Math.sin((hour * Math.PI) / 6));
@@ -893,16 +962,36 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     return { kind: 'hold', tgt, dist, wind, hour, vt, goRight, hx, hy, mag: C.cal };
   };
 
+  // «Визнач вітер»: сила — одна з п'яти сходинок таблиці; на легкому дві ознаки на місцевості, далі одна, буває міраж
+  const nextWind = () => {
+    const bucket = Math.floor(Math.random() * WIND_Q.length);
+    const [, land, mirage] = WIND_Q[bucket];
+    const pool = [...land].sort(() => Math.random() - 0.5);
+    const signs = quiz.level === 'easy' ? pool.slice(0, 2) : [[...pool, ...(mirage ? [mirage] : [])][Math.floor(Math.random() * (pool.length + (mirage ? 1 : 0)))]];
+    return { kind: 'wind', bucket, signs };
+  };
+
   const nextTarget = () => {
+    if (quiz.queue?.length) return replay(quiz.queue.shift());
     if (quiz.kind === 'hold') return nextHold();
+    if (quiz.kind === 'wind') return nextWind();
     const C = RET[LOADS[$('s-kit').value].ret];
+    // «Дальність + винос»: умова виносу, але ціль спершу треба виміряти — тож її має бути видно хоча б на поділку
+    if (quiz.kind === 'combo') {
+      for (;;) {
+        const q = nextHold();
+        const H = C.size(TGT[q.tgt].h, q.dist);
+        if (H >= 1 && H * Math.max(1, TGT[q.tgt].w) < C.R * 1.5) return { ...q, kind: 'combo', phase: 'range' };
+      }
+    }
     const mags = [];
     for (let m = C.min; m < C.cal; m += 0.5) mags.push(m);
     // Ціль має бути видно: не менше 1 поділки й не ширша за поле зору.
     // Вибрана ціль, що не влазить у жодну дистанцію (гонг на дрібній сітці), за 200 спроб поступається випадковій
     for (let tries = 0; ; tries++) {
       const tgt = variedTargets() || tries > 200 ? randomTarget() : st.tgt;
-      const dist = 100 + 10 * Math.floor(Math.random() * 71);
+      const [d0, d1] = nearBounds(100, 800, 10);
+      const dist = d0 + 10 * Math.floor(Math.random() * ((d1 - d0) / 10 + 1));
       const mag = quiz.level === 'hard' && Math.random() < 0.6 ? mags[Math.floor(Math.random() * mags.length)] : C.cal;
       const H = C.size(TGT[tgt].h, dist) * kOf(C, mag);
       // На «важко» людина буває за бруствером: видно лише голову й плечі
@@ -914,12 +1003,20 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   const finishSeries = () => {
     const kit = $('s-kit').value; const u = RET[LOADS[kit].ret].u;
     const avg = quiz.errs.reduce((s, x) => s + x, 0) / quiz.errs.length;
-    const hold = quiz.kind === 'hold';
-    const good = hold ? quiz.hits.filter((b) => b === 'zone').length : quiz.errs.filter((x) => x <= 10).length;
+    const hold = quiz.kind === 'hold' || quiz.kind === 'combo';
+    const good = quiz.errs.filter((_, i) => okAt(i)).length;
     const body = hold ? quiz.hits.filter((b) => b !== 'miss').length : null;
-    const sh = quiz.errs.map((e, i) => [quiz.shots[i]?.[0], Math.round(e * 100) / 100, quiz.shots[i]?.[1], ...(hold ? [quiz.hits[i]] : [])]);
-    remember({ at: Date.now(), kind: quiz.kind, level: quiz.level, kit, u, avg, good, ...(hold ? { body } : {}), n: quiz.errs.length, sh });
-    return { avg, good, body, u };
+    // Покроково: дальність і винос — [дистанція, помилка, ціль, (куди влучив), (помилка дальності, %)]; вітер — [сходинка, помилка]
+    const sh = quiz.kind === 'wind'
+      ? quiz.done.map((q, i) => [q.bucket, quiz.errs[i]])
+      : quiz.errs.map((e, i) => [quiz.shots[i]?.[0], Math.round(e * 100) / 100, quiz.shots[i]?.[1], ...(hold ? [quiz.hits[i]] : []),
+        ...(quiz.kind === 'combo' ? [quiz.done[i]?.guessErr ?? null] : [])]);
+    // Помилка дальності в «Дальність + винос» — окремо, середня по серії
+    const guesses = quiz.done.map((q) => q.guessErr).filter((x) => x != null);
+    const ra = guesses.length ? guesses.reduce((s, x) => s + x, 0) / guesses.length : null;
+    remember({ at: Date.now(), kind: quiz.kind, level: quiz.level, kit, u, avg, good, ...(hold ? { body } : {}), ...(ra != null ? { ra } : {}),
+      ...(quiz.queue ? { rep: true } : {}), n: quiz.errs.length, sh });
+    return { avg, good, body, u, ra };
   };
 
   // Легенда результату «куди тримати» — значками, як вони намальовані на сітці
@@ -940,18 +1037,107 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     return box;
   };
 
+  // Серія кружечками: сірий — ще попереду, зелений — влучив / в межах 10 %, червоний — помилився, обведений — поточна ціль
+  const answered = (q) => q.answer != null || !!q.timeout;
+  // Таймер рівня «На час»: один на всю вправу, перезапускається з кожним малюванням (а воно й на кожен рух пальцем)
+  let tick = null;
+  const clearTick = () => { clearInterval(tick); tick = null; };
+  const quizHead = (q) => {
+    const n = quiz.errs.length + (answered(q) ? 0 : 1);
+    const dots = el('span', { className: 'quiz-dots' });
+    for (let i = 0; i < quiz.total; i++) {
+      dots.append(el('i', { className: i < quiz.errs.length ? (okAt(i) ? 'good' : 'bad') : i === n - 1 ? 'cur' : '' }));
+    }
+    const head = el('div', { className: 'quiz-n quiz-head' });
+    const step = q.phase ? ` · ${t(q.phase === 'range' ? 'шаг 1: дальность' : 'шаг 2: вынос')}` : '';
+    head.append(dots, el('span', {}, quiz.kind === 'wind'
+      ? t('Задание {n} из {total}', { n, total: quiz.total })
+      : `${t('Цель {n} из {total} · кратность {m}×', { n, total: quiz.total, m: fm(q.mag) })}${step}`));
+    if (quiz.level !== 'timed' || answered(q)) return head;
+    q.deadline ??= Date.now() + TIME[quiz.kind];
+    const bar = el('i');
+    const timer = el('span', { className: 'quiz-timer' });
+    timer.append(bar);
+    head.append(timer);
+    const left = () => Math.max(0, q.deadline - Date.now());
+    const paint = () => {
+      bar.style.width = `${(left() / TIME[quiz.kind]) * 100}%`;
+      timer.classList.toggle('low', left() < 3000);
+      // Не посеред малювання: timeUp сам перемальовує вправу
+      if (!left()) { clearTick(); setTimeout(() => timeUp(q)); }
+    };
+    paint();
+    if (!q.timeout) tick = setInterval(paint, 100);
+    return head;
+  };
+
+  // Відповідь зарахована: ціль у серію, вібрація — і новий малюнок
+  const scored = (q, ok) => {
+    clearTick();
+    quiz.done.push(q);
+    buzz(ok);
+    drawQuiz();
+    reveal();
+  };
+  // Час вийшов — промах: дальність і вітер не названо, постріл не зроблено
+  const timeUp = (q) => {
+    if (answered(q) || quiz?.cur !== q) return;
+    q.timeout = true;
+    if (quiz.kind === 'range') { quiz.errs.push(100); quiz.shots.push([q.dist, q.tgt]); scored(q, false); return; }
+    if (quiz.kind === 'wind') { quiz.errs.push(WIND_Q.length); scored(q, false); return; }
+    q.answer = [0, 0];
+    quiz.errs.push(Math.hypot(q.hx, q.hy)); quiz.shots.push([q.dist, q.tgt]); quiz.hits.push('miss'); q.band = 'miss';
+    if (q.phase) { q.guessErr = q.guess ? Math.abs(q.guess - q.dist) / q.dist * 100 : null; q.phase = 'hold'; }
+    scored(q, false);
+  };
+
+  // Після відповіді: «Далі» (у кінці серії — «Ще серія») і, якщо були помилки, «Повтори помилки»
+  const nextBtns = (done) => {
+    const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ещё серия') : t('Дальше'));
+    next.addEventListener('click', () => {
+      if (done) quiz = newQuiz(quiz.kind, quiz.level, null, quiz.center);
+      quiz.cur = nextTarget(); drawQuiz(); reveal();
+    });
+    if (!done) return [next];
+    const missed = quiz.done.filter((_, i) => !okAt(i));
+    if (!missed.length) return [next];
+    const again = iconBtn('quiz-show quiz-rep', 'repeat', t('Повтори ошибки ({n})', { n: missed.length }));
+    again.addEventListener('click', () => {
+      quiz = newQuiz(quiz.kind, quiz.level, missed.map(replay), quiz.center);
+      quiz.cur = nextTarget(); drawQuiz(); reveal();
+    });
+    return [next, again];
+  };
+
+  // Кнопка з іконкою: «Далі», «Як треба», «Вийти з вправи»
+  const BTN_ICON = {
+    next: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+    again: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4v4h-4"/>',
+    show: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    mine: '<circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+    exit: '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
+    repeat: '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
+  };
+  const iconBtn = (cls, icon, text) => {
+    const b = el('button', { type: 'button', className: `${cls} quiz-ibtn` });
+    b.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${BTN_ICON[icon]}</svg>`;
+    b.append(text);
+    return b;
+  };
+
   const drawHold = () => {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const q = quiz.cur; const moa = C.u === 'MOA';
     // Сітка нерухома; ціль ставиш на мітку виносу. q.pending/q.answer — зсув центру від цілі, тож ціль стоїть у −p
-    // «Покажи, як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
+    // «Як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
     const p = q.show ? [-q.hx, -q.hy] : q.answer ?? q.pending ?? [0, 0];
     scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, flip: q.vt > 0 && !q.goRight,
-      move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer ? [q.hx, q.hy] : null });
-    svg.style.touchAction = q.answer ? '' : 'none';
+      move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer && !q.timeout ? [q.hx, q.hy] : null });
+    svg.style.touchAction = answered(q) ? '' : 'none';
     paintRetReset(false);
     qBox.replaceChildren();
-    qBox.append(el('p', { className: 'quiz-n' }, t('Цель {n} из {total} · кратность {m}×', { n: quiz.errs.length + (q.answer ? 0 : 1), total: SERIES, m: fm(q.mag) })));
-    const facts = [t(TGT[q.tgt].short), t('Дистанция {d} м', { d: q.dist }),
+    qBox.append(quizHead(q));
+    // «Дальність + винос»: дистанція — та, яку назвав сам; справжню видно лише після пострілу
+    const facts = [t(TGT[q.tgt].short), q.phase ? t('Дистанция по твоей оценке {d} м', { d: q.guess ?? '?' }) : t('Дистанция {d} м', { d: q.dist }),
       q.wind ? t('ветер {w} м/с на {h} ч', { w: fm(q.wind), h: q.hour }) : null,
       q.vt ? t('цель идёт {v} м/с {dir}', { v: fm(q.vt), dir: q.goRight ? t('вправо') : t('влево') }) : null].filter(Boolean).join(' · ');
     // Числа умови — жирно й кольором, щоб дистанцію, вітер і швидкість видно було одразу (назву цілі не чіпаємо)
@@ -963,7 +1149,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       part.split(/(\d+(?:,\d+)?)/).forEach((x, i) => factsEl.append(i % 2 ? el('b', {}, x) : x));
     }
     qBox.append(factsEl);
-    if (!q.answer) {
+    if (!answered(q)) {
       const check = el('button', { type: 'button', className: 'quiz-go' }, t('Проверить'));
       check.disabled = !q.pending;
       check.addEventListener('click', () => {
@@ -973,8 +1159,8 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         // Влучання відносно точки прицілювання — там, де на сітці ✕ (сітка на калібрувальній кратності, k = 1)
         q.band = hitBand(q.tgt, q.answer[0] + q.hx, q.answer[1] + q.hy, C.size(TGT[q.tgt].h, q.dist), q.vt > 0 && !q.goRight);
         quiz.hits.push(q.band);
-        drawQuiz();
-        reveal();
+        if (q.phase) q.guessErr = Math.abs(q.guess - q.dist) / q.dist * 100;
+        scored(q, q.band === 'zone');
       });
       // «Перевірити» — над підказкою, щоб не гортати до неї
       qBox.append(check, el('p', {}, t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой 🔍. Потом «Проверить».')));
@@ -985,26 +1171,39 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       const [cls, said] = BAND[q.band ?? 'miss'];
       const res = el('div', { className: `quiz-res ${cls}` });
       const dir = (v, a, b) => (Math.abs(v) < 0.05 ? '' : `${v > 0 ? a : b} ${f(Math.abs(v), moa ? 1 : 2)}`);
-      res.append(el('b', {}, t(said)), el('span', {}, t('Ошибка {e} {u} — {cm} см на цели', { e: f(e, moa ? 1 : 2), u: C.u, cm: f(cm, 0) })),
+      res.append(el('b', {}, q.timeout ? t('Не успел — выстрела не было') : t(said)));
+      if (q.phase) {
+        res.append(el('span', { className: q.guessErr > 10 ? 'w' : '' }, q.guess
+          ? t('На самом деле {d} м, ты оценил {g} м — ошибка {p} %', { d: q.dist, g: q.guess, p: f(q.guessErr, 0) })
+          : t('На самом деле {d} м', { d: q.dist })));
+      }
+      res.append(el('span', {}, t('Ошибка {e} {u} — {cm} см на цели', { e: f(e, moa ? 1 : 2), u: C.u, cm: f(cm, 0) })),
         el('span', {}, t('Надо вынести: {y} {x} {u}', { y: dir(q.hy, '↑', '↓') || '0', x: dir(q.hx, '←', '→'), u: C.u })),
         el('span', {}, t('Ты вынес: {y} {x}', { y: dir(ay, '↓', '↑') || '0', x: dir(ax, '→', '←') })),
         legend());
       // «Далі» — над розбором, щоб не гортати до неї після кожної цілі
-      const done = quiz.errs.length >= SERIES;
+      const done = quiz.errs.length >= quiz.total;
       if (done) {
-        const r = finishSeries();
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: SERIES, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })));
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
+        const r = (quiz.result ??= finishSeries());
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: quiz.total, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })
+          + (r.ra != null ? ` · ${t('ошибка дальности {p} %', { p: f(r.ra, 0) })}` : '')));
       }
-      const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
-      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
-      qBox.append(next, res);
-      const show = el('button', { type: 'button', className: 'quiz-show' }, q.show ? t('Мой ответ') : t('Покажи, как надо'));
+      const [next, again] = nextBtns(done);
+      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Мой ответ') : t('Как надо'));
       show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
-      qBox.append(show);
+      // «Далі» й «Як треба» — в одному рядку над розбором; «Повтори помилки» — під ними
+      const row = el('div', { className: 'quiz-row quiz-acts' });
+      row.append(next, show);
+      qBox.append(row, ...(again ? [again] : []), res);
     }
-    const stop = el('button', { type: 'button', className: 'quiz-stop' }, t('Выйти из упражнения'));
-    stop.addEventListener('click', () => { const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
-    qBox.append(stop);
+    qBox.append(stopBtn());
+  };
+
+  const stopBtn = () => {
+    const stop = iconBtn('quiz-stop', 'exit', t('Выйти из упражнения'));
+    stop.addEventListener('click', () => { clearTick(); const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
+    return stop;
   };
 
   // Тап по сітці у вправі «куди тримати» — відповідь; координати сітки з урахуванням лупи
@@ -1027,14 +1226,24 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   };
 
   const drawQuiz = () => {
-    if (quiz.kind === 'hold') { drawHold(); return; }
+    clearTick();
+    if (quiz.kind === 'wind') { drawWind(); return; }
+    if (phase() === 'hold') { drawHold(); return; }
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const q = quiz.cur; const T = TGT[q.tgt];
     rangeScope();
     qBox.replaceChildren();
-    qBox.append(el('p', { className: 'quiz-n' }, t('Цель {n} из {total} · кратность {m}×', { n: quiz.errs.length + (q.answer ? 0 : 1), total: SERIES, m: fm(q.mag) })));
-    qBox.append(el('p', {}, quiz.level === 'easy' || quiz.level === 'pick' ? t(T.label) : t('Сколько до цели? Размер вспомни сам.')));
-    const take = (a) => { q.answer = a; quiz.errs.push(Math.abs(a - q.dist) / q.dist * 100); quiz.shots.push([q.dist, q.tgt]); drawQuiz(); reveal(); };
-    if (!q.answer && quiz.level === 'pick') {
+    qBox.append(quizHead(q));
+    qBox.append(el('p', {}, q.phase ? t('Сколько до цели? Потом вынос — по твоей оценке, настоящую дальность покажу после выстрела.')
+      : quiz.level === 'easy' || quiz.level === 'pick' ? t(T.label) : t('Сколько до цели? Размер вспомни сам.')));
+    const take = (a) => {
+      // «Дальність + винос»: оцінку не розбираємо — з нею йдемо на винос
+      if (q.phase) { q.guess = a; q.phase = 'hold'; drawQuiz(); reveal(); return; }
+      q.answer = a;
+      const e = Math.abs(a - q.dist) / q.dist * 100;
+      quiz.errs.push(e); quiz.shots.push([q.dist, q.tgt]);
+      scored(q, e <= 10);
+    };
+    if (!answered(q) && quiz.level === 'pick') {
       // Хибні варіанти — правдоподібні: ±15–40 % від правильної, кратні 10 м
       if (!q.opts) {
         const set = new Set([q.dist]);
@@ -1052,7 +1261,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
         row.append(b);
       }
       qBox.append(row);
-    } else if (!q.answer) {
+    } else if (!answered(q)) {
       const input = el('input', { type: 'number', inputMode: 'numeric', min: 1, step: 1, placeholder: t('Твой ответ, м') });
       const check = el('button', { type: 'button', className: 'quiz-go' }, t('Проверить'));
       const submit = () => {
@@ -1067,11 +1276,11 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       qBox.append(row);
       input.focus({ preventScroll: true });
     } else {
-      const err = q.answer - q.dist; const pct = Math.abs(err) / q.dist * 100; const sz = C.size(T.h, q.dist); const k = kOf(C, q.mag);
+      const err = q.timeout ? 0 : q.answer - q.dist; const pct = q.timeout ? 100 : Math.abs(err) / q.dist * 100; const sz = C.size(T.h, q.dist); const k = kOf(C, q.mag);
       const formula = C.u === 'MOA' ? `${f(T.h * 100, 0)} см × 34,38 ÷ ${f(sz, 2)}` : `${f(T.h, 2)} × 1000 ÷ ${f(sz, 2)}`;
       const res = el('div', { className: `quiz-res ${pct <= 10 ? 'good' : pct <= 20 ? 'ok' : 'bad'}` });
-      res.append(el('b', {}, t('На самом деле {d} м', { d: q.dist })),
-        el('span', {}, t('твой ответ {a} м · ошибка {e} м ({p} %)', { a: q.answer, e: `${err > 0 ? '+' : ''}${err}`, p: f(pct, 0) })),
+      res.append(el('b', {}, q.timeout ? `${t('Не успел')} · ${t('На самом деле {d} м', { d: q.dist })}` : t('На самом деле {d} м', { d: q.dist })),
+        q.timeout ? '' : el('span', {}, t('твой ответ {a} м · ошибка {e} м ({p} %)', { a: q.answer, e: `${err > 0 ? '+' : ''}${err}`, p: f(pct, 0) })),
         T.skipH || q.hide ? '' : el('span', {}, `${t(T.label)}: ${f(sz, 2)} ${C.u} ${t('на {n}×', { n: C.cal })} → ${formula} = ${q.dist} ${t('м')}`));
       // Інші виміри — ними теж можна мірити (довжина техніки, плечі, голова за бруствером)
       for (const [name, size] of T.dims ?? []) {
@@ -1084,21 +1293,57 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       const span = (n) => `${Math.round(q.dist * base / (base + n * dlt))}–${Math.round(q.dist * base / Math.max(0.01, base - n * dlt))} ${t('м')}`;
       res.append(el('span', { className: 'quiz-sens' }, t('Ошибка чтения ±{a} {u} → {r1}; ±{b} {u} → {r2}', { a: f(dlt, 2), b: f(2 * dlt, 2), u: C.u, r1: span(1), r2: span(2) })));
       if (!C.ffp && q.mag < C.cal) res.append(el('span', { className: 'w' }, t('Кратность была {m}× — по сетке видно {v} {u}, это нужно умножить на {c}, или поставь {cal}×', { m: fm(q.mag), v: f(sz * k, 1), u: C.u, c: f(1 / k, 2), cal: C.cal })));
-      const done = quiz.errs.length >= SERIES;
+      const done = quiz.errs.length >= quiz.total;
       if (done) {
-        const r = finishSeries();
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: SERIES })));
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
+        const r = (quiz.result ??= finishSeries());
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: quiz.total })));
       }
-      const next = el('button', { type: 'button', className: 'quiz-go' }, done ? t('Ещё серия') : t('Дальше'));
-      next.addEventListener('click', () => { if (done) { quiz.errs = []; quiz.hits = []; } quiz.cur = nextTarget(); drawQuiz(); reveal(); });
-      qBox.append(next, res);
+      const row = el('div', { className: 'quiz-row quiz-acts' });
+      row.append(...nextBtns(done));
+      qBox.append(row, res);
     }
-    const stop = el('button', { type: 'button', className: 'quiz-stop' }, t('Выйти из упражнения'));
-    stop.addEventListener('click', () => { const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
-    qBox.append(stop);
+    qBox.append(stopBtn());
+  };
+
+  // «Визнач вітер»: ознаки словами — вибери силу з п'яти сходинок таблиці розділу «Вітер»
+  const drawWind = () => {
+    const q = quiz.cur;
+    svg.style.touchAction = '';
+    qBox.replaceChildren(quizHead(q));
+    const signs = el('ul', { className: 'quiz-signs' });
+    q.signs.forEach((x) => signs.append(el('li', {}, t(x))));
+    qBox.append(el('p', {}, t('Какая сила ветра, м/с?')), signs);
+    if (!answered(q)) {
+      const row = el('div', { className: 'seg quiz-opts quiz-opts5' });
+      WIND_Q.forEach(([label], i) => {
+        const b = el('button', { type: 'button' }, label);
+        b.addEventListener('click', () => { q.answer = i; const e = Math.abs(i - q.bucket); quiz.errs.push(e); scored(q, e === 0); });
+        row.append(b);
+      });
+      qBox.append(row);
+    } else {
+      const [label, land, mirage] = WIND_Q[q.bucket];
+      const e = q.timeout ? WIND_Q.length : Math.abs(q.answer - q.bucket);
+      const res = el('div', { className: `quiz-res ${e === 0 ? 'good' : e === 1 ? 'ok' : 'bad'}` });
+      res.append(el('b', {}, q.timeout ? `${t('Не успел')} · ${t('ветер {w} м/с', { w: label })}`
+        : e === 0 ? t('Верно: {w} м/с', { w: label }) : t('На самом деле {w} м/с, твой ответ {a} м/с', { w: label, a: WIND_Q[q.answer][0] })));
+      res.append(el('span', {}, `${t('Приметы {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
+      const done = quiz.errs.length >= quiz.total;
+      if (done) {
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
+        const r = (quiz.result ??= finishSeries());
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: верно {n} из {total}', { n: r.good, total: quiz.total })));
+      }
+      const row = el('div', { className: 'quiz-row quiz-acts' });
+      row.append(...nextBtns(done));
+      qBox.append(row, res);
+    }
+    qBox.append(stopBtn());
   };
 
   const renderStart = (kindNow = 'range') => {
+    clearTick();
     const kind = el('div', { className: 'seg quiz-kind' });
     KINDS.forEach(([v, label]) => {
       const b = el('button', { type: 'button' }, t(label));
@@ -1110,11 +1355,17 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     const levels = LEVELS[kindNow];
     let picked = levels.some(([v]) => v === localStorage.getItem(LEVEL_KEY(kindNow))) ? localStorage.getItem(LEVEL_KEY(kindNow)) : 'normal';
     const levelBody = (i) => {
-      const [, name, what] = levels[i];
-      const bars = el('span', { className: 'ql-bars' });
-      bars.setAttribute('aria-hidden', 'true');
-      bars.append(...levels.map((_, j) => el('i', { className: j <= i ? 'on' : '' })));
-      return [bars, el('b', {}, t(name)), el('small', {}, t(what))];
+      const [v, name, what] = levels[i];
+      let mark;
+      if (MODE_ICON[v]) {
+        mark = el('span', { className: 'ql-mode' });
+        mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${MODE_ICON[v]}</svg>`;
+      } else {
+        mark = el('span', { className: 'ql-bars' });
+        mark.append(...[1, 2, 3, 4, 5].map((j) => el('i', { className: j <= LEVEL_BARS[name] ? 'on' : '' })));
+      }
+      mark.setAttribute('aria-hidden', 'true');
+      return [mark, el('b', {}, t(name)), el('small', {}, t(what))];
     };
     const level = el('div', { className: 'quiz-levels' });
     const face = el('button', { type: 'button', className: 'quiz-level quiz-level-face' });
@@ -1144,25 +1395,33 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     open(false);
     const go = el('button', { type: 'button', className: 'quiz-go' }, t('Начать серию из {n}', { n: SERIES }));
     go.addEventListener('click', () => {
-      quiz = { kind: kindNow, level: picked, errs: [], hits: [], shots: [] };
+      quiz = newQuiz(kindNow, picked);
       quiz.cur = nextTarget();
       simBox.classList.add('quiz-on');
       drawQuiz();
       reveal();
     });
-    const about = kindNow === 'hold'
-      ? t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u: RET[LOADS[$('s-kit').value].ret].u })
-      : t('Цель на 100–800 м: прочитай её размер по сетке и назови дальность. Серия из {n} целей.', { n: SERIES });
-    // Прогрес: останні серії цієї вправи (менше — краще)
-    const past = history().filter((h) => h.kind === kindNow).slice(-12);
+    const u = RET[LOADS[$('s-kit').value].ret].u;
+    const about = {
+      hold: t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u }),
+      combo: t('Как в бою: сначала определи дальность по сетке, потом вынеси прицел по своей оценке. Ошибка в дальности сама превращается в промах — настоящую дальность покажу после выстрела.'),
+      wind: t('Приметы на местности и мираж — назови силу ветра. Шкала — как в таблице раздела «Ветер».'),
+    }[kindNow] ?? t('Цель на 100–800 м: прочитай её размер по сетке и назови дальность. Серия из {n} целей.', { n: SERIES });
+    // Прогрес: останні серії цієї вправи (менше — краще); повтори помилок не рахуємо — там лише важкі цілі
+    const own = history().filter((h) => h.kind === kindNow && !h.rep);
+    const past = own.slice(-12);
     const prog = el('div', { className: 'quiz-hist' });
     if (past.length) {
-      const fmt1 = (h) => (h.kind === 'hold' ? `${f(h.avg, h.u === 'MOA' ? 1 : 2)} ${h.u}` : `${f(h.avg, 0)} %`);
-      const best = past.reduce((a, b) => (b.avg < a.avg ? b : a));
+      const wind = kindNow === 'wind';
+      const fmt1 = (h) => (wind ? `${h.good}/${h.n}` : h.kind === 'range' ? `${f(h.avg, 0)} %` : `${f(h.avg, h.u === 'MOA' ? 1 : 2)} ${h.u}`);
+      const best = past.reduce((a, b) => (wind ? b.good / b.n > a.good / a.n : b.avg < a.avg) ? b : a);
       prog.append(el('span', {}, t('Последние серии: {list}', { list: past.slice(-5).map(fmt1).join(' → ') })));
       const sp = sparkline(past.map((h) => -h.avg));
       if (sp) prog.append(sp);
-      prog.append(el('small', {}, t('лучшая {b} · всего серий {n} · меньше — лучше', { b: fmt1(best), n: history().filter((h) => h.kind === kindNow).length })));
+      prog.append(el('small', {}, wind ? t('лучшая {b} · всего серий {n}', { b: fmt1(best), n: own.length })
+        : t('лучшая {b} · всего серий {n} · меньше — лучше', { b: fmt1(best), n: own.length })));
+      const weak = weakSpot(kindNow, own);
+      if (weak) prog.append(el('span', { className: 'quiz-weak' }, weak));
     }
     if (history().length) {
       const more = el('button', { type: 'button', className: 'quiz-stop' }, t('Статистика тренировок'));
@@ -1172,9 +1431,30 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     qBox.replaceChildren(kind, level, go, el('p', { className: 'quiz-n' }, about), prog);
   };
 
+  // Ціль зарахована за покроковим записом серії: дальність — у межах 10 %, вітер — точно, винос — у зону
+  const shotOk = (kind, s) => (kind === 'range' ? s[1] <= 10 : kind === 'wind' ? s[1] === 0 : s[3] === 'zone');
+  /**
+   * Слабке місце: дистанція, ціль чи сила вітру, де помиляєшся помітно частіше, ніж загалом.
+   * Лише коли там набралося хоча б 8 цілей і помилок у півтора раза більше (і хоча б на 15 пунктів).
+   */
+  const weakSpot = (kind, list) => {
+    const shots = list.flatMap((h) => h.sh ?? []).filter((s) => s[0] != null);
+    if (shots.length < 16) return null;
+    const miss = (xs) => xs.filter((s) => !shotOk(kind, s)).length / xs.length;
+    const all = miss(shots);
+    const groups = kind === 'wind'
+      ? WIND_Q.map(([label], i) => [t('ветер {w} м/с', { w: label }), shots.filter((s) => s[0] === i)])
+      : [...DIST_BANDS.map(([a, b, label]) => [t(label), shots.filter((s) => s[0] >= a && s[0] <= b)]),
+        ...Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])];
+    const worst = groups.filter(([, xs]) => xs.length >= 8).map(([what, xs]) => [what, miss(xs)])
+      .filter(([, m]) => m >= all * 1.5 && m - all >= 0.15).sort((a, b) => b[1] - a[1])[0];
+    if (!worst) return null;
+    const [what, m] = worst;
+    return t('Слабое место — {what}: верно {p} %, а в среднем {p0} %. Потренируй это отдельно.', { what, p: Math.round((1 - m) * 100), p0: Math.round((1 - all) * 100) });
+  };
+
   // Статистика тренувань: окремо від журналу справжніх стрільб, лише з цього пристрою
   const renderStats = (kindNow) => {
-    const all = history();
     const tabs = el('div', { className: 'seg quiz-kind' });
     KINDS.forEach(([v, label]) => {
       const b = el('button', { type: 'button' }, t(label));
@@ -1184,19 +1464,22 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     });
     const back = el('button', { type: 'button', className: 'quiz-stop' }, `← ${t('Назад к упражнению')}`);
     back.addEventListener('click', () => renderStart(kindNow));
-    const list = all.filter((h) => h.kind === kindNow);
-    const hold = kindNow === 'hold';
+    // Повтори помилок не рахуємо: там лише важкі цілі, вони занизили б загальну картину
+    const list = history().filter((h) => h.kind === kindNow && !h.rep);
+    const hold = kindNow === 'hold' || kindNow === 'combo';
+    const wind = kindNow === 'wind';
     const pct = (a, b) => (b ? `${Math.round((a / b) * 100)} %` : '—');
     const sum = (arr, k) => arr.reduce((s, h) => s + (h[k] ?? 0), 0);
+    const mean = (arr, k) => { const xs = arr.filter((h) => h[k] != null); return xs.length ? xs.reduce((s, h) => s + h[k], 0) / xs.length : null; };
     // Помилка серії: у «Визнач дальність» — % дистанції, у «Виносі» — в одиницях сітки (MRAD і MOA окремо)
     const errTxt = (arr) => {
-      if (!hold) return arr.length ? `${f(arr.reduce((s, h) => s + h.avg, 0) / arr.length, 0)} %` : '—';
+      if (!hold) return arr.length ? `${f(mean(arr, 'avg'), 0)} %` : '—';
       return [...new Set(arr.map((h) => h.u))].map((u) => {
         const xs = arr.filter((h) => h.u === u);
-        return `${f(xs.reduce((s, h) => s + h.avg, 0) / xs.length, u === 'MOA' ? 1 : 2)} ${u}`;
+        return `${f(mean(xs, 'avg'), u === 'MOA' ? 1 : 2)} ${u}`;
       }).join(' · ') || '—';
     };
-    // Головний показник: у «Винос» — у зону ураження, у «Визнач дальність» — у межах 10 %
+    // Головний показник: у «Винос» — у зону ураження, у «Визнач дальність» — у межах 10 %, у «Вітрі» — точно
     const hitTxt = (arr) => pct(sum(arr, 'good'), sum(arr, 'n'));
     const table = (title, head, rows) => {
       if (!rows.length) return null;
@@ -1215,24 +1498,33 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       const month = Date.now() - 30 * 864e5;
       const shots = list.flatMap((h) => h.sh ?? []);
       parts.push(el('p', { className: 'quiz-facts' }, t('Серий {s} · целей {n} · за 30 дней {m}', { s: list.length, n: sum(list, 'n'), m: list.filter((h) => h.at >= month).length })));
-      const head = hold ? [t('В зону'), t('В цель'), t('Ошибка')] : [t('В пределах 10 %'), t('Ошибка')];
-      const row = (arr) => (hold ? [hitTxt(arr), pct(sum(arr, 'body'), sum(arr, 'n')), errTxt(arr)] : [hitTxt(arr), errTxt(arr)]);
+      const weak = weakSpot(kindNow, list);
+      if (weak) parts.push(el('p', { className: 'quiz-weak' }, weak));
+      const raTxt = (arr) => { const v = mean(arr, 'ra'); return v == null ? '—' : `${f(v, 0)} %`; };
+      const combo = kindNow === 'combo';
+      const head = wind ? [t('Верно')] : hold ? [t('В зону'), t('В цель'), t('Ошибка'), ...(combo ? [t('Дальность')] : [])] : [t('В пределах 10 %'), t('Ошибка')];
+      const row = (arr) => (wind ? [hitTxt(arr)]
+        : hold ? [hitTxt(arr), pct(sum(arr, 'body'), sum(arr, 'n')), errTxt(arr), ...(combo ? [raTxt(arr)] : [])] : [hitTxt(arr), errTxt(arr)]);
       parts.push(table(t('Всего'), ['', ...head], [[t('все серии'), ...row(list)], ...(list.length > 10 ? [[t('последние 10'), ...row(list.slice(-10))]] : [])]));
       const sp = sparkline(list.slice(-30).map((h) => -h.avg));
       if (sp) { const w = el('div', { className: 'quiz-hist' }); w.append(el('small', {}, t('Ошибка по сериям, выше — лучше')), sp); parts.push(w); }
       parts.push(table(t('По сложности'), ['', t('Серий'), ...head],
         LEVELS[kindNow].map(([v, name]) => [t(name), list.filter((h) => h.level === v)]).filter(([, a]) => a.length).map(([l, a]) => [l, a.length, ...row(a)])));
-      // За дистанцією й ціллю — з покрокових записів (є в серіях, зіграних після оновлення)
-      const shotRow = (xs) => (hold
-        ? [xs.length, pct(xs.filter((s) => s[3] === 'zone').length, xs.length), pct(xs.filter((s) => s[3] && s[3] !== 'miss').length, xs.length)]
-        : [xs.length, pct(xs.filter((s) => s[1] <= 10).length, xs.length), `${f(xs.reduce((a, s) => a + s[1], 0) / xs.length, 0)} %`]);
-      const shotHead = hold ? [t('Целей'), t('В зону'), t('В цель')] : [t('Целей'), t('В пределах 10 %'), t('Ошибка')];
-      const BANDS = [[0, 300, t('до 300 м')], [301, 500, t('300–500 м')], [501, 1e4, t('дальше 500 м')]];
-      parts.push(table(t('По дистанции'), ['', ...shotHead], BANDS.map(([a, b, l]) => [l, shots.filter((s) => s[0] >= a && s[0] <= b)])
-        .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
-      parts.push(table(t('По цели'), ['', ...shotHead], Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])
-        .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
-      if (!shots.length) parts.push(el('p', { className: 'quiz-n' }, t('Разбивка по дистанции и цели появится после новых серий.')));
+      if (wind) {
+        parts.push(table(t('По силе ветра'), ['', t('Заданий'), t('Верно')], WIND_Q.map(([label], i) => [`${label} ${t('м/с')}`, shots.filter((s) => s[0] === i)])
+          .filter(([, xs]) => xs.length).map(([l, xs]) => [l, xs.length, pct(xs.filter((s) => s[1] === 0).length, xs.length)])));
+      } else {
+        // За дистанцією й ціллю — з покрокових записів (є в серіях, зіграних після оновлення)
+        const shotRow = (xs) => (hold
+          ? [xs.length, pct(xs.filter((s) => s[3] === 'zone').length, xs.length), pct(xs.filter((s) => s[3] && s[3] !== 'miss').length, xs.length)]
+          : [xs.length, pct(xs.filter((s) => s[1] <= 10).length, xs.length), `${f(xs.reduce((a, s) => a + s[1], 0) / xs.length, 0)} %`]);
+        const shotHead = hold ? [t('Целей'), t('В зону'), t('В цель')] : [t('Целей'), t('В пределах 10 %'), t('Ошибка')];
+        parts.push(table(t('По дистанции'), ['', ...shotHead], DIST_BANDS.map(([a, b, l]) => [t(l), shots.filter((s) => s[0] >= a && s[0] <= b)])
+          .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
+        parts.push(table(t('По цели'), ['', ...shotHead], Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])
+          .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
+        if (!shots.length) parts.push(el('p', { className: 'quiz-n' }, t('Разбивка по дистанции и цели появится после новых серий.')));
+      }
     }
     parts.push(el('p', { className: 'quiz-n' }, t('Хранится только на этом устройстве.')), back);
     qBox.replaceChildren(...parts.filter(Boolean));
@@ -1241,7 +1533,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
 
   ['s-dist', 's-mag', 's-wind'].forEach((i) => $(i).addEventListener('input', draw));
   ['s-barrel', 's-zero', 's-wdir', 's-mv', 's-mvdir', 's-temp', 's-alt'].forEach((i) => $(i).addEventListener('change', draw));
-  $('s-kit').addEventListener('change', () => { setupKit(); st.ret = [0, 0]; if (quiz) quiz.cur = nextTarget(); draw(); });
+  $('s-kit').addEventListener('change', () => { setupKit(); st.ret = [0, 0]; if (quiz) { clearTick(); quiz.cur = nextTarget(); } draw(); });
   // «i» біля вибору прицілу — пояснення, як читати тренажер і з якими даними пораховано
   // Лупа на центр сітки: 1× → 2× → 4× → 6× → 1×
   const ZOOMS = [1, 2, 4, 6];
@@ -1258,7 +1550,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   // Свайп ліворуч/праворуч по прицілу — дистанція (крок 25 м), вгору/вниз — кратність; тап — лупа, а у вправі «куди тримати» — відповідь;
   // у далекомірі (і у вправі «Визнач дальність») палець веде приціл, як у «Виносі», щоб прикласти шкалу до цілі
   let drag = null; let swiped = false;
-  const ranging = () => (quiz ? quiz.kind === 'range' : st.mode === 'range');
+  const ranging = () => (quiz ? phase() === 'range' : st.mode === 'range');
   svg.addEventListener('pointerdown', (e) => {
     // Після свайпу на тачі click не приходить — інакше прапорець «з'їв» би наступний тап
     swiped = false;
@@ -1269,7 +1561,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       return;
     }
     // «Винос»: ведемо приціл — запам'ятати, звідки, і масштаб екран → одиниці сітки
-    if (quiz?.kind === 'hold' && !quiz.cur.answer) {
+    if (quiz && phase() === 'hold' && !answered(quiz.cur)) {
       drag.p0 = quiz.cur.pending ?? [0, 0]; drag.m = svg.getScreenCTM()?.inverse();
       drag.k = kOf(RET[LOADS[$('s-kit').value].ret], quiz.cur.mag);
       try { svg.setPointerCapture(e.pointerId); } catch { /* указівник уже відпущено — тягнемо без захоплення */ }
@@ -1315,7 +1607,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   svg.addEventListener('pointercancel', () => { drag = null; });
   svg.addEventListener('click', (e) => {
     if (swiped) { swiped = false; return; }
-    if (quiz?.kind === 'hold' && !quiz.cur.answer) { answerHold(e); return; }
+    if (quiz && phase() === 'hold' && !answered(quiz.cur)) { answerHold(e); return; }
     nextZoom();
   });
   // Вітер, рух, гвинтівка — іконками в рядок; тап відкриває свою панель під рядком (одна за раз)
