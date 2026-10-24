@@ -242,12 +242,14 @@ const MEAS = {
   carf: [['высота', 1.45, ['v', 0.68, 0, 1]], ['ширина', 1.8, ['h', 0.62, -0.62, 0.62]]],
 };
 
-// Іконки кнопок «чим міряти»: силует із заливкою, відрізок, яким міряємо, — стрілкою зі скобами
-const FIG = '<circle cx="10" cy="5" r="2.3" fill="currentColor" stroke="none"/><path d="M6.6 21v-8.5q0-3.2 3.4-3.2t3.4 3.2V21z" fill="currentColor" stroke="none" opacity=".35"/>';
+// Іконки кнопок «чим міряти»: яскраво — саме та частина силуету, яку міряємо, решта — блідо
+const ON = 'fill="currentColor" stroke="none"';
+const OFF = 'fill="currentColor" stroke="none" opacity=".25"';
+const BUST = (head, body) => `<circle cx="12" cy="7" r="4" ${head}/><path d="M3 23q0-8 9-8t9 8z" ${body}/>`;
 const MEAS_ICON = {
-  рост: `${FIG}<path d="M19 2.5v19M17 2.5h4M17 21.5h4"/>`,
-  голова: '<circle cx="10" cy="8" r="4.2" fill="currentColor" stroke="none"/><path d="M3 22q0-7 7-7t7 7z" fill="currentColor" stroke="none" opacity=".35"/><path d="M20 3.8v8.4M18 3.8h4M18 12.2h4"/>',
-  плечи: '<circle cx="12" cy="6" r="3.3" fill="currentColor" stroke="none" opacity=".35"/><path d="M3 20q0-8.5 9-8.5t9 8.5z" fill="currentColor" stroke="none" opacity=".35"/><path d="M3 15.5h18M3 13.5v4M21 13.5v4"/>',
+  рост: `<circle cx="12" cy="3.4" r="2.3" ${ON}/><path d="M8.6 7.2h6.8q1.6 0 1.6 1.6v6.4h-2.1V22h-2.5v-6.6h-.8V22H9.1v-6.8H7V8.8q0-1.6 1.6-1.6z" ${ON}/>`,
+  голова: BUST(ON, OFF),
+  плечи: `${BUST(OFF, OFF)}<path d="M3.3 19.6Q4.6 15 12 15t8.7 4.6z" ${ON}/>`,
   высота: '<path d="M12 3v18M9 3h6M9 21h6M9.5 6.5 12 3l2.5 3.5M9.5 17.5 12 21l2.5-3.5"/>',
   ширина: '<path d="M3 12h18M3 9v6M21 9v6M6.5 9.5 3 12l3.5 2.5M17.5 9.5 21 12l-3.5 2.5"/>',
   диаметр: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
@@ -1088,7 +1090,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
     return [next, again];
   };
 
-  // Кнопка з іконкою: «Далі», «Покажи, як треба», «Вийти з вправи»
+  // Кнопка з іконкою: «Далі», «Як треба», «Вийти з вправи»
   const BTN_ICON = {
     next: '<path d="M5 12h13M13 6l6 6-6 6"/>',
     again: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4v4h-4"/>',
@@ -1107,7 +1109,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
   const drawHold = () => {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const q = quiz.cur; const moa = C.u === 'MOA';
     // Сітка нерухома; ціль ставиш на мітку виносу. q.pending/q.answer — зсув центру від цілі, тож ціль стоїть у −p
-    // «Покажи, як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
+    // «Як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
     const p = q.show ? [-q.hx, -q.hy] : q.answer ?? q.pending ?? [0, 0];
     scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, flip: q.vt > 0 && !q.goRight,
       move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer && !q.timeout ? [q.hx, q.hy] : null });
@@ -1163,15 +1165,15 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       // «Далі» — над розбором, щоб не гортати до неї після кожної цілі
       const done = quiz.errs.length >= quiz.total;
       if (done) {
-        // Серія пишеться в історію один раз: «Покажи, як треба» перемальовує той самий кінець серії
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: quiz.total, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })
           + (r.ra != null ? ` · ${t('ошибка дальности {p} %', { p: f(r.ra, 0) })}` : '')));
       }
       const [next, again] = nextBtns(done);
-      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Мой ответ') : t('Покажи, как надо'));
+      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Мой ответ') : t('Как надо'));
       show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
-      // «Далі» й «Покажи, як треба» — в одному рядку над розбором; «Повтори помилки» — під ними
+      // «Далі» й «Як треба» — в одному рядку над розбором; «Повтори помилки» — під ними
       const row = el('div', { className: 'quiz-row quiz-acts' });
       row.append(next, show);
       qBox.append(row, ...(again ? [again] : []), res);
@@ -1274,7 +1276,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       if (!C.ffp && q.mag < C.cal) res.append(el('span', { className: 'w' }, t('Кратность была {m}× — по сетке видно {v} {u}, это нужно умножить на {c}, или поставь {cal}×', { m: fm(q.mag), v: f(sz * k, 1), u: C.u, c: f(1 / k, 2), cal: C.cal })));
       const done = quiz.errs.length >= quiz.total;
       if (done) {
-        // Серія пишеться в історію один раз: «Покажи, як треба» перемальовує той самий кінець серії
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: quiz.total })));
       }
@@ -1310,7 +1312,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads } = {}) {
       res.append(el('span', {}, `${t('Приметы {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
       const done = quiz.errs.length >= quiz.total;
       if (done) {
-        // Серія пишеться в історію один раз: «Покажи, як треба» перемальовує той самий кінець серії
+        // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
         qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: верно {n} из {total}', { n: r.good, total: quiz.total })));
       }

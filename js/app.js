@@ -5939,6 +5939,14 @@ if (window.visualViewport) {
   placeTabs();
 }
 window.addEventListener('sync-applied', refresh);
+// Марнотрат пише в цю ж базу (той самий сайт) — покупки патронів, тюнінг, екіпірування: показати й синхронізувати
+if ('BroadcastChannel' in window) {
+  new BroadcastChannel('shooting-log').addEventListener('message', async (e) => {
+    if (e.data?.type !== 'external-change') return;
+    await refresh();
+    window.dispatchEvent(new Event('db-change'));
+  });
+}
 window.addEventListener('unhandledrejection', (e) => {
   const err = e.reason;
   if (err?.name === 'AbortError') return;
