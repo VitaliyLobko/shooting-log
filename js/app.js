@@ -828,9 +828,11 @@ function buySheet(c) {
   const f = form([
     { name: 'qty', label: t('Количество, шт'), type: 'number', step: 1, min: 1, required: true },
     { name: 'price', label: t('Сумма покупки (необязательно)'), type: 'number', step: 'any' },
+    rateField('usdRate'),
     { name: 'date', label: t('Дата'), type: 'date', required: true, value: M.today() },
     { name: 'note', label: t('Где купил / примечание') },
-  ]);
+  ].filter(Boolean));
+  rateHint(f, 'usdRate', 'date');
   // Чипи — типові пачки: коробка 20 / 50, пачка 100 / 200, цинк 500.
   const qtyRow = qtyChips(f.inputs.qty, [20, 50, 100, 200, 500]);
   qtyRow.classList.add('chips-sm');
@@ -839,15 +841,16 @@ function buySheet(c) {
   const showEach = () => {
     const { qty, price } = f.values();
     const unit = buyUnitPrice({ kind: 'buy', cartridgeId: c.id, qty, price });
-    each.textContent = unit ? t('{price} за шт', { price: fmt.money(unit) + usdTail([[unit, f.values().date || M.today()]]) }) : '';
+    each.textContent = unit ? t('{price} за шт', { price: fmt.money(unit) + usdTail([[unit, f.values().date || M.today(), f.values().usdRate]]) }) : '';
   };
   f.inputs.price.after(each);
   f.inputs.qty.addEventListener('input', showEach);
   f.inputs.price.addEventListener('input', showEach);
-  const fieldOf = (name) => f.inputs[name].closest('.field');
+  f.inputs.usdRate?.addEventListener('input', showEach);
+  const fieldOf = (name) => f.inputs[name]?.closest('.field') ?? null;
   const group = (title, ...parts) => box(title, h('div', { class: 'form' }, parts));
   const body = h('div', {},
-    group(t('Сколько и почём'), fieldOf('qty'), qtyRow, fieldOf('price')),
+    group(t('Сколько и почём'), fieldOf('qty'), qtyRow, fieldOf('price'), fieldOf('usdRate')),
     group(t('Когда и где'), fieldOf('date'), fieldOf('note')));
   body.addEventListener('click', () => setTimeout(showEach));
   const close = sheet(t('Купить: {name}', { name: c.name }), body, {
@@ -858,7 +861,7 @@ function buySheet(c) {
     const v = f.values();
     if (!(v.qty > 0)) { fieldError(f.inputs.qty, t('Укажите количество')); return; }
     close();
-    await addMovements([movement({ kind: 'buy', cartridgeId: c.id, caliber: c.caliber, qty: Math.round(v.qty), price: v.price, date: v.date || null, note: v.note })],
+    await addMovements([movement({ kind: 'buy', cartridgeId: c.id, caliber: c.caliber, qty: Math.round(v.qty), price: v.price, usdRate: v.usdRate || undefined, date: v.date || null, note: v.note })],
       `+${fmt.num(v.qty)} · ${c.name}`);
   }
 }
@@ -1367,14 +1370,16 @@ const grn = (n) => `${fmt.num(Math.round(n))} грн`;
 const usdOn = () => recall('shooters-log:usd') === 'on';
 /** День руху: дата, а без неї — коли його внесли; покупки без дати лишаються без долара. */
 const dayOf = (m) => m?.date ?? (m?.created ? M.today(new Date(m.created)) : null);
-/** Сума в $ за рядами [грн, дата]; null — долари вимкнено або в якогось ряду нема дати чи курсу. */
+/** Гривні в $: за курсом, вписаним у запис (платили за свій курс), інакше — НБУ на дату. */
+const usdOf = (uah, iso, rate) => (Number(rate) > 0 ? Number(uah) / Number(rate) : toUsd(uah, iso));
+/** Сума в $ за рядами [грн, дата, свій курс?]; null — долари вимкнено або в якогось ряду нема дати чи курсу. */
 function usdSum(rows) {
   if (!usdOn()) return null;
   let sum = 0;
-  for (const [uah, iso] of rows) {
+  for (const [uah, iso, rate] of rows) {
     const n = Number(uah) || 0;
     if (!n) continue;
-    const v = toUsd(n, iso);
+    const v = usdOf(n, iso, rate);
     if (v === null) return null;
     sum += v;
   }
@@ -1388,9 +1393,27 @@ const usdNow = (uah) => usdTail([[uah, M.today()]]);
 /** Другий дрібний рядок «≈$N» під сумою на плитці чи в таблиці. */
 const usdLine = (v) => (v === null ? null : h('small', { class: 'usd' }, usdFmt(v)));
 /** Вартість рухів у $: постріли — за днем стрільби, покупки й спорядження — за днем запису. */
-const usdMoves = (list) => usdSum(list.map((m) => [m.kind === 'shot' ? M.shotCost(state, m) : m.price, dayOf(m)]));
+const usdMoves = (list) => usdSum(list.map((m) => (m.kind === 'shot' ? [M.shotCost(state, m), dayOf(m)] : [m.price, dayOf(m), m.usdRate])));
+/**
+ * Поле «Курс $» у формі покупки чи продажу — лише коли долари ввімкнено; порожнє — курс НБУ.
+ * Підказка в полі — курс НБУ на вибрану дату, щоб було з чим порівняти.
+ */
+function rateField(name, value) {
+  return usdOn() ? { name, label: t('Курс $, грн'), type: 'number', step: 'any', min: 0, value, half: true } : null;
+}
+function rateHint(f, name, dateName) {
+  const input = f.inputs[name];
+  if (!input) return;
+  const show = () => {
+    const rate = rateOn(f.inputs[dateName]?.value || M.today());
+    input.placeholder = rate ? t('НБУ {rate}', { rate: fmt.num(Math.round(rate * 100) / 100) }) : '';
+  };
+  f.inputs[dateName]?.addEventListener('input', show);
+  f.inputs[dateName]?.addEventListener('change', show);
+  show();
+}
 /** Покупка ствола й увесь тюнінг — кожне за своєю датою. */
-const investRows = (w) => [[w.buyPrice, w.buyDate], ...(w.mods ?? []).map((m) => [m.price, m.date])];
+const investRows = (w) => [[w.buyPrice, w.buyDate, w.usdRate], ...(w.mods ?? []).map((m) => [m.price, m.date, m.usdRate])];
 
 const isSold = (x) => Boolean(x?.soldDate);
 
@@ -1408,8 +1431,8 @@ function spending() {
   const all = [...state.weapons.map((w) => ['gun', w]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m])),
     ...state.gear.map((g) => ['gear', g])];
   return [
-    ...all.map(([kind, x]) => ({ kind, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price) })),
-    ...all.filter(([, x]) => isSold(x)).map(([, x]) => ({ kind: 'sale', date: x.soldDate, price: -priceOf(x.soldPrice) })),
+    ...all.map(([kind, x]) => ({ kind, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
+    ...all.filter(([, x]) => isSold(x)).map(([, x]) => ({ kind: 'sale', date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
   ].filter((x) => x.price);
 }
 
@@ -1418,11 +1441,13 @@ function sellForm(item, onSave) {
   const f = form([
     { name: 'soldPrice', label: t('Цена продажи, грн'), type: 'number', step: 'any', min: 0, value: item.soldPrice, half: true },
     { name: 'soldDate', label: t('Дата продажи'), type: 'date', required: true, value: item.soldDate ?? M.today(), half: true },
+    rateField('soldUsdRate', item.soldUsdRate),
     { name: 'soldPlace', label: t('Кому / где продал'), value: item.soldPlace, wide: true },
-  ]);
+  ].filter(Boolean));
+  rateHint(f, 'soldUsdRate', 'soldDate');
   const close = sheet(t('Продал: {name}', { name: item.name }), f.el, {
     actions: [
-      isSold(item) ? btn(t('Не продано'), () => { close(); onSave({ soldPrice: null, soldDate: null, soldPlace: null }); })
+      isSold(item) ? btn(t('Не продано'), () => { close(); onSave({ soldPrice: null, soldDate: null, soldPlace: null, soldUsdRate: null }); })
         : btn(t('Отмена'), () => close()),
       btn(t('Сохранить'), () => {
         if (invalidField(f)) return;
@@ -1437,10 +1462,10 @@ function sellForm(item, onSave) {
 function spendingChart(list) {
   // У доларах видно справжню різницю між роками; лише коли кожна сума має курс
   const dated = list.filter((x) => x.date);
-  const inUsd = usdSum(dated.map((x) => [x.price, x.date])) !== null;
+  const inUsd = usdSum(dated.map((x) => [x.price, x.date, x.rate])) !== null;
   const by = (period) => [...dated.reduce((map, x) => {
     const key = periodOf(x.date, period).key;
-    return map.set(key, (map.get(key) ?? 0) + (inUsd ? toUsd(x.price, x.date) : x.price));
+    return map.set(key, (map.get(key) ?? 0) + (inUsd ? usdOf(x.price, x.date, x.rate) : x.price));
   }, new Map())].sort(([a], [b]) => (a < b ? -1 : 1));
   let period = 'year';
   let rows = by(period);
@@ -1460,7 +1485,7 @@ function renderGear() {
   if (!state.gear.length && !total) {
     return empty(t('Экипировка не добавлена'), t('Нажмите «+», чтобы добавить форму, бронежилет, плиты, шлем, разгрузку. Цену покупки ствола и тюнинг указывайте в карточке оружия.'));
   }
-  const rowsOf = (kind) => spent.filter((x) => x.kind === kind).map((x) => [Math.abs(x.price), x.date]);
+  const rowsOf = (kind) => spent.filter((x) => x.kind === kind).map((x) => [Math.abs(x.price), x.date, x.rate]);
   const split = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка']]
     .filter(([k]) => sum(k)).map(([k, label]) => {
       // Тут « · » уже ділить категорії — долари в дужках, щоб не злилися з ними
@@ -1482,8 +1507,8 @@ function renderGear() {
     groups.map(([kind, items]) => fold(`gear:${kind}`,
       [h('span', { class: 'fold-title' }, t(GEAR_KINDS.find(([k]) => k === kind)[1])),
         h('span', { class: 'fold-meta' }, t('{n} поз.', { n: items.length })),
-        h('span', { class: 'fold-sum' }, grn(items.reduce((s, g) => s + priceOf(g.price), 0)) + usdTail(items.map((g) => [g.price, g.date])))],
-      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), null, g.date))))),
+        h('span', { class: 'fold-sum' }, grn(items.reduce((s, g) => s + priceOf(g.price), 0)) + usdTail(items.map((g) => [g.price, g.date, g.usdRate])))],
+      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), null, g.date, g.usdRate))))),
     sold.length ? fold('gear:sold',
       [h('span', { class: 'fold-title' }, t('Продано')), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: sold.length })),
         h('span', { class: 'fold-sum' }, grn(back) + (usdBack === null ? '' : ` · ${usdFmt(usdBack)}`))],
@@ -1492,17 +1517,17 @@ function renderGear() {
         const got = priceOf(item.soldPrice);
         const paidOn = kind === 'gun' ? item.buyDate : item.date;
         const sub = [fmt.date(item.soldDate), weapon?.name, paid ? t('купил за {a} → продал за {b}', {
-          a: grn(paid) + usdTail([[paid, paidOn]]), b: grn(got) + usdTail([[got, item.soldDate]]) }) : null].filter(Boolean).join(' · ');
+          a: grn(paid) + usdTail([[paid, paidOn, item.usdRate]]), b: grn(got) + usdTail([[got, item.soldDate, item.soldUsdRate]]) }) : null].filter(Boolean).join(' · ');
         const open = kind === 'gun' ? () => weaponDetail(item) : kind === 'mod' ? () => modForm(weapon, item) : () => gearForm(item);
-        return priceRow(item.name, sub, got, open, null, item.soldDate);
+        return priceRow(item.name, sub, got, open, null, item.soldDate, item.soldUsdRate);
       }))) : null);
 }
 
 /** Рядок покупки: назва, «дата · де», сума праворуч. */
-function priceRow(title, sub, price, onclick, icon = null, iso = null) {
+function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = null) {
   return h('button', { type: 'button', class: `row ${icon ? 'kind-tune' : ''}`, onclick }, icon,
     h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub ? h('span', { class: 'muted small' }, sub) : null),
-    priceOf(price) ? h('span', { class: 'row-qty' }, tileMoney(priceOf(price), usdSum([[price, iso]]))) : null);
+    priceOf(price) ? h('span', { class: 'row-qty' }, tileMoney(priceOf(price), usdSum([[price, iso, rate]]))) : null);
 }
 
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
@@ -1512,9 +1537,11 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: item?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
     { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: item?.price, half: true },
     { name: 'date', label: t('Дата покупки'), type: 'date', value: item?.date ?? M.today(), half: true },
+    rateField('usdRate', item?.usdRate),
     { name: 'place', label: t('Где купил'), value: item?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
     { name: 'note', label: t('Примечание'), value: item?.note, wide: true },
   ].filter(Boolean));
+  rateHint(f, 'usdRate', 'date');
   // Категорія — чипами, як тип компонента: видно всі одразу, без системного списку
   chipPicker(f.inputs.kind, { seg: false, cls: 'chips-sm' });
   // Видалити й продати — іконками в шапці, як в інших картках; внизу лише «Скасувати» і «Зберегти»
@@ -1595,10 +1622,10 @@ function buyBox(w, close) {
   const bought = w.buyPrice || w.buyDate || w.buyPlace;
   const el = box(t('Покупка и тюнинг'), [
     h('div', { class: 'rows' },
-      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate) : null,
+      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate) : null,
       mods.map((m) => priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-        m.price, () => modForm(w, m), icon(), m.date)),
-      isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate) : null),
+        m.price, () => modForm(w, m), icon(), m.date, m.usdRate)),
+      isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
     total ? h('p', { class: 'muted small' }, t('Вложено в ствол: {sum}', { sum: grn(total) + usdTail(investRows(w)) })) : null,
     h('div', { class: 'btn-row' },
       btn(t('+ тюнинг'), () => modForm(w)),
@@ -1740,8 +1767,10 @@ function weaponForm(w = null) {
     { name: 'note', label: t('Примечание'), value: w?.note, wide: true },
     { name: 'buyPrice', label: t('Цена покупки, грн'), type: 'number', step: 'any', min: 0, value: w?.buyPrice, half: true },
     { name: 'buyDate', label: t('Дата покупки'), type: 'date', value: w?.buyDate, half: true },
+    rateField('usdRate', w?.usdRate),
     { name: 'buyPlace', label: t('Где купил'), value: w?.buyPlace, placeholder: t('Магазин, сайт, с рук…'), wide: true },
-  ]);
+  ].filter(Boolean));
+  rateHint(f, 'usdRate', 'buyDate');
   f.el.append(caliberList());
   barrelHint(f);
   const remind = cleanReminderBox(w);
@@ -2051,13 +2080,13 @@ function reportMoves(moves) {
 
 /** «Покупка й тюнінг» у звіті — без періоду: це факт про ствол, а не про вибрані роки. */
 function reportBuy(w) {
-  const money = (n, iso) => (priceOf(n) ? tileMoney(priceOf(n), usdSum([[n, iso]])) : '');
+  const money = (n, iso, rate) => (priceOf(n) ? tileMoney(priceOf(n), usdSum([[n, iso, rate]])) : '');
   const what = (name, note) => [name, note ? h('div', { class: 'report-note' }, note) : null];
   const mods = [...(w.mods ?? [])].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
   const rows = [
-    priceOf(w.buyPrice) || w.buyDate ? [w.buyDate ? fmt.date(w.buyDate) : '', what(t('Покупка'), w.buyPlace), money(w.buyPrice, w.buyDate)] : null,
+    priceOf(w.buyPrice) || w.buyDate ? [w.buyDate ? fmt.date(w.buyDate) : '', what(t('Покупка'), w.buyPlace), money(w.buyPrice, w.buyDate, w.usdRate)] : null,
     ...mods.map((m) => [m.date ? fmt.date(m.date) : '', what(m.name, isSold(m)
-      ? t('продано {date} за {sum}', { date: fmt.date(m.soldDate), sum: grn(priceOf(m.soldPrice)) + usdTail([[m.soldPrice, m.soldDate]]) }) : m.place), money(m.price, m.date)]),
+      ? t('продано {date} за {sum}', { date: fmt.date(m.soldDate), sum: grn(priceOf(m.soldPrice)) + usdTail([[m.soldPrice, m.soldDate, m.soldUsdRate]]) }) : m.place), money(m.price, m.date, m.usdRate)]),
     isSold(w) ? { cls: 'report-clean', cells: [fmt.date(w.soldDate), what(t('Продажа'), w.soldPlace), money(w.soldPrice, w.soldDate)] } : null,
   ].filter(Boolean);
   if (!rows.length) return null;
@@ -2738,7 +2767,7 @@ function logRow(m, { date = false, day = false, skip = {} } = {}) {
   // Вправу виділяємо жирним — у списку одразу видно, що стрільба з тренування.
   const rest = [forRecipe, fromExercise ? h('b', { class: 'row-ex' }, fromExercise) : null,
     m.foreignAmmo ? t('чужие патроны') : noStock,
-    fromExercise ? null : m.note, money ? fmt.money(money) + usdTail([[money, dayOf(m)]]) : null,
+    fromExercise ? null : m.note, money ? fmt.money(money) + usdTail([[money, dayOf(m), m.usdRate]]) : null,
     each ? t('{price} за {unit}', { price: fmt.money(each), unit: m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт' }) : null];
   // Ствол і приціл — кожен своїм рядком: «ствол (приціл) · вправа · …» в одному рядку на телефоні рвався посеред назви.
   const lines = [[day && m.date ? h('b', { class: 'row-day' }, fmt.date(m.date).slice(0, 5)) : null, date ? null : t(M.KINDS[m.kind]), gun?.name],
@@ -2946,6 +2975,9 @@ function movementBody(m, close, edit = false) {
   qtyInput.value = Math.abs(m.qty);
   const priceInput = input({ type: 'number', step: 'any', min: 0, inputmode: 'decimal', value: m.price ?? '', 'aria-label': t('Сумма') },
     (v) => save({ price: v ? Number(v.replace(',', '.')) : undefined }));
+  // Свій курс $ — лише в покупці: спорядження й стрільба рахуються з неї
+  const rateInput = m.kind === 'buy' && usdOn() ? input({ type: 'number', step: 'any', min: 0, inputmode: 'decimal', value: m.usdRate ?? '', 'aria-label': t('Курс $, грн') },
+    (v) => save({ usdRate: Number(v.replace(',', '.')) > 0 ? Number(v.replace(',', '.')) : undefined })) : null;
   const noteInput = input({ type: 'text', value: m.note ?? '', placeholder: t('Примечание'), 'aria-label': t('Примечание') },
     (v) => save({ note: v || undefined }));
   const shotCost = M.shotCost(state, m);
@@ -2955,7 +2987,7 @@ function movementBody(m, close, edit = false) {
   const row = (label, value) => [h('dt', {}, t(label)), h('dd', {}, value)];
   // Головне значення блоку — без підпису: заголовок блоку вже каже, що це
   const lead = (value, ...pairs) => [h('div', { class: 'kv-lead' }, value), pairs.some(Boolean) ? kv(...pairs) : null];
-  if (m.kind === 'buy' || m.kind === 'reload') return stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, noteInput, kv, row, lead });
+  if (m.kind === 'buy' || m.kind === 'reload') return stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, rateInput, noteInput, kv, row, lead });
   if (m.kind === 'shot') {
     const n = Math.abs(m.qty);
     const ammo = findCartridge(m.cartridgeId);
@@ -3017,7 +3049,7 @@ function movementBody(m, close, edit = false) {
       m.caliber ? [h('dt', {}, t('Калибр')), h('dd', {}, m.caliber)] : null,
       m.kind === 'clean' ? null : [h('dt', {}, t('Количество')), h('dd', {}, edit && editQty ? qtyInput : fmt.signed(m.qty))],
       w && m.kind !== 'clean' ? [h('dt', {}, t('Оружие')), h('dd', {}, w.name)] : null,
-      editPrice ? [h('dt', {}, t('Сумма')), h('dd', {}, edit ? priceInput : (m.price ? fmt.money(m.price) + usdTail([[m.price, dayOf(m)]]) : '—'))] : null,
+      editPrice ? [h('dt', {}, t('Сумма')), h('dd', {}, edit ? priceInput : (m.price ? fmt.money(m.price) + usdTail([[m.price, dayOf(m), m.usdRate]]) : '—'))] : null,
       buyUnitPrice(m) ? [h('dt', {}, t('Цена за шт')), h('dd', {}, fmt.money(buyUnitPrice(m)))] : null,
       ...(edit || m.note ? [h('dt', {}, t('Примечание')), h('dd', {}, edit ? noteInput : m.note)] : [])),
     linked.length ? box(m.kind === 'collect' ? t('Стрельба') : t('Списано компонентов'),
@@ -3028,7 +3060,7 @@ function movementBody(m, close, edit = false) {
  * Картка покупки й спорядження: плитки «скільки · сума · за одиницю», блоки Запис і Набої / Компонент;
  * назва й рецепт — посилання на їхні картки, внизу — списані на спорядження компоненти.
  */
-function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, noteInput, kv, row, lead }) {
+function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dateInput, qtyInput, priceInput, rateInput, noteInput, kv, row, lead }) {
   const ammo = findCartridge(m.cartridgeId);
   const part = ammo ? null : findComponent(m.componentId);
   const recipe = m.kind === 'reload' ? findRecipe(m.recipeId) : null;
@@ -3051,12 +3083,13 @@ function stockMoveBody(m, { edit, linked, editQty, editPrice, swapCartridge, dat
   return h('div', {},
     edit ? null : h('div', { class: 'stats even' },
       stat(t(m.kind === 'buy' ? 'куплено' : 'снаряжено'), h('span', { class: 'nw' }, fmt.num(n), h('small', { class: 'unit' }, ` ${unit}`)), 'accent'),
-      price ? stat(t(m.kind === 'buy' ? 'стоимость' : 'себестоимость'), tileMoney(price, usdSum([[price, dayOf(m)]]))) : null,
-      price && n ? stat(t('за {unit}', { unit }), tileMoney(price / n, usdSum([[price / n, dayOf(m)]]))) : null),
+      price ? stat(t(m.kind === 'buy' ? 'стоимость' : 'себестоимость'), tileMoney(price, usdSum([[price, dayOf(m), m.usdRate]]))) : null,
+      price && n ? stat(t('за {unit}', { unit }), tileMoney(price / n, usdSum([[price / n, dayOf(m), m.usdRate]]))) : null),
     box(t('Запись'), kv(
       row('Дата', edit ? dateInput : fmt.date(m.date)),
       edit ? row('Количество', reloadQty ?? (editQty ? qtyInput : fmt.num(n))) : null,
       edit && editPrice ? row('Сумма', priceInput) : null,
+      (edit ? rateInput : m.usdRate && usdOn()) ? row('Курс $, грн', edit ? rateInput : fmt.num(m.usdRate)) : null,
       edit || m.note ? row('Примечание', edit ? noteInput : m.note) : null)),
     box(t(part ? 'Компонент' : 'Патроны'), lead(
       edit && swapCartridge ? movementCartridgeSelect(m) : open ? link(name, open) : name,
@@ -3170,10 +3203,10 @@ function logGroups(list) {
  * Кількість — лише набоїв і словом «набоїв», не «шт»: компоненти в різних одиницях (порох у грамах), їх
  * не додаємо, а «100 шт» поруч із «+500 шт» куль читалося як усе куплене.
  */
-/** Ті самі рухи, з яких groupSummary рахує суму групи, — для доларів: [грн, дата]. */
+/** Ті самі рухи, з яких groupSummary рахує суму групи, — для доларів: [грн, дата, свій курс]. */
 function groupMoneyRows(rows) {
   const kind = ['shot', 'buy', 'reload'].find((k) => rows.some((m) => m.kind === k));
-  return rows.filter((m) => m.kind === kind).map((m) => [kind === 'shot' ? M.shotCost(state, m) : m.price, dayOf(m)]);
+  return rows.filter((m) => m.kind === kind).map((m) => (kind === 'shot' ? [M.shotCost(state, m), dayOf(m)] : [m.price, dayOf(m), m.usdRate]));
 }
 
 function groupSummary(rows) {
@@ -4840,16 +4873,18 @@ function buyComponentSheet(c) {
     ...(byPack ? [{ name: 'packs', label: t('Упаковок'), type: 'number', step: 'any', min: 0, value: 1, half: true }] : []),
     { name: 'qty', label: t('Количество, {unit}', { unit }), type: 'number', step: 'any', required: true, value: c.packQty ?? '', half: byPack },
     { name: 'price', label: t('Сумма покупки (необязательно)'), type: 'number', step: 'any', value: c.packPrice ?? '' },
+    rateField('usdRate'),
     { name: 'date', label: t('Дата'), type: 'date', required: true, value: M.today() },
     { name: 'note', label: t('Где купил / примечание') },
-  ]);
+  ].filter(Boolean));
+  rateHint(f, 'usdRate', 'date');
   const packChips = byPack ? qtyChips(f.inputs.packs, [1, 2, 3, 5, 10]) : null;
   packChips?.classList.add('chips-sm');
   // Ціна за одиницю — одразу, як для набоїв.
   const each = h('small', { class: 'muted' });
   const showEach = () => {
     const { qty, price } = f.values();
-    each.textContent = qty > 0 && price > 0 ? t('{price} за {unit}', { price: fmt.money(price / qty) + usdTail([[price / qty, f.values().date || M.today()]]), unit }) : '';
+    each.textContent = qty > 0 && price > 0 ? t('{price} за {unit}', { price: fmt.money(price / qty) + usdTail([[price / qty, f.values().date || M.today(), f.values().usdRate]]), unit }) : '';
   };
   f.inputs.price.after(each);
   f.inputs.packs?.addEventListener('input', () => {
@@ -4860,11 +4895,12 @@ function buyComponentSheet(c) {
   });
   f.inputs.qty.addEventListener('input', showEach);
   f.inputs.price.addEventListener('input', showEach);
+  f.inputs.usdRate?.addEventListener('input', showEach);
   showEach();
   const fieldOf = (name) => f.inputs[name]?.closest('.field') ?? null;
   const group = (title, ...parts) => box(title, h('div', { class: 'form' }, parts));
   const close = sheet(t('Купить: {name}', { name: c.name }), h('div', {},
-    group(t('Сколько и почём'), fieldOf('packs'), fieldOf('qty'), packChips, fieldOf('price')),
+    group(t('Сколько и почём'), fieldOf('packs'), fieldOf('qty'), packChips, fieldOf('price'), fieldOf('usdRate')),
     group(t('Когда и где'), fieldOf('date'), fieldOf('note'))), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Добавить'), save, 'primary buy')],
   });
@@ -4873,7 +4909,7 @@ function buyComponentSheet(c) {
     const v = f.values();
     if (!(v.qty > 0)) { fieldError(f.inputs.qty, t('Укажите количество')); return; }
     close();
-    await addMovements([movement({ kind: 'buy', componentId: c.id, qty: v.qty, price: v.price, date: v.date || null, note: v.note })],
+    await addMovements([movement({ kind: 'buy', componentId: c.id, qty: v.qty, price: v.price, usdRate: v.usdRate || undefined, date: v.date || null, note: v.note })],
       `+${fmt.num(v.qty)} ${unit} · ${c.name}`);
   }
 }
