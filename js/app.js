@@ -1747,6 +1747,7 @@ function weaponForm(w = null) {
   const remind = cleanReminderBox(w);
   const kit = kitBox(w, f.inputs.caliber);
   const permit = permitFields(w);
+  const size = sizeFields(w);
   const scopesBox = h('div', { class: 'items' });
   const addScope = (s = {}) => {
     const name = h('input', { type: 'text', placeholder: t('Модель: Vortex Diamondback 4-12x40'), autocomplete: 'off', class: 'sc-name' });
@@ -1790,11 +1791,11 @@ function weaponForm(w = null) {
   };
   (w?.scopes ?? []).forEach(addScope);
   const close = sheet(w ? t('Изменить оружие') : t('Новое оружие'), h('div', {},
-    f.el, h('h3', {}, t('Прицелы')), scopesBox, btn(t('+ прицел'), () => addScope()), kit.el, remind.el, permit.el), {
+    f.el, h('h3', {}, t('Прицелы')), scopesBox, btn(t('+ прицел'), () => addScope()), kit.el, size.el, remind.el, permit.el), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
   });
   async function save() {
-    if (invalidField(f) || permit.invalid()) return;
+    if (invalidField(f) || size.invalid() || permit.invalid()) return;
     // «Своє значення» без числа інакше тихо стерло б ціну клацання
     const noOwn = [...scopesBox.querySelectorAll('.scope-row')].find((row) => row.querySelector('.sc-click').value === OWN_CLICK
       && row.querySelector('.sc-name').value.trim() && !ownClickKey(row.querySelector('.sc-own-value').value, 'mil'));
@@ -1819,7 +1820,7 @@ function weaponForm(w = null) {
       };
     }).filter((s) => s.name);
     close();
-    await saveEntity('weapons', { ...(w ?? { id: db.uid(), created: Date.now() }), ...v, ...remind.values(), ...kit.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes });
+    await saveEntity('weapons', { ...(w ?? { id: db.uid(), created: Date.now() }), ...v, ...remind.values(), ...kit.values(), ...size.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes });
   }
 }
 
@@ -2095,6 +2096,7 @@ function weaponReport(w, [from, to]) {
     permit ? [t('Разрешение на оружие'), permit] : null,
     w.scopes?.length ? [t('Прицелы'), w.scopes.map((s) => s.name).join(', ')] : null,
     kitText(w) ? [t('Оснащение'), kitText(w)] : null,
+    ...sizeRows(w),
   ].filter(Boolean);
   const len = (mm) => length(mm, targetUnit, 100);
   const precision = M.ammoPrecision(state.targets.filter((x) => x.weaponId === w.id && inRange(x)), state.photos);
@@ -2161,6 +2163,7 @@ function weaponBody(w, close) {
       btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: w }); }, 'shoot'),
       btn(t('Почистил'), () => { close(); cleanSheet(w); }, 'buy')),
     permitBox(w),
+    sizeBox(w),
     buyBox(w, close),
     dopeBox(w, close),
     precisionChart(w),
@@ -2611,6 +2614,60 @@ function permitDatesToAll(w, v) {
     await refresh();
     toast(t('Даты проставлены: {n}', { n: others.length }));
   });
+}
+
+// Габарити: довжини, ширина й висота — см, ствол — мм, вага — г
+const SIZE_KEYS = ['length', 'lengthOpen', 'width', 'height', 'barrel', 'weight'];
+
+/** Рядки «Габарити й вага» для картки та звіту; порожньо — нічого не вказали. */
+function sizeRows(w) {
+  const s = w.size;
+  if (!s) return [];
+  const cm = (v) => (v ? `${fmt.num(v)} ${t('см')}` : null);
+  const weight = s.weight ? (s.weight >= 1000 ? `${fmt.num(s.weight / 1000)} ${t('кг')}` : `${fmt.num(s.weight)} ${t('г')}`) : null;
+  return [
+    cm(s.length) ? [t('Длина'), cm(s.length)] : null,
+    cm(s.lengthOpen) ? [t('Разложенный приклад'), cm(s.lengthOpen)] : null,
+    cm(s.width) ? [t('Ширина'), cm(s.width)] : null,
+    cm(s.height) ? [t('Высота'), cm(s.height)] : null,
+    s.barrel ? [t('Длина ствола'), `${fmt.num(s.barrel)} ${t('мм')} (${fmt.num(Math.round(s.barrel / 2.54) / 10)}″)`] : null,
+    weight ? [t('Вес'), weight] : null,
+    weight && s.weightNote ? [t('Вес — с чем'), s.weightNote] : null,
+  ].filter(Boolean);
+}
+
+/** Блок «Габарити й вага» в картці зброї. */
+function sizeBox(w) {
+  const rows = sizeRows(w);
+  if (!rows.length) return null;
+  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), { fold: `size:${w.id}` });
+}
+
+/** Блок «Габарити й вага» у формі зброї. */
+function sizeFields(w) {
+  const s = w?.size ?? {};
+  const num = (name, label, half = true) => ({ name, label, type: 'number', step: 'any', min: 0, value: s[name], half });
+  const f = form([
+    num('length', t('Длина, см')),
+    num('lengthOpen', t('Разложенный приклад, см')),
+    num('width', t('Ширина, см')),
+    num('height', t('Высота, см')),
+    num('barrel', t('Длина ствола, мм')),
+    num('weight', t('Вес, г')),
+    { name: 'weightNote', label: t('Вес — с чем'), value: s.weightNote, placeholder: t('С коллиматором, с патронами…'), wide: true },
+  ]);
+  const values = () => {
+    const v = f.values();
+    const size = Object.fromEntries(SIZE_KEYS.map((k) => [k, v[k] > 0 ? v[k] : null]));
+    size.weightNote = v.weightNote || null;
+    return { size: Object.values(size).some(Boolean) ? size : null };
+  };
+  const invalid = () => {
+    const bad = f.invalid();
+    if (bad) fieldError(f.inputs[bad.name], t('«{label}» — число', { label: bad.label }));
+    return Boolean(bad);
+  };
+  return { el: box(t('Габариты и вес'), f.el), values, invalid };
 }
 
 /** Раз на день при відкритті: дозволи, що скінчилися або лишилося менше місяця. */
