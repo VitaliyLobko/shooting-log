@@ -4,6 +4,7 @@
 import * as db from './db.js';
 import { GOOGLE_CLIENT_ID } from './config.js';
 import { t } from './i18n.js';
+import { sharedToken, shareToken, dropSharedToken, noteEmail } from './google-token.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FILE_NAME = 'shooters-log.json';
@@ -54,7 +55,16 @@ export function onStatus(fn) {
 
 export const configured = () => Boolean(GOOGLE_CLIENT_ID);
 export const enabled = () => Boolean(conf.enabled);
-const tokenValid = () => Boolean(conf.token) && conf.expires > Date.now() + 60_000;
+/** Свій ключ живий — його; ні — спільний з іншого застосунку автора (вхід там годиться й тут). */
+function tokenValid() {
+  if (conf.token && conf.expires > Date.now() + 60_000) return true;
+  const s = sharedToken(conf);
+  if (!s) return false;
+  conf.token = s.token;
+  conf.expires = s.expires;
+  save();
+  return true;
+}
 
 // ---------- вхід ----------
 
@@ -87,6 +97,7 @@ function client() {
       if (resp.error) { finishAuth(new Error(resp.error_description || resp.error)); return; }
       conf.token = resp.access_token;
       conf.expires = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
+      shareToken(conf.token, conf.expires, conf.email);
       save();
       finishAuth();
     },
@@ -102,15 +113,18 @@ export function preload() {
 
 /** Викликати лише з обробника тапу/кліку — інакше браузер заблокує вікно входу. */
 export async function connect() {
-  const c = client();
-  if (!c) {
-    preload();
-    throw new Error(t('Google ещё загружается — нажмите ещё раз через секунду'));
+  // Увійшли в іншому застосунку автора менш ніж годину тому — вікно Google не потрібне
+  if (!tokenValid()) {
+    const c = client();
+    if (!c) {
+      preload();
+      throw new Error(t('Google ещё загружается — нажмите ещё раз через секунду'));
+    }
+    await new Promise((resolve, reject) => {
+      authWaiter = { resolve, reject };
+      c.requestAccessToken({ prompt: conf.consented ? '' : 'consent', hint: conf.email || undefined });
+    });
   }
-  await new Promise((resolve, reject) => {
-    authWaiter = { resolve, reject };
-    c.requestAccessToken({ prompt: conf.consented ? '' : 'consent', hint: conf.email || undefined });
-  });
   conf.enabled = true;
   conf.consented = true;
   save();
@@ -138,7 +152,7 @@ function refreshOnSave() {
 }
 
 export function disconnect() {
-  if (conf.token) window.google?.accounts?.oauth2?.revoke?.(conf.token, () => {});
+  // Вхід у Google не відкликаємо: він спільний з іншими застосунками автора — відключається лише цей
   // Незроблене лишаємо: фото, видалені тут, ще треба прибрати з Диска, а «Заменить всё» — донести до файлу
   const { trash, restoreAt } = conf;
   conf = { ...(trash?.length ? { trash } : {}), ...(restoreAt ? { restoreAt } : {}) };
@@ -151,6 +165,7 @@ export function disconnect() {
 async function api(url, options = {}) {
   const res = await fetch(url, { ...options, headers: { Authorization: `Bearer ${conf.token}`, ...options.headers } });
   if (res.status === 401) {
+    dropSharedToken(conf.token);
     conf.token = null;
     save();
     throw new AuthError(t('Сессия Google истекла'));
@@ -355,6 +370,7 @@ export async function syncNow() {
       // Фото власника Диска показуємо в шапці замість значка застосунку.
       const about = await (await api(`${DRIVE}/about?fields=user(emailAddress,displayName,photoLink)`)).json();
       conf.email = about.user?.emailAddress ?? null;
+      noteEmail(conf.token, conf.email);
       conf.photo = about.user?.photoLink ?? null;
       conf.who = about.user?.displayName ?? null;
       save();
