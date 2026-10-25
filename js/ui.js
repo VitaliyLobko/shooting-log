@@ -219,10 +219,29 @@ let toastTimer;
 export function toast(message, { action, onAction, timeout = action ? 8000 : 3500 } = {}) {
   document.querySelector('.toast')?.remove();
   clearTimeout(toastTimer);
+  const root = document.documentElement.style;
+  // поки тост на екрані, кнопка «+» піднімається над ним, а не ховається під ним
+  const remove = () => { el.remove(); if (!document.querySelector('.toast')) root.removeProperty('--toast-lift'); };
   const el = h('div', { class: 'toast', role: 'status' }, h('span', {}, message),
-    action ? h('button', { type: 'button', onclick: () => { el.remove(); onAction(); } }, action) : null);
+    action ? h('button', { type: 'button', onclick: () => { remove(); onAction(); } }, action) : null);
+  // змахнути вбік — закрити, не чекаючи таймера
+  let x0 = null;
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) { x0 = e.clientX; el.setPointerCapture(e.pointerId); } });
+  el.addEventListener('pointermove', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    el.style.translate = `${dx}px 0`; el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 200));
+  });
+  const up = (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (Math.abs(dx) > 60) { clearTimeout(toastTimer); remove(); } else { el.style.translate = ''; el.style.opacity = ''; }
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
   document.body.append(el);
-  toastTimer = setTimeout(() => el.remove(), timeout);
+  root.setProperty('--toast-lift', `${el.offsetHeight + 8}px`);
+  toastTimer = setTimeout(remove, timeout);
 }
 
 /**
@@ -239,19 +258,31 @@ function visibleAnchor(el) {
   return target?.getClientRects().length ? target : null;
 }
 
+function flash(target) {
+  target.classList.remove('flash');
+  void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
+  target.classList.add('flash');
+  target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+}
+
 /** Підтвердження без таблички: коротка вібрація й підсвічені картки того, що змінилося. */
 export function confirmed(ids = []) {
   navigator.vibrate?.(20);
   for (const id of new Set(ids.filter(Boolean))) {
     for (const el of document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`)) {
       const target = visibleAnchor(el);
-      if (!target) continue;
-      target.classList.remove('flash');
-      void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
-      target.classList.add('flash');
-      target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+      if (target) flash(target);
     }
   }
+}
+
+/** Прокрутити до картки id і підсвітити; екран ще малюється — кілька спроб. Повертає, чи знайшли. */
+export function reveal(id, tries = 10) {
+  const el = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  const target = el && visibleAnchor(el);
+  if (!target) { if (tries > 0) setTimeout(() => reveal(id, tries - 1), 60); return; }
+  target.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  flash(target);
 }
 
 let undoFn = null;
@@ -545,9 +576,9 @@ export function chips(options, value, onPick) {
 
 /**
  * Свайп картки: вправо — onRight, вліво — onLeft. Вертикальний скрол лишається браузеру
- * (touch-action: pan-y), горизонтальний рух перехоплюємо.
+ * (touch-action: pan-y), горизонтальний рух перехоплюємо. onSwipe — після будь-якого спрацьованого свайпу.
  */
-export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel }) {
+export function swipeable(card, { onRight, onLeft, onTap, onSwipe, rightLabel, leftLabel }) {
   const body = card.querySelector('.swipe-body');
   card.classList.add('swipe');
   card.prepend(
@@ -598,7 +629,7 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
     const dir = dx;
     reset();
     if (wasAxis === 'x') {
-      if (wasArmed) (dir > 0 ? onRight : onLeft)?.();
+      if (wasArmed) { onSwipe?.(); (dir > 0 ? onRight : onLeft)?.(); }
     } else if (!wasAxis && e.type === 'pointerup') {
       tapArmed = true;
     }
