@@ -186,7 +186,7 @@ const CHEST = 'M-.5 1L-.5 .62Q-.5 .42 -.28 .42L.28 .42Q.5 .42 .5 .62L.5 1Z';
 // Силуети в одиницях висоти цілі (h, м): y від 0 (верх) до 1 (низ), x від центру; w — ширина в тих самих одиницях,
 // ap — точка прицілювання (частка висоти), parts — кола [x, y, r]. Розміри техніки — середні, у моделей різняться.
 const TGT = {
-  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]], photo: ['guide/img/real-soldier.webp', 0.327] },
+  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]] },
   chest: { short: 'Грудная', label: 'Грудная 0,5 м', h: 0.5, w: 1, ap: 0.65, path: CHEST, parts: [[0, 0.22, 0.18]] },
   // Поясна №7 — 0,5 × 1,0 м; голова й плечі тієї ж форми й розміру, що в грудної №6
   waist: { short: 'Поясная', label: 'Поясная №7: 1 × 0,5 м', h: 1, w: 0.5, ap: 0.36, dims: [['ширина', 0.5]], parts: [[0, 0.11, 0.09]],
@@ -287,13 +287,27 @@ function hitBand(key, ex, ey, H, flip) {
 // Фото-сцени реалізму: hz — горизонт (рівень ока) у частці висоти фото, ar — висота / ширина.
 // Ширина фото — 150 міл: дерева й будинки за кілька сотень метрів — кілометр мають правдоподібний кутовий розмір.
 // Нижче фото — трава з його ж низу, вище — небо з його ж верху, обидва дзеркалом по вертикалі (gr, sk — висота плитки в частках висоти фото)
-// Цілий кадр (fig): солдат уже на фото — верх і ноги в частках висоти, центр у частці ширини; кадр масштабується так,
-// щоб він мав розмір цілі. Обабіч — його чиста копія (-c, без людей і техніки, бесшовна), вище й нижче — небо й земля з неї;
-// боки самого кадру прозорі на краях і зливаються з копією
+// Цілий кадр: бійці вже на фото — figs за типом цілі, кожен [верх, низ, центр] у пікселях кадру px; кадр масштабується так,
+// щоб вибраний боєць мав розмір цілі. Обабіч — чиста копія кадру (-c, без людей і техніки, бесшовна), вище й нижче — небо й земля з неї;
+// боки самого кадру прозорі на краях і зливаються з копією.
+// rep — смуги неба й землі (sk, gr — висота в частках кадру) повторюються; інакше (band) смуга одна й розтягується до краю
+// прицілу: бійці на кадрі великі, кадр у прицілі малий, а повтор смуг давав «калейдоскоп».
+// Фото: Міноборони РФ (mil.ru), CC BY 4.0. Цілі — лише російські військові.
 const SCENES = {
-  forest: { name: 'лес', hz: 0.72, ar: 1350 / 2400, gr: 0.398, sk: 0.299 },
-  assault: { name: 'атака', ar: 800 / 1200, fig: [0.4875, 0.63, 0.79], sk: 0.3, gr: 0.8 },
+  assault: { px: [1200, 800], figs: { man: [[390, 504, 948]] }, rep: { sk: 0.3, gr: 0.8 } },
+  field: { px: [1200, 800], figs: { man: [[433, 683, 673], [433, 652, 1053]], kneel: [[507, 588, 770]] }, band: 0.3 },
+  snow: { px: [1200, 800], figs: { man: [[267, 640, 597]] }, band: 0.3 },
+  thaw: { px: [1200, 800], figs: { man: [[40, 512, 798]], kneel: [[295, 740, 552]] }, band: 0.3 },
 };
+
+/** Сцена й боєць для цілі tgt: випадкова сцена, де така ціль є на фото, інакше будь-яка (лише тло). */
+function pickScene(tgt) {
+  const keys = Object.keys(SCENES);
+  const own = keys.filter((k) => SCENES[k].figs[tgt]);
+  const pool = own.length ? own : keys;
+  const key = pool[Math.floor(Math.random() * pool.length)];
+  return [key, Math.floor(Math.random() * (SCENES[key].figs[tgt]?.length ?? 1))];
+}
 
 /** Скільки триває підсвітка нашого солдата на цілому кадрі, мс (як анімація .r-flash у CSS). */
 const FLASH_MS = 1800;
@@ -324,57 +338,45 @@ function scope(svg, o) {
   // лупа лишається там, де ціль стоїть спочатку, — інакше рух виглядав би як зсув сітки
   if (o.mode === 'range') { const cl = (v) => Math.max(-R * 0.85, Math.min(R * 0.85, v ?? 0)); cx -= cl(o.rx); top -= cl(o.ry); }
   let ground = { class: 'r-gr' };
-  // Цілий кадр — лише для людини: для інших цілей і без цілі замість нього ліс
-  const sk = SCENES[o.real]?.fig && (o.tgt !== 'man' || o.noTarget) ? 'forest' : o.real;
+  const sk = o.real;
   const sc = SCENES[sk];
+  // Боєць на кадрі — коли ціль цього типу на фото є; інакше й без цілі — лише чиста копія кадру, у масштабі першої людини 1,7 м
+  const fig = !o.noTarget && sc?.figs[o.tgt]?.[o.fig ?? 0];
+  const bare = sc && !fig;
   // Колір сітки: вибраний кнопкою, а без вибору на фото — чорна, як у справжньому прицілі
   const ink = o.ink ?? (sc ? 'black' : null);
   svg.classList.toggle('ink-b', ink === 'black');
   svg.classList.toggle('ink-w', ink === 'white');
   svg.classList.toggle('photo', !!sc);
   if (sc) {
-    // Реалізм: фото тла прив'язане до цілі. Горизонт — на висоті ока (1,5 м) над її ногами, тож чим ближче ціль, тим вище він у полі зору;
-    // тло далеко, його кутовий розмір від дистанції не залежить — лише від кратності (k)
+    // Реалізм: кадр прив'язаний до цілі — вибраний боєць на фото завбільшки з неї, решта кадру масштабується разом із ним
     const defs = cp.parentNode;
-    // Плитка двічі ширша за фото: друга половина — дзеркальна копія, тож по краях фото продовжується без шва.
-    // Цілий кадр уже бесшовний по горизонталі — там просто повтор, без дзеркала (інакше візерунок «калейдоскопом»)
+    // Плитка — бесшовна по горизонталі, тож просто повтор; нахлест 0,3 % — інакше на стиках видно тонкий шов
     const pat = (pid, href, x, y, w, h) => {
-      const m = sc.fig ? 1 : 2;
-      const p = mk('pattern', { id: pid, patternUnits: 'userSpaceOnUse', x, y, width: m * w, height: h }, defs);
-      // Повтор без дзеркала — з нахлестом у 0,3 %, інакше на стиках плиток видно тонкий шов
-      mk('image', { href, width: m > 1 ? w : w * 1.003, height: h, preserveAspectRatio: 'none' }, p);
-      if (m > 1) mk('image', { href, width: w, height: h, preserveAspectRatio: 'none', transform: `translate(${2 * w} 0) scale(-1 1)` }, p);
+      const p = mk('pattern', { id: pid, patternUnits: 'userSpaceOnUse', x, y, width: w, height: h }, defs);
+      mk('image', { href, width: w * 1.003, height: h, preserveAspectRatio: 'none' }, p);
     };
     const img = (n) => `guide/img/real-${sk}${n}.webp`;
-    if (sc.fig) {
-      // Цілий кадр: солдат на фото має висоту цілі H, ноги — там, де ноги цілі
-      const [ft, ff, fc] = sc.fig;
-      const bh = H / (ff - ft); const bw = bh / sc.ar; const bx = cx - fc * bw; const by = top + H - ff * bh;
-      pat(`${id}c`, img('-c'), bx, by, bw, bh);
-      pat(`${id}s`, img('-sky'), bx, by - bh * sc.sk, bw, bh * sc.sk);
-      pat(`${id}g`, img('-gr'), bx, by + bh, bw, bh * sc.gr);
-      mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
-      mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}c)` }, g);
-      mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
-      ground = { fill: `url(#${id}g)` };
-      mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
-    } else {
-      const bw = C.size(150, 1000) * k; const bh = bw * sc.ar; const bx = cx - bw / 2;
-      const by = top + H - C.size(1.5, o.dist) * k - bh * sc.hz;
-      pat(`${id}b`, img(''), bx, by, bw, bh);
-      pat(`${id}g`, img('-gr'), bx, by + bh, bw, bh * sc.gr);
-      pat(`${id}s`, img('-sky'), bx, by - bh * sc.sk, bw, bh * sc.sk);
-      mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
-      mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}b)` }, g);
-      ground = { fill: `url(#${id}g)` };
-      mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
-    }
+    // Цілий кадр: боєць на фото має висоту цілі H, ноги — там, де ноги цілі
+    const [pw, ph] = sc.px; const [ft, ff, fc] = (fig || sc.figs.man[0]).map((v, i) => v / (i < 2 ? ph : pw));
+    const bh = (bare ? C.size(1.7, o.dist) * k : H) / (ff - ft); const bw = bh * pw / ph; const bx = cx - fc * bw; const by = top + H - ff * bh;
+    // Смуга неба над кадром і землі під ним: повтором (rep) або одна, розтягнута до краю прицілу
+    const skyH = sc.rep ? bh * sc.rep.sk : Math.max(bh * sc.band, by + R);
+    const grH = sc.rep ? bh * sc.rep.gr : Math.max(bh * sc.band, R - by - bh);
+    pat(`${id}c`, img('-c'), bx, by, bw, bh);
+    pat(`${id}s`, img('-sky'), bx, by - skyH, bw, skyH);
+    pat(`${id}g`, img('-gr'), bx, by + bh, bw, grH);
+    mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
+    mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}c)` }, g);
+    if (!bare) mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
+    ground = { fill: `url(#${id}g)` };
+    mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
   } else mk('rect', { x: -R, y: top + H, width: 2 * R, height: 2 * R, ...ground }, g);
   const tg = mk('g', { transform: `translate(${cx} ${top}) scale(${o.flip ? -H : H} ${H})` }, g);
   // Фото цілі — у тих самих одиницях, що й контур (висота = 1), тож розмір у мілах від дистанції й кратності той самий
   if (o.noTarget) tg.remove();
   // На цілому кадрі солдат уже є — малюємо лише зону ураження й підказки поверх
-  else if (sc?.fig) {
+  else if (fig) {
     tg.setAttribute('data-fig', '');
     // На кадрі кілька солдатів — нашого коротко підсвічуємо, коли ціль з'явилась (o.flash — коли саме).
     // Приціл перемальовується при кожному русі, тож анімація продовжується з того ж місця (від'ємна затримка)
@@ -383,11 +385,7 @@ function scope(svg, o) {
     const ry = Math.max(0.66, 3 / H);
     if (ago < FLASH_MS) mk('ellipse', { cx: 0, cy: 0.5, rx: ry * 0.8, ry, class: 'r-flash', 'vector-effect': 'non-scaling-stroke', style: `animation-delay:${-ago}ms` }, tg);
   }
-  else if (sc && T.photo) {
-    // Тінь під ногами — без неї фігура «висить» над травою
-    mk('ellipse', { cx: 0, cy: 0.99, rx: T.photo[1] * 0.6, ry: 0.025, fill: 'rgb(0 0 0 / 0.3)' }, tg);
-    mk('image', { href: T.photo[0], x: -T.photo[1] / 2, y: 0, width: T.photo[1], height: 1, preserveAspectRatio: 'none' }, tg);
-  } else {
+  else {
     mk('path', { d: T.path, class: 'r-tgt' }, tg);
     if (T.dark) mk('path', { d: T.dark, class: 'r-tgt-d' }, tg);
     (T.parts ?? []).forEach(([x, y, r, d]) => mk('circle', { cx: x, cy: y, r, class: d ? 'r-tgt-d' : 'r-tgt' }, tg));
@@ -696,6 +694,12 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   if (!svg) return;
   // ret — зсув прицілу в далекомірі (ціль іде назустріч); не зберігаємо: нова ціль чи приціл починають з цілі на місці
   const st = { mode: 'aim', tgt: 'man', zoom: 1, ret: [0, 0], meas: 1, real: null, ink: null };
+  // Реалізм: сцена й боєць — на кожне завдання свої (holder — завдання q або вільний приціл st), поки ціль та сама
+  const realOf = (holder, tgt) => {
+    if (!st.real) return { real: null };
+    if (!holder.scene || holder.sceneTgt !== tgt) { holder.scene = pickScene(tgt); holder.sceneTgt = tgt; }
+    return { real: holder.scene[0], fig: holder.scene[1] };
+  };
   // Далекомір: чим міряти (ріст, голова, плечі, довжина) — у рядку інструментів замість вітру, руху й гвинтівки;
   // вибране підсвічене скобою на цілі
   const measBox = document.createElement('div');
@@ -817,7 +821,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
       b.addEventListener('click', () => { st.meas = i + 1; draw(); });
       return b;
     }));
-    scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, rx: st.ret[0], ry: st.ret[1], meas: ranging ? st.meas : 0, zoom: st.zoom, real: st.real, ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0 });
+    scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, rx: st.ret[0], ry: st.ret[1], meas: ranging ? st.meas : 0, zoom: st.zoom, ...realOf(st, st.tgt), ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0 });
     // Палець по прицілу — свайпи й перетяг, не прокрутка сторінки
     svg.style.touchAction = 'none';
     paintRetReset(ranging && (st.ret[0] || st.ret[1]));
@@ -1246,7 +1250,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     // Сітка нерухома; ціль ставиш на мітку виносу. q.pending/q.answer — зсув центру від цілі, тож ціль стоїть у −p
     // «Як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
     const p = q.show ? [-q.hx, -q.hy] : q.answer ?? q.pending ?? [0, 0];
-    scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, real: st.real, ink: st.ink, flash: (q.at ??= performance.now()), flip: q.vt > 0 && !q.goRight,
+    scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, ...realOf(q, q.tgt), ink: st.ink, flash: (q.at ??= performance.now()), flip: q.vt > 0 && !q.goRight,
       move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer && !q.timeout ? [q.hx, q.hy] : null });
     svg.style.touchAction = answered(q) ? '' : 'none';
     paintRetReset(false);
@@ -1347,7 +1351,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   // Лише приціл вправи «Визнач дальність» — перетягування сітки не чіпає поле відповіді під ним
   const rangeScope = () => {
     const q = quiz.cur; const r = q.ret ?? [0, 0];
-    scope(svg, { ret: LOADS[$('s-kit').value].ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'range', hx: 0, hy: 0, rx: r[0], ry: r[1], zoom: st.zoom, real: st.real, ink: st.ink, flash: (q.at ??= performance.now()), hide: q.hide });
+    scope(svg, { ret: LOADS[$('s-kit').value].ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'range', hx: 0, hy: 0, rx: r[0], ry: r[1], zoom: st.zoom, ...realOf(q, q.tgt), ink: st.ink, flash: (q.at ??= performance.now()), hide: q.hide });
     svg.style.touchAction = 'none';
     paintRetReset(r[0] || r[1]);
   };
@@ -1719,19 +1723,17 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     draw();
   };
   zoomBtn?.addEventListener('click', nextZoom);
-  // Реалізм: фото тла й людини замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — наступна сцена, після останньої — схема
+  // Реалізм: фото замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — схема ↔ фото, значок показує, що зараз
   const realBtn = $('sim-real');
-  const REALS = [null, ...Object.keys(SCENES)];
   const paintReal = () => {
     if (!realBtn) return;
     realBtn.setAttribute('aria-pressed', String(!!st.real));
-    realBtn.querySelector('span').textContent = st.real ? t(SCENES[st.real].name) : '';
   };
   // Колір сітки: чорна ↔ біла; поки не вибрано — як у теми, а на фото чорна
   const inkBtn = $('sim-ink');
   const inkNow = () => st.ink ?? (st.real ? 'black' : null);
   const paintInk = () => inkBtn?.setAttribute('data-ink', inkNow() ?? 'auto');
-  realBtn?.addEventListener('click', () => { st.real = REALS[(REALS.indexOf(st.real) + 1) % REALS.length]; st.flashAt = performance.now(); paintReal(); paintInk(); draw(); });
+  realBtn?.addEventListener('click', () => { st.real = st.real ? null : 'on'; st.scene = null; st.flashAt = performance.now(); paintReal(); paintInk(); draw(); });
   inkBtn?.addEventListener('click', () => {
     const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || document.documentElement.dataset.theme === 'dark' ? 'white' : 'black');
     st.ink = cur === 'black' ? 'white' : 'black';
@@ -1855,7 +1857,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
         st.zoom = saved.zoom;
         if (zoomBtn) { zoomBtn.textContent = `🔍 ${st.zoom}×`; zoomBtn.setAttribute('aria-pressed', String(st.zoom > 1)); }
       }
-      if (SCENES[saved.real]) { st.real = saved.real; paintReal(); }
+      if (saved.real) { st.real = 'on'; paintReal(); }
       if (['black', 'white'].includes(saved.ink)) st.ink = saved.ink;
       paintInk();
     }
