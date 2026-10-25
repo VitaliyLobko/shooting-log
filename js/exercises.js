@@ -57,18 +57,19 @@ export const EXERCISES = [
       ru: [
         'Alpha: круг 20 см.',
         'Максимум: 100 очков.',
-        'Звания: Basic → Shooter → Sharpshooter → Marksman → Scout → Expert → Pro.',
+        'Звания: Basic → Shooter → Sharpshooter → Marksman → Scout → Expert → Pro — присваивает организатор, пороги в очках не опубликованы; свои можно задать в настройках упражнения (✎).',
         'Звание подтверждается вторым матчем.',
       ],
       uk: [
         'Alpha: коло 20 см.',
         'Максимум: 100 очок.',
-        'Звання: Basic → Shooter → Sharpshooter → Marksman → Scout → Expert → Pro.',
+        'Звання: Basic → Shooter → Sharpshooter → Marksman → Scout → Expert → Pro — присвоює організатор, пороги в очках не опубліковані; свої можна задати в налаштуваннях вправи (✎).',
         'Звання підтверджується другим матчем.',
       ],
     },
     shots: 20,
     zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
+    ranksNote: false,
   },
   {
     id: 'white5',
@@ -199,18 +200,19 @@ export const EXERCISES = [
         'Зоны: как в База-20.',
         'Максимум: 100 очков.',
         'Просрочка: за каждый выстрел после 30 с снимается одно лучшее попадание.',
-        'Звания: по сумме, пример из видео — 80 = Scout.',
+        'Звания: по сумме, пример из видео — 80 = Scout; остальные пороги не опубликованы — свои можно задать в настройках упражнения (✎).',
       ],
       uk: [
         'Зони: як у База-20.',
         'Максимум: 100 очок.',
         'Прострочка: за кожен постріл після 30 с знімається одне найкраще влучання.',
-        'Звання: за сумою, приклад з відео — 80 = Scout.',
+        'Звання: за сумою, приклад з відео — 80 = Scout; решта порогів не опублікована — свої можна задати в налаштуваннях вправи (✎).',
       ],
     },
     shots: 20,
     zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
     late: true,
+    ranksNote: false,
   },
   {
     id: 'marathon',
@@ -242,7 +244,7 @@ export const EXERCISES = [
   {
     id: 'nordic10',
     name: 'Nordic-10',
-    sub: { ru: 'Третий этап троеборья · 10 выстрелов', uk: 'Третій етап триборства · 10 пострілів' },
+    sub: { ru: 'Третий этап троеборья · до 6 выстрелов · на время', uk: 'Третій етап триборства · до 6 пострілів · на час' },
     rules: {
       ru: [
         'По мотивам скандинавского felthurtigskyting.',
@@ -280,6 +282,8 @@ export const EXERCISES = [
     shots: 6,
     zones: [['hit', { ru: 'Попадания', uk: 'Влучання' }, 1]],
     time: true,
+    // за тих самих влучань кращий — швидший
+    timeTie: true,
   },
 ];
 
@@ -316,7 +320,8 @@ function scoringContent(ex) {
   const ranks = list.length
     ? h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Звания')),
       h('dl', { class: 'kv ex-zones' }, list.map(([min, name]) => [h('dt', {}, L(name)), h('dd', {}, t('от {n}', { n: fmt.num(min) }))])))
-    : h('p', { class: 'muted small ex-scoring-note' }, t('Пороги званий не заданы — укажите их в настройках упражнения (✎).'));
+    : ex.ranksNote === false ? null
+      : h('p', { class: 'muted small ex-scoring-note' }, t('Пороги званий не заданы — укажите их в настройках упражнения (✎).'));
   return h('div', { class: 'ex-scoring' }, zones, notes.length ? h('ul', { class: 'ex-points' }, notes) : null, ranks);
 }
 
@@ -351,6 +356,10 @@ export function scoreOf(ex, r) {
 }
 
 export const rankOf = (ex, score) => ranksOf(ex)?.find(([min]) => score >= min)?.[1];
+
+/** Найкращий результат: більше очок, а за рівних у вправах на час (timeTie) — швидший. */
+const bestOf = (ex, list) => list.reduce((b, s) => (!b || s.score > b.score
+  || (ex.timeTie && s.score === b.score && (s.time || Infinity) < (b.time || Infinity)) ? s : b), null);
 
 // Свої вправи з бази: тримаємо тут, щоб exById і назва в журналі бачили їх як вбудовані.
 let CUSTOM = [];
@@ -404,7 +413,9 @@ export const exById = (id) => exerciseList().find((e) => e.id === id);
  * Значення підставляється в поля, які завжди можна виправити руками.
  */
 const WHELAN_T = 9.87;
-export const whelanPoints = (time, base) => (time > 0 ? Math.max(0, Math.round((base * WHELAN_T) / time)) : base);
+// Швидше за 5 с п'ять пострілів навскидку на 91 м не роблять — ціну рахуємо як за 5 с (не більше ×2 від відомої точки)
+export const WHELAN_MIN = 5;
+export const whelanPoints = (time, base) => (time > 0 ? Math.max(0, Math.round((base * WHELAN_T) / Math.max(WHELAN_MIN, time))) : base);
 
 // Відмітки пострілів — від сигналу, тож час серії — останній постріл, а не їхня сума
 const sumTime = (drill) => Math.max(0, ...(drill.shots ?? []));
@@ -417,9 +428,9 @@ const round2 = (v) => Math.round(v * 100) / 100;
  * targetsOf(record) віддає блок мішеней результату (або null).
  */
 /** Контекст вправ із того, що дає застосунок; свої вправи — одразу в довідник назв. */
-function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], whenFields = null, whereWhen = null, whereWhenView = () => null, pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null }) {
+function makeCtx({ scores, weapons, cartridges = [], drills = [], box, stat, onSave, onDelete, targetsOf, lastAmmo = null, mismatch = null, openTimer = null, pickAmmo = null, pickWeapon = null, weaponName = () => null, weaponExtras = null, extrasRows = () => [], whenFields = null, whereWhen = null, whereWhenView = () => null, pickList = null, collectField = null, custom = [], onSaveExercise = null, onDeleteExercise = null, onHideExercise = null, deleteNote = null }) {
   CUSTOM = custom;
-  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, whenFields, whereWhen, whereWhenView, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise };
+  return { scores, weapons, cartridges, drills, box, stat, onSave, onDelete, targetsOf, lastAmmo, mismatch, openTimer, pickAmmo, pickWeapon, weaponName, weaponExtras, extrasRows, whenFields, whereWhen, whereWhenView, pickList, collectField, custom, onSaveExercise, onDeleteExercise, onHideExercise, deleteNote };
 }
 
 export function exercisesPanel(args) {
@@ -451,7 +462,8 @@ function myScores(ex, ctx) {
 /** Плитка вправи: рекорд у кільці до наступного звання, під ним звання, назва й спроби. */
 function exerciseTile(ex, ctx) {
   const mine = myScores(ex, ctx);
-  const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
+  const top = bestOf(ex, mine);
+  const best = top ? top.score : null;
   const step = best === null ? null : rankStep(ex, best);
   // Без результату — пунктирне кільце й заклик спробувати; нижче першого звання — скільки до нього;
   // у вправи без звань — просто «рекорд», щоб плитки стояли рівно.
@@ -462,6 +474,8 @@ function exerciseTile(ex, ctx) {
         : h('span', { class: 'ex-tile-foot' }, t('рекорд'));
   return h('button', { type: 'button', class: `ex-tile ${best === null ? 'empty' : ''}`, 'data-id': ex.id, onclick: () => exerciseSheet(ex, ctx) },
     progressRing(step?.list.length ? step.progress : 0, best === null ? '—' : fmt.num(best), 'ex-tile-ring'),
+    // рекорд на час — і час під кільцем: інакше два результати по 6 влучань не розрізнити
+    ex.timeTie && top?.time ? h('span', { class: 'ex-tile-foot' }, `${fmt.num(top.time)} ${t('с')}`) : null,
     status,
     h('span', { class: 'ex-tile-name' }, L(ex.name)),
     h('span', { class: 'ex-tile-foot' }, [ex.shots ? t('{n} выстр.', { n: ex.shots }) : L(ex.sub),
@@ -470,14 +484,15 @@ function exerciseTile(ex, ctx) {
 
 /** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — під «i» в шапці. */
 function exerciseSheet(ex, ctx) {
+  infoOpen = false;
   const body = () => {
     const mine = myScores(ex, ctx);
-    const best = mine.length ? Math.max(...mine.map((s) => s.score)) : null;
+    const top = bestOf(ex, mine);
     const series = M.scoreSeries(ctx.scores, ex.id);
     return h('div', {},
       h('p', { class: 'muted' }, L(ex.sub)),
       infoPanel(ex),
-      mine.length ? recordHero(ex, best, mine) : null,
+      mine.length ? recordHero(ex, top, mine) : null,
       ex.zones ? h('div', { class: 'btn-row' },
         btn(t('Записать результат'), () => { close(); scoreSheet(ex, ctx); }, 'primary')) : null,
       series.length > 1 ? ctx.box(t('Динамика'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: x.value })), {
@@ -486,7 +501,7 @@ function exerciseSheet(ex, ctx) {
         // Пороги звань — лініями: видно, скільки до наступного.
         refs: (ranksOf(ex) ?? []).map(([min, name]) => [min, L(name)]),
       })) : null,
-      mine.length ? ctx.box(t('Результаты'), h('div', { class: 'rows' }, mine.map((x) => scoreRow(ex, x, best, ctx))),
+      mine.length ? ctx.box(t('Результаты'), h('div', { class: 'rows' }, mine.map((x) => scoreRow(ex, x, top, ctx))),
         { fold: 'ex-results', count: mine.length }) : null);
   };
   // Правка й видалення (для вбудованої — «повернути як було») — іконками в шапці, як у картках зброї й набою.
@@ -495,10 +510,10 @@ function exerciseSheet(ex, ctx) {
   const builtIn = EXERCISES.some((e) => e.id === ex.id);
   const tools = [infoButton(), ...(ctx.onSaveExercise ? [
     toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ?? asRecord(ex), ctx); }),
-    own && builtIn ? toolBtn('reset', t('Вернуть встроенную'), () => { close(); ctx.onDeleteExercise?.(own); }) : null,
+    own && builtIn ? toolBtn('reset', t('Вернуть встроенную'), () => ctx.onDeleteExercise?.(own, () => close())) : null,
     builtIn
-      ? toolBtn('delete', t('Удалить'), () => { close(); ctx.onHideExercise?.(ex); }, 'danger')
-      : own ? toolBtn('delete', t('Удалить'), () => { close(); ctx.onDeleteExercise?.(own); }, 'danger') : null,
+      ? toolBtn('delete', t('Удалить'), () => ctx.onHideExercise?.(ex, () => close()), 'danger')
+      : own ? toolBtn('delete', t('Удалить'), () => ctx.onDeleteExercise?.(own, () => close()), 'danger') : null,
   ].filter(Boolean) : [])];
   const close = sheet(L(ex.name), body(), { live: body, tools });
 }
@@ -540,7 +555,8 @@ function rankStep(ex, best) {
 }
 
 /** Рекорд крупно, звання й скільки до наступного, праворуч кільце прогресу; під ним середнє, останній і спроби. */
-function recordHero(ex, best, mine) {
+function recordHero(ex, top, mine) {
+  const best = top.score;
   const { list, cur, next, progress } = rankStep(ex, best);
   const avgOf = Math.min(3, mine.length);
   const avg = Math.round(mine.slice(0, avgOf).reduce((s, x) => s + x.score, 0) / avgOf);
@@ -548,7 +564,7 @@ function recordHero(ex, best, mine) {
     h('section', { class: 'ex-rec' },
       h('div', {},
         h('div', { class: 'hero-label' }, t('рекорд')),
-        h('div', { class: 'ex-rec-value' }, fmt.num(best)),
+        h('div', { class: 'ex-rec-value' }, fmt.num(best), ex.timeTie && top.time ? h('small', {}, ` · ${fmt.num(top.time)} ${t('с')}`) : null),
         list.length ? h('div', { class: 'muted small' }, cur ? [h('b', { class: 'rank-name' }, L(cur[1])), ' · '] : null,
           next ? t('ещё {n} до «{rank}»', { n: fmt.num(next[0] - best), rank: L(next[1]) }) : t('высшее звание')) : null),
       list.length ? progressRing(progress, cur ? L(cur[1]) : '—') : null),
@@ -659,12 +675,15 @@ function exerciseForm(rec, ctx) {
     // Пороги переїхали у вправу — старі «на цьому пристрої» більше не потрібні.
     if (rec?.id) saveRanks(rec.id, null);
   };
+  const start = JSON.stringify(f.values());
   const close = sheet(rec ? L(rec.name) : t('Своё упражнение'), f.el, {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
+    dirty: () => JSON.stringify(f.values()) !== start,
   });
 }
 
-function scoreRow(ex, s, best, ctx) {
+function scoreRow(ex, s, top, ctx) {
+  const best = top?.score;
   const rank = rankOf(ex, s.score);
   const variant = ex.variants?.find(([k]) => k === s.variant)?.[1];
   const sub = [variant && L(variant), s.weaponId ? ctx.weaponName(s.weaponId) : null,
@@ -673,9 +692,9 @@ function scoreRow(ex, s, best, ctx) {
   return h('button', { type: 'button', class: 'row', 'data-id': s.id, onclick: () => scoreCard(ex, s, ctx) },
     h('span', { class: 'row-main' },
       // Дата першою: результати шукають за днем стрільби.
-      h('span', { class: 'row-title' }, `${fmt.date(s.date)} · ${hitsOf(s)}${ex.shots ? `/${ex.shots}` : ''} ${t('попад.')}`, rank ? ` · ${L(rank)}` : '', s.score === best ? starIcon(t('Лучший результат')) : null),
+      h('span', { class: 'row-title' }, `${fmt.date(s.date)} · ${hitsOf(s)}${ex.shots ? `/${ex.shots}` : ''} ${t('попад.')}`, rank ? ` · ${L(rank)}` : '', s === top ? starIcon(t('Лучший результат')) : null),
       h('span', { class: 'muted small' }, sub),
-      best ? h('div', { class: 'bar' }, h('div', { class: `fill ${s.score === best ? '' : 'ap'}`, style: `width:${Math.max(4, (s.score / best) * 100)}%` })) : null),
+      best ? h('div', { class: 'bar' }, h('div', { class: `fill ${s === top ? '' : 'ap'}`, style: `width:${Math.max(4, (s.score / best) * 100)}%` })) : null),
     h('span', { class: 'tg-best' }, fmt.num(s.score)));
 }
 
@@ -684,7 +703,7 @@ function scoreCard(ex, s, ctx) {
   const rank = rankOf(ex, s.score);
   const cut = lateCut(ex, s);
   const hits = hitsOf(s);
-  const isBest = s.score === Math.max(...myScores(ex, ctx).map((x) => x.score));
+  const isBest = bestOf(ex, myScores(ex, ctx))?.id === s.id;
   // Влучання по зонах: скільки, по скільки очок і разом; штраф прострочки — окремим рядком, щоб сума сходилась.
   const priced = (ex.zones ?? []).map(([k, label, pts]) => {
     const n = s.hits?.[k] ?? 0;
@@ -718,9 +737,10 @@ function scoreCard(ex, s, ctx) {
     cond.length ? ctx.box(t('Условия'), h('dl', { class: 'kv' }, cond.map(([k, v]) => [h('dt', {}, k), h('dd', {}, String(v))]))) : null,
     ctx.whereWhenView(s),
     ctx.targetsOf?.(s) ?? null);
+  // Питання — поверх картки: «Скасувати» лишає на результаті
   const del = toolBtn('delete', t('Удалить'), () => {
-    close();
-    confirmSheet(t('Удалить результат?'), `${L(ex.name)} · ${fmt.date(s.date)} · ${s.score}`, t('Удалить'), () => ctx.onDelete(s));
+    confirmSheet(t('Удалить результат?'), [`${L(ex.name)} · ${fmt.date(s.date)} · ${s.score}`, ctx.deleteNote?.(s)].filter(Boolean).join('. '),
+      t('Удалить'), () => { close(); ctx.onDelete(s); });
   }, 'danger');
   const edit = toolBtn('edit', t('Изменить'), () => { close(); scoreSheet(ex, ctx, s); });
   const close = sheet(`${L(ex.name)} · ${fmt.date(s.date)}`, body, { tools: [edit, del] });
@@ -783,17 +803,19 @@ function scoreSheet(ex, ctx, prev = null) {
   const summary = h('div', { class: 'stats even' });
   const hint = h('p', { class: 'muted small' });
   // Ціни збереженого результату, виправлені руками (не збігаються з оцінкою за його часом), правка не перезаписує
+  let seriesPick = null;
   let pricedByHand = Boolean(prev?.pts) && ex.zones.some(([k, , pts]) => Number(prev.pts[k]) !== whelanPoints(prev.time, pts));
   if (timeF && ctx.openTimer) {
     // Вправу на час стріляють із таймером — запускаємо його звідси, час сам стане в поле.
     timeF.el.append(h('div', { class: 'field half ex-timer-btn' }, h('button', {
       type: 'button', class: 'btn',
-      onclick: () => ctx.openTimer((seconds) => { f.inputs.time.value = round2(seconds); update(); }),
-    }, t('Запустить таймер'))));
+      onclick: () => ctx.openTimer((seconds) => { f.inputs.time.value = round2(seconds); if (seriesPick) seriesPick.value = ''; update(); }),
+    }, t('Запустить таймер')), h('small', { class: 'muted' }, t('Серия сохранится и в «Таймере».'))));
   }
   // Час зі збереженої серії таймера: у вправах на час його й так міряють таймером.
   const timed = ctx.drills.filter((d) => d.shots?.length);
   if (timeF && timed.length) {
+    seriesPick = null;
     const pick = h('select', {
       'aria-label': t('Взять время из серии'),
       onchange: () => {
@@ -804,6 +826,7 @@ function scoreSheet(ex, ctx, prev = null) {
       },
     }, [h('option', { value: '' }, '—'),
       ...timed.map((d) => h('option', { value: d.id }, `${fmt.date(d.date)} · ${d.shots.length} ${t('выстр.')} · ${fmt.num(round2(sumTime(d)))} ${t('с')}`))]);
+    seriesPick = pick;
     timeF.el.append(h('label', { class: 'field wide' }, h('span', { class: 'field-label' }, t('Взять время из серии')), pick));
     ctx.pickList?.(pick, t('Взять время из серии'));
   }
@@ -840,23 +863,33 @@ function scoreSheet(ex, ctx, prev = null) {
       ctx.mismatch?.(f.inputs.cartridgeId?.value, f.inputs.weaponId.value),
       ex.shots && hits > ex.shots ? t('больше {n} выстрелов', { n: ex.shots }) : null,
       ex.whelan ? t('Цена попадания — оценка по времени, её можно исправить.') : null,
+      ex.whelan && r.time > 0 && r.time < WHELAN_MIN ? t('Меньше {n} с — проверьте время; цена посчитана как за {n} с.', { n: WHELAN_MIN }) : null,
     ].filter(Boolean).join(' · ');
     hint.hidden = !hint.textContent;
   };
   if (ex.perHit) for (const [k] of ex.zones) f.inputs[`pts_${k}`].addEventListener('input', () => { pricedByHand = true; });
   // Вибрали ствол — підставляємо набій, яким з нього стріляли востаннє: на полігоні це майже завжди він.
   let ammoByHand = false;
+  let autoAmmo = false;
   if (f.inputs.cartridgeId) {
-    f.inputs.cartridgeId.addEventListener('change', () => { ammoByHand = true; });
+    f.inputs.cartridgeId.addEventListener('change', () => { if (!autoAmmo) ammoByHand = true; });
     f.inputs.weaponId.addEventListener('change', () => {
       if (ammoByHand) return;
       const id = ctx.lastAmmo?.(f.inputs.weaponId.value);
-      if (id && [...f.inputs.cartridgeId.options].some((o) => o.value === id)) f.inputs.cartridgeId.value = id;
+      if (id && id !== f.inputs.cartridgeId.value && [...f.inputs.cartridgeId.options].some((o) => o.value === id)) {
+        f.inputs.cartridgeId.value = id;
+        autoAmmo = true;
+        f.inputs.cartridgeId.dispatchEvent(new Event('change', { bubbles: true }));
+        autoAmmo = false;
+      }
       collect?.update();
     });
   }
   f.onInput(update);
   update();
+  // Що вже ввели — порівнюємо з тим, що було на відкритті (разом із варіантом)
+  const snap = () => JSON.stringify([f.values(), variant]);
+  const start = snap();
   const close = sheet(prev ? `${L(ex.name)} · ${t('Изменить')}` : L(ex.name), h('div', {},
     ex.variants ? chips(ex.variants.map(([k, label]) => [k, L(label)]), variant, (v) => { variant = v; }) : null,
     ctx.box(t('Условия'), condF.el),
@@ -876,5 +909,6 @@ function scoreSheet(ex, ctx, prev = null) {
       close();
       ctx.onSave(r, !prev && v.cartridgeId && qty ? { cartridgeId: v.cartridgeId, qty, note: L(ex.name), collect: collect?.value() ?? null } : null);
     }, 'primary')],
+    dirty: () => snap() !== start,
   });
 }
