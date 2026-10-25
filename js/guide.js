@@ -186,7 +186,7 @@ const CHEST = 'M-.5 1L-.5 .62Q-.5 .42 -.28 .42L.28 .42Q.5 .42 .5 .62L.5 1Z';
 // Силуети в одиницях висоти цілі (h, м): y від 0 (верх) до 1 (низ), x від центру; w — ширина в тих самих одиницях,
 // ap — точка прицілювання (частка висоти), parts — кола [x, y, r]. Розміри техніки — середні, у моделей різняться.
 const TGT = {
-  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]], photo: ['guide/img/real-soldier.webp', 0.327] },
+  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]] },
   chest: { short: 'Грудная', label: 'Грудная 0,5 м', h: 0.5, w: 1, ap: 0.65, path: CHEST, parts: [[0, 0.22, 0.18]] },
   // Поясна №7 — 0,5 × 1,0 м; голова й плечі тієї ж форми й розміру, що в грудної №6
   waist: { short: 'Поясная', label: 'Поясная №7: 1 × 0,5 м', h: 1, w: 0.5, ap: 0.36, dims: [['ширина', 0.5]], parts: [[0, 0.11, 0.09]],
@@ -287,13 +287,24 @@ function hitBand(key, ex, ey, H, flip) {
 // Фото-сцени реалізму: hz — горизонт (рівень ока) у частці висоти фото, ar — висота / ширина.
 // Ширина фото — 150 міл: дерева й будинки за кілька сотень метрів — кілометр мають правдоподібний кутовий розмір.
 // Нижче фото — трава з його ж низу, вище — небо з його ж верху, обидва дзеркалом по вертикалі (gr, sk — висота плитки в частках висоти фото)
-// Цілий кадр (fig): солдат уже на фото — верх і ноги в частках висоти, центр у частці ширини; кадр масштабується так,
-// щоб він мав розмір цілі. Обабіч — його чиста копія (-c, без людей і техніки, бесшовна), вище й нижче — небо й земля з неї;
-// боки самого кадру прозорі на краях і зливаються з копією
+// Цілий кадр: бійці вже на фото — figs за типом цілі, кожен [верх, низ, центр] у пікселях кадру px; кадр масштабується так,
+// щоб вибраний боєць мав розмір цілі. Обабіч — чиста копія кадру (-c, без людей і техніки, бесшовна), вище й нижче — небо й земля з неї;
+// боки самого кадру прозорі на краях і зливаються з копією.
+// rep — смуги неба й землі (sk, gr — висота в частках кадру) повторюються. Годиться лише загальний план: боєць ≲ 15 % висоти кадру,
+// інакше кадр у прицілі малий і навколо самі повтори — «калейдоскоп».
+// Фото: Міноборони РФ (mil.ru), CC BY 4.0. Цілі — лише російські військові.
 const SCENES = {
-  forest: { name: 'лес', hz: 0.72, ar: 1350 / 2400, gr: 0.398, sk: 0.299 },
-  assault: { name: 'атака', ar: 800 / 1200, fig: [0.4875, 0.63, 0.79], sk: 0.3, gr: 0.8 },
+  assault: { px: [1200, 800], figs: { man: [[390, 504, 948], [403, 483, 483], [399, 486, 527], [407, 484, 592], [392, 476, 1077]] }, rep: { sk: 0.3, gr: 0.8 } },
 };
+
+/** Сцена й боєць для цілі tgt: випадкова сцена, де така ціль є на фото, інакше будь-яка (лише тло). */
+function pickScene(tgt) {
+  const keys = Object.keys(SCENES);
+  const own = keys.filter((k) => SCENES[k].figs[tgt]);
+  const pool = own.length ? own : keys;
+  const key = pool[Math.floor(Math.random() * pool.length)];
+  return [key, Math.floor(Math.random() * (SCENES[key].figs[tgt]?.length ?? 1))];
+}
 
 /** Скільки триває підсвітка нашого солдата на цілому кадрі, мс (як анімація .r-flash у CSS). */
 const FLASH_MS = 1800;
@@ -324,57 +335,46 @@ function scope(svg, o) {
   // лупа лишається там, де ціль стоїть спочатку, — інакше рух виглядав би як зсув сітки
   if (o.mode === 'range') { const cl = (v) => Math.max(-R * 0.85, Math.min(R * 0.85, v ?? 0)); cx -= cl(o.rx); top -= cl(o.ry); }
   let ground = { class: 'r-gr' };
-  // Цілий кадр — лише для людини: для інших цілей і без цілі замість нього ліс
-  const sk = SCENES[o.real]?.fig && (o.tgt !== 'man' || o.noTarget) ? 'forest' : o.real;
+  let shown = null;
+  const sk = o.real;
   const sc = SCENES[sk];
+  // Боєць на кадрі — коли ціль цього типу на фото є; інакше й без цілі — лише чиста копія кадру, у масштабі першої людини 1,7 м
+  const fig = !o.noTarget && sc?.figs[o.tgt]?.[o.fig ?? 0];
+  const bare = sc && !fig;
   // Колір сітки: вибраний кнопкою, а без вибору на фото — чорна, як у справжньому прицілі
   const ink = o.ink ?? (sc ? 'black' : null);
   svg.classList.toggle('ink-b', ink === 'black');
   svg.classList.toggle('ink-w', ink === 'white');
   svg.classList.toggle('photo', !!sc);
   if (sc) {
-    // Реалізм: фото тла прив'язане до цілі. Горизонт — на висоті ока (1,5 м) над її ногами, тож чим ближче ціль, тим вище він у полі зору;
-    // тло далеко, його кутовий розмір від дистанції не залежить — лише від кратності (k)
+    // Реалізм: кадр прив'язаний до цілі — вибраний боєць на фото завбільшки з неї, решта кадру масштабується разом із ним
     const defs = cp.parentNode;
-    // Плитка двічі ширша за фото: друга половина — дзеркальна копія, тож по краях фото продовжується без шва.
-    // Цілий кадр уже бесшовний по горизонталі — там просто повтор, без дзеркала (інакше візерунок «калейдоскопом»)
+    // Плитка — бесшовна по горизонталі, тож просто повтор; нахлест 0,3 % — інакше на стиках видно тонкий шов
     const pat = (pid, href, x, y, w, h) => {
-      const m = sc.fig ? 1 : 2;
-      const p = mk('pattern', { id: pid, patternUnits: 'userSpaceOnUse', x, y, width: m * w, height: h }, defs);
-      // Повтор без дзеркала — з нахлестом у 0,3 %, інакше на стиках плиток видно тонкий шов
-      mk('image', { href, width: m > 1 ? w : w * 1.003, height: h, preserveAspectRatio: 'none' }, p);
-      if (m > 1) mk('image', { href, width: w, height: h, preserveAspectRatio: 'none', transform: `translate(${2 * w} 0) scale(-1 1)` }, p);
+      const p = mk('pattern', { id: pid, patternUnits: 'userSpaceOnUse', x, y, width: w, height: h }, defs);
+      mk('image', { href, width: w * 1.003, height: h, preserveAspectRatio: 'none' }, p);
     };
     const img = (n) => `guide/img/real-${sk}${n}.webp`;
-    if (sc.fig) {
-      // Цілий кадр: солдат на фото має висоту цілі H, ноги — там, де ноги цілі
-      const [ft, ff, fc] = sc.fig;
-      const bh = H / (ff - ft); const bw = bh / sc.ar; const bx = cx - fc * bw; const by = top + H - ff * bh;
-      pat(`${id}c`, img('-c'), bx, by, bw, bh);
-      pat(`${id}s`, img('-sky'), bx, by - bh * sc.sk, bw, bh * sc.sk);
-      pat(`${id}g`, img('-gr'), bx, by + bh, bw, bh * sc.gr);
-      mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
-      mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}c)` }, g);
-      mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
-      ground = { fill: `url(#${id}g)` };
-      mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
-    } else {
-      const bw = C.size(150, 1000) * k; const bh = bw * sc.ar; const bx = cx - bw / 2;
-      const by = top + H - C.size(1.5, o.dist) * k - bh * sc.hz;
-      pat(`${id}b`, img(''), bx, by, bw, bh);
-      pat(`${id}g`, img('-gr'), bx, by + bh, bw, bh * sc.gr);
-      pat(`${id}s`, img('-sky'), bx, by - bh * sc.sk, bw, bh * sc.sk);
-      mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
-      mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}b)` }, g);
-      ground = { fill: `url(#${id}g)` };
-      mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
-    }
+    // Цілий кадр: боєць на фото має висоту цілі H, ноги — там, де ноги цілі
+    const [pw, ph] = sc.px; const [ft, ff, fc] = (fig || sc.figs.man[0]).map((v, i) => v / (i < 2 ? ph : pw));
+    const bh = (bare ? C.size(1.7, o.dist) * k : H) / (ff - ft); const bw = bh * pw / ph; const bx = cx - fc * bw; const by = top + H - ff * bh;
+    if (fig) shown = sc.figs[o.tgt].map(([a, b, c]) => [bx + c / pw * bw, by + a / ph * bh, by + b / ph * bh]);
+    // Смуги неба над кадром і землі під ним повторюються до краю прицілу
+    const skyH = bh * sc.rep.sk; const grH = bh * sc.rep.gr;
+    pat(`${id}c`, img('-c'), bx, by, bw, bh);
+    pat(`${id}s`, img('-sky'), bx, by - skyH, bw, skyH);
+    pat(`${id}g`, img('-gr'), bx, by + bh, bw, grH);
+    mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
+    mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}c)` }, g);
+    if (!bare) mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
+    ground = { fill: `url(#${id}g)` };
+    mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
   } else mk('rect', { x: -R, y: top + H, width: 2 * R, height: 2 * R, ...ground }, g);
   const tg = mk('g', { transform: `translate(${cx} ${top}) scale(${o.flip ? -H : H} ${H})` }, g);
   // Фото цілі — у тих самих одиницях, що й контур (висота = 1), тож розмір у мілах від дистанції й кратності той самий
   if (o.noTarget) tg.remove();
   // На цілому кадрі солдат уже є — малюємо лише зону ураження й підказки поверх
-  else if (sc?.fig) {
+  else if (fig) {
     tg.setAttribute('data-fig', '');
     // На кадрі кілька солдатів — нашого коротко підсвічуємо, коли ціль з'явилась (o.flash — коли саме).
     // Приціл перемальовується при кожному русі, тож анімація продовжується з того ж місця (від'ємна затримка)
@@ -383,11 +383,7 @@ function scope(svg, o) {
     const ry = Math.max(0.66, 3 / H);
     if (ago < FLASH_MS) mk('ellipse', { cx: 0, cy: 0.5, rx: ry * 0.8, ry, class: 'r-flash', 'vector-effect': 'non-scaling-stroke', style: `animation-delay:${-ago}ms` }, tg);
   }
-  else if (sc && T.photo) {
-    // Тінь під ногами — без неї фігура «висить» над травою
-    mk('ellipse', { cx: 0, cy: 0.99, rx: T.photo[1] * 0.6, ry: 0.025, fill: 'rgb(0 0 0 / 0.3)' }, tg);
-    mk('image', { href: T.photo[0], x: -T.photo[1] / 2, y: 0, width: T.photo[1], height: 1, preserveAspectRatio: 'none' }, tg);
-  } else {
+  else {
     mk('path', { d: T.path, class: 'r-tgt' }, tg);
     if (T.dark) mk('path', { d: T.dark, class: 'r-tgt-d' }, tg);
     (T.parts ?? []).forEach(([x, y, r, d]) => mk('circle', { cx: x, cy: y, r, class: d ? 'r-tgt-d' : 'r-tgt' }, tg));
@@ -448,6 +444,7 @@ function scope(svg, o) {
     mk('path', { d: `M${px - a} ${py - a}L${px + a} ${py + a}M${px - a} ${py + a}L${px + a} ${py - a}`, class: 'r-hit', 'stroke-width': (R * 0.012) / z }, g);
   }
   mk('circle', { cx: 0, cy: 0, r: R, class: 'r-l', 'stroke-width': R * 0.02 }, svg);
+  return { figs: shown };
 }
 
 function mini(host, o, cap) {
@@ -696,6 +693,32 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   if (!svg) return;
   // ret — зсув прицілу в далекомірі (ціль іде назустріч); не зберігаємо: нова ціль чи приціл починають з цілі на місці
   const st = { mode: 'aim', tgt: 'man', zoom: 1, ret: [0, 0], meas: 1, real: null, ink: null };
+  // Реалізм: сцена й боєць — на кожне завдання свої (holder — завдання q або вільний приціл st), поки ціль та сама
+  // Кілька бійців на кадрі: кнопка «Ціль» перемикає на наступного (figs — з scope: [x, верх, ноги]).
+  // Зріст той самий, тож менший на кадрі стоїть далі: d · h₀ / h; масштаб кадру від зміни цілі не змінюється
+  let figs = null;
+  // Бійці останнього кадру — і кнопка «Ціль»: видно, лише коли їх кілька й ціль ще можна міняти
+  const setFigs = (f, holder) => {
+    figs = f;
+    const b = $('sim-fig'); if (!b) return;
+    b.hidden = !(f?.length > 1);
+    if (!b.hidden) b.querySelector('span').textContent = `${holder.scene[1] + 1}/${f.length}`;
+  };
+  // Перейти на бійця j: дистанція до нього з дистанції попереднього
+  // Рахуємо від точної, а не округленої дистанції (повзунок — крок 25 м): інакше по колу бійців похибка накопичується
+  const figDist = (holder, tgt, j, dist) => {
+    const [sk, i] = holder.scene; const h = (n) => SCENES[sk].figs[tgt][n][1] - SCENES[sk].figs[tgt][n][0];
+    const d0 = Math.abs((holder.dExact ?? Infinity) - dist) < 13 ? holder.dExact : dist;
+    holder.scene = [sk, j]; holder.dExact = d0 * h(i) / h(j);
+    return Math.round(holder.dExact);
+  };
+  // Зсув сітки в далекомірі, за якого боєць [x, верх, ноги] лишається на місці, ставши ціллю (див. «Далекомір» у scope)
+  const rangeAt = (C, T, [x, a, b]) => [T.w * (b - a) / 2 + (C.u === 'MOA' ? 0.65 : 0.5) - x, -a];
+  const realOf = (holder, tgt) => {
+    if (!st.real) return { real: null };
+    if (!holder.scene || holder.sceneTgt !== tgt) { holder.scene = pickScene(tgt); holder.sceneTgt = tgt; }
+    return { real: holder.scene[0], fig: holder.scene[1] };
+  };
   // Далекомір: чим міряти (ріст, голова, плечі, довжина) — у рядку інструментів замість вітру, руху й гвинтівки;
   // вибране підсвічене скобою на цілі
   const measBox = document.createElement('div');
@@ -761,6 +784,8 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     }));
     $('s-zero').options[1].textContent = L.zeroLbl;
     mag.min = C.min; mag.max = C.cal; mag.value = C.cal;
+    // Замість значка — діапазон кратності прицілу; у ACOG кратність одна, діапазону нема
+    $('s-mag-r').textContent = C.min === C.cal ? '' : `${fm(C.min)}–${fm(C.cal)}×`;
     // Засічки кратності — цілі значення від мінімуму до калібрувальної, як на дистанції
     let ticks = mag.parentElement.querySelector('.ticks');
     if (!ticks) { ticks = document.createElement('span'); ticks.className = 'ticks'; ticks.setAttribute('aria-hidden', 'true'); mag.after(ticks); }
@@ -771,6 +796,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     list.replaceChildren(...marks.map((v) => Object.assign(document.createElement('option'), { value: String(v) })));
   };
 
+  let drag = null; let swiped = false;
   const draw = () => {
     if (quiz) { drawQuiz(); return; }
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const u = C.u; const moa = u === 'MOA';
@@ -817,7 +843,8 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
       b.addEventListener('click', () => { st.meas = i + 1; draw(); });
       return b;
     }));
-    scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, rx: st.ret[0], ry: st.ret[1], meas: ranging ? st.meas : 0, zoom: st.zoom, real: st.real, ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0 });
+    const shot = scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, rx: st.ret[0], ry: st.ret[1], meas: ranging ? st.meas : 0, zoom: st.zoom, ...realOf(st, st.tgt), ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0 });
+    setFigs(shot.figs, st);
     // Палець по прицілу — свайпи й перетяг, не прокрутка сторінки
     svg.style.touchAction = 'none';
     paintRetReset(ranging && (st.ret[0] || st.ret[1]));
@@ -961,7 +988,8 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   const MODE_ICON = {
     near: '<path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/>',
     timed: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M12 2.5V6M18.5 6.5l1.5-1.5"/>',
-    signs: '<path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/>',
+    // ознаки на місцевості — дерево, а не значок вітру, як у самої вправи
+    signs: '<path d="M12 3 6.5 10.5h3L5 17h14l-4.5-6.5h3z"/><path d="M12 17v4"/>',
     bracket: '<path d="M8 4H4v16h4M16 4h4v16h-4"/>',
   };
   // Скільки часу на ціль на рівні «На час»: не встиг — промах
@@ -1029,9 +1057,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
 
   // «Винос»: дистанція, (вітер), (рух) — тапнути точку сітки, яку наводиш на ціль
   const nextHold = () => {
-    const kit = $('s-kit').value; const L = LOADS[kit]; const C = RET[L.ret]; const moa = C.u === 'MOA';
-    const mv = L.def; const z = +$('s-zero').value;
-    const tb = atmTab(kit, mv, airRatio(+$('s-temp').value, +$('s-alt').value));
+    const L = LOADS[$('s-kit').value]; const C = RET[L.ret];
     const [d0, d1] = nearBounds(...(L.my ? [L.dmin, L.dmax] : [100, 600]), 25);
     const dist = d0 + 25 * Math.floor(Math.random() * ((d1 - d0) / 25 + 1));
     // «Вітер за ознаками»: сила — сходинка таблиці, у розрахунку — її середина; ознаки замість цифри
@@ -1043,11 +1069,18 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     const tgt = variedTargets() ? randomTarget() : st.tgt;
     const vt = ['hard', 'varied', 'timed'].includes(quiz.level) && !L.my && ['man', 'car'].includes(tgt) ? [0, 1.4, 3.5][Math.floor(Math.random() * 3)] : 0;
     const goRight = Math.random() < 0.5;
-    const hy = holdAt(tb.H, dist) - (z === 200 && !L.my ? at(tb.H, 200) : 0);
-    const wm = at(tb.W, dist) * wind * Math.abs(Math.sin((hour * Math.PI) / 6));
-    const lead = vt ? (vt * at(tb.T, dist) / dist) * (moa ? 3437.75 : 1000) : 0;
-    const hx = (hour > 6 ? wm : -wm) + (goRight ? -lead : lead);
-    return { kind: 'hold', tgt, dist, wind, hour, vt, goRight, hx, hy, mag: C.cal, ...(bucket !== null ? { bucket, ...windSigns(bucket, false) } : {}) };
+    const q = { kind: 'hold', tgt, dist, wind, hour, vt, goRight, mag: C.cal, ...(bucket !== null ? { bucket, ...windSigns(bucket, false) } : {}) };
+    return Object.assign(q, holdSolve(q));
+  };
+  // Правильний винос на q.dist: падіння, вітер, упередження. Окремо — ціль на кадрі можна змінити, а з нею й дистанцію
+  const holdSolve = (q) => {
+    const kit = $('s-kit').value; const L = LOADS[kit]; const moa = RET[L.ret].u === 'MOA';
+    const z = +$('s-zero').value;
+    const tb = atmTab(kit, L.def, airRatio(+$('s-temp').value, +$('s-alt').value));
+    const hy = holdAt(tb.H, q.dist) - (z === 200 && !L.my ? at(tb.H, 200) : 0);
+    const wm = at(tb.W, q.dist) * q.wind * Math.abs(Math.sin((q.hour * Math.PI) / 6));
+    const lead = q.vt ? (q.vt * at(tb.T, q.dist) / q.dist) * (moa ? 3437.75 : 1000) : 0;
+    return { hx: (q.hour > 6 ? wm : -wm) + (q.goRight ? -lead : lead), hy };
   };
 
   // «Визнач вітер»: сила — одна з п'яти сходинок таблиці; на легкому дві ознаки на місцевості, далі одна, буває міраж
@@ -1194,6 +1227,15 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     buzz(ok);
     drawQuiz();
     reveal();
+    if (quiz.done.length >= quiz.total) showEnd();
+  };
+  // Кінець серії: «Ще серія» й «Повтори помилки» — над нижньою панеллю, а не під нею
+  const showEnd = () => {
+    const row = [...qBox.querySelectorAll('.quiz-go')].pop()?.parentElement;
+    if (!row) return;
+    const floor = document.querySelector('nav.tabs')?.getBoundingClientRect().top ?? innerHeight;
+    const over = row.getBoundingClientRect().bottom + 12 - floor;
+    if (over > 0) window.scrollBy({ top: over });
   };
   // Час вийшов — промах: дальність і вітер не названо, постріл не зроблено
   const timeUp = (q) => {
@@ -1246,8 +1288,9 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     // Сітка нерухома; ціль ставиш на мітку виносу. q.pending/q.answer — зсув центру від цілі, тож ціль стоїть у −p
     // «Як треба» — приціл стає правильно: ціль на мітці виносу, ✕ на ній, кільце на перехресті
     const p = q.show ? [-q.hx, -q.hy] : q.answer ?? q.pending ?? [0, 0];
-    scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, real: st.real, ink: st.ink, flash: (q.at ??= performance.now()), flip: q.vt > 0 && !q.goRight,
+    const shot = scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, ...realOf(q, q.tgt), ink: st.ink, flash: (q.at ??= performance.now()), flip: q.vt > 0 && !q.goRight,
       move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer && !q.timeout ? [q.hx, q.hy] : null });
+    setFigs(!answered(q) && !q.phase ? shot.figs : null, q);
     svg.style.touchAction = answered(q) ? '' : 'none';
     paintRetReset(false);
     qBox.replaceChildren();
@@ -1286,7 +1329,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
         scored(q, q.band === 'zone');
       });
       // «Перевірити» — над підказкою, щоб не гортати до неї
-      qBox.append(check, el('p', {}, t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой 🔍. Потом «Проверить».')));
+      qBox.append(check, el('p', {}, t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой над прицелом. Потом «Проверить».')));
     } else {
       const [ax, ay] = q.answer; const e = Math.hypot(ax + q.hx, ay + q.hy);
       const cm = moa ? e * 2.9089 * q.dist / 100 : e * q.dist / 10;
@@ -1334,6 +1377,29 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   };
 
   // Тап по сітці у вправі «куди тримати» — відповідь; координати сітки з урахуванням лупи
+  // «Ціль» — наступний боєць кадру: дистанція (і винос) — до нього, кадр стоїть на місці.
+  // У «Дальність + винос» на кроці виносу ціль та, до якої міряли
+  const nextFig = () => {
+    if (!figs || figs.length < 2) return false;
+    const holder = quiz ? quiz.cur : st; const j = (holder.scene[1] + 1) % figs.length;
+    const C = RET[LOADS[$('s-kit').value].ret]; const T = TGT[holder.tgt]; const f = figs[j];
+    if (!quiz) {
+      const inp = $('s-dist'); inp.value = figDist(st, st.tgt, j, +inp.value);
+      if (st.mode === 'range') st.ret = rangeAt(C, T, f);
+      st.flashAt = performance.now(); buzz(true);
+      inp.dispatchEvent(new Event('input'));
+      return true;
+    }
+    const q = quiz.cur;
+    q.dist = figDist(q, q.tgt, j, q.dist);
+    if (q.kind === 'hold') Object.assign(q, holdSolve(q));
+    q.at = performance.now(); buzz(true);
+    if (phase() === 'range') { q.ret = rangeAt(C, T, f); rangeScope(); return true; }
+    const [x, a, b] = f; const Hf = b - a; const k = kOf(C, q.mag);
+    q.pending = [-(x + (T.ax ?? 0) * (q.vt > 0 && !q.goRight ? -Hf : Hf)) / k, -(a + T.ap * Hf) / k];
+    drawQuiz();
+    return true;
+  };
   const answerHold = (e) => {
     const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const m = svg.getScreenCTM(); if (!m) return;
@@ -1347,7 +1413,8 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   // Лише приціл вправи «Визнач дальність» — перетягування сітки не чіпає поле відповіді під ним
   const rangeScope = () => {
     const q = quiz.cur; const r = q.ret ?? [0, 0];
-    scope(svg, { ret: LOADS[$('s-kit').value].ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'range', hx: 0, hy: 0, rx: r[0], ry: r[1], zoom: st.zoom, real: st.real, ink: st.ink, flash: (q.at ??= performance.now()), hide: q.hide });
+    const shot = scope(svg, { ret: LOADS[$('s-kit').value].ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'range', hx: 0, hy: 0, rx: r[0], ry: r[1], zoom: st.zoom, ...realOf(q, q.tgt), ink: st.ink, flash: (q.at ??= performance.now()), hide: q.hide });
+    setFigs(answered(q) ? null : shot.figs, q);
     svg.style.touchAction = 'none';
     paintRetReset(r[0] || r[1]);
   };
@@ -1435,7 +1502,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
 
   // «Визнач вітер»: ознаки словами — вибери силу з п'яти сходинок таблиці розділу «Вітер»
   const drawWind = () => {
-    const q = quiz.cur;
+    const q = quiz.cur; setFigs(null);
     svg.style.touchAction = '';
     qBox.replaceChildren(quizHead(q));
     const signs = el('ul', { className: 'quiz-signs' });
@@ -1713,25 +1780,27 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   const nextZoom = () => {
     st.zoom = ZOOMS[(ZOOMS.indexOf(st.zoom) + 1) % ZOOMS.length];
     if (zoomBtn) {
-      zoomBtn.textContent = `🔍 ${st.zoom}×`;
+      zoomBtn.querySelector('span').textContent = `${st.zoom}×`;
       zoomBtn.setAttribute('aria-pressed', String(st.zoom > 1));
     }
     draw();
   };
   zoomBtn?.addEventListener('click', nextZoom);
-  // Реалізм: фото тла й людини замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — наступна сцена, після останньої — схема
+  // Реалізм: фото замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — схема ↔ фото, значок показує, що зараз
   const realBtn = $('sim-real');
-  const REALS = [null, ...Object.keys(SCENES)];
   const paintReal = () => {
     if (!realBtn) return;
     realBtn.setAttribute('aria-pressed', String(!!st.real));
-    realBtn.querySelector('span').textContent = st.real ? t(SCENES[st.real].name) : '';
   };
   // Колір сітки: чорна ↔ біла; поки не вибрано — як у теми, а на фото чорна
   const inkBtn = $('sim-ink');
   const inkNow = () => st.ink ?? (st.real ? 'black' : null);
-  const paintInk = () => inkBtn?.setAttribute('data-ink', inkNow() ?? 'auto');
-  realBtn?.addEventListener('click', () => { st.real = REALS[(REALS.indexOf(st.real) + 1) % REALS.length]; st.flashAt = performance.now(); paintReal(); paintInk(); draw(); });
+  const paintInk = () => {
+    if (!inkBtn) return;
+    const ink = inkNow() ?? 'auto'; inkBtn.setAttribute('data-ink', ink);
+    inkBtn.setAttribute('aria-label', `${t('Цвет сетки')}: ${t({ black: 'чёрная', white: 'белая', auto: 'как у темы' }[ink])}`);
+  };
+  realBtn?.addEventListener('click', () => { st.real = st.real ? null : 'on'; st.scene = null; st.flashAt = performance.now(); paintReal(); paintInk(); draw(); });
   inkBtn?.addEventListener('click', () => {
     const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || document.documentElement.dataset.theme === 'dark' ? 'white' : 'black');
     st.ink = cur === 'black' ? 'white' : 'black';
@@ -1739,7 +1808,6 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   });
   // Свайп ліворуч/праворуч по прицілу — дистанція (крок 25 м), вгору/вниз — кратність; тап — лупа, а у вправі «куди тримати» — відповідь;
   // у далекомірі (і у вправі «Визнач дальність») палець веде приціл, як у «Виносі», щоб прикласти шкалу до цілі
-  let drag = null; let swiped = false;
   const ranging = () => (quiz ? phase() === 'range' : st.mode === 'range');
   svg.addEventListener('pointerdown', (e) => {
     // Після свайпу на тачі click не приходить — інакше прапорець «з'їв» би наступний тап
@@ -1793,8 +1861,11 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     const c = Math.max(+inp.min, Math.min(+inp.max, v));
     if (c !== +inp.value) { inp.value = c; inp.dispatchEvent(new Event('input')); }
   });
+  // Приціл тягнуть і тримають пальцем — системне меню («Зберегти зображення», виділення) лише заважає
+  svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('pointerup', () => { swiped = !!drag?.on; drag = null; });
   svg.addEventListener('pointercancel', () => { drag = null; });
+  $('sim-fig')?.addEventListener('click', nextFig);
   svg.addEventListener('click', (e) => {
     if (swiped) { swiped = false; return; }
     if (quiz && phase() === 'hold' && !answered(quiz.cur)) { answerHold(e); return; }
@@ -1855,7 +1926,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
         st.zoom = saved.zoom;
         if (zoomBtn) { zoomBtn.textContent = `🔍 ${st.zoom}×`; zoomBtn.setAttribute('aria-pressed', String(st.zoom > 1)); }
       }
-      if (SCENES[saved.real]) { st.real = saved.real; paintReal(); }
+      if (saved.real) { st.real = 'on'; paintReal(); }
       if (['black', 'white'].includes(saved.ink)) st.ink = saved.ink;
       paintInk();
     }

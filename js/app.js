@@ -16,7 +16,7 @@ import { CHANGES, newer } from './changelog.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
-  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab,
+  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab, reveal,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon,
 } from './ui.js';
 
@@ -87,6 +87,10 @@ function remember(key, value) {
 function recall(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
+
+/** Підказка про свайп у підзаголовку — доки на цьому екрані жодного разу не свайпнули; потім — other. */
+const swipeTip = (key, tip, other) => (recall(`shooters-log:swiped:${key}`) ? other : tip);
+const learnSwipe = (key) => () => remember(`shooters-log:swiped:${key}`, '1');
 
 // Застосунок перейменовано: налаштування зі старого префікса переносимо один раз,
 // щоб після оновлення не злетіли тема, мова, одиниці й згорнуті блоки.
@@ -618,6 +622,7 @@ function cartridgeCard(c) {
     onRight: () => (recipe ? reloadSheet(recipe) : buySheet(c)),
     onLeft: () => shootSheet({ cartridge: c }),
     onTap: () => cartridgeDetail(c),
+    onSwipe: learnSwipe('ammo'),
   });
 }
 
@@ -728,7 +733,8 @@ function renderAmmo() {
   if (!active.length) {
     return h('div', {}, empty(t('Пока нет патронов'), t('Нажмите «+», чтобы добавить позицию, или импортируйте данные в настройках (⚙ вверху).')), archived);
   }
-  $('subtitle').textContent = active.some(recipeOf) ? t('Свайп → купить или снарядить, ← списать') : t('Свайп → купить, ← списать');
+  $('subtitle').textContent = swipeTip('ammo', active.some(recipeOf) ? t('Свайп → купить или снарядить, ← списать') : t('Свайп → купить, ← списать'),
+    t('позиций: {n}', { n: active.length }));
   const groups = groupBy(active, (c) => c.caliber || t('Без калибра'))
     .map(([caliber, list]) => ({ caliber, list: list.sort(byName), sum: list.reduce((s, c) => s + M.cartridgeStock(state, c.id), 0) }));
   const total = groups.reduce((s, g) => s + g.sum, 0);
@@ -1320,6 +1326,7 @@ function weaponCard(w) {
     onRight: () => recordCleaning(w),
     onLeft: () => shootSheet({ weapon: w }),
     onTap: () => weaponDetail(w),
+    onSwipe: learnSwipe('guns'),
   });
 }
 
@@ -1650,7 +1657,7 @@ function renderWeapons() {
     shots.noGun ? [fmt.num(shots.noGun), t('без ствола')] : null,
     shots.initial ? [fmt.num(shots.initial), t('до начала учёта — из карточек стволов')] : null,
   ].filter(Boolean);
-  $('subtitle').textContent = t('Свайп ← записать стрельбу, → почистил');
+  $('subtitle').textContent = swipeTip('guns', t('Свайп ← записать стрельбу, → почистил'), t('стволов: {n}', { n: active.length }));
   return h('div', {},
     shotsHero(shots.total, split),
     urgentPermitsBlock(),
@@ -2699,14 +2706,23 @@ function sizeFields(w) {
   return { el: box(t('Габариты и вес'), f.el), values, invalid };
 }
 
-/** Раз на день при відкритті: дозволи, що скінчилися або лишилося менше місяця. */
+/** «Показати» з нагадування: список зброї, прокрутка до картки ствола id і підсвітка. */
+function showWeapon(id) {
+  if (gunsSeg !== 'guns') { gunsSeg = 'guns'; remember('shooters-log:guns-seg', 'guns'); if (tab === 'guns') render(); }
+  goTab('#guns');
+  reveal(id);
+}
+
+/** Раз на день при відкритті: дозволи, що скінчилися або лишилося менше місяця. Плашка вже на екрані — тост не потрібен. */
 function permitsReminder() {
   const urgent = urgentPermits();
   if (!urgent.length || recall('shooters-log:docs-reminded') === M.today()) return false;
   remember('shooters-log:docs-reminded', M.today());
+  if (tab === 'guns' && gunsSeg === 'guns') return false;
   toast(t('Разрешение на оружие: {names}', { names: urgent.map((w) => w.name).join(', ') }), {
     action: t('Показать'),
-    onAction: () => { goTab('#guns'); },
+    onAction: () => showWeapon(urgent[0].id),
+    reminder: true,
   });
   return true;
 }
@@ -2715,11 +2731,13 @@ function permitsReminder() {
 
 const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
-  shot: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  // Пробоїна в мішені — не перехрестя: воно в застосунку про прицілювання
+  shot: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="14.2" cy="9.8" r="1.6" fill="currentColor" stroke="none"/>',
   // Набій і велика лійка з порохом: споряджено власноруч.
   reload: '<path d="M2.5 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M2.5 14h4"/><path d="M9.5 3h13l-5 6v4.5h-3V9z"/><path d="M16 16.8h0M16 20.3h0"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
-  adjust: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  // Стрілки вгору-вниз: залишок поправили — олівець лишається за дією «Змінити»
+  adjust: '<path d="M8 20V4M4.5 7.5 8 4l3.5 3.5M16 4v16M12.5 16.5 16 20l3.5-3.5"/>',
   // Крапля мастила над лінією ствола: чистка — це догляд, а не прибирання.
   // Гільза й стрілка вниз: зібране повертається на склад.
   collect: '<path d="M6 21v-9l.8-1.6V8c0-1.3.5-2.5 1.2-3.2.7.7 1.2 1.9 1.2 3.2v2.4L10 12v9z"/><path d="M17 4v9M13.5 9.5 17 13l3.5-3.5M14 18h6"/>',
@@ -3551,15 +3569,16 @@ function spreadCell(text) {
 
 // ---------- полігон: розділи ----------
 
-const RANGE_SEGS = [['exercises', 'Упражнения', 'drill'], ['targets', 'Мишени', 'target'], ['chrono', 'Скорости', 'speed'], ['timer', 'Таймер', 'timer'], ['sim', 'Тренажёр', 'mil']];
+// 4-й елемент — коротка назва для вузького екрана (до 360 px), коли повна не влазить
+const RANGE_SEGS = [['exercises', 'Упражнения', 'drill'], ['targets', 'Мишени', 'target'], ['chrono', 'Скорости', 'speed', 'Скор.'], ['timer', 'Таймер', 'timer'], ['sim', 'Тренажёр', 'sim', 'Трен.']];
 let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooters-log:range-seg')) ? recall('shooters-log:range-seg') : 'exercises';
 
-/** Панель розділів іконками, у вибраного — ще й назва; свайп по панелі — сусідній розділ. */
+/** Панель розділів: значок і підпис під ним у кожного; свайп по панелі — сусідній розділ. */
 function segBar(segs, current, go) {
-  const bar = h('div', { class: 'range-seg', role: 'tablist' }, segs.map(([k, label, ico]) => h('button', {
+  const bar = h('div', { class: 'range-seg seg-nav', role: 'tablist' }, segs.map(([k, label, ico, short]) => h('button', {
     type: 'button', role: 'tab', class: k === current ? 'on' : null, 'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
     onclick: () => go(k),
-  }, icon(ico), h('span', {}, t(label)))));
+  }, icon(ico), h('span', { class: short ? 'seg-long' : null }, t(label)), short ? h('span', { class: 'seg-short', 'aria-hidden': 'true' }, t(short)) : null)));
   return swipeStep(bar, (dir) => {
     const next = segs[segs.findIndex(([k]) => k === current) + dir];
     if (next) go(next[0]);
@@ -4146,7 +4165,7 @@ async function realignTarget(tg) {
   if (!blob) { toast(t('Полное фото ещё не загрузилось — изменить можно после синхронизации')); back(); return; }
   let res;
   try {
-    res = await alignTarget(blob, { max: TARGET_PHOTO });
+    res = await alignTarget(blob, { max: TARGET_PHOTO, again: true });
   } catch (err) {
     toast(err.message);
   }
@@ -4624,20 +4643,24 @@ function targetDetail(tg) {
   // фото перемальовуємо разом із цифрами: підписи на фігурах — у тих самих одиницях,
   // тап по СТВ групи підсвічує її на фото; focus має бути оголошений до першого малювання
   let focus = null;
-  function opts() { return { unit: targetUnit, distance: tg.distance, active: focus }; }
+  // Спершу — лише група з полями (на весь лист група 2 см — пляма); тап по фото — увесь лист і назад
+  let whole = false;
+  function opts() { return { unit: targetUnit, distance: tg.distance, active: focus, crop: !whole }; }
   const goTo = (i) => {
     focus = focus === i ? null : i;
     drawFigure();
     figure.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   function drawFigure() {
-    paintPreview(figure, photo.thumb, tg, 720, opts()).then(async () => {
+    paintPreview(figure, photo.thumb, tg, 720, opts()).then(async (cropped) => {
+      figure.title = cropped ? t('Тап — весь лист') : whole ? t('Тап — только группа') : '';
       const blob = await db.getBlob(photo.id);
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       try { await paintPreview(figure, url, tg, 1400, opts()); } finally { URL.revokeObjectURL(url); }
     }).catch(() => {});
   }
+  figure.addEventListener('click', () => { whole = !whole; drawFigure(); });
   if (photo?.thumb) drawFigure();
   const statsBox = h('div', {});
   // зміна одиниць — і в картці, і в списку під нею
@@ -4646,11 +4669,24 @@ function targetDetail(tg) {
   const remove = () => {
     close();
     confirmSheet(t('Удалить мишень?'), t('Фото и разметка будут удалены.'), t('Удалить'), async () => {
-      const driveId = (await db.get('photos', tg.photoId))?.driveId;
+      // Запис, фото й файл — у пам'ять: «Отменить» у тості повертає все як було.
+      // Фото на Диску прибираємо, лише коли тост зник без скасування
+      const ph = await db.get('photos', tg.photoId);
+      const blob = await db.getBlob(tg.photoId);
       await db.write({ targets: { del: [tg.id] }, photos: { del: [tg.photoId] }, blobs: { del: [tg.photoId] } });
-      sync.trashPhoto(driveId);
       await refresh();
       confirmed();
+      let undone = false;
+      const trash = setTimeout(() => { if (!undone) sync.trashPhoto(ph?.driveId); }, 9000);
+      toast(t('Мишень удалена'), {
+        action: t('Отменить'),
+        onAction: async () => {
+          undone = true; clearTimeout(trash);
+          await db.write({ targets: { put: [tg] }, ...(ph ? { photos: { put: [ph] } } : {}), ...(blob ? { blobs: { put: [{ id: tg.photoId, blob }] } } : {}) });
+          await refresh();
+          confirmed([tg.id]);
+        },
+      });
     });
   };
   const close = sheet(targetTitle(tg), h('div', {},
@@ -4668,9 +4704,9 @@ function targetDetail(tg) {
       tg.note ? [h('dt', {}, t('Примечание')), h('dd', {}, tg.note)] : null)),
     whereWhenView(tg),
     h('div', { class: 'btn-row' },
+      photo ? btn([icon('align'), t('Выровнять фото')], () => { close(); realignTarget(tg); }, 'with-ico') : null,
       btn([icon('holes'), t('Разметка')], () => { close(); editMarks(tg); }, 'primary with-ico'))), {
     tools: [toolBtn('share', t('Поделиться'), () => shareTarget(tg).catch((err) => toast(err.message))),
-      photo ? toolBtn('align', t('Выровнять фото'), () => { close(); realignTarget(tg); }) : null,
       toolBtn('edit', t('Изменить'), () => { close(); targetForm(tg); })],
     // кошик — ліворуч від назви, подалі від решти кнопок
     lead: toolBtn('delete', t('Удалить'), remove, 'danger'),
@@ -4682,7 +4718,7 @@ function targetDetail(tg) {
 
 // Розділ «Складу». Не запам'ятовується між запусками: застосунок завжди відкривається на набоях.
 let stockSeg = 'ammo';
-const STOCK_SEGS = [['ammo', 'Патроны', 'ammo'], ['components', 'Компоненты', 'stock'], ['recipes', 'Релоадинг', 'recipe']];
+const STOCK_SEGS = [['ammo', 'Патроны', 'ammo'], ['components', 'Компоненты', 'parts'], ['recipes', 'Релоадинг', 'recipe']];
 
 function componentLevel(c, runway) {
   if (!runway.length) return '';
@@ -4715,6 +4751,7 @@ function componentCard(c) {
     onRight: () => buyComponentSheet(c),
     onLeft: () => adjustSheet(c, 'components'),
     onTap: () => componentDetail(c),
+    onSwipe: learnSwipe('stock'),
   });
 }
 
@@ -4736,11 +4773,12 @@ function recipeCard(r) {
     rightLabel: swipeLabel('reload', t('Снарядить')),
     onRight: () => reloadSheet(r),
     onTap: () => recipeDetail(r),
+    onSwipe: learnSwipe('recipes'),
   });
 }
 
 function recipesPane() {
-  $('subtitle').textContent = t('Свайп → снарядить');
+  $('subtitle').textContent = swipeTip('recipes', t('Свайп → снарядить'), t('рецептов: {n}', { n: state.recipes.length }));
   if (!state.recipes.length) return empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.'));
   // Групи за калібром — такими ж картками, як набої; без суми: рецепти ділять компоненти
   return h('div', {}, loadedHero(), groupBy(state.recipes, (r) => r.caliber || t('Без калибра'))
@@ -4783,7 +4821,7 @@ function stockHero(value, count, out, low) {
 }
 
 function stockPane() {
-  $('subtitle').textContent = t('Свайп → купить, ← пересчёт');
+  $('subtitle').textContent = swipeTip('stock', t('Свайп → купить, ← пересчёт'), t('позиций: {n}', { n: state.components.length }));
   if (!state.components.length) return empty(t('Склад пуст'), t('Нажмите «+», чтобы добавить компоненты: пули, порох, капсюли, гильзы, дробь, пыжи.'));
   const levels = state.components.map((c) => componentLevel(c, M.componentRunway(state, c)));
   const out = levels.filter((l) => l === 'out').length;
@@ -5267,6 +5305,7 @@ function backupReminder() {
   toast(t('Данные только на этом устройстве — сохраните копию'), {
     action: t('Сохранить'),
     onAction: () => exportData(true),
+    reminder: true,
   });
   return true;
 }
@@ -5637,7 +5676,7 @@ function renderSettings() {
       h('section', { class: 'panel' },
         h('h3', {}, t('Установка на телефон')),
         h('p', { class: 'muted small' }, t('Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.')),
-        h('p', { class: 'muted small' }, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.')))]),
+        h('p', { class: 'muted small' }, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.')))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
       h('section', { class: 'panel' },
@@ -5660,14 +5699,14 @@ function renderSettings() {
         }))),
       h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
         h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
-        h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo)))]),
+        h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo)))], { fold: 'data' }),
     settingsGroup(t('Вид'), [
       h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
       h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips),
-      usdPanel()]),
+      usdPanel()], { fold: 'look' }),
     settingsGroup(t('Напоминания и упражнения'), [
       calendarPanel(),
-      hiddenExercisesPanel()]),
+      hiddenExercisesPanel()], { fold: 'remind' }),
     settingsGroup(t('Опасная зона'), [
       h('section', { class: 'panel' },
         btn(t('Удалить данные с устройства'), () => confirmSheet(t('Удалить данные с устройства?'), sync.enabled()
@@ -5677,9 +5716,16 @@ function renderSettings() {
         }), 'danger'))], { danger: true }));
 }
 
-/** Група налаштувань: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток. */
-function settingsGroup(title, sections, { danger = false } = {}) {
-  return h('fieldset', { class: `box settings-group ${danger ? 'danger' : ''}` }, h('legend', {}, title), sections.filter(Boolean));
+/**
+ * Група налаштувань: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток.
+ * fold — ключ: група згортається тапом по назві й пам'ятає, чи розгорнута (як у Вазі й Марнотраті).
+ */
+function settingsGroup(title, sections, { danger = false, fold = null } = {}) {
+  const el = fold ? box(title, sections.filter(Boolean), { fold: `settings-${fold}` })
+    : h('fieldset', { class: 'box' }, h('legend', {}, title), sections.filter(Boolean));
+  el.classList.add('settings-group');
+  if (danger) el.classList.add('danger');
+  return el;
 }
 
 // ---------- довідник ----------
@@ -5826,6 +5872,7 @@ function render() {
   // Таймер пішов з екрана (інша вкладка чи розділ) — мікрофон не слухає непомітно
   if (!document.querySelector('.timer')) stopTimerPanel();
   $('fab').hidden = !view.fab || Boolean(view.noFab?.());
+  $('fab').classList.remove('away');
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
   document.querySelector('.tabs a[data-tab="guns"]').classList.toggle('alert',
@@ -5839,7 +5886,8 @@ function cleaningReminder() {
   remember('shooters-log:clean-reminded', M.today());
   toast(t('Пора почистить: {names}', { names: dirty.map((w) => w.name).join(', ') }), {
     action: t('Показать'),
-    onAction: () => { goTab('#guns'); },
+    onAction: () => showWeapon(dirty[0].id),
+    reminder: true,
   });
   return true;
 }
@@ -5971,6 +6019,15 @@ function registerWorker() {
 applyStatic();
 applyTheme();
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
+// «+» не закриває картки під собою: гортаєш униз — ховається, вгору чи дійшов до кінця — повертається
+let fabY = window.scrollY;
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  const end = y + innerHeight >= document.documentElement.scrollHeight - 40;
+  if (Math.abs(y - fabY) < 12 && !end) return;
+  $('fab').classList.toggle('away', y > fabY && y > 80 && !end);
+  fabY = y;
+}, { passive: true });
 $('sync-chip').addEventListener('click', onSyncChip);
 window.addEventListener('hashchange', route);
 // Нижні вкладки — свайпом по панелі, як розділи; у налаштуваннях жодна не вибрана — свайп нічого не робить
@@ -6027,14 +6084,16 @@ try {
   throw err;
 }
 route();
-// нагадування по черзі — наступне після показаного, щоб не перекрило
-(function remind([first, ...rest]) {
-  if (!first) return;
-  if (first()) setTimeout(() => remind(rest), 8500); else remind(rest);
-})([cleaningReminder, permitsReminder, backupReminder]);
 showNews();
 // Після «Що нового»: шторка з ярлика має бути зверху
 runShortcut();
+// нагадування по черзі — наступне після показаного, щоб не перекрило; поки відкрита шторка («Що нового», ярлик) — чекають
+(function remind(list) {
+  if (!list.length) return;
+  if ($('layer').children.length) { setTimeout(() => remind(list), 1000); return; }
+  const [first, ...rest] = list;
+  if (first()) setTimeout(() => remind(rest), 8500); else remind(rest);
+})([cleaningReminder, permitsReminder, backupReminder]);
 sync.onStatus(renderSyncChip);
 sync.preload();
 sync.syncNow();

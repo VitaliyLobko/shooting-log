@@ -22,6 +22,71 @@ function remember(key, value) {
   try { localStorage.setItem(key, value); } catch { /* не критично */ }
 }
 
+/**
+ * Лист на фото: найбільша світла неяскрава (білий, сірий) пляма — поріг яскравості за Оцу на зменшеній копії.
+ * Кути — крайні точки плями по діагоналях. Повертає 4 кути в частках кадру або null, якщо листа не видно
+ * (замала чи на весь кадр пляма, або вона не схожа на чотирикутник) — тоді кути стають як раніше.
+ */
+export function findSheet(src) {
+  const c = draw(src, 480);
+  const { width: w, height: hh } = c;
+  const px = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, hh).data;
+  const n = w * hh;
+  const lum = new Float32Array(n);
+  const sat = new Float32Array(n);
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < n; i += 1) {
+    const [r, g, b] = [px[i * 4], px[i * 4 + 1], px[i * 4 + 2]];
+    const mx = Math.max(r, g, b);
+    lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    sat[i] = mx ? (mx - Math.min(r, g, b)) / mx : 0;
+    hist[Math.round(lum[i])] += 1;
+  }
+  // поріг Оцу: найкраще ділить гістограму на «темне тло» і «світлий лист»
+  let sum = 0;
+  hist.forEach((v, i) => { sum += v * i; });
+  let wb = 0; let sb = 0; let best = 0; let thr = 128;
+  for (let i = 0; i < 256; i += 1) {
+    wb += hist[i];
+    if (!wb || wb === n) continue;
+    sb += hist[i] * i;
+    const mb = sb / wb; const mf = (sum - sb) / (n - wb);
+    const v = wb * (n - wb) * (mb - mf) ** 2;
+    if (v > best) { best = v; thr = i; }
+  }
+  const on = (i) => lum[i] > thr && sat[i] < 0.3;
+  // найбільша зв'язна пляма (обхід у ширину)
+  const seen = new Uint8Array(n);
+  let blob = [];
+  for (let s = 0; s < n; s += 1) {
+    if (seen[s] || !on(s)) continue;
+    const part = [s];
+    seen[s] = 1;
+    for (let k = 0; k < part.length; k += 1) {
+      const i = part[k]; const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j >= 0 && j < n && !seen[j] && on(j)) { seen[j] = 1; part.push(j); }
+      }
+    }
+    if (part.length > blob.length) blob = part;
+  }
+  if (blob.length < n * 0.12 || blob.length > n * 0.92) return null;
+  // кути — крайні по діагоналях: x+y (лівий верхній і правий нижній), x−y (правий верхній і лівий нижній)
+  let tl = [0, 0, Infinity]; let br = [0, 0, -Infinity]; let tr = [0, 0, -Infinity]; let bl = [0, 0, Infinity];
+  for (const i of blob) {
+    const x = i % w; const y = (i - x) / w;
+    if (x + y < tl[2]) tl = [x, y, x + y];
+    if (x + y > br[2]) br = [x, y, x + y];
+    if (x - y > tr[2]) tr = [x, y, x - y];
+    if (x - y < bl[2]) bl = [x, y, x - y];
+  }
+  const q = [tl, tr, br, bl].map(([x, y]) => [(x + 0.5) / w, (y + 0.5) / hh]);
+  // площа чотирикутника (формула шнурка) проти площі плями: не чотирикутник — не лист
+  const area = Math.abs(q.reduce((s, [x, y], i) => { const [x2, y2] = q[(i + 1) % 4]; return s + x * y2 - x2 * y; }, 0)) / 2 * n;
+  if (area < blob.length * 0.85 || area > blob.length * 1.25) return null;
+  return q;
+}
+
 /** Поворот полотна на 90°: dir = 1 — за годинниковою стрілкою. */
 function turn90(src, dir) {
   const c = document.createElement('canvas');
@@ -187,8 +252,9 @@ function warp(work, quad, frame, W, H) {
  * Крок «Вирівняти» для фото мішені. Повертає { blob, thumb, w, h, sheet, transform } або null, якщо скасовано.
  * sheet — { w, h } у мм, якщо вказано розмір листа: тоді краї фото — краї листа, масштаб відомий.
  * transform(p) — куди потрапила точка старого фото (у частках кадру); null — за обрієм.
+ * again — фото вже вирівняне: кути стають на краї кадру, і «Готово» чи «Пропустити» без змін нічого не чіпають (null).
  */
-export async function alignTarget(file, { max }) {
+export async function alignTarget(file, { max, again = false }) {
   let src;
   try {
     src = await decode(file);
@@ -205,7 +271,17 @@ export async function alignTarget(file, { max }) {
     let sheetKey = recall(SHEET_KEY, '');
     if (!SHEETS.some(([k]) => k === sheetKey)) sheetKey = '';
     let crop = recall(CROP_KEY, '1') !== '0';
-    const reset = () => { corners = [[0.08, 0.08], [0.92, 0.08], [0.92, 0.92], [0.08, 0.92]]; };
+    // Нове фото: лист десь усередині кадру. Вирівняне: лист — це і є кадр, рамка по краях
+    const e0 = again ? 0 : 0.08; const e1 = 1 - e0;
+    // moved — кути рухали; warned — уже попередили, що рамка не на листі
+    let moved = false; let warned = false;
+    // Нове фото: якщо видно світлий лист — кути одразу на ньому (людина лише підправляє)
+    const reset = () => {
+      let found = null;
+      if (!again) { try { found = findSheet(work); } catch { /* не знайшли — кути як завжди */ } }
+      corners = found ?? [[e0, e0], [e1, e0], [e1, e1], [e0, e1]];
+      moved = Boolean(found);
+    };
     reset();
     let drag = null;
     let view = { x: 0, y: 0, w: 1, h: 1 };
@@ -329,6 +405,7 @@ export async function alignTarget(file, { max }) {
       if (!drag || e.pointerId !== drag.id) return;
       const clamp = (v) => Math.min(1, Math.max(0, v));
       corners[drag.i] = [clamp(drag.from[0] + (e.clientX - drag.x) / view.w), clamp(drag.from[1] + (e.clientY - drag.y) / view.h)];
+      moved = true;
       paint();
     });
     const endDrag = (e) => { if (drag && e.pointerId === drag.id) { drag = null; paint(); } };
@@ -354,6 +431,7 @@ export async function alignTarget(file, { max }) {
     const hint = h('p', { class: 'align-hint' });
     // Без обрізання рамку можна ставити на будь-який прямокутник сітки; розмір листа тоді ні до чого.
     const showCrop = () => {
+      hint.classList.remove('warn');
       hint.textContent = crop
         ? t('Перетащите углы рамки на углы листа — фото выпрямится по ним.')
         : t('Поставьте углы на любой прямоугольник сетки — выпрямится всё фото, без обрезки.');
@@ -374,10 +452,20 @@ export async function alignTarget(file, { max }) {
     };
     const cancel = () => close(null);
     const onKey = (e) => { if (e.key === 'Escape') cancel(); };
-    const skip = async () => close({
+    // Повторне вирівнювання без повороту — фото як є, без перестискання JPEG
+    const skip = async () => (again && !rot ? close(null) : close({
       ...(await pack(draw(work, max))), sheet: null, transform: (p) => rotatePoint(p, rot),
-    });
+    }));
     const finish = async () => {
+      if (again && !moved && !rot) { close(null); return; }
+      // Розмір листа без перетягнутих кутів — масштаб ліг би на рамку, а не на лист, і все вийшло б меншим.
+      // Один раз попереджаємо; друге «Готово» — свідомо (лист і справді по рамці)
+      if (!again && crop && sheetKey && !moved && !warned) {
+        warned = true;
+        hint.textContent = t('Углы рамки не на листе — размер листа ляжет на рамку, и всё выйдет меньше. Перетащите углы на углы листа или нажмите «Готово» ещё раз.');
+        hint.classList.add('warn');
+        return;
+      }
       doneBtn.disabled = true;
       doneBtn.textContent = t('Обработка…');
       // дати кнопці перемалюватися: далі кілька сотень мілісекунд рахунку
