@@ -219,10 +219,29 @@ let toastTimer;
 export function toast(message, { action, onAction, timeout = action ? 8000 : 3500 } = {}) {
   document.querySelector('.toast')?.remove();
   clearTimeout(toastTimer);
+  const root = document.documentElement.style;
+  // поки тост на екрані, кнопка «+» піднімається над ним, а не ховається під ним
+  const remove = () => { el.remove(); if (!document.querySelector('.toast')) root.removeProperty('--toast-lift'); };
   const el = h('div', { class: 'toast', role: 'status' }, h('span', {}, message),
-    action ? h('button', { type: 'button', onclick: () => { el.remove(); onAction(); } }, action) : null);
+    action ? h('button', { type: 'button', onclick: () => { remove(); onAction(); } }, action) : null);
+  // змахнути вбік — закрити, не чекаючи таймера
+  let x0 = null;
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) { x0 = e.clientX; el.setPointerCapture(e.pointerId); } });
+  el.addEventListener('pointermove', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    el.style.translate = `${dx}px 0`; el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 200));
+  });
+  const up = (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (Math.abs(dx) > 60) { clearTimeout(toastTimer); remove(); } else { el.style.translate = ''; el.style.opacity = ''; }
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
   document.body.append(el);
-  toastTimer = setTimeout(() => el.remove(), timeout);
+  root.setProperty('--toast-lift', `${el.offsetHeight + 8}px`);
+  toastTimer = setTimeout(remove, timeout);
 }
 
 /**

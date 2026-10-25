@@ -3554,9 +3554,9 @@ function spreadCell(text) {
 const RANGE_SEGS = [['exercises', 'Упражнения', 'drill'], ['targets', 'Мишени', 'target'], ['chrono', 'Скорости', 'speed'], ['timer', 'Таймер', 'timer'], ['sim', 'Тренажёр', 'mil']];
 let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooters-log:range-seg')) ? recall('shooters-log:range-seg') : 'exercises';
 
-/** Панель розділів іконками, у вибраного — ще й назва; свайп по панелі — сусідній розділ. */
+/** Панель розділів: значок і підпис під ним у кожного; свайп по панелі — сусідній розділ. */
 function segBar(segs, current, go) {
-  const bar = h('div', { class: 'range-seg', role: 'tablist' }, segs.map(([k, label, ico]) => h('button', {
+  const bar = h('div', { class: 'range-seg seg-nav', role: 'tablist' }, segs.map(([k, label, ico]) => h('button', {
     type: 'button', role: 'tab', class: k === current ? 'on' : null, 'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
     onclick: () => go(k),
   }, icon(ico), h('span', {}, t(label)))));
