@@ -150,7 +150,8 @@ export function goTab(hash) {
  * full — на весь екран (картка з великим фото), а не до 92% висоти.
  */
 /** lead — кнопка ліворуч від заголовка, окремо від решти (видалення: щоб не натиснути випадково). */
-export function sheet(title, body, { actions = [], onClose, live, tools = [], lead = null, full = false } = {}) {
+/** dirty — чи є що втратити: тоді фон, ✕, Escape і «Назад» спершу питають (кнопка «Скасувати» закриває одразу). */
+export function sheet(title, body, { actions = [], onClose, live, tools = [], lead = null, full = false, dirty = null } = {}) {
   const layer = document.getElementById('layer');
   const opener = document.activeElement;
   let closed = false;
@@ -167,6 +168,17 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
     setTimeout(() => backdrop.remove(), 180);
     unlayer();
     onClose?.();
+  };
+  const ask = () => {
+    if (closed) return;
+    if (!dirty?.()) { close(); return; }
+    confirmSheet(t('Выйти без сохранения?'), t('Введённое не сохранится.'), t('Выйти'), close);
+  };
+  // «Назад» уже забрав запис шторки: є що втратити — повертаємо запис і питаємо
+  const onBack = () => {
+    if (!dirty?.()) { close(); return; }
+    unlayer = backLayer(onBack);
+    ask();
   };
   const rebuild = () => {
     const next = live();
@@ -187,7 +199,7 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
       lead ? h('div', { class: 'sheet-lead' }, lead) : null,
       h('h2', {}, title),
       h('div', { class: 'sheet-tools' }, tools,
-        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕'))),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: ask }, '✕'))),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);
   // Закривати лише якщо й натиск почався на фоні: інакше на сенсорному екрані «фантомний» клік
@@ -196,13 +208,13 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
   const backdrop = h('div', {
     class: 'backdrop',
     onpointerdown: (e) => { downOnBackdrop = e.target === backdrop; },
-    onclick: (e) => { if (e.target === backdrop && downOnBackdrop) close(); downOnBackdrop = false; },
+    onclick: (e) => { if (e.target === backdrop && downOnBackdrop) ask(); downOnBackdrop = false; },
   }, panel);
   // Кнопки закритої шторки мовчать і для клавіатури, і для кліку з коду — inert зупиняє лише дотик
   panel.addEventListener('click', (e) => { if (closed) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   panel.tabIndex = -1;
   // Escape закриває лише верхню шторку; редактор мішені чи фото поверх неї слухає свій
-  const onKey = (e) => { if (e.key === 'Escape' && layer.lastElementChild === backdrop) { e.preventDefault(); close(); } };
+  const onKey = (e) => { if (e.key === 'Escape' && layer.lastElementChild === backdrop) { e.preventDefault(); ask(); } };
   document.addEventListener('keydown', onKey);
   layer.append(backdrop);
   requestAnimationFrame(() => {
@@ -210,19 +222,41 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
     // Читалка й клавіатура опиняються в шторці, а не на сторінці під нею
     if (!closed && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   });
-  const unlayer = backLayer(close);
+  let unlayer = backLayer(onBack);
   return close;
 }
 
 let toastTimer;
 
-export function toast(message, { action, onAction, timeout = action ? 8000 : 3500 } = {}) {
+/** reminder — нагадування: лежить під шторкою, а не над нею, щоб не закривати її кнопки. */
+export function toast(message, { action, onAction, reminder = false, timeout = action ? 8000 : 3500 } = {}) {
+  // Нагадування не перебиває тост із дією (наприклад, «Отменить» після видалення) — покажеться наступного разу
+  if (reminder && document.querySelector('.toast:not(.reminder) button')) return;
   document.querySelector('.toast')?.remove();
   clearTimeout(toastTimer);
-  const el = h('div', { class: 'toast', role: 'status' }, h('span', {}, message),
-    action ? h('button', { type: 'button', onclick: () => { el.remove(); onAction(); } }, action) : null);
+  const root = document.documentElement.style;
+  // поки тост на екрані, кнопка «+» піднімається над ним, а не ховається під ним
+  const remove = () => { el.remove(); if (!document.querySelector('.toast')) root.removeProperty('--toast-lift'); };
+  const el = h('div', { class: reminder ? 'toast reminder' : 'toast', role: 'status' }, h('span', {}, message),
+    action ? h('button', { type: 'button', onclick: () => { remove(); onAction(); } }, action) : null);
+  // змахнути вбік — закрити, не чекаючи таймера
+  let x0 = null;
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) { x0 = e.clientX; el.setPointerCapture(e.pointerId); } });
+  el.addEventListener('pointermove', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    el.style.translate = `${dx}px 0`; el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 200));
+  });
+  const up = (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (Math.abs(dx) > 60) { clearTimeout(toastTimer); remove(); } else { el.style.translate = ''; el.style.opacity = ''; }
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
   document.body.append(el);
-  toastTimer = setTimeout(() => el.remove(), timeout);
+  root.setProperty('--toast-lift', `${el.offsetHeight + 8}px`);
+  toastTimer = setTimeout(remove, timeout);
 }
 
 /**
@@ -239,19 +273,31 @@ function visibleAnchor(el) {
   return target?.getClientRects().length ? target : null;
 }
 
+function flash(target) {
+  target.classList.remove('flash');
+  void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
+  target.classList.add('flash');
+  target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+}
+
 /** Підтвердження без таблички: коротка вібрація й підсвічені картки того, що змінилося. */
 export function confirmed(ids = []) {
   navigator.vibrate?.(20);
   for (const id of new Set(ids.filter(Boolean))) {
     for (const el of document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`)) {
       const target = visibleAnchor(el);
-      if (!target) continue;
-      target.classList.remove('flash');
-      void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
-      target.classList.add('flash');
-      target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+      if (target) flash(target);
     }
   }
+}
+
+/** Прокрутити до картки id і підсвітити; екран ще малюється — кілька спроб. Повертає, чи знайшли. */
+export function reveal(id, tries = 10) {
+  const el = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  const target = el && visibleAnchor(el);
+  if (!target) { if (tries > 0) setTimeout(() => reveal(id, tries - 1), 60); return; }
+  target.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  flash(target);
 }
 
 let undoFn = null;
@@ -545,9 +591,9 @@ export function chips(options, value, onPick) {
 
 /**
  * Свайп картки: вправо — onRight, вліво — onLeft. Вертикальний скрол лишається браузеру
- * (touch-action: pan-y), горизонтальний рух перехоплюємо.
+ * (touch-action: pan-y), горизонтальний рух перехоплюємо. onSwipe — після будь-якого спрацьованого свайпу.
  */
-export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel }) {
+export function swipeable(card, { onRight, onLeft, onTap, onSwipe, rightLabel, leftLabel }) {
   const body = card.querySelector('.swipe-body');
   card.classList.add('swipe');
   card.prepend(
@@ -598,7 +644,7 @@ export function swipeable(card, { onRight, onLeft, onTap, rightLabel, leftLabel 
     const dir = dx;
     reset();
     if (wasAxis === 'x') {
-      if (wasArmed) (dir > 0 ? onRight : onLeft)?.();
+      if (wasArmed) { onSwipe?.(); (dir > 0 ? onRight : onLeft)?.(); }
     } else if (!wasAxis && e.type === 'pointerup') {
       tapArmed = true;
     }
@@ -645,16 +691,21 @@ const TOOL_ICON = {
   // кут між двома променями з дугою — кутова мінута
   angle: '<path d="M4 19h16"/><path d="M4 19 16.5 6.5"/><path d="M11.5 19a7.5 7.5 0 0 0-2.2-5.3"/>',
   // сітка прицілу з мілрадіанними точками
+  // Тренажер: приціл із фігуркою — щоб не плутати з MRAD (mil) і прицілюванням
+  sim: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="10" r="1.6"/><path d="M9.6 16.2v-1.4a2.4 2.4 0 0 1 4.8 0v1.4"/>',
+  // Компоненти: банка пороху, капсюль і куля
+  parts: '<path d="M3.5 9h8v11a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1z"/><path d="M5 9V6.5h5V9M3.5 14h8"/><circle cx="17.5" cy="17" r="3.5"/><circle cx="17.5" cy="17" r="1.2"/><path d="M16 3h3l.5 2.5v5h-4v-5z"/>',
   mil: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/><circle cx="12" cy="7.5" r=".9"/><circle cx="12" cy="16.5" r=".9"/><circle cx="7.5" cy="12" r=".9"/><circle cx="16.5" cy="12" r=".9"/>',
   // колба з рівнем пороху — рецепт спорядження
   recipe: '<path d="M9 3h6M10 3v6L5 18.2A2 2 0 0 0 6.8 21h10.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.4 15h9.2"/>',
-  // склад: дах і полиці
+  // набій
   ammo: '<path d="M9 21V11l1-2V6.5C10 4.6 10.8 3 12 2c1.2 1 2 2.6 2 4.5V9l1 2v10z"/><path d="M9 15h6"/>',
   view: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11.5V6a1.5 1.5 0 0 1 3 0v7.5"/><path d="M17 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.5 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14"/>',
   align: '<path d="M5 6.5L19 4v16l-14-2.5z"/><path d="M9.7 5.7v12.6M14.3 4.9v14.2"/>',
   // Гвинтівка й плитоноска — розділи вкладки «Зброя».
-  rifle: '<path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/>',
+  rifle: '<path d="M1.5 13h3.5l1.5-1h9.5V14.5H11l-1 4H7.5l.7-4H6l-1.5 2H1.5z"/><path d="M16 12h6.5M8 12V9.5h6V12M7 9.5h8"/>',
   vest: '<path d="M8.5 3.5L5 5.5V20h14V5.5l-3.5-2L14 7h-4z"/><path d="M8.5 12h7M8.5 16h7"/>',
+  // склад: дах і полиці
   stock: '<path d="M3 21V8.5L12 3l9 5.5V21"/><path d="M7 21v-9h10v9M7 15h10M7 18h10"/>',
   split: '<circle cx="6" cy="8" r="2"/><circle cx="7.5" cy="15.5" r="2"/><circle cx="17.5" cy="8.5" r="2"/><circle cx="16.5" cy="16" r="2"/><path d="M12 3v2.5M12 8.5v2M12 13.5v2M12 18.5V21"/>',
 };

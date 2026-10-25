@@ -22,6 +22,71 @@ function remember(key, value) {
   try { localStorage.setItem(key, value); } catch { /* не критично */ }
 }
 
+/**
+ * Лист на фото: найбільша світла неяскрава (білий, сірий) пляма — поріг яскравості за Оцу на зменшеній копії.
+ * Кути — крайні точки плями по діагоналях. Повертає 4 кути в частках кадру або null, якщо листа не видно
+ * (замала чи на весь кадр пляма, або вона не схожа на чотирикутник) — тоді кути стають як раніше.
+ */
+export function findSheet(src) {
+  const c = draw(src, 480);
+  const { width: w, height: hh } = c;
+  const px = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, hh).data;
+  const n = w * hh;
+  const lum = new Float32Array(n);
+  const sat = new Float32Array(n);
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < n; i += 1) {
+    const [r, g, b] = [px[i * 4], px[i * 4 + 1], px[i * 4 + 2]];
+    const mx = Math.max(r, g, b);
+    lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+    sat[i] = mx ? (mx - Math.min(r, g, b)) / mx : 0;
+    hist[Math.round(lum[i])] += 1;
+  }
+  // поріг Оцу: найкраще ділить гістограму на «темне тло» і «світлий лист»
+  let sum = 0;
+  hist.forEach((v, i) => { sum += v * i; });
+  let wb = 0; let sb = 0; let best = 0; let thr = 128;
+  for (let i = 0; i < 256; i += 1) {
+    wb += hist[i];
+    if (!wb || wb === n) continue;
+    sb += hist[i] * i;
+    const mb = sb / wb; const mf = (sum - sb) / (n - wb);
+    const v = wb * (n - wb) * (mb - mf) ** 2;
+    if (v > best) { best = v; thr = i; }
+  }
+  const on = (i) => lum[i] > thr && sat[i] < 0.3;
+  // найбільша зв'язна пляма (обхід у ширину)
+  const seen = new Uint8Array(n);
+  let blob = [];
+  for (let s = 0; s < n; s += 1) {
+    if (seen[s] || !on(s)) continue;
+    const part = [s];
+    seen[s] = 1;
+    for (let k = 0; k < part.length; k += 1) {
+      const i = part[k]; const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j >= 0 && j < n && !seen[j] && on(j)) { seen[j] = 1; part.push(j); }
+      }
+    }
+    if (part.length > blob.length) blob = part;
+  }
+  if (blob.length < n * 0.12 || blob.length > n * 0.92) return null;
+  // кути — крайні по діагоналях: x+y (лівий верхній і правий нижній), x−y (правий верхній і лівий нижній)
+  let tl = [0, 0, Infinity]; let br = [0, 0, -Infinity]; let tr = [0, 0, -Infinity]; let bl = [0, 0, Infinity];
+  for (const i of blob) {
+    const x = i % w; const y = (i - x) / w;
+    if (x + y < tl[2]) tl = [x, y, x + y];
+    if (x + y > br[2]) br = [x, y, x + y];
+    if (x - y > tr[2]) tr = [x, y, x - y];
+    if (x - y < bl[2]) bl = [x, y, x - y];
+  }
+  const q = [tl, tr, br, bl].map(([x, y]) => [(x + 0.5) / w, (y + 0.5) / hh]);
+  // площа чотирикутника (формула шнурка) проти площі плями: не чотирикутник — не лист
+  const area = Math.abs(q.reduce((s, [x, y], i) => { const [x2, y2] = q[(i + 1) % 4]; return s + x * y2 - x2 * y; }, 0)) / 2 * n;
+  if (area < blob.length * 0.85 || area > blob.length * 1.25) return null;
+  return q;
+}
+
 /** Поворот полотна на 90°: dir = 1 — за годинниковою стрілкою. */
 function turn90(src, dir) {
   const c = document.createElement('canvas');
@@ -140,46 +205,28 @@ function wholeFrame(unproject, sw, sh) {
 }
 
 /** Перенести на полотно W×H ділянку frame (у координатах рамки) — білінійна вибірка; поза фото — темне тло. */
-function warp(work, quad, frame, W, H) {
+/** Випрямити робочу копію у фоновому потоці (warp-worker.js), щоб сторінка не завмирала; не вийшло — тут же. */
+async function warp(work, quad, frame, W, H) {
   const sw = work.width;
   const sh = work.height;
-  const sd = work.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const job = { sd: work.getContext('2d').getImageData(0, 0, sw, sh).data, sw, sh, m: squareToQuad(quad), frame, W, H, bg: BG };
+  let od;
+  try {
+    od = await new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('./warp-worker.js', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => { worker.terminate(); resolve(new Uint8ClampedArray(e.data.od)); };
+      worker.onerror = (e) => { worker.terminate(); reject(e); };
+      worker.postMessage({ ...job, sd: job.sd.buffer }, [job.sd.buffer]);
+    });
+  } catch {
+    // буфер міг уже піти в потік — беремо пікселі заново
+    const { warpPixels } = await import('./warp-worker.js');
+    od = warpPixels({ ...job, sd: work.getContext('2d').getImageData(0, 0, sw, sh).data });
+  }
   const out = document.createElement('canvas');
   out.width = W;
   out.height = H;
-  const octx = out.getContext('2d');
-  const img = octx.createImageData(W, H);
-  const od = img.data;
-  const m = squareToQuad(quad);
-  const du = (frame.x1 - frame.x0) / W;
-  const dv = (frame.y1 - frame.y0) / H;
-  let o = 0;
-  for (let y = 0; y < H; y += 1) {
-    const v = frame.y0 + (y + 0.5) * dv;
-    for (let x = 0; x < W; x += 1, o += 4) {
-      const u = frame.x0 + (x + 0.5) * du;
-      const w = m.g * u + m.h * v + 1;
-      const sx = (m.a * u + m.b * v + m.c) / w - 0.5;
-      const sy = (m.d * u + m.e * v + m.f) / w - 0.5;
-      od[o + 3] = 255;
-      if (!(w > 0) || sx < -0.5 || sy < -0.5 || sx > sw - 0.5 || sy > sh - 0.5) {
-        od[o] = BG; od[o + 1] = BG; od[o + 2] = BG;
-        continue;
-      }
-      const ix = Math.min(sw - 2, Math.max(0, Math.floor(sx)));
-      const iy = Math.min(sh - 2, Math.max(0, Math.floor(sy)));
-      const fx = Math.min(1, Math.max(0, sx - ix));
-      const fy = Math.min(1, Math.max(0, sy - iy));
-      const i00 = (iy * sw + ix) * 4;
-      const i01 = i00 + sw * 4;
-      for (let c = 0; c < 3; c += 1) {
-        const top = sd[i00 + c] + (sd[i00 + 4 + c] - sd[i00 + c]) * fx;
-        const bot = sd[i01 + c] + (sd[i01 + 4 + c] - sd[i01 + c]) * fx;
-        od[o + c] = top + (bot - top) * fy;
-      }
-    }
-  }
-  octx.putImageData(img, 0, 0);
+  out.getContext('2d').putImageData(new ImageData(od, W, H), 0, 0);
   return out;
 }
 
@@ -187,8 +234,10 @@ function warp(work, quad, frame, W, H) {
  * Крок «Вирівняти» для фото мішені. Повертає { blob, thumb, w, h, sheet, transform } або null, якщо скасовано.
  * sheet — { w, h } у мм, якщо вказано розмір листа: тоді краї фото — краї листа, масштаб відомий.
  * transform(p) — куди потрапила точка старого фото (у частках кадру); null — за обрієм.
+ * again — фото вже вирівняне: кути стають на краї кадру, і «Готово» чи «Пропустити» без змін нічого не чіпають (null).
+ * original — є збережений оригінал: кнопка «Оригінал» повертає { original: true }.
  */
-export async function alignTarget(file, { max }) {
+export async function alignTarget(file, { max, again = false, original = false }) {
   let src;
   try {
     src = await decode(file);
@@ -205,7 +254,17 @@ export async function alignTarget(file, { max }) {
     let sheetKey = recall(SHEET_KEY, '');
     if (!SHEETS.some(([k]) => k === sheetKey)) sheetKey = '';
     let crop = recall(CROP_KEY, '1') !== '0';
-    const reset = () => { corners = [[0.08, 0.08], [0.92, 0.08], [0.92, 0.92], [0.08, 0.92]]; };
+    // Нове фото: лист десь усередині кадру. Вирівняне: лист — це і є кадр, рамка по краях
+    const e0 = again ? 0 : 0.08; const e1 = 1 - e0;
+    // moved — кути рухали; warned — уже попередили, що рамка не на листі
+    let moved = false; let warned = false;
+    // Нове фото: якщо видно світлий лист — кути одразу на ньому (людина лише підправляє)
+    const reset = () => {
+      let found = null;
+      if (!again) { try { found = findSheet(work); } catch { /* не знайшли — кути як завжди */ } }
+      corners = found ?? [[e0, e0], [e1, e0], [e1, e1], [e0, e1]];
+      moved = Boolean(found);
+    };
     reset();
     let drag = null;
     let view = { x: 0, y: 0, w: 1, h: 1 };
@@ -263,14 +322,23 @@ export async function alignTarget(file, { max }) {
       S.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
       ctx.stroke();
+      // Кути — крупні кільця з темною облямівкою й точкою в центрі: видно, за що тягнути, і на білому листі теж
       S.forEach(([x, y], i) => {
+        const r = drag?.i === i ? 18 : 15;
         ctx.beginPath();
-        ctx.arc(x, y, drag?.i === i ? 13 : 11, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgb(255 154 60 / .35)';
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgb(255 154 60 / .3)';
         ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgb(0 0 0 / .6)';
+        ctx.lineWidth = 5;
         ctx.stroke();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff9a3c';
+        ctx.fill();
       });
       if (drag) loupe(ctx, drag.i);
       doneBtn.disabled = !ok;
@@ -329,6 +397,7 @@ export async function alignTarget(file, { max }) {
       if (!drag || e.pointerId !== drag.id) return;
       const clamp = (v) => Math.min(1, Math.max(0, v));
       corners[drag.i] = [clamp(drag.from[0] + (e.clientX - drag.x) / view.w), clamp(drag.from[1] + (e.clientY - drag.y) / view.h)];
+      moved = true;
       paint();
     });
     const endDrag = (e) => { if (drag && e.pointerId === drag.id) { drag = null; paint(); } };
@@ -354,6 +423,7 @@ export async function alignTarget(file, { max }) {
     const hint = h('p', { class: 'align-hint' });
     // Без обрізання рамку можна ставити на будь-який прямокутник сітки; розмір листа тоді ні до чого.
     const showCrop = () => {
+      hint.classList.remove('warn');
       hint.textContent = crop
         ? t('Перетащите углы рамки на углы листа — фото выпрямится по ним.')
         : t('Поставьте углы на любой прямоугольник сетки — выпрямится всё фото, без обрезки.');
@@ -374,10 +444,20 @@ export async function alignTarget(file, { max }) {
     };
     const cancel = () => close(null);
     const onKey = (e) => { if (e.key === 'Escape') cancel(); };
-    const skip = async () => close({
+    // Повторне вирівнювання без повороту — фото як є, без перестискання JPEG
+    const skip = async () => (again && !rot ? close(null) : close({
       ...(await pack(draw(work, max))), sheet: null, transform: (p) => rotatePoint(p, rot),
-    });
+    }));
     const finish = async () => {
+      if (again && !moved && !rot) { close(null); return; }
+      // Розмір листа без перетягнутих кутів — масштаб ліг би на рамку, а не на лист, і все вийшло б меншим.
+      // Один раз попереджаємо; друге «Готово» — свідомо (лист і справді по рамці)
+      if (!again && crop && sheetKey && !moved && !warned) {
+        warned = true;
+        hint.textContent = t('Углы рамки не на листе — размер листа ляжет на рамку, и всё выйдет меньше. Перетащите углы на углы листа или нажмите «Готово» ещё раз.');
+        hint.classList.add('warn');
+        return;
+      }
       doneBtn.disabled = true;
       doneBtn.textContent = t('Обработка…');
       // дати кнопці перемалюватися: далі кілька сотень мілісекунд рахунку
@@ -399,7 +479,7 @@ export async function alignTarget(file, { max }) {
         return uv && [(uv[0] - frame.x0) / (frame.x1 - frame.x0), (uv[1] - frame.y0) / (frame.y1 - frame.y0)];
       };
       try {
-        close({ ...(await pack(warp(work, P, frame, W, H))), sheet: rect.mm, transform });
+        close({ ...(await pack(await warp(work, P, frame, W, H))), sheet: rect.mm, transform });
       } catch (err) {
         toast(err.message);
         doneBtn.disabled = false;
@@ -422,6 +502,7 @@ export async function alignTarget(file, { max }) {
         h('label', { class: 'align-crop' }, cropBox, h('span', {}, t('Обрезать по рамке'))),
         sheetRow),
       h('footer', { class: 'viewer-actions' },
+        original ? h('button', { type: 'button', class: 'btn', title: t('Вернуть фото, каким оно было до выравнивания'), onclick: () => close({ original: true }) }, t('Оригинал')) : null,
         h('button', { type: 'button', class: 'btn', onclick: skip }, t('Пропустить')), doneBtn));
 
     document.getElementById('layer').append(root);
