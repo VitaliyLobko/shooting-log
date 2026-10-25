@@ -186,7 +186,7 @@ const CHEST = 'M-.5 1L-.5 .62Q-.5 .42 -.28 .42L.28 .42Q.5 .42 .5 .62L.5 1Z';
 // Силуети в одиницях висоти цілі (h, м): y від 0 (верх) до 1 (низ), x від центру; w — ширина в тих самих одиницях,
 // ap — точка прицілювання (частка висоти), parts — кола [x, y, r]. Розміри техніки — середні, у моделей різняться.
 const TGT = {
-  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]], photo: ['guide/img/real-soldier.webp', 0.327] },
+  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]] },
   chest: { short: 'Грудная', label: 'Грудная 0,5 м', h: 0.5, w: 1, ap: 0.65, path: CHEST, parts: [[0, 0.22, 0.18]] },
   // Поясна №7 — 0,5 × 1,0 м; голова й плечі тієї ж форми й розміру, що в грудної №6
   waist: { short: 'Поясная', label: 'Поясная №7: 1 × 0,5 м', h: 1, w: 0.5, ap: 0.36, dims: [['ширина', 0.5]], parts: [[0, 0.11, 0.09]],
@@ -291,8 +291,7 @@ function hitBand(key, ex, ey, H, flip) {
 // щоб він мав розмір цілі. Обабіч — його чиста копія (-c, без людей і техніки, бесшовна), вище й нижче — небо й земля з неї;
 // боки самого кадру прозорі на краях і зливаються з копією
 const SCENES = {
-  forest: { name: 'лес', hz: 0.72, ar: 1350 / 2400, gr: 0.398, sk: 0.299 },
-  assault: { name: 'атака', ar: 800 / 1200, fig: [0.4875, 0.63, 0.79], sk: 0.3, gr: 0.8 },
+  assault: { ar: 800 / 1200, fig: [0.4875, 0.63, 0.79], sk: 0.3, gr: 0.8 },
 };
 
 /** Скільки триває підсвітка нашого солдата на цілому кадрі, мс (як анімація .r-flash у CSS). */
@@ -324,9 +323,10 @@ function scope(svg, o) {
   // лупа лишається там, де ціль стоїть спочатку, — інакше рух виглядав би як зсув сітки
   if (o.mode === 'range') { const cl = (v) => Math.max(-R * 0.85, Math.min(R * 0.85, v ?? 0)); cx -= cl(o.rx); top -= cl(o.ry); }
   let ground = { class: 'r-gr' };
-  // Цілий кадр — лише для людини: для інших цілей і без цілі замість нього ліс
-  const sk = SCENES[o.real]?.fig && (o.tgt !== 'man' || o.noTarget) ? 'forest' : o.real;
+  const sk = o.real;
   const sc = SCENES[sk];
+  // Солдат на кадрі — лише коли ціль людина: для інших цілей і без цілі — тільки чиста копія кадру, у масштабі людини 1,7 м
+  const bare = sc?.fig && (o.tgt !== 'man' || o.noTarget);
   // Колір сітки: вибраний кнопкою, а без вибору на фото — чорна, як у справжньому прицілі
   const ink = o.ink ?? (sc ? 'black' : null);
   svg.classList.toggle('ink-b', ink === 'black');
@@ -349,13 +349,13 @@ function scope(svg, o) {
     if (sc.fig) {
       // Цілий кадр: солдат на фото має висоту цілі H, ноги — там, де ноги цілі
       const [ft, ff, fc] = sc.fig;
-      const bh = H / (ff - ft); const bw = bh / sc.ar; const bx = cx - fc * bw; const by = top + H - ff * bh;
+      const bh = (bare ? C.size(1.7, o.dist) * k : H) / (ff - ft); const bw = bh / sc.ar; const bx = cx - fc * bw; const by = top + H - ff * bh;
       pat(`${id}c`, img('-c'), bx, by, bw, bh);
       pat(`${id}s`, img('-sky'), bx, by - bh * sc.sk, bw, bh * sc.sk);
       pat(`${id}g`, img('-gr'), bx, by + bh, bw, bh * sc.gr);
       mk('rect', { x: -R, y: -R, width: 2 * R, height: Math.max(0, Math.min(by, R) + R), fill: `url(#${id}s)` }, g);
       mk('rect', { x: -R, y: by, width: 2 * R, height: bh, fill: `url(#${id}c)` }, g);
-      mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
+      if (!bare) mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
       ground = { fill: `url(#${id}g)` };
       mk('rect', { x: -R, y: Math.max(by + bh, -R), width: 2 * R, height: 2 * R, ...ground }, g);
     } else {
@@ -374,7 +374,7 @@ function scope(svg, o) {
   // Фото цілі — у тих самих одиницях, що й контур (висота = 1), тож розмір у мілах від дистанції й кратності той самий
   if (o.noTarget) tg.remove();
   // На цілому кадрі солдат уже є — малюємо лише зону ураження й підказки поверх
-  else if (sc?.fig) {
+  else if (sc?.fig && !bare) {
     tg.setAttribute('data-fig', '');
     // На кадрі кілька солдатів — нашого коротко підсвічуємо, коли ціль з'явилась (o.flash — коли саме).
     // Приціл перемальовується при кожному русі, тож анімація продовжується з того ж місця (від'ємна затримка)
@@ -383,11 +383,7 @@ function scope(svg, o) {
     const ry = Math.max(0.66, 3 / H);
     if (ago < FLASH_MS) mk('ellipse', { cx: 0, cy: 0.5, rx: ry * 0.8, ry, class: 'r-flash', 'vector-effect': 'non-scaling-stroke', style: `animation-delay:${-ago}ms` }, tg);
   }
-  else if (sc && T.photo) {
-    // Тінь під ногами — без неї фігура «висить» над травою
-    mk('ellipse', { cx: 0, cy: 0.99, rx: T.photo[1] * 0.6, ry: 0.025, fill: 'rgb(0 0 0 / 0.3)' }, tg);
-    mk('image', { href: T.photo[0], x: -T.photo[1] / 2, y: 0, width: T.photo[1], height: 1, preserveAspectRatio: 'none' }, tg);
-  } else {
+  else {
     mk('path', { d: T.path, class: 'r-tgt' }, tg);
     if (T.dark) mk('path', { d: T.dark, class: 'r-tgt-d' }, tg);
     (T.parts ?? []).forEach(([x, y, r, d]) => mk('circle', { cx: x, cy: y, r, class: d ? 'r-tgt-d' : 'r-tgt' }, tg));
@@ -1719,13 +1715,12 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     draw();
   };
   zoomBtn?.addEventListener('click', nextZoom);
-  // Реалізм: фото тла й людини замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — наступна сцена, після останньої — схема
+  // Реалізм: фото замість схеми — у всіх вправах, розміри в прицілі ті самі; тап — схема ↔ фото, значок показує, що зараз
   const realBtn = $('sim-real');
   const REALS = [null, ...Object.keys(SCENES)];
   const paintReal = () => {
     if (!realBtn) return;
     realBtn.setAttribute('aria-pressed', String(!!st.real));
-    realBtn.querySelector('span').textContent = st.real ? t(SCENES[st.real].name) : '';
   };
   // Колір сітки: чорна ↔ біла; поки не вибрано — як у теми, а на фото чорна
   const inkBtn = $('sim-ink');
