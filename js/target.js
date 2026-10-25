@@ -299,18 +299,42 @@ function mmPerCanvasPx(marks, photo, canvasW) {
 }
 
 /**
+ * Квадрат фото (у пікселях) навколо пробоїн і точки прицілювання з полями — щоб група не була плямою на весь лист.
+ * null — міток нема або квадрат вийшов би майже на весь лист.
+ */
+function groupFrame(marks, iw, ih) {
+  const pts = [...(marks.groups ?? []).flatMap((g) => g.holes), ...(marks.poa ? [marks.poa] : [])].map(([x, y]) => [x * iw, y * ih]);
+  if (!pts.length) return null;
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const short = Math.min(iw, ih);
+  const side = Math.max(Math.max(x1 - x0, y1 - y0) * 1.7 + short * 0.12, short * 0.3);
+  if (side > short * 0.8) return null;
+  const clampTo = (v, max) => Math.max(0, Math.min(max - side, v));
+  return { x: clampTo((x0 + x1) / 2 - side / 2, iw), y: clampTo((y0 + y1) / 2 - side / 2, ih), side };
+}
+
+/**
  * Зображення мішені з мітками в canvas: ширина width пікселів (висота — за пропорцією фото).
  * unit — підписати фігури числами в цих одиницях (на дрібних прев'ю не треба).
+ * crop — лише квадрат навколо групи (groupFrame); повертає, чи обрізано.
  */
-export async function paintPreview(canvas, src, marks, width, { unit = null, distance = 0, active = null } = {}) {
+export async function paintPreview(canvas, src, marks, width, { unit = null, distance = 0, active = null, crop = false } = {}) {
   const img = await loadImage(src);
+  const fr = crop ? groupFrame(marks, img.width, img.height) : null;
+  const sw = fr ? fr.side : img.width;
+  const sh = fr ? fr.side : img.height;
   canvas.width = Math.round(width);
-  canvas.height = Math.round((width * img.height) / img.width);
+  canvas.height = Math.round((width * sh) / sw);
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  drawMarks(ctx, marks, (p) => [p[0] * canvas.width, p[1] * canvas.height], Math.max(3, canvas.width / 80),
-    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, canvas.width) : null, unit, distance, active });
+  ctx.drawImage(img, fr?.x ?? 0, fr?.y ?? 0, sw, sh, 0, 0, canvas.width, canvas.height);
+  const k = canvas.width / sw;
+  const map = (p) => [(p[0] * img.width - (fr?.x ?? 0)) * k, (p[1] * img.height - (fr?.y ?? 0)) * k];
+  drawMarks(ctx, marks, map, Math.max(3, canvas.width / 80),
+    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, img.width * k) : null, unit, distance, active });
+  return Boolean(fr);
 }
 
 /**
@@ -362,9 +386,9 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     groups: marks.groups?.length ? structuredClone(marks.groups) : [{ holes: [] }],
   };
   st.scale2 = { a: null, b: null, mm: st.scale.mm, ...structuredClone(marks.scale2 ?? {}) };
-  // Відкриваємо в «Перегляді», і нову мішень теж: випадковий дотик не поставить зайву пробоїну.
-  // Без масштабу — спершу він: без нього пробоїни не порахувати.
-  let mode = st.scale.a && st.scale.b ? 'view' : 'scale';
+  // Без масштабу — спершу він: без нього пробоїни не порахувати. Нова мішень (пробоїн ще нема) — одразу «Пробоїни»;
+  // розмічену відкриваємо в «Перегляді»: випадковий дотик не поставить зайву пробоїну
+  let mode = !(st.scale.a && st.scale.b) ? 'scale' : st.groups.some((g) => g.holes.length) ? 'view' : 'holes';
   // лінія масштабу, яку зараз ставимо: 'scale' — основна, 'scale2' — поперечна
   let line = 'scale';
   let active = st.groups.length - 1;
@@ -387,7 +411,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     const stats = h('div', { class: 'tg-stats' });
     const hint = h('div', { class: 'tg-hint' });
     const stage = h('div', { class: 'tg-stage' }, canvas, loupe, stats, hint);
-    const modeRow = h('div', { class: 'range-seg tg-modes', role: 'tablist' });
+    const modeRow = h('div', { class: 'range-seg seg-nav tg-modes', role: 'tablist' });
     const groupRow = h('div', { class: 'chips tg-groups' });
     const mmInput = h('input', {
       type: 'number', inputmode: 'decimal', step: 'any', min: 0, 'aria-label': t('Между точками, мм'),
@@ -470,8 +494,10 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, view.x, view.y, W * view.k, H * view.k);
       const mm = mmPerCanvasPx(st, { w: W, h: H }, W * view.k);
-      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: true,
-        aspect: aspectOf(st, { w: W, h: H }), mm, unit, distance, holeR: holeR(mm) });
+      // Лінії масштабу — лише в «Масштабі»: по краю листа вони обрізані й лягають на написи мішені.
+      // Підписи розміру й радіуса — не під час розстановки: вони закривають ще не відмічені пробоїни
+      drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: mode === 'scale',
+        aspect: aspectOf(st, { w: W, h: H }), mm: mode === 'holes' ? null : mm, unit, distance, holeR: holeR(mm) });
       panel();
     }
     function paintLoupe(at, n) {
@@ -486,7 +512,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, LOUPE, LOUPE);
       ctx.drawImage(src, c - n[0] * W * z, c - n[1] * H * z, W * z, H * z);
-      drawMarks(ctx, st, map, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: true, aspect: aspectOf(st, { w: W, h: H }),
+      drawMarks(ctx, st, map, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: mode === 'scale', aspect: aspectOf(st, { w: W, h: H }),
         holeR: holeR(mmPerCanvasPx(st, { w: W, h: H }, W * z)) });
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgb(0 0 0 / .7)';
@@ -565,10 +591,11 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     }
 
     function panel() {
-      modeRow.replaceChildren(...[['view', t('Просмотр')], ['holes', t('Пробоины')], ['poa', t('Точка прицеливания')], ['scale', t('Масштаб')]].map(([key, label]) => h('button', {
+      // Підпис під кожним значком, а не лише під вибраним: перехрестя «точки прицілювання» саме по собі не читається
+      modeRow.replaceChildren(...[['view', t('Просмотр')], ['holes', t('Пробоины')], ['poa', t('Точка прицеливания'), t('Точка')], ['scale', t('Масштаб')]].map(([key, label, short]) => h('button', {
         type: 'button', role: 'tab', class: key === mode ? 'on' : null, 'aria-selected': String(key === mode), 'aria-label': label, title: label,
         onclick: () => { mode = key; selected = null; paint(); },
-      }, icon(key), h('span', {}, label))));
+      }, icon(key), h('span', { class: short ? 'seg-long' : null }, label), short ? h('span', { class: 'seg-short', 'aria-hidden': 'true' }, short) : null)));
       // групи видно й у «Перегляді»: вибрану пробоїну можна перенести в іншу групу
       holesRow.hidden = mode !== 'holes' && mode !== 'view';
       // ділити є сенс лише коли пробоїн достатньо, щоб вийшло дві купи
@@ -646,7 +673,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       else {
         const s = group.stats;
         stats.textContent = [
-          t('Группа {n}', { n: active + 1 }),
+          st.groups.length > 1 ? t('Группа {n}', { n: active + 1 }) : null,
           t('{n} выстр.', { n: s.n }),
           `${t('размах')} ${length(s.spread, unit, distance)}`,
           s.offset ? `${t('СТП')} ${offsetText(s.offset, unit, distance)}` : null].filter(Boolean).join(' · ');
@@ -761,11 +788,15 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         : mode === 'poa'
           ? (st.poa ? [{ kind: 'poa', p: st.poa }] : [])
           : Object.entries(END).filter(([, [l, end]]) => l === line && st[l][end]).map(([kind, [l, end]]) => ({ kind, p: st[l][end] }));
+      // У «Пробоїнах» пробоїну хапаємо лише по її кільцю: з 24 px поруч із відміченою (ближче ~12 мм на вписаному A4)
+      // нову не поставити — тап мовчки вибирав сусідню
+      const ring = Math.max(8, holeR(mmPerCanvasPx(st, { w: W, h: H }, W * view.k))) + 4;
       let best = null;
       for (const item of list) {
         const [x, y] = toScreen(item.p);
         const d = Math.hypot(x - at[0], y - at[1]);
-        if (d <= HIT && (!best || d < best.d)) best = { ...item, d };
+        const lim = mode === 'holes' && item.kind === 'hole' ? Math.min(HIT, ring) : HIT;
+        if (d <= lim && (!best || d < best.d)) best = { ...item, d };
       }
       return best;
     }

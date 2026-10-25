@@ -185,15 +185,19 @@ export function blobKeys() {
 
 /**
  * Прибрати файли фото, для яких уже немає запису (видалені на іншому пристрої).
+ * Оригінали вирівняних мішеней (target.orig) запису фото не мають — їх лишаємо.
  * Записи читаються в тій самій транзакції — фото, додане під час синхронізації, не зачепить.
  */
 export function dropOrphanBlobs() {
-  return run(['photos', BLOBS], 'readwrite', (tx) => {
+  return run(['photos', 'targets', BLOBS], 'readwrite', (tx) => {
     tx.objectStore('photos').getAllKeys().onsuccess = (e) => {
       const keep = new Set(e.target.result);
-      const blobs = tx.objectStore(BLOBS);
-      blobs.getAllKeys().onsuccess = (ev) => {
-        for (const id of ev.target.result) if (!keep.has(id)) blobs.delete(id);
+      tx.objectStore('targets').getAll().onsuccess = (et) => {
+        for (const tg of et.target.result) if (tg.orig?.photoId) keep.add(tg.orig.photoId);
+        const blobs = tx.objectStore(BLOBS);
+        blobs.getAllKeys().onsuccess = (ev) => {
+          for (const id of ev.target.result) if (!keep.has(id)) blobs.delete(id);
+        };
       };
     };
   });
