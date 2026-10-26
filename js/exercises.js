@@ -287,8 +287,21 @@ export const EXERCISES = [
   },
 ];
 
+/** Рядок із **жирним** і *курсивом* → вузли; HTML у тексті лишається текстом. */
+function inline(text) {
+  const out = []; const re = /\*\*(.+?)\*\*|\*(.+?)\*/g; let at = 0; let m;
+  while ((m = re.exec(text))) {
+    if (m.index > at) out.push(text.slice(at, m.index));
+    out.push(m[1] !== undefined ? h('b', {}, m[1]) : h('i', {}, m[2]));
+    at = re.lastIndex;
+  }
+  if (at < text.length) out.push(text.slice(at));
+  return out;
+}
+
 /**
- * Рядки правил → пункти: «Заголовок: текст» виділяє заголовок, рядок з «- » — підпункт попереднього.
+ * Рядки правил → пункти: «Заголовок: текст» виділяє заголовок, рядок з «- » — підпункт попереднього,
+ * «# » — заголовок розділу без номера; усередині — **жирний** і *курсив*.
  * Та сама розмітка працює і у своїх вправах — правила там пишуть у полі, по рядку на пункт.
  */
 function textItems(lines) {
@@ -296,16 +309,67 @@ function textItems(lines) {
   for (const raw of lines ?? []) {
     const line = String(raw).trim();
     if (!line) continue;
+    const head = /^#+\s+/.exec(line);
+    if (head) { out.push({ head: line.slice(head[0].length) }); continue; }
     const dash = /^[-–•]\s+/.exec(line);
     if (dash && out.length) { (out.at(-1).sub ??= []).push(line.slice(dash[0].length)); continue; }
     // Короткий заголовок без ком — щоб звичайне речення з двокрапкою не стало заголовком.
-    const lead = /^([^:,]{1,30}):\s*(.*)$/.exec(line);
-    out.push(lead ? { lead: lead[1], text: lead[2] } : { text: line });
+    const lead = /^([^:,*]{1,30}):\s*(.*)$/.exec(line);
+    out.push(lead ? { lead: lead[1], text: lead[2] } : { text: dash ? line.slice(dash[0].length) : line });
   }
-  return out.map((it) => h('li', {},
+  const sub = (it) => (it.sub ? h('ul', { class: 'ex-sub' }, it.sub.map((x) => h('li', {}, inline(x)))) : null);
+  return out.map((it) => (it.head ? h('li', { class: 'ex-head' }, h('span', {}, inline(it.head)), sub(it)) : h('li', {},
     it.lead ? h('b', {}, `${it.lead}:`) : null,
-    it.text ? `${it.lead ? ' ' : ''}${it.text}` : null,
-    it.sub ? h('ul', { class: 'ex-sub' }, it.sub.map((x) => h('li', {}, x))) : null));
+    it.text ? [it.lead ? ' ' : '', ...inline(it.text)] : null,
+    sub(it))));
+}
+
+/**
+ * Кнопки над полем правил: жирний, курсив, підпункт, заголовок — ставлять розмітку навколо виділення
+ * чи на початок рядків; «Перегляд» показує, як правила виглядатимуть у картці.
+ */
+function rulesToolbar(area) {
+  const changed = () => area.dispatchEvent(new Event('input', { bubbles: true }));
+  const wrap = (mark) => {
+    const [a, b] = [area.selectionStart, area.selectionEnd];
+    const sel = area.value.slice(a, b) || t('текст');
+    area.focus();
+    area.setRangeText(`${mark}${sel}${mark}`, a, b);
+    area.setSelectionRange(a + mark.length, a + mark.length + sel.length);
+    changed();
+  };
+  // Префікс на всіх рядках виділення; уже стоїть на всіх — знімаємо (інший префікс замінюємо)
+  const prefix = (p) => {
+    const v = area.value; const a = area.selectionStart; const b = area.selectionEnd;
+    const start = v.lastIndexOf('\n', a - 1) + 1; const end = v.indexOf('\n', b) < 0 ? v.length : v.indexOf('\n', b);
+    const lines = v.slice(start, end).split('\n');
+    const strip = (l) => l.replace(/^(#+|[-–•])\s+/, '');
+    const all = lines.every((l) => l.startsWith(p));
+    const next = lines.map((l) => (all ? l.slice(p.length) : p + strip(l))).join('\n');
+    area.focus();
+    area.setRangeText(next, start, end);
+    area.setSelectionRange(start, start + next.length);
+    changed();
+  };
+  const preview = h('ul', { class: 'ex-rules rules-preview', hidden: true });
+  const paint = () => { if (!preview.hidden) preview.replaceChildren(...textItems(area.value.split('\n'))); };
+  area.addEventListener('input', paint);
+  const tool = (label, title, onclick, cls = '') => h('button', { type: 'button', class: `rules-tool ${cls}`, title, 'aria-label': title,
+    onmousedown: (e) => e.preventDefault(), onclick }, label);
+  const look = tool(t('Просмотр'), t('Как будет в карточке'), () => {
+    preview.hidden = !preview.hidden;
+    look.setAttribute('aria-pressed', String(!preview.hidden));
+    paint();
+  }, 'rules-look');
+  look.setAttribute('aria-pressed', 'false');
+  const bar = h('div', { class: 'rules-bar', role: 'toolbar', 'aria-label': t('Оформление') },
+    tool(h('b', {}, t('Ж')), t('Жирный'), () => wrap('**')),
+    tool(h('i', {}, t('К')), t('Курсив'), () => wrap('*')),
+    tool('•', t('Подпункт'), () => prefix('- ')),
+    tool('#', t('Заголовок без номера'), () => prefix('# ')),
+    look);
+  area.before(bar);
+  area.after(preview);
 }
 
 /** Підрахунок: таблиця зон з очками (зі самої вправи — є й у своїх) і пояснення пунктами. */
@@ -646,8 +710,9 @@ function exerciseForm(rec, ctx) {
       { name: `r${i}m`, label: i === 0 ? t('От, очков') : '', type: 'number', min: 0, step: 1, value: ranks[i]?.[0] ?? '', half: true });
   }
   fields.push({ name: 'rules', label: t('Правила'), type: 'textarea', value: rec?.rules ?? '', wide: true, rows: 8,
-    hint: t('Каждая строка — отдельный пункт. «Заголовок: текст» — выделит заголовок, строка с «- » — подпункт.') });
+    hint: t('Каждая строка — пункт с номером. Кнопки выше: **жирный**, *курсив*, «- » — подпункт, «# » — заголовок без номера; «Слово: текст» выделит слово.') });
   const f = form(fields);
+  rulesToolbar(f.inputs.rules);
   const save = () => {
     const v = f.values();
     if (!v.name) { fieldError(f.inputs.name, t('Заполните поле «{label}»', { label: t('Название') })); return; }
