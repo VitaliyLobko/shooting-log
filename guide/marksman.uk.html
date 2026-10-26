@@ -1159,12 +1159,18 @@
           <button type="button" class="sim-zoom sim-fig" id="sim-fig" hidden aria-label="Ціль: наступний боєць" title="Ціль: наступний боєць"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><path d="M9 21v-6.5L7.5 14V9.5L9.5 8h5l2 1.5V14L15 14.5V21M12 15v6"/></svg><span>1/5</span></button>
           <button type="button" class="sim-zoom" id="sim-zoom" aria-pressed="false" aria-label="Лупа на центр прицілу"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3 21 21"/></svg><span>1×</span></button>
         </div>
-        <button type="button" class="sim-zoom sim-ink" id="sim-ink" data-ink="auto" aria-label="Колір сітки: чорна чи біла" title="Колір сітки: чорна чи біла"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" class="sim-zoom sim-ink" id="sim-ink" data-ink="auto" aria-label="Колір сітки: чорна чи біла" title="Колір сітки: чорна чи біла"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h6M15 12h6M12 3v6M12 15v6" stroke-width="2.6"/><path d="M9 12h6M12 9v6" stroke-width="1"/></svg></button>
         <button type="button" class="hint-btn" id="sim-i" aria-expanded="false" aria-controls="sim-help" aria-label="Як користуватися тренажером">i</button>
-        <button type="button" class="sim-badge bl" data-pop="pop-dist" aria-expanded="false" title="Дистанція"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/></svg><small>дист.</small><b id="s-dist-v">400 м</b></button>
+        <button type="button" class="sim-badge bl" data-pop="pop-dist" aria-expanded="false" title="Дистанція"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8.5 6.5 12 3l3.5 3.5M8.5 17.5 12 21l3.5-3.5"/></svg><small>дист.</small><b id="s-dist-v">400 м</b></button>
         <button type="button" class="sim-badge br" data-pop="pop-mag" aria-expanded="false" title="Кратність"><small class="mag-rng" id="s-mag-r">1–6×</small><small>крат.</small><b id="s-mag-v">6×</b></button>
         <label class="sim-pop" id="pop-dist" for="s-dist" hidden>Дистанція<input id="s-dist" type="range" min="25" max="700" step="25" value="400" list="dist-ticks"><datalist id="dist-ticks"><option value="25"></option><option value="100"></option><option value="200"></option><option value="300"></option><option value="400"></option><option value="500"></option><option value="600"></option><option value="700"></option></datalist><span class="ticks at" aria-hidden="true"><span style="--p:0.0000">25</span><span style="--p:0.1111">100</span><span style="--p:0.2593">200</span><span style="--p:0.4074">300</span><span style="--p:0.5556">400</span><span style="--p:0.7037">500</span><span style="--p:0.8519">600</span><span style="--p:1.0000">700</span></span></label>
         <label class="sim-pop" id="pop-mag" for="s-mag" hidden>Кратність<input id="s-mag" type="range" min="1" max="6" step="0.5" value="6"></label>
+        <div class="sim-pop tgt-bar" id="pop-tgt" hidden>
+          <select id="s-tgt" hidden></select>
+          <button type="button" class="tgt-kind" id="tgt-kind" title="Фото чи схеми" aria-label="Фото чи схеми"></button>
+          <div class="tgt-grid" id="tgt-grid" role="group" aria-label="Ціль"></div>
+          <p class="tgt-note" id="tgt-note" aria-live="polite"></p>
+        </div>
       </div>
     </div>
     <div class="ctl">
@@ -1173,9 +1179,9 @@
       <h4>Приціл</h4>
       <ul class="sim-legend">
         <li><span class="lg-ico lg-txt">🔍</span><span><b>Лупа</b> — збільшити центр прицілу, щоб точніше прочитати сітку. Ще тап — назад до 1×.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Реалізм</b> — фото з навчань замість схеми: плитки з фото — «Атака», «Біля БТР», «Перебіжка», «Зима», «Арктика», «Окоп» — на початку вибору цілі (кнопка «Ціль» унизу). Кільце на початку завдання показує, хто ціль; кнопка «Ціль» на прицілі (значок людини й «2/5») — наступний боєць, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Реалізм</b> — фото з навчань замість схеми: плитки з фото — «Атака», «Біля БТР», «Перебіжка», «Зима», «Арктика», «Окоп» — у стрічці цілей під прицілом. Кільце на початку завдання показує, хто ціль; кнопка «Ціль» на прицілі (значок людини й «2/5») — наступний боєць, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v6M12 14.5v6M3.5 12h6M14.5 12h6"/></svg></span><span><b>Колір сітки</b> — чорна чи біла: яку краще видно на тлі. На фото типово чорна, як у справжньому прицілі.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/></svg></span><span><b>Дистанція</b> — до цілі, повзунком.</span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M8.5 6.5 12 3l3.5 3.5M8.5 17.5 12 21l3.5-3.5"/></svg></span><span><b>Дистанція</b> — до цілі, повзунком.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M1.5 9.5h3l2 1.5h10l2-2.5h4v7h-4l-2-2.5h-10l-2 1.5h-3z"/><path d="M10 11V8.5h2.5V11"/></svg></span><span><b>Кратність</b> — збільшення прицілу. У сітки в другій фокальній площині поділки правильні лише на найбільшій кратності.</span></li>
         <li><span class="lg-ico lg-txt">⟲</span><span><b>Повернути ціль</b> — з’являється в далекомірі, коли зсунув приціл пальцем.</span></li>
       </ul>
@@ -1186,7 +1192,7 @@
       </ul>
       <h4>Налаштування під прицілом</h4>
       <ul class="sim-legend">
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" fill="currentColor" stroke="none"/><path d="M8.6 21v-9q0-3.2 3.4-3.2t3.4 3.2v9z" fill="currentColor" stroke="none" opacity=".45"/></svg></span><span><b>Ціль</b> — людина, грудна, поясна, голова, гонг, машина…</span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" fill="currentColor" stroke="none"/><path d="M8.6 21v-9q0-3.2 3.4-3.2t3.4 3.2v9z" fill="currentColor" stroke="none" opacity=".45"/></svg></span><span><b>Ціль</b> — стрічка під прицілом: кнопка на її початку перемикає фото-сцени з навчань і схеми (людина, грудна, IPSC, гонг), кубик — випадкова ціль і дистанція. Рядок під стрічкою — про вибрану: скільки бійців, їхній зріст і до якої дистанції кадр без повторів.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/></svg></span><span><b>Вітер</b> — сила й звідки дме, за годинником.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="14.5" cy="4.5" r="2"/><path d="M8 21l3-5.5 3 2.5v4.5M11 15.5l1.2-5.5 3.3 3h3.5M12.2 10l-4.2.8-2 3.2"/></svg></span><span><b>Рух</b> — швидкість цілі й куди йде: від цього упередження.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/></svg></span><span><b>Гвинтівка й набій</b> — комплект і сітка, ствол, пристрілка, температура, висота. Свої таблиці DOPE теж тут.</span></li>
@@ -1220,14 +1226,10 @@
         </div>
       </div>
       <div class="sim-tools" role="group">
-        <button type="button" class="sim-tool" data-panel="sim-tgt" aria-expanded="false" title="Ціль"><span class="sim-tool-ico" id="s-tgt-ico"></span><span class="sim-tool-t">Ціль</span><span class="sim-tool-v" id="s-tgt-sum"></span></button>
+        <button type="button" class="sim-tool" data-pop="pop-tgt" aria-expanded="false" title="Ціль"><span class="sim-tool-ico" id="s-tgt-ico"></span><span class="sim-tool-t">Ціль</span><span class="sim-tool-v" id="s-tgt-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-wind" aria-expanded="false" title="Вітер"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/></svg><span class="sim-tool-t">Вітер</span><span class="sim-tool-v" id="s-wind-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-move" aria-expanded="false" title="Рух"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14.5" cy="4.5" r="2"/><path d="M8 21l3-5.5 3 2.5v4.5M11 15.5l1.2-5.5 3.3 3h3.5M12.2 10l-4.2.8-2 3.2"/></svg><span class="sim-tool-t">Рух</span><span class="sim-tool-v" id="s-mv-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-gun" aria-expanded="false" title="Гвинтівка й набій"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/></svg><span class="sim-tool-t">Гвинтівка й набій</span><span class="sim-tool-v" id="s-gun-sum"></span></button>
-      </div>
-      <div class="sim-panel" id="sim-tgt" hidden>
-        <select id="s-tgt" hidden></select>
-        <div class="tgt-grid" id="tgt-grid"></div>
       </div>
       <div class="sim-panel" id="sim-wind" hidden>
         <label for="s-wind">Бічний вітер: <b id="s-wind-v">0 м/с</b><input id="s-wind" type="range" min="0" max="8" step="0.5" value="0"></label>

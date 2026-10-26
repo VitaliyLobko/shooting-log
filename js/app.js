@@ -2733,6 +2733,8 @@ const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   // Пробоїна в мішені — не перехрестя: воно в застосунку про прицілювання
   shot: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="14.2" cy="9.8" r="1.6" fill="currentColor" stroke="none"/>',
+  // Купчастість: три пробоїни купкою в центрі мішені
+  group: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><g fill="currentColor" stroke="none"><circle cx="10.6" cy="10.9" r="1.45"/><circle cx="13.6" cy="11.3" r="1.45"/><circle cx="11.9" cy="14" r="1.45"/></g>',
   // Набій і велика лійка з порохом: споряджено власноруч.
   reload: '<path d="M2.5 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M2.5 14h4"/><path d="M9.5 3h13l-5 6v4.5h-3V9z"/><path d="M16 16.8h0M16 20.3h0"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
@@ -3441,7 +3443,7 @@ function targetsTile(weapon, closeSheet = null) {
       remember('shooters-log:range-seg', rangeSeg);
       goTab('#targets');
     },
-  }, kindIcon('shot'),
+  }, kindIcon('group'),
   h('span', { class: 'tg-tile-value' }, value),
   h('span', { class: 'tg-tile-label' }, t('Кучность')));
 }
