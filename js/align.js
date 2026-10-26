@@ -13,7 +13,7 @@ const CROP_KEY = 'shooters-log:align-crop';
 const SPREAD = 1.5;
 const BG = 24;
 // [ключ, назва, ширина × висота в мм]
-const SHEETS = [['', 'Не знаю'], ['a4', 'A4', [210, 297]], ['a3', 'A3', [297, 420]], ['50', '50×50 см', [500, 500]]];
+const SHEETS = [['', 'Не знаю'], ['a5', 'A5', [148, 210]], ['a4', 'A4', [210, 297]], ['a3', 'A3', [297, 420]], ['50', '50×50 см', [500, 500]], ['ipsc', 'IPSC', [450, 570]]];
 
 function recall(key, fallback) {
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
