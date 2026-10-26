@@ -409,10 +409,10 @@ function scope(svg, o) {
       ground = { fill: `url(#${id}g)` };
       mk('rect', { x: -R, y: Math.max(gry, -R), width: 2 * R, height: 2 * R, ...ground }, g);
       if (!bare) {
-        // Спрайт знято зблизька — з дистанцією трохи розмиваємо (0,01 міла поблизу → 0,03 міла на 700 м),
+        // Спрайт знято зблизька — з дистанцією трохи розмиваємо (0,0125 міла поблизу → 0,04 міла на 700 м),
         // інакше далекий боєць різкий, як вирізаний
         const fl = mk('filter', { id: `${id}a` }, defs);
-        mk('feGaussianBlur', { stdDeviation: (0.01 + 0.02 * Math.min(1, o.dist / 700)) * mu }, fl);
+        mk('feGaussianBlur', { stdDeviation: (0.0125 + 0.0275 * Math.min(1, o.dist / 700)) * mu }, fl);
         mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none', filter: `url(#${id}a)` }, g);
       }
     } else {
