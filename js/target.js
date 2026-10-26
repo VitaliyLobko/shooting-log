@@ -140,7 +140,7 @@ export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
  * active — група, що редагується (інші блідіші), selected — виділена мітка, scale — показати масштаб.
  * holeR — радіус кулі в пікселях полотна: кільце пробоїни не менше за нього.
  */
-export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0 } = {}) {
+export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0, below = false } = {}) {
   const halo = (draw, stroke, width) => {
     ctx.lineWidth = width + r * 0.35;
     ctx.strokeStyle = 'rgb(0 0 0 / .65)';
@@ -224,7 +224,12 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
         ctx.ellipse(cx, cy, meanR, meanR / aspect, 0, 0, Math.PI * 2);
       }, RING, r * 0.12);
       ctx.restore();
-      if (mm) {
+      if (mm && below) {
+        // Під час розстановки — під рамкою групи: там немає пробоїн, які ще треба відмітити
+        const x = (bx0 + bx1) / 2;
+        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 2, ang: 0, off: 0 });
+        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 3.8, ang: 0, off: 0 });
+      } else if (mm) {
         // Розкид — над своєю лінією й уздовж неї (перевертаємо, щоб не читалося догори
         // дриґом), середній радіус — горизонтально над кільцем. Малюємо наприкінці,
         // поверх усього, щоб пробоїни не затирали цифри.
@@ -495,9 +500,9 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
       ctx.drawImage(src, view.x, view.y, W * view.k, H * view.k);
       const mm = mmPerCanvasPx(st, { w: W, h: H }, W * view.k);
       // Лінії масштабу — лише в «Масштабі»: по краю листа вони обрізані й лягають на написи мішені.
-      // Підписи розміру й радіуса — не під час розстановки: вони закривають ще не відмічені пробоїни
+      // Під час розстановки підписи розміру й радіуса — під рамкою групи, щоб не закривали ще не відмічені пробоїни
       drawMarks(ctx, st, toScreen, 8, { active: mode === 'holes' || mode === 'view' ? active : null, selected, scale: mode === 'scale',
-        aspect: aspectOf(st, { w: W, h: H }), mm: mode === 'holes' ? null : mm, unit, distance, holeR: holeR(mm) });
+        aspect: aspectOf(st, { w: W, h: H }), mm, below: mode === 'holes', unit, distance, holeR: holeR(mm) });
       panel();
     }
     function paintLoupe(at, n) {
