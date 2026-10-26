@@ -968,7 +968,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row {
   display: grid;
   grid-template-columns: 1fr 1fr 40px;
-  grid-template-areas: "name name del" "kind ret ret" "zero click click" "own own own" "note note note" "def def def";
+  grid-template-areas: "name name del" "kind ret ret" "zero sh sh" "click click click" "own own own" "note note note" "def def def";
   gap: 6px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -978,7 +978,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scope-row .sc-del { grid-area: del; align-self: center; }
 .scope-row .sc-kind { grid-area: kind; }
 .scope-row .sc-ret { grid-area: ret; }
-.scope-row .sc-zero { grid-area: zero; }
+.scope-row .sc-zero-f { grid-area: zero; }
+.scope-row .sc-sh-f { grid-area: sh; }
+.scope-row .sc-cap { display: grid; gap: 4px; }
+.scope-row .sc-cap > span { font-size: 12px; color: var(--muted); }
 .scope-row .sc-click { grid-area: click; }
 .scope-row .sc-own { grid-area: own; display: grid; gap: 6px; }
 .scope-row .sc-note { grid-area: note; }
@@ -1311,6 +1314,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide td.r, .guide th.r { text-align: right; font: 13px var(--mono); font-variant-numeric: tabular-nums; }
 .guide th.r { font: 700 12px var(--mono); }
 .guide tr.dim td { color: var(--muted); }
+.guide tr.danger td { background: color-mix(in srgb, var(--shoot) 14%, transparent); }
+.guide tr.danger td:first-child { box-shadow: inset 3px 0 var(--shoot); color: var(--shoot); }
 
 .guide .steps { display: grid; gap: 10px; padding: 0; list-style: none; counter-reset: s; }
 .guide .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; margin: 0; counter-increment: s; }
@@ -1811,6 +1816,18 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-sub { display: grid; gap: 3px; margin: 4px 0 0; padding: 0; list-style: none; color: var(--text); }
 .ex-sub li { position: relative; padding-left: 14px; }
 .ex-sub li::before { content: ''; position: absolute; left: 2px; top: .65em; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.ex-rules > li.ex-head { padding-left: 0; margin-top: 4px; }
+.ex-rules > li.ex-head > span { font-weight: 800; color: var(--accent-2); }
+.ex-rules > li.ex-head::before { display: none; }
+.ex-rules i { font-style: italic; }
+/* Оформлення правил у формі вправи: кнопки над полем і перегляд під ним */
+.rules-bar { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+.rules-tool { min-width: 44px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 16px; cursor: pointer; }
+.rules-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rules-tool.rules-look { margin-left: auto; font-size: 14px; }
+.rules-tool[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.rules-preview { margin-top: 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
 .ex-scoring {
   display: grid;
   gap: 10px;
@@ -1955,23 +1972,10 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-meas button svg { width: 26px; height: 26px; max-width: none; margin: 0; }
 .guide .quiz-acts > button { flex: 1 1 0; min-width: 0; margin: 0; }
 /* Складність — свій випадний список: згорнуто — вибраний рівень зі стрілкою, розгорнуто — усі рівні під ним */
-.guide .quiz-levels { display: grid; gap: 6px; }
-.guide .quiz-level {
-  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center;
-  padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2);
-  color: var(--fg); text-align: left; cursor: pointer;
-}
-.guide .quiz-level-face { grid-template-columns: auto 1fr auto; }
-.guide .quiz-level-face .ql-chev { grid-column: 3; grid-row: 1 / 3; color: var(--muted); font-size: 14px; transition: transform .15s; }
-.guide .quiz-levels.open .ql-chev { transform: rotate(180deg); }
-.guide .quiz-levels.open .quiz-level-face { border-color: var(--accent); }
-.guide .quiz-level-list { display: grid; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.guide .quiz-level-list[hidden] { display: none; }
-.guide .quiz-level-list .quiz-level { border-color: transparent; background: transparent; }
-.guide .quiz-level-list .quiz-level[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.guide .quiz-level b { font-size: 15px; }
-.guide .quiz-level small { grid-column: 2; color: var(--muted); font-size: 12.5px; line-height: 1.3; }
-.guide .ql-bars { grid-row: 1 / 3; display: flex; align-items: flex-end; gap: 2px; height: 20px; }
+.guide .quiz-levels { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.guide .quiz-level-strip .quiz-level { gap: 8px; padding: 0 12px 0 10px; color: var(--fg); font-size: 14.5px; font-weight: 600; cursor: pointer; }
+.guide .quiz-level-note { white-space: normal; }
+.guide .ql-bars { display: flex; align-items: flex-end; gap: 2px; height: 20px; }
 .guide .ql-bars i { width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 18%, transparent); }
 .guide .ql-bars i:nth-child(1) { height: 6px; }
 .guide .ql-bars i:nth-child(2) { height: 9px; }
@@ -1979,7 +1983,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .ql-bars i:nth-child(4) { height: 16px; }
 .guide .ql-bars i:nth-child(5) { height: 20px; }
 .guide .ql-bars i.on { background: var(--accent); }
-.guide .ql-mode { grid-row: 1 / 3; display: grid; place-items: center; width: 28px; height: 20px; color: var(--accent); }
+.guide .ql-mode { display: grid; place-items: center; width: 28px; height: 20px; color: var(--accent); }
 .guide .ql-mode svg { width: 22px; height: 22px; margin: 0; flex: none; }
 .guide .quiz-row { display: flex; gap: 8px; }
 .guide .quiz-show { width: 100%; margin: 8px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--fg); font-weight: 650; cursor: pointer; }
@@ -2059,11 +2063,15 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-frame > .sim-corner { position: absolute; z-index: 1; right: 0; top: 0; display: flex; gap: 6px; }
 .guide .sim-corner > .sim-zoom { padding: 6px 9px; background: var(--surface-2); }
 .guide .sim-ink { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 38px; }
-.guide .sim-ink svg { width: 18px; height: 18px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.guide .sim-ink svg { width: 22px; height: 22px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-linecap: butt; overflow: visible; }
+/* Кнопка як інші на прицілі, колір сітки — «лінза» всередині: світла з чорною сіткою чи темна з білою */
+.guide .sim-ink .ink-lens { fill: none; stroke: var(--line); stroke-width: 1; }
+.guide .sim-ink[data-ink="black"] .ink-lens { fill: #e9e9e4; stroke: rgb(0 0 0 / .25); }
+.guide .sim-ink[data-ink="black"] .ink-ret { stroke: #111; }
+.guide .sim-ink[data-ink="white"] .ink-lens { fill: #2b2d29; stroke: rgb(255 255 255 / .25); }
+.guide .sim-ink[data-ink="white"] .ink-ret { stroke: #f4f4ef; }
 .guide #sim-zoom { display: inline-flex; align-items: center; gap: 4px; }
 .guide #sim-zoom svg { width: 16px; height: 16px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.guide .sim-ink[data-ink="black"] { background: #e9e9e4; color: #111; }
-.guide .sim-ink[data-ink="white"] { background: #2b2d29; color: #f4f4ef; }
 .guide .sim-frame > .sim-ink { top: 40px; padding: 6px 9px; }
 .guide .sim-frame > .sim-ret { top: 80px; min-width: 38px; font-size: 16px; }
 .guide .sim-frame > .sim-ret[hidden] { display: none; }
@@ -2093,8 +2101,9 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-tool-v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px var(--mono); letter-spacing: -0.04em; }
 .guide .sim-tool[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .guide .sim-tool[aria-expanded="true"] svg { color: var(--accent-2); }
-.guide .sim-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); }
+.guide .sim-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); }
 .guide .sim-panel[hidden] { display: none; }
+.guide .sim-panel label { grid-template-columns: minmax(0, 1fr); }
 .guide .sim-panel select { background: var(--surface); }
 /* Плашки дистанції й кратності в нижніх кутах прицілу; повзунок — поверх нижньої частини прицілу */
 .guide .sim-frame > .sim-badge { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 10px;
@@ -2108,10 +2117,25 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   border: 1px solid var(--accent); border-radius: 12px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
 .guide .sim-pop[hidden] { display: none; }
 .guide .sim-pop input[type=range] { width: 100%; accent-color: var(--accent); }
-/* Ціль: силует на кнопці й сітка силуетів у панелі */
+/* Ціль: стрічка під прицілом — «Фото | Схеми» і плитки, що гортаються вбік */
 .guide .sim-tool-ico { display: grid; place-items: center; height: 26px; }
 .guide .tgt-ico { width: auto; height: 26px; max-width: 100%; margin: 0; }
-.guide .tgt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.guide .sim-pop.tgt-bar { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; padding: 8px; color: var(--text); }
+.guide .tgt-kind { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2); color: var(--text); cursor: pointer; }
+.guide .tgt-kind svg { width: 24px; height: 24px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.guide .tgt-note { grid-column: 1 / -1; margin: 0; min-height: 1.3em; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.guide .tgt-grid { position: relative; display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  scrollbar-width: none; margin: 0 -2px; padding: 2px 2px 4px; }
+.guide .tgt-grid::-webkit-scrollbar { display: none; }
+.guide .tgt-grid .tgt-opt { flex: none; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px 0 6px; scroll-snap-align: center; white-space: nowrap; }
+.guide .tgt-grid .tgt-opt.focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.guide .tgt-grid .tgt-opt[data-random] { padding: 0 8px; }
+.guide .tgt-grid .tgt-opt .tgt-ico { height: 28px; }
+.guide .tgt-grid .tgt-photo { width: 42px; height: 28px; border-radius: 5px; }
+.guide .tgt-opt .tgt-dice { fill: none; stroke: currentColor; stroke-width: 1.8; width: 28px; color: var(--accent-2); }
+.guide .tgt-opt .tgt-dice .tgt-dot { fill: currentColor; stroke: none; }
 .guide .tgt-opt { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--surface); color: var(--text); font-size: 12.5px; cursor: pointer; min-width: 0; }
 .guide .tgt-opt .tgt-ico { height: 34px; }
@@ -2121,10 +2145,16 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .tgt-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 /* Вправи: вибір виду, історія серій, умови й хрестик відповіді */
 .guide .quiz-kind { display: grid; grid-template-columns: 1fr 1fr; }
+.guide .quiz-kind .quiz-ibtn { gap: 8px; padding: 8px 10px; line-height: 1.2; text-align: left; justify-content: flex-start; }
+.guide .quiz-kind .quiz-ibtn svg { width: 22px; height: 22px; }
 .guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
 .guide .quiz-facts > span { white-space: nowrap; }
 .guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
 .guide .quiz-hist { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.guide .quiz-hist-title { color: var(--fg); font-size: 13.5px; }
+.guide .quiz-bars { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 2px; border-bottom: 1px solid var(--line); }
+.guide .quiz-bars i { flex: 1; max-width: 30px; display: flex; justify-content: center; padding-top: 1px; font: 600 11px/14px system-ui, sans-serif; font-style: normal; color: var(--fg); border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.guide .quiz-bars i.last { background: var(--accent); color: var(--on-accent, #14170f); }
 .guide .quiz-hist .spark { width: 100%; height: 28px; }
 .guide .r-mark { stroke: #4da3ff; fill: none; stroke-linecap: round; }
 .guide .sim-frame > svg { touch-action: pan-y; }
@@ -2143,7 +2173,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-hist .spark svg { display: block; width: 100%; height: 28px; max-width: none; }
 .guide .sim-stick label.sim-pop { grid-template-columns: 1fr; }
 .guide .sim-pop .ticks { grid-column: 1 / -1; }
-.guide .sim-tool svg.tgt-ico, .guide .tgt-opt svg.tgt-ico { stroke: none; width: auto; }
+.guide .sim-tool svg.tgt-ico, .guide .tgt-opt svg.tgt-ico:not(.tgt-dice) { stroke: none; width: auto; }
 .guide .r-move { stroke: var(--accent); fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .guide .sim-tool:disabled { opacity: .35; cursor: default; }
 /* Вітер у тренажері: опис сили під повзунком і менший циферблат */
