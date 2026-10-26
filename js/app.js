@@ -198,7 +198,7 @@ function ammoPicker(select, caliber = null) {
  * для свого запису (other — у групу «інші» під підписом otherLabel); null — простий пункт із текстом option.
  * group(value) → [ключ, назва] — свої записи згортками за групами; відкрита та, де поточний вибір.
  */
-function listPicker(select, { title, item, otherLabel = null, cls = '', group = null }) {
+function listPicker(select, { title, item, ownLabel = null, otherLabel = null, cls = '', group = null }) {
   if (!select) return () => {};
   const face = h('button', { type: 'button', class: `picker ${cls}`.trim() });
   const describe = (value) => item(value)
@@ -222,10 +222,12 @@ function listPicker(select, { title, item, otherLabel = null, cls = '', group = 
       o.d.lead ?? null,
       h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, o.d.title), o.d.sub ? h('span', { class: 'muted small' }, o.d.sub) : null));
     const list = (items) => (items.length ? h('div', { class: 'rows' }, items.map(row)) : null);
+    const first = opts.filter((o) => o.own && !o.d.other);
     const other = opts.filter((o) => o.own && o.d.other);
     const close = sheet(title, h('div', { class: 'picker-list' },
       group ? groupFolds(opts.filter((o) => o.own)) : [
-        list(opts.filter((o) => o.own && !o.d.other)),
+        ownLabel && first.length ? h('div', { class: 'picker-cap' }, ownLabel) : null,
+        list(first),
         other.length ? h('div', { class: 'picker-cap' }, otherLabel) : null,
         list(other)],
       list(opts.filter((o) => !o.own))));
@@ -305,16 +307,17 @@ const dialWedge = (from, to, r) => {
  * Звідки вітер — циферблатом: 12 угорі, з боку цілі, стрілець у центрі; червоні сектори — зони повного бокового вітру.
  * Стрілка йде від вибраної години до стрільця. Повторний тап скидає вибір, якщо в select є порожній варіант.
  */
-/** Тренажер: вибір гвинтівки й набою шторкою — свої таблиці DOPE зверху, довідкові набори під підписом. */
+/** Тренажер: вибір гвинтівки й набою шторкою — своя зброя й таблиці DOPE зверху, довідкові набори під підписом. */
 function kitPicker(select) {
   return listPicker(select, {
     title: t('Винтовка и патрон'),
+    ownLabel: t('Моё оружие'),
     otherLabel: t('Справочные наборы'),
     // «Ствол · приціл · набій» — назва рядком, решта дрібніше під нею
     item: (value) => {
       const text = [...select.options].find((o) => o.value === value)?.textContent ?? '';
       const [title, ...rest] = text.split(' · ');
-      return { title, sub: rest.join(' · ') || null, other: !value.startsWith('my:') };
+      return { title, sub: rest.join(' · ') || null, other: !/^(my|gun):/.test(value) };
     },
   });
 }
@@ -2233,6 +2236,13 @@ function myDopeLoads() {
   }));
 }
 
+/** Зброя з прицілом для тренажера: 5.56 чи .308 — рахує за довідковим набоєм калібру, пристрілка й сітка — з картки прицілу. */
+function myGunLoads() {
+  const cal = (c) => (!c ? null : M.sameCaliber(c, '5.56') ? '556' : M.sameCaliber(c, '.308') ? '308' : null);
+  return state.weapons.filter((w) => !w.archived && cal(w.caliber)).flatMap((w) => (w.scopes ?? [])
+    .map((s) => ({ id: `${w.id}:${s.id}`, name: w.name, scope: s.name, cal: cal(w.caliber), zero: s.zero ?? null, reticle: reticleOf(s) })));
+}
+
 /** Блок DOPE у картці зброї: таблиці поправок по дистанціях, згорнутий за замовчуванням. */
 function dopeBox(w, close) {
   const list = w.dope ?? [];
@@ -2733,6 +2743,8 @@ const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   // Пробоїна в мішені — не перехрестя: воно в застосунку про прицілювання
   shot: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="14.2" cy="9.8" r="1.6" fill="currentColor" stroke="none"/>',
+  // Купчастість: три пробоїни купкою в центрі мішені
+  group: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><g fill="currentColor" stroke="none"><circle cx="10.6" cy="10.9" r="1.45"/><circle cx="13.6" cy="11.3" r="1.45"/><circle cx="11.9" cy="14" r="1.45"/></g>',
   // Набій і велика лійка з порохом: споряджено власноруч.
   reload: '<path d="M2.5 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M2.5 14h4"/><path d="M9.5 3h13l-5 6v4.5h-3V9z"/><path d="M16 16.8h0M16 20.3h0"/>',
   consume: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M9 12h6"/>',
@@ -3441,7 +3453,7 @@ function targetsTile(weapon, closeSheet = null) {
       remember('shooters-log:range-seg', rangeSeg);
       goTab('#targets');
     },
-  }, kindIcon('shot'),
+  }, kindIcon('group'),
   h('span', { class: 'tg-tile-value' }, value),
   h('span', { class: 'tg-tile-label' }, t('Кучность')));
 }
@@ -5856,7 +5868,7 @@ function renderSim() {
   loadGuide().then((html) => {
     const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    initGuide(box, { clockPicker, kitPicker, myLoads: myDopeLoads, windGuesses });
+    initGuide(box, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -5915,7 +5927,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
-    initGuide(list, { clockPicker, kitPicker, myLoads: myDopeLoads, windGuesses });
+    initGuide(list, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
