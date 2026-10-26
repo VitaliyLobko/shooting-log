@@ -645,20 +645,20 @@
   <p>Високі опори ЛЕП (110 кВ і вище) бувають від 20 до 40 м — за їхньою висотою дальність не рахують, а от прольоти між ними знадобляться (див. лайфхаки нижче).</p>
   <h3>Як рахувати в голові швидко</h3>
   <p>Для кожного опорного розміру тримай у голові константу — розмір у метрах × 1000. Далі просто ділиш її на міли:</p>
-  <div class="formula">1800 ÷ міл — людина 1,8 м<br>1000 ÷ міл — на коліні, поясна<br>&#8199;500 ÷ міл — грудна, плечі</div>
-  <p>Таблицю для 1,8 м варто вивчити:</p>
+  <div class="formula">1700 ÷ міл — людина 1,7 м<br>1000 ÷ міл — на коліні, поясна<br>&#8199;500 ÷ міл — грудна, плечі</div>
+  <p>Таблицю для 1,7 м варто вивчити — такий самий зріст у цілей тренажера. У касці й взутті людина вища, ≈1,8 м: тоді діли 1800, дальність вийде на 6 % більша.</p>
   <div class="tbl"><table>
     <thead><tr><th class="r">Міл</th><th class="r">Дистанція, м</th></tr></thead>
     <tbody>
-      <tr><td class="r">1</td><td class="r">1800</td></tr>
-      <tr><td class="r">1,5</td><td class="r">1200</td></tr>
-      <tr><td class="r">2</td><td class="r">900</td></tr>
-      <tr><td class="r">2,5</td><td class="r">720</td></tr>
-      <tr><td class="r">3</td><td class="r">600</td></tr>
-      <tr><td class="r">4</td><td class="r">450</td></tr>
-      <tr><td class="r">4,5</td><td class="r">400</td></tr>
-      <tr><td class="r">6</td><td class="r">300</td></tr>
-      <tr><td class="r">9</td><td class="r">200</td></tr>
+      <tr><td class="r">1</td><td class="r">1700</td></tr>
+      <tr><td class="r">1,5</td><td class="r">1130</td></tr>
+      <tr><td class="r">2</td><td class="r">850</td></tr>
+      <tr><td class="r">2,5</td><td class="r">680</td></tr>
+      <tr><td class="r">3</td><td class="r">565</td></tr>
+      <tr><td class="r">4</td><td class="r">425</td></tr>
+      <tr><td class="r">4,5</td><td class="r">380</td></tr>
+      <tr><td class="r">6</td><td class="r">285</td></tr>
+      <tr><td class="r">9</td><td class="r">190</td></tr>
     </tbody>
   </table></div>
   <div class="note"><span class="h">Чому міряти велике</span><p>На 500 м голова займає 0,5 міла. Помилився на 0,1 міла — отримаєш 420 або 630 м замість 500. Довжина машини на тій самій дистанції — 9 мілів, і помилка в 0,1 міла зсуває відповідь лише на ±6 м.</p></div>
@@ -1159,12 +1159,18 @@
           <button type="button" class="sim-zoom sim-fig" id="sim-fig" hidden aria-label="Ціль: наступний боєць" title="Ціль: наступний боєць"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><path d="M9 21v-6.5L7.5 14V9.5L9.5 8h5l2 1.5V14L15 14.5V21M12 15v6"/></svg><span>1/5</span></button>
           <button type="button" class="sim-zoom" id="sim-zoom" aria-pressed="false" aria-label="Лупа на центр прицілу"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3 21 21"/></svg><span>1×</span></button>
         </div>
-        <button type="button" class="sim-zoom sim-ink" id="sim-ink" data-ink="auto" aria-label="Колір сітки: чорна чи біла" title="Колір сітки: чорна чи біла"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" class="sim-zoom sim-ink" id="sim-ink" data-ink="auto" aria-label="Колір сітки: чорна чи біла" title="Колір сітки: чорна чи біла"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="ink-lens" cx="12" cy="12" r="10.5"/><path class="ink-ret" d="M1.5 12h7M15.5 12h7M12 1.5v7M12 15.5v7" stroke-width="2.6"/><path class="ink-ret" d="M8.5 12h7M12 8.5v7" stroke-width="1"/></svg></button>
         <button type="button" class="hint-btn" id="sim-i" aria-expanded="false" aria-controls="sim-help" aria-label="Як користуватися тренажером">i</button>
-        <button type="button" class="sim-badge bl" data-pop="pop-dist" aria-expanded="false" title="Дистанція"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/></svg><small>дист.</small><b id="s-dist-v">400 м</b></button>
+        <button type="button" class="sim-badge bl" data-pop="pop-dist" aria-expanded="false" title="Дистанція"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M8.5 6.5 12 3l3.5 3.5M8.5 17.5 12 21l3.5-3.5"/></svg><small>дист.</small><b id="s-dist-v">400 м</b></button>
         <button type="button" class="sim-badge br" data-pop="pop-mag" aria-expanded="false" title="Кратність"><small class="mag-rng" id="s-mag-r">1–6×</small><small>крат.</small><b id="s-mag-v">6×</b></button>
         <label class="sim-pop" id="pop-dist" for="s-dist" hidden>Дистанція<input id="s-dist" type="range" min="25" max="700" step="25" value="400" list="dist-ticks"><datalist id="dist-ticks"><option value="25"></option><option value="100"></option><option value="200"></option><option value="300"></option><option value="400"></option><option value="500"></option><option value="600"></option><option value="700"></option></datalist><span class="ticks at" aria-hidden="true"><span style="--p:0.0000">25</span><span style="--p:0.1111">100</span><span style="--p:0.2593">200</span><span style="--p:0.4074">300</span><span style="--p:0.5556">400</span><span style="--p:0.7037">500</span><span style="--p:0.8519">600</span><span style="--p:1.0000">700</span></span></label>
         <label class="sim-pop" id="pop-mag" for="s-mag" hidden>Кратність<input id="s-mag" type="range" min="1" max="6" step="0.5" value="6"></label>
+        <div class="sim-pop tgt-bar" id="pop-tgt" hidden>
+          <select id="s-tgt" hidden></select>
+          <button type="button" class="tgt-kind" id="tgt-kind" title="Фото чи схеми" aria-label="Фото чи схеми"></button>
+          <div class="tgt-grid" id="tgt-grid" role="group" aria-label="Ціль"></div>
+          <p class="tgt-note" id="tgt-note" aria-live="polite"></p>
+        </div>
       </div>
     </div>
     <div class="ctl">
@@ -1173,9 +1179,9 @@
       <h4>Приціл</h4>
       <ul class="sim-legend">
         <li><span class="lg-ico lg-txt">🔍</span><span><b>Лупа</b> — збільшити центр прицілу, щоб точніше прочитати сітку. Ще тап — назад до 1×.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Реалізм</b> — фото з навчань замість схеми: плитки з фото — «Атака», «Біля БТР», «Перебіжка», «Зима», «Арктика», «Окоп» — на початку вибору цілі (кнопка «Ціль» унизу). Кільце на початку завдання показує, хто ціль; кнопка «Ціль» на прицілі (значок людини й «2/5») — наступний боєць, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Реалізм</b> — фото з навчань замість схеми: плитки з фото — «Атака», «Біля БТР», «Перебіжка», «Зима», «Арктика», «Окоп», «Пікап» збоку й у лоб (ціль — водій) — у стрічці цілей під прицілом. Кільце на початку завдання показує, хто ціль; кнопка «Ціль» на прицілі (значок людини й «2/5») — наступний боєць, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v6M12 14.5v6M3.5 12h6M14.5 12h6"/></svg></span><span><b>Колір сітки</b> — чорна чи біла: яку краще видно на тлі. На фото типово чорна, як у справжньому прицілі.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/></svg></span><span><b>Дистанція</b> — до цілі, повзунком.</span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M8.5 6.5 12 3l3.5 3.5M8.5 17.5 12 21l3.5-3.5"/></svg></span><span><b>Дистанція</b> — до цілі, повзунком.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M1.5 9.5h3l2 1.5h10l2-2.5h4v7h-4l-2-2.5h-10l-2 1.5h-3z"/><path d="M10 11V8.5h2.5V11"/></svg></span><span><b>Кратність</b> — збільшення прицілу. У сітки в другій фокальній площині поділки правильні лише на найбільшій кратності.</span></li>
         <li><span class="lg-ico lg-txt">⟲</span><span><b>Повернути ціль</b> — з’являється в далекомірі, коли зсунув приціл пальцем.</span></li>
       </ul>
@@ -1186,10 +1192,10 @@
       </ul>
       <h4>Налаштування під прицілом</h4>
       <ul class="sim-legend">
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" fill="currentColor" stroke="none"/><path d="M8.6 21v-9q0-3.2 3.4-3.2t3.4 3.2v9z" fill="currentColor" stroke="none" opacity=".45"/></svg></span><span><b>Ціль</b> — людина, грудна, поясна, голова, гонг, машина…</span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2.3" fill="currentColor" stroke="none"/><path d="M8.6 21v-9q0-3.2 3.4-3.2t3.4 3.2v9z" fill="currentColor" stroke="none" opacity=".45"/></svg></span><span><b>Ціль</b> — стрічка під прицілом: кнопка на її початку перемикає фото-сцени з навчань і схеми (людина, грудна, IPSC, гонг), кубик — випадкова ціль і дистанція. Рядок під стрічкою — про вибрану: скільки бійців, їхній зріст і до якої дистанції кадр без повторів.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/></svg></span><span><b>Вітер</b> — сила й звідки дме, за годинником.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="14.5" cy="4.5" r="2"/><path d="M8 21l3-5.5 3 2.5v4.5M11 15.5l1.2-5.5 3.3 3h3.5M12.2 10l-4.2.8-2 3.2"/></svg></span><span><b>Рух</b> — швидкість цілі й куди йде: від цього упередження.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/></svg></span><span><b>Гвинтівка й набій</b> — комплект і сітка, ствол, пристрілка, температура, висота. Свої таблиці DOPE теж тут.</span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/></svg></span><span><b>Гвинтівка й набій</b> — усе в одній панелі: набір, ствол, пристрілка (50–300 м), температура, висота. Зверху в наборі — <b>своя зброя</b> з Арсеналу: пристрілка й сітка — з картки прицілу. Набій її калібру з BC і швидкістю в картці рахується <b>за своєю балістикою</b> під погоду панелі (швидкість — із серії хронографа з цією зброєю, якщо є); без них 5.56 і .308 — за еталонним набоєм калібру. Таблиці DOPE зброї — теж тут.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="3.4" r="2.3" fill="currentColor" stroke="none"/><path d="M8.6 7.2h6.8q1.6 0 1.6 1.6v6.4h-2.1V22h-2.5v-6.6h-.8V22H9.1v-6.8H7V8.8q0-1.6 1.6-1.6z" fill="currentColor" stroke="none"/></svg></span><span><b>Чим міряти</b> — у далекомірі замість вітру, руху й гвинтівки: зріст, голова, плечі (у техніки — висота й довжина). Вибране підсвічене скобою на цілі.</span></li>
       </ul>
       <h4>Перевір себе</h4>
@@ -1212,7 +1218,6 @@
       </div>
       <div class="sim-row">
         <div class="sim-line">
-          <select id="s-kit" aria-label="Приціл"><option value="m855" selected>Stryker DSMR + 5.56 M855</option><option value="b308">Burris Scout + .308 175 гр</option><option value="acog">ACOG TA31 + 5.56 M855</option><option value="ebr">Vortex EBR-2C + .308 175 гр</option></select>
           <div class="seg sim-mode" role="group" aria-label="Режим">
             <button type="button" id="m-aim" aria-pressed="true" title="Прицілювання" aria-label="Прицілювання"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></svg></button>
             <button type="button" id="m-range" aria-pressed="false" title="Далекомір" aria-label="Далекомір"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3.5h5M6.5 3.5v17M4 20.5h5M5 8h3M5 12h3M5 16h3"/><circle cx="16" cy="6" r="2.2"/><path d="M16 8.5v6.5M12.5 11h7M16 15l-2.2 5.5M16 15l2.2 5.5"/></svg></button>
@@ -1220,14 +1225,10 @@
         </div>
       </div>
       <div class="sim-tools" role="group">
-        <button type="button" class="sim-tool" data-panel="sim-tgt" aria-expanded="false" title="Ціль"><span class="sim-tool-ico" id="s-tgt-ico"></span><span class="sim-tool-t">Ціль</span><span class="sim-tool-v" id="s-tgt-sum"></span></button>
+        <button type="button" class="sim-tool" data-pop="pop-tgt" aria-expanded="false" title="Ціль"><span class="sim-tool-ico" id="s-tgt-ico"></span><span class="sim-tool-t">Ціль</span><span class="sim-tool-v" id="s-tgt-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-wind" aria-expanded="false" title="Вітер"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/></svg><span class="sim-tool-t">Вітер</span><span class="sim-tool-v" id="s-wind-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-move" aria-expanded="false" title="Рух"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14.5" cy="4.5" r="2"/><path d="M8 21l3-5.5 3 2.5v4.5M11 15.5l1.2-5.5 3.3 3h3.5M12.2 10l-4.2.8-2 3.2"/></svg><span class="sim-tool-t">Рух</span><span class="sim-tool-v" id="s-mv-sum"></span></button>
         <button type="button" class="sim-tool" data-panel="sim-gun" aria-expanded="false" title="Гвинтівка й набій"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12.5h12l1.5-1.5h5.5v3h-3l-1.2 1.2H11l-1.6 3.8H6.2l1.5-3.8H2.5z"/><path d="M11 12.5v-2h2.5v2"/></svg><span class="sim-tool-t">Гвинтівка й набій</span><span class="sim-tool-v" id="s-gun-sum"></span></button>
-      </div>
-      <div class="sim-panel" id="sim-tgt" hidden>
-        <select id="s-tgt" hidden></select>
-        <div class="tgt-grid" id="tgt-grid"></div>
       </div>
       <div class="sim-panel" id="sim-wind" hidden>
         <label for="s-wind">Бічний вітер: <b id="s-wind-v">0 м/с</b><input id="s-wind" type="range" min="0" max="8" step="0.5" value="0"></label>
@@ -1241,10 +1242,12 @@
           <select id="s-mvdir"><option value="R" selected>праворуч → (у прицілі)</option><option value="L">← ліворуч (у прицілі)</option></select></label>
       </div>
       <div class="sim-panel" id="sim-gun" hidden>
+        <label for="s-kit">Набір
+          <select id="s-kit"><option value="m855" selected>Stryker DSMR + 5.56 M855</option><option value="b308">Burris Scout + .308 175 гр</option><option value="acog">ACOG TA31 + 5.56 M855</option><option value="ebr">Vortex EBR-2C + .308 175 гр</option></select></label>
         <label for="s-barrel">Ствол
           <select id="s-barrel"><option value="905">14,5″ · 905 м/с</option><option value="915" selected>16″ · 915 м/с</option><option value="948">20″ · 948 м/с</option></select></label>
         <label for="s-zero">Пристрілка
-          <select id="s-zero"><option value="100" selected>100 м</option><option value="200">50/200 м</option></select></label>
+          <select id="s-zero"></select></label>
         <label for="s-temp">Температура повітря
           <select id="s-temp"></select></label>
         <label for="s-alt">Висота над рівнем моря
@@ -1335,7 +1338,7 @@
     <tbody>
       <tr><td><strong>Клац</strong>: курок ударив, пострілу немає</td><td>Затвор закрито, але набій не вистрілив або його немає: магазин не встав, осічка, затвор не дослав</td><td>Швидка дія: стук — ривок — оцінка</td></tr>
       <tr><td><strong>Вата</strong>: спуск тисне м’яко, без клацання, або не тисне взагалі</td><td>Затвор не дійшов уперед: щось застрягло</td><td>Подивись у вікно викиду гільз і усунь за симптомом</td></tr>
-      <tr><td>Тихий «пук», майже без віддачі</td><td>Слабкий заряд: куля могла застрягти в стволі</td><td><strong>Стоп. Не досилай наступний набій</strong>: наступний постріл розірве ствол. Розряди й подивись у ствол</td></tr>
+      <tr class="danger"><td><strong>⚠ Тихий «пук», майже без віддачі</strong></td><td>Слабкий заряд: куля могла застрягти в стволі</td><td><strong>Стоп. Не досилай наступний набій</strong>: наступний постріл розірве ствол. Розряди й подивись у ствол</td></tr>
     </tbody>
   </table></div>
   <h3>Швидка дія: стук — ривок — оцінка</h3>
