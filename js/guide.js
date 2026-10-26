@@ -193,6 +193,8 @@ const TGT = {
   ipsc: { short: 'IPSC', label: 'Мишень IPSC 0,76 × 0,46 м', h: 0.76, w: 0.6, ap: 0.55, path: 'M-.1 0H.1V.2H.2L.3 .3V.88L.2 1H-.2L-.3 .88V.3L-.2 .2H-.1Z' },
   gong: { short: 'Гонг', label: 'Гонг 0,3 м', h: 0.3, w: 1, ap: 0.5, path: 'M-.5 .5a.5 .5 0 1 0 1 0a.5 .5 0 1 0-1 0Z' },
 };
+// Цілі-схеми у виборі й у вправах; боєць на коліні — лише на фото сцен
+const PICK = Object.keys(TGT).filter((k) => k !== 'kneel');
 
 // Зона ураження — куди саме влучати, в одиницях цілі, як і силует; центр — точка прицілювання (ax, ap).
 // ['r', x, y, w, h, rx] — груди (серце й легені), як на мішенях; ['c', x, y, r] — коло; 'o' — лише контур (гонг увесь).
@@ -209,7 +211,7 @@ const KZ = {
 const MEAS = {
   man: [['рост', 1.7, ['v', 0.22, 0, 1]], ['голова', 0.25, ['v', 0.1, 0, 0.147]], ['плечи', 0.5, ['h', 0.17, -0.155, 0.155]]],
   chest: [['высота', 0.5, ['v', 0.56, 0, 1]], ['ширина', 0.5, ['h', 0.8, -0.5, 0.5]]],
-  kneel: [['высота', 1, ['v', 0.62, 0, 1]]],
+  kneel: [['высота', 1, ['v', 0.62, 0, 1]], ['голова', 0.25, ['v', 0.16, 0, 0.25]], ['плечи', 0.5, ['h', 0.31, -0.22, 0.28]]],
   ipsc: [['высота', 0.76, ['v', 0.36, 0, 1]], ['ширина', 0.46, ['h', 0.6, -0.3, 0.3]]],
   gong: [['диаметр', 0.3, ['v', 0.56, 0, 1]]],
 };
@@ -930,44 +932,124 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   // Зріст бійців сцени: «1,7 м» чи «1 · 1,7 м»
   const sceneSize = (sk) => `${[...new Set(SCENES[sk].figs.map(([g]) => TGT[g].h))].sort((a, b) => a - b).map((v) => f(v, 2).replace(/,?0+$/, '')).join(' · ')} ${t('м')}`;
   // Значок плитки — шматок кадру навколо першого бійця
-  const sceneIcon = (sk) => {
-    const sc = SCENES[sk]; const [, top, feet, x] = sc.figs[0]; const box = 34; const s = box / ((feet - top) * 2.2);
+  const sceneIcon = (sk, box = 34) => {
+    const sc = SCENES[sk]; const [, top, feet, x] = sc.figs[0]; const s = box / ((feet - top) * 2.2);
     const ico = document.createElement('span'); ico.className = 'tgt-ico tgt-photo'; ico.setAttribute('aria-hidden', 'true');
     ico.style.backgroundImage = `url(guide/img/real-${sk}.webp)`;
     ico.style.backgroundSize = `${sc.px[0] * s}px ${sc.px[1] * s}px`;
     ico.style.backgroundPosition = `${box * 0.75 - x * s}px ${box / 2 - (top + feet) / 2 * s}px`;
     return ico;
   };
-  const tile = (icon, name, size, title, data, pick) => {
+  // Скільки бійців і їхній зріст: «5 × 1,7 м», «4 × 1 · 1,7 м»; один боєць — лише зріст
+  const sceneCrew = (sk) => (SCENES[sk].figs.length > 1 ? `${SCENES[sk].figs.length} × ${sceneSize(sk)}` : sceneSize(sk));
+  // До якої дистанції кадр без повторів по боках: ширина кадру в метрах (за першим бійцем) займає поле зору
+  // LPVO на 6× (≈60 мил); далі ціль менша, і з боків видно копії тла
+  const sceneFar = (sk) => {
+    const { px, figs: [[g, top, feet]] } = SCENES[sk];
+    return Math.max(100, Math.floor((px[0] / (feet - top)) * TGT[g].h * 1000 / 60 / 50) * 50);
+  };
+  // Плитка-чип стрічки: значок і назва в рядок; name = null — лише значок (назва в title)
+  const tile = (icon, name, title, data, pick) => {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'tgt-opt'; b.title = title; Object.assign(b.dataset, data);
-    const n = document.createElement('span'); n.textContent = name;
-    const z = document.createElement('small'); z.textContent = size;
-    b.append(icon, n, z);
-    b.addEventListener('click', () => {
-      pick();
-      const tool = root.querySelector('.sim-tool[data-panel="sim-tgt"]');
-      tool?.setAttribute('aria-expanded', 'false'); $('sim-tgt').hidden = true;
-    });
+    b.type = 'button'; b.className = 'tgt-opt'; b.title = title; b.setAttribute('aria-label', title); Object.assign(b.dataset, data);
+    b.append(icon);
+    if (name) b.append(Object.assign(document.createElement('span'), { textContent: name }));
+    // Вибрали — стрічка закривається, як повзунок
+    b.addEventListener('click', () => { pick(); closeTgtPop(); });
     return b;
   };
+  // Подробиці вибраної цілі — одним рядком під стрічкою
+  const sceneNote = (sk) => [sceneName(sk), sceneCrew(sk), t('кадр без повторов до {d} м', { d: sceneFar(sk) })].join(' · ');
+  const tgtNote = () => (st.real ? sceneNote(st.real) : t(TGT[st.tgt].label));
+  // Опис плитки в рамці посередині стрічки
+  const chipNote = (b) => (b.dataset.scene ? sceneNote(b.dataset.scene) : b.dataset.tgt ? t(TGT[b.dataset.tgt].label) : t('Случайная цель и дистанция'));
   // Вибір цілі: схема (real = null) чи сцена фото (real — ключ сцени); нова сцена — заново боєць і підсвітка
   const chooseTgt = (key, sk = null) => {
     if (st.real !== sk) { st.real = sk; st.scene = null; st.flashAt = performance.now(); paintInk(); }
     tgtSel.value = key; tgtSel.dispatchEvent(new Event('change'));
   };
-  const grid = $('tgt-grid');
-  grid?.replaceChildren(
-    ...Object.keys(SCENES).map((sk) => tile(sceneIcon(sk), sceneName(sk), sceneSize(sk), sceneName(sk), { scene: sk }, () => chooseTgt(sceneTgt(sk), sk))),
-    ...Object.keys(TGT).map((key) => tile(tgtIcon(key), t(TGT[key].short), tgtSize(TGT[key]), t(TGT[key].label), { tgt: key }, () => chooseTgt(key))),
-  );
+  const randOf = (list) => list[Math.floor(Math.random() * list.length)];
+  // Випадкова ціль у відкритій стрічці: сцена, її боєць і дистанція до межі кадру — або схема й будь-яка дистанція
+  const randomPick = () => {
+    const inp = $('s-dist'); const lo = Math.max(100, +inp.min); let hi = +inp.max;
+    if (tgtView === 'photo') {
+      const sk = randOf(Object.keys(SCENES).filter((k) => k !== st.real)); const j = Math.floor(Math.random() * SCENES[sk].figs.length);
+      const g = SCENES[sk].figs[j][0];
+      st.real = sk; st.scene = [sk, j]; st.sceneTgt = g; st.dExact = null; st.flashAt = performance.now(); paintInk();
+      hi = Math.min(hi, sceneFar(sk));
+      tgtSel.value = g;
+    } else {
+      st.real = null; st.scene = null; paintInk();
+      tgtSel.value = randOf(PICK.filter((k) => k !== st.tgt));
+    }
+    tgtSel.dispatchEvent(new Event('change'));
+    inp.value = lo + Math.round(Math.random() * Math.max(0, hi - lo) / +inp.step) * +inp.step;
+    inp.dispatchEvent(new Event('input'));
+  };
+  const dice = () => {
+    const ico = mk('svg', { viewBox: '0 0 24 24', class: 'tgt-ico tgt-dice', 'aria-hidden': 'true' });
+    mk('rect', { x: 4, y: 4, width: 16, height: 16, rx: 3.5 }, ico);
+    [[8.5, 8.5], [15.5, 8.5], [12, 12], [8.5, 15.5], [15.5, 15.5]].forEach(([cx, cy]) => mk('circle', { cx, cy, r: 1.3, class: 'tgt-dot' }, ico));
+    return ico;
+  };
+  // Стрічка під прицілом в один рядок: кнопка «фото ↔ схеми», першою — «Випадкова», далі сцени чи силуети
+  const grid = $('tgt-grid'); const kindBtn = $('tgt-kind');
+  const KIND_ICON = {
+    photo: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/>',
+    scheme: '<circle cx="12" cy="4.5" r="2"/><path d="M9 8.5h6l1 7h-2l-.5 6h-3l-.5-6H8z"/>',
+  };
+  let tgtView = 'photo';
+  const showView = (v) => {
+    tgtView = v;
+    if (kindBtn) {
+      kindBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${KIND_ICON[v]}</svg>`;
+      const label = `${t(v === 'photo' ? 'Фото' : 'Схемы')} — ${t('показать')} ${t(v === 'photo' ? 'схемы' : 'фото')}`;
+      kindBtn.title = label; kindBtn.setAttribute('aria-label', label);
+    }
+    grid?.replaceChildren(
+      tile(dice(), null, t('Случайная цель и дистанция'), { random: '1' }, randomPick),
+      ...(v === 'photo'
+        ? Object.keys(SCENES).map((sk) => tile(sceneIcon(sk, 28), sceneName(sk), sceneName(sk), { scene: sk }, () => chooseTgt(sceneTgt(sk), sk)))
+        : PICK.map((key) => tile(tgtIcon(key), t(TGT[key].short), t(TGT[key].label), { tgt: key }, () => chooseTgt(key)))),
+    );
+    paintTgt();
+  };
+  kindBtn?.addEventListener('click', () => showView(tgtView === 'photo' ? 'scheme' : 'photo'));
+  const closeTgtPop = () => {
+    $('pop-tgt').hidden = true;
+    root.querySelector('[data-pop="pop-tgt"]')?.setAttribute('aria-expanded', 'false');
+  };
   const paintTgt = () => {
     $('s-tgt-ico')?.replaceChildren(st.real ? sceneIcon(st.real) : tgtIcon(st.tgt));
     if ($('s-tgt-sum')) $('s-tgt-sum').textContent = st.real ? sceneName(st.real) : t(TGT[st.tgt].short);
-    grid?.querySelectorAll('.tgt-opt').forEach((b) => b.setAttribute('aria-pressed', String(st.real ? b.dataset.scene === st.real : b.dataset.tgt === st.tgt)));
+    if ($('tgt-note')) $('tgt-note').textContent = tgtNote();
+    let on = null;
+    grid?.querySelectorAll('.tgt-opt:not([data-random])').forEach((b) => {
+      const pressed = st.real ? b.dataset.scene === st.real : b.dataset.tgt === st.tgt;
+      b.setAttribute('aria-pressed', String(pressed));
+      if (pressed) on = b;
+    });
+    if (!grid?.clientWidth) return;
+    // Відступи по краях — щоб і крайня плитка ставала в рамку посередині; вибрана — одразу в рамці, сторінка не гортається
+    grid.style.paddingInline = `${Math.max(0, grid.clientWidth / 2 - 22)}px`;
+    grid.scrollLeft = on ? on.offsetLeft + on.offsetWidth / 2 - grid.clientWidth / 2 : 0;
+    focusMid();
   };
+  // Як колесо вибору: плитка посередині стрічки — в рамці, під стрічкою її опис; вибирає тап
+  const focusMid = () => {
+    const mid = grid.scrollLeft + grid.clientWidth / 2; let best = null; let gap = Infinity;
+    grid.querySelectorAll('.tgt-opt').forEach((b) => {
+      const d = Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid);
+      if (d < gap) { gap = d; best = b; }
+    });
+    grid.querySelectorAll('.tgt-opt.focus').forEach((b) => b !== best && b.classList.remove('focus'));
+    best?.classList.add('focus');
+    if (best && $('tgt-note')) $('tgt-note').textContent = chipNote(best);
+  };
+  let midRaf = 0;
+  grid?.addEventListener('scroll', () => { cancelAnimationFrame(midRaf); midRaf = requestAnimationFrame(focusMid); }, { passive: true });
   tgtSel.addEventListener('change', paintTgt);
-  paintTgt();
+  showView(st.real ? 'photo' : 'scheme');
 
   // ---------- вправа «Визнач дальність»: випадкова ціль, дистанція й (на «важко») кратність ----------
   const SERIES = 10;
@@ -1019,7 +1101,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
   const TIME = { range: 10000, hold: 15000, combo: 25000, wind: 8000 };
   // Різні цілі — лише на верхніх сходинках; нижче — та, що вибрана в «Ціль»
   const variedTargets = () => ['varied', 'timed'].includes(quiz.level) || (quiz.kind === 'range' && quiz.level === 'hard');
-  const randomTarget = () => { const keys = Object.keys(TGT); return keys[Math.floor(Math.random() * keys.length)]; };
+  const randomTarget = () => PICK[Math.floor(Math.random() * PICK.length)];
   const LEVEL_KEY = (kind) => `shooters-log:sim-level-${kind}`;
   const KINDS = [['range', 'Определи дальность'], ['hold', 'Вынос'], ['combo', 'Дальность + вынос'], ['wind', 'Определи ветер']];
   // Що зараз на прицілі: у «Дальність + винос» спершу дальність, потім винос
@@ -1818,7 +1900,7 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     st.ink = cur === 'black' ? 'white' : 'black';
     paintInk(); draw();
   });
-  // Свайп ліворуч/праворуч по прицілу — дистанція (крок 25 м), вгору/вниз — кратність; тап — лупа, а у вправі «куди тримати» — відповідь;
+  // Свайп ліворуч/праворуч по прицілу — кратність, вгору/вниз — дистанція (крок 25 м); тап — лупа, а у вправі «куди тримати» — відповідь;
   // у далекомірі (і у вправі «Визнач дальність») палець веде приціл, як у «Виносі», щоб прикласти шкалу до цілі
   const ranging = () => (quiz ? phase() === 'range' : st.mode === 'range');
   svg.addEventListener('pointerdown', (e) => {
@@ -1861,15 +1943,15 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     }
     if (!drag || quiz) return;
     const dx = e.clientX - drag.x; const dy = e.clientY - drag.y;
-    // Вісь — за першим рухом: праворуч/ліворуч — дистанція, вгору/вниз — кратність (вгору — більша)
+    // Вісь — за першим рухом: праворуч/ліворуч — кратність (праворуч — більша), вгору/вниз — дистанція (вгору — далі)
     if (!drag.on && Math.max(Math.abs(dx), Math.abs(dy)) > 12) {
       drag.on = true; drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       // Захоплюємо лише почавши свайп: щоб він не обривався за колом, а простий тап лишився тапом (із захопленням click не приходить)
       try { svg.setPointerCapture(e.pointerId); } catch { /* указівник уже відпущено */ }
     }
     if (!drag.on) return;
-    const inp = $(drag.axis === 'x' ? 's-dist' : 's-mag');
-    const v = drag.axis === 'x' ? drag.d + Math.round(dx / 14) * 25 : drag.mg - Math.round(dy / 24) * +inp.step;
+    const inp = $(drag.axis === 'x' ? 's-mag' : 's-dist');
+    const v = drag.axis === 'x' ? drag.mg + Math.round(dx / 24) * +inp.step : drag.d - Math.round(dy / 14) * 25;
     const c = Math.max(+inp.min, Math.min(+inp.max, v));
     if (c !== +inp.value) { inp.value = c; inp.dispatchEvent(new Event('input')); }
   });
@@ -1884,30 +1966,32 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
     nextZoom();
   });
   // Вітер, рух, гвинтівка — іконками в рядок; тап відкриває свою панель під рядком (одна за раз)
-  root.querySelectorAll('.sim-tool').forEach((btn) => btn.addEventListener('click', () => {
+  root.querySelectorAll('.sim-tool[data-panel]').forEach((btn) => btn.addEventListener('click', () => {
     const open = btn.getAttribute('aria-expanded') !== 'true';
-    root.querySelectorAll('.sim-tool').forEach((b) => {
+    root.querySelectorAll('.sim-tool[data-panel]').forEach((b) => {
       const on = b === btn && open;
       b.setAttribute('aria-expanded', String(on));
       $(b.dataset.panel).hidden = !on;
     });
   }));
   // Дистанція й кратність — плашками в нижніх кутах прицілу; тап відкриває повзунок поверх прицілу
-  root.querySelectorAll('.sim-badge').forEach((btn) => btn.addEventListener('click', () => {
+  // «Ціль» у ряду інструментів відкриває так само стрічку цілей над низом прицілу
+  root.querySelectorAll('[data-pop]').forEach((btn) => btn.addEventListener('click', () => {
     const open = btn.getAttribute('aria-expanded') !== 'true';
-    root.querySelectorAll('.sim-badge').forEach((b) => {
+    root.querySelectorAll('[data-pop]').forEach((b) => {
       const on = b === btn && open;
       b.setAttribute('aria-expanded', String(on));
       $(b.dataset.pop).hidden = !on;
     });
+    if (open && btn.dataset.pop === 'pop-tgt') paintTgt();
   }));
   // Тап поза відкритим повзунком закриває його; по прицілу — лише закриває, лупу не перемикає
   const closePops = (e) => {
     if (!root.isConnected) { document.removeEventListener('click', closePops, true); return; }
     const open = root.querySelector('.sim-pop:not([hidden])');
-    if (!open || open.contains(e.target) || e.target.closest?.('.sim-badge')) return;
+    if (!open || open.contains(e.target) || e.target.closest?.('[data-pop]')) return;
     open.hidden = true;
-    root.querySelectorAll('.sim-badge').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    root.querySelectorAll('[data-pop]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
     if (svg.contains(e.target)) { e.stopPropagation(); e.preventDefault(); }
   };
   document.addEventListener('click', closePops, true);
@@ -1941,6 +2025,9 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, windGuesses } =
       // Реалізм — сцена, вибрана плиткою; старе «on» (кнопка) — сцена з цією ціллю, якщо є
       const sk = SCENES[saved.real] ? saved.real : saved.real && Object.keys(SCENES).find((k) => SCENES[k].figs.some(([g]) => g === st.tgt));
       if (sk) { st.real = sk; if (!SCENES[sk].figs.some(([g]) => g === st.tgt)) st.tgt = sceneTgt(sk); tgtSel.value = st.tgt; paintTgt(); }
+      // Збережена схема «на коліні» (її вже немає у виборі) — людина на повний зріст
+      if (!st.real && !PICK.includes(st.tgt)) { st.tgt = 'man'; tgtSel.value = st.tgt; }
+      showView(st.real ? 'photo' : 'scheme');
       if (['black', 'white'].includes(saved.ink)) st.ink = saved.ink;
       paintInk();
     }
