@@ -158,6 +158,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .view { padding: 14px 16px; max-width: 720px; margin: 0 auto; }
 
+/* --- вхід за відбитком: завіса поверх усього --- */
+.lock-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+}
+.lock-veil h2 { margin: 0 0 8px; }
+.lock-veil .btn { min-width: 220px; min-height: 48px; }
+.lock-veil .lock-status { min-height: 1.4em; margin: 0; }
+.lock-icon { width: 96px; height: 96px; border-radius: 22px; }
+
 /* --- великий підсумок --- */
 .hero {
   position: relative;
