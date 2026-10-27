@@ -344,7 +344,7 @@ export function fieldError(input, message) {
   input.addEventListener('change', clear, { once: true });
   // Поле в згорнутому блоці — спершу розгортаємо, інакше помилку не видно
   field.closest('.foldable.closed')?.querySelector(':scope > legend > .box-toggle')?.click();
-  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  input.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   input.focus?.({ preventScroll: true });
 }
 
