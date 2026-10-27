@@ -18,8 +18,11 @@ import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab, reveal,
-  confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon,
+  confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate,
 } from './ui.js';
+
+/** Плавне прокручування — якщо в системі не просили менше руху. */
+const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
 let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [] };
 let tab = 'ammo';
@@ -323,14 +326,51 @@ function kitPicker(select) {
   });
 }
 
-function clockPicker(select) {
+// Ознаки сили вітру — шкала розділу 13 статті: верхня межа, м/с → як виглядає; короткий підпис — на кнопках швидкого вибору
+const WIND_SIGNS = [
+  [1, 'дым поднимается почти вертикально, мираж «кипит» вертикально'],
+  [2, 'ветер чувствуется лицом, дым заметно наклоняется, листья шевелятся'],
+  [4, 'листья и тонкие ветки в постоянном движении, лёгкий флаг развевается'],
+  [6, 'поднимает пыль и бумагу, двигаются небольшие ветки, трава ложится волнами'],
+  [Infinity, 'раскачиваются небольшие деревья, ветер мешает держать изготовку стоя'],
+];
+const WIND_QUICK = [[0, 'штиль'], [2, 'дым'], [4, 'листья'], [6, 'пыль'], [8, 'деревья']];
+// Ручка сили: від WP_R0 (ледь дме) до WP_R0 + WP_RS (край шкали) у одиницях циферблата; тягненням — крок 1 м/с
+const WP_R0 = 8;
+const WP_RS = 29;
+
+/** Виконати fn і догорнути сторінку так, щоб el лишився на тому ж місці екрана. */
+function keepPlace(el, fn) {
+  const before = el.getBoundingClientRect().top;
+  const out = fn();
+  const shift = el.getBoundingClientRect().top - before;
+  if (Math.abs(shift) >= 1) window.scrollBy(0, shift);
+  return out;
+}
+
+/**
+ * Годинник «звідки дме». З speed (поле сили, м/с) — усе на ньому: тап по годині — напрям,
+ * тягни від центру — сила (край = max поля, інакше 10), кнопки швидкого вибору й зведення під ним.
+ */
+function clockPicker(select, { speed = null, hideSpeed = false } = {}) {
   if (!select) return () => {};
-  const dial = h('div', { class: 'wind-pick', role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
+  const dial = h('div', { class: `wind-pick${speed ? ' wp-speed' : ''}`, role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
   const canClear = [...select.options].some((o) => o.value === '');
   const current = () => Number(select.value) || 0;
+  const max = Number(speed?.max) || 10;
+  const force = () => Math.max(0, Number(String(speed?.value ?? '').replace(',', '.')) || 0);
+  // Зміна могла перебудувати вміст над годинником (у тренажері — рядок поправки на вітер) — годинник лишається під пальцем
+  const fire = (el, ...types) => keepPlace(dial, () => types.forEach((type) => el.dispatchEvent(new Event(type, { bubbles: true }))));
   const set = (value) => {
+    if (select.value !== value) vibrate(8);
     select.value = value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    fire(select, 'change');
+  };
+  const setForce = (v) => {
+    if (v === force() && speed.value !== '') return;
+    vibrate(6);
+    speed.value = String(v);
+    fire(speed, 'input', 'change');
   };
   // Циферблат будується раз, далі міняється лише стан — фокус лишається на натиснутій годині
   const hours = Array.from({ length: 12 }, (_, i) => {
@@ -343,24 +383,65 @@ function clockPicker(select) {
     }, String(n));
   });
   const face = h('span', { class: 'wp-face', 'aria-hidden': 'true' });
-  // Стрілку вітру намальовано для 12-ї години й повернуто на вибрану
+  // Стрілку вітру намальовано для 12-ї години й повернуто на вибрану; із силою вона починається від ручки
+  const scale = speed ? [0.5, 1].map((f) => {
+    const r = WP_R0 + WP_RS * f;
+    const [x, y] = dialPt(45, r);
+    return `<circle class="wp-scale" cx="50" cy="50" r="${r}"/><text class="wp-text wp-scale-text" x="${(x + 1).toFixed(1)}" y="${(y - 1).toFixed(1)}"></text>`;
+  }).join('') : '';
   face.innerHTML = `<svg viewBox="0 0 100 100">
     <circle class="wp-ring" cx="50" cy="50" r="38"/>
-    <path class="wp-zone" d="${dialWedge(60, 120, 38)}"/><path class="wp-zone" d="${dialWedge(240, 300, 38)}"/>
+    <path class="wp-zone" d="${dialWedge(60, 120, 38)}"/><path class="wp-zone" d="${dialWedge(240, 300, 38)}"/>${scale}
     <line class="wp-aim" x1="50" y1="47" x2="50" y2="19"/><path class="wp-aim-head" d="M50 13.5 L53 19 L47 19 Z"/>
     <text class="wp-text wp-aim-text" x="53.5" y="25"></text>
     <g class="wp-wind"><line x1="50" y1="16" x2="50" y2="41"/><path d="M50 44 L52.8 38.8 L47.2 38.8 Z"/></g>
     <circle class="wp-me" cx="50" cy="50" r="3"/>
-    <text class="wp-text wp-me-text" x="50" y="60" text-anchor="middle"></text></svg>`;
+    <text class="wp-text wp-me-text" x="50" y="60" text-anchor="middle"></text>${speed ? '<circle class="wp-knob" r="6"/><text class="wp-knob-text" text-anchor="middle"></text>' : ''}</svg>`;
   face.querySelector('.wp-aim-text').textContent = t('цель');
+  const scaleText = face.querySelectorAll('.wp-scale-text');
+  scaleText.forEach((el, i) => { el.textContent = fmt.num(i ? max : max / 2); });
   const me = face.querySelector('.wp-me-text');
   me.textContent = t('стрелок');
   const [right, left] = face.querySelectorAll('.wp-zone');
   const wind = face.querySelector('.wp-wind');
+  const shaft = wind.querySelector('line');
+  const knob = face.querySelector('.wp-knob');
+  const knobText = face.querySelector('.wp-knob-text');
   const note = h('p', { class: 'wp-note', 'aria-live': 'polite' });
-  dial.append(face, ...hours);
+  const more = h('p', { class: 'wp-more' });
+  let pad = null;
+  let quick = [];
+  if (speed) {
+    // Сила — тягненням усередині кільця годин; поза ним сторінка гортається як завжди
+    const pick = (e) => {
+      const box = dial.getBoundingClientRect();
+      const dx = ((e.clientX - box.left) / box.width) * 100 - 50;
+      const dy = ((e.clientY - box.top) / box.height) * 100 - 50;
+      const r = Math.hypot(dx, dy);
+      const v = r < 6 ? 0 : Math.min(max, Math.max(1, Math.round(((r - WP_R0) / WP_RS) * max)));
+      const n = Math.round(((Math.atan2(dx, -dy) * 180) / Math.PI + 360) / 30) % 12 || 12;
+      if (v > 0 && n !== current()) set(String(n));
+      setForce(v);
+    };
+    pad = h('span', {
+      class: 'wp-pad', role: 'slider', tabindex: '0', 'aria-label': t('Сила ветра'),
+      'aria-valuemin': '0', 'aria-valuemax': String(max),
+      onpointerdown: (e) => { pad.setPointerCapture(e.pointerId); pick(e); },
+      onpointermove: (e) => { if (pad.hasPointerCapture(e.pointerId)) pick(e); },
+      onkeydown: (e) => {
+        const step = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        setForce(Math.min(max, Math.max(0, force() + step)));
+      },
+    });
+    quick = WIND_QUICK.filter(([v]) => v <= max).map(([v, sign]) => h('button', { type: 'button', onclick: () => setForce(v) },
+      h('b', {}, fmt.num(v)), h('small', {}, t(sign))));
+  }
+  dial.append(face, ...(pad ? [pad] : []), ...hours);
   const paint = () => {
     const v = current();
+    const w = force();
     hours.forEach((b, i) => {
       b.classList.toggle('on', i + 1 === v);
       b.setAttribute('aria-checked', String(i + 1 === v));
@@ -368,18 +449,44 @@ function clockPicker(select) {
     right.classList.toggle('on', v >= 2 && v <= 4);
     left.classList.toggle('on', v >= 8 && v <= 10);
     wind.setAttribute('transform', `rotate(${v * 30} 50 50)`);
-    wind.style.display = v ? '' : 'none';
+    wind.style.display = v && (!speed || w > 0) ? '' : 'none';
     // Вітер знизу (4–8) перекрив би підпис під стрільцем — підпис збоку, навпроти стрілки
     const side = v >= 4 && v <= 8 ? (v < 6 ? -1 : 1) : 0;
     me.setAttribute('x', side ? 50 + side * 5 : 50);
     me.setAttribute('y', side ? 51.8 : 60);
     me.setAttribute('text-anchor', side < 0 ? 'end' : side ? 'start' : 'middle');
-    note.textContent = v ? t('{n} ч — {what}', { n: v, what: t(WIND_NOTE[windZone(v)]) }) : t('коснитесь часа, откуда дует');
+    const zone = v ? t(WIND_NOTE[windZone(v)]) : '';
+    if (!speed) {
+      note.textContent = v ? t('{n} ч — {what}', { n: v, what: zone }) : t('коснитесь часа, откуда дует');
+      return;
+    }
+    const r = WP_R0 + WP_RS * Math.min(1, w / max);
+    shaft.setAttribute('y1', String(50 - r + 6));
+    shaft.setAttribute('y2', '41');
+    const [kx, ky] = dialPt(v * 30, r);
+    knob.setAttribute('cx', kx.toFixed(2)); knob.setAttribute('cy', ky.toFixed(2));
+    knobText.setAttribute('x', kx.toFixed(2)); knobText.setAttribute('y', (ky + 2.2).toFixed(2));
+    knobText.textContent = fmt.num(w);
+    knob.style.display = knobText.style.display = v && w > 0 ? '' : 'none';
+    dial.classList.toggle('calm', w === 0);
+    pad.setAttribute('aria-valuenow', String(w));
+    pad.setAttribute('aria-valuetext', `${fmt.num(w)} ${t('м/с')}`);
+    quick.forEach((b, i) => b.setAttribute('aria-pressed', String(WIND_QUICK[i][0] === w)));
+    const ms = `${fmt.num(w)} ${t('м/с')}`;
+    note.textContent = w === 0 ? t('Штиль') : v ? t('{w} с {n} ч — {what}', { w: ms, n: v, what: zone })
+      : t('{w} — коснитесь часа, откуда дует', { w: ms });
+    // Не чисто боковий — скільки з нього зносить кулю
+    const share = M.windShare(v);
+    const cross = w > 0 && v && share > 0.05 && share < 0.97 ? t('Боковая составляющая ≈{v} м/с', { v: fmt.num(Math.round(w * share * 10) / 10) }) : '';
+    const look = w > 0 ? `${t('Как выглядит')}: ${t(WIND_SIGNS.find(([top]) => w <= top)[1])}` : t('тяните от центра — сила ветра, край — {max} м/с', { max: fmt.num(max) });
+    more.textContent = [cross, look].filter(Boolean).join('. ');
   };
   select.hidden = true;
-  select.after(h('div', { class: 'wind-pick-wrap' }, dial, note));
+  if (speed && hideSpeed) (speed.closest('label') ?? speed).hidden = true;
+  select.after(h('div', { class: 'wind-pick-wrap' }, ...(speed ? [note, dial, h('div', { class: 'wp-quick' }, ...quick), more] : [dial, note])));
   paint();
   select.addEventListener('change', paint);
+  speed?.addEventListener('input', paint);
   return paint;
 }
 
@@ -487,8 +594,20 @@ function fold(key, head, body) {
   return el;
 }
 
-function empty(title, text) {
-  return h('div', { class: 'empty' }, h('h3', {}, title), h('p', { class: 'muted' }, text));
+function empty(title, text, actions = []) {
+  return h('div', { class: 'empty' }, h('h3', {}, title), h('p', { class: 'muted' }, text),
+    actions.length ? h('div', { class: 'btn-row' }, actions) : null);
+}
+
+/** Кнопка порожнього екрана: те саме, що «+» відкритого розділу. */
+function addBtn() {
+  return btn(t('Добавить'), () => VIEWS[tab].fab?.(), 'primary add');
+}
+
+/** Імпорт копії просто з порожнього екрана, без заходу в налаштування. */
+function importBtn() {
+  const input = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: (e) => { if (e.target.files[0]) importData(e.target.files[0]); } });
+  return btn(t('Импорт'), () => input.click());
 }
 
 function caliberList() {
@@ -730,14 +849,14 @@ function openFold(key) {
   const el = [...document.querySelectorAll('.fold')].find((d) => d.dataset.key === key);
   if (!el) return;
   el.open = true;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.scrollIntoView({ behavior: smooth(), block: 'start' });
 }
 
 function renderAmmo() {
   const active = state.cartridges.filter((c) => !c.archived);
   const archived = archiveBlock(state.cartridges.filter((c) => c.archived), restoreCartridge);
   if (!active.length) {
-    return h('div', {}, empty(t('Пока нет патронов'), t('Нажмите «+», чтобы добавить позицию, или импортируйте данные в настройках (⚙ вверху).')), archived);
+    return h('div', {}, empty(t('Пока нет патронов'), t('Добавьте первый патрон, загрузите копию или посмотрите демо-данные.'), [addBtn(), importBtn(), btn(t('Демо-данные'), loadDemo)]), archived);
   }
   $('subtitle').textContent = swipeTip('ammo', active.some(recipeOf) ? t('Свайп → купить или снарядить, ← списать') : t('Свайп → купить, ← списать'),
     t('позиций: {n}', { n: active.length }));
@@ -1131,28 +1250,44 @@ function cartridgeBody(c, close) {
   const boughtQty = bought.reduce((s, m) => s + m.qty, 0);
   const loadedQty = moves.filter((m) => m.kind === 'reload').reduce((s, m) => s + m.qty, 0);
   const recipe = recipeOf(c);
-  const priced = bought.filter((m) => m.price > 0);
-  const avg = priced.length ? priced.reduce((s, m) => s + m.price, 0) / priced.reduce((s, m) => s + m.qty, 0) : null;
   const fired = -moves.filter((m) => m.kind === 'shot').reduce((s, m) => s + m.qty, 0);
   return h('div', {},
     h('p', { class: 'muted' }, [c.caliber, cartridgeDetails(c)].filter(Boolean).join(' · ')),
     c.recipeId ? h('p', { class: 'muted small' }, `${t('Рецепт')}: `, recipe
       ? h('button', { type: 'button', class: 'link-btn', onclick: () => { close(); recipeDetail(recipe); } }, recipe.name)
       : t('(удалён)')) : null,
-    h('div', { class: 'stats' },
-      stat(t('остаток'), fmt.num(M.cartridgeStock(state, c.id)), 'accent'),
+    // Ціна за постріл — у підзаголовку, окремою плиткою не повторюємо.
+    h('div', { class: 'stats even' },
+      stat(t('остаток'), fmt.num(M.cartridgeStock(state, c.id))),
       // Самоспорядження не купують: «куплено 0» біля сотні споряджених тільки збиває з пантелику.
-      boughtQty || !loadedQty ? stat(t('куплено'), fmt.num(boughtQty), 'minor') : null,
-      loadedQty ? stat(t('снаряжено'), fmt.num(loadedQty), 'minor') : null,
-      stat(t('выстрелено'), fmt.num(fired), 'minor'),
-      avg ? stat(t('ср. цена'), [fmt.money(avg), usdLine(usdSum([[avg, M.today()]]))], 'minor') : null),
+      boughtQty || !loadedQty ? stat(t('куплено'), fmt.num(boughtQty)) : null,
+      loadedQty ? stat(t('снаряжено'), fmt.num(loadedQty)) : null,
+      stat(t('выстрелено'), fmt.num(fired))),
     h('div', { class: 'btn-row' },
       recipe
-        ? btn(t('Снарядить'), () => { close(); reloadSheet(recipe); }, 'buy')
-        : btn(t('+ Купить'), () => { close(); buySheet(c); }, 'buy'),
-      btn(t('Списать −'), () => { close(); shootSheet({ cartridge: c }); }, 'shoot'),
+        ? btn(t('Снарядить'), () => { close(); reloadSheet(recipe); }, 'primary')
+        : btn(t('+ Купить'), () => { close(); buySheet(c); }, 'primary'),
+      btn(t('Списать −'), () => { close(); shootSheet({ cartridge: c }); }),
       btn(t('Пересчёт'), () => { close(); adjustSheet(c, 'cartridges'); })),
+    cartridgePrecisionBox(c, close),
     box(t('История'), movementRows(moves, { skip: { cartridge: true } }), { fold: `hist:${c.id}`, count: moves.length }));
+}
+
+/** Купчастість набою в кожному стволі — та сама мірка, що й «Набої за купчастістю» в картці ствола. */
+function cartridgePrecisionBox(c, close) {
+  const rows = state.weapons.flatMap((w) => {
+    const r = M.ammoPrecision(state.targets.filter((x) => x.weaponId === w.id), state.photos).find((x) => x.cartridgeId === c.id);
+    return r ? [{ w, r }] : [];
+  }).sort((a, b) => a.r.meanRadius - b.r.meanRadius);
+  if (!rows.length) return null;
+  const groups = (n) => `${fmt.num(n)} ${plural(n, [t('группа'), t('группы'), t('групп')])}`;
+  return box(t('Кучность'), h('div', { class: 'rows' }, rows.map(({ w, r }) => h('button', {
+    type: 'button', class: 'row ap-row', onclick: () => { close(); precisionTargets(w, r); },
+  }, weaponThumb(w),
+  h('span', { class: 'row-main' },
+    h('span', { class: 'row-title' }, w.name, r.groups < FEW_GROUPS ? h('span', { class: 'badge small' }, t('мало данных')) : null),
+    h('span', { class: 'muted small' }, [groups(r.groups), t('{n} выстр.', { n: r.shots })].join(' · '))),
+  h('span', { class: 'tg-best col' }, length(r.meanRadius, targetUnit, 100), h('small', { class: 'muted' }, t('ср. радиус')))))));
 }
 
 function removeCartridge(c) {
@@ -1393,9 +1528,12 @@ const usdOn = () => recall('shooters-log:usd') === 'on';
 const dayOf = (m) => m?.date ?? (m?.created ? M.today(new Date(m.created)) : null);
 /** Гривні в $: за курсом, вписаним у запис (платили за свій курс), інакше — НБУ на дату. */
 const usdOf = (uah, iso, rate) => (Number(rate) > 0 ? Number(uah) / Number(rate) : toUsd(uah, iso));
-/** Сума в $ за рядами [грн, дата, свій курс?]; null — долари вимкнено або в якогось ряду нема дати чи курсу. */
-function usdSum(rows) {
-  if (!usdOn()) return null;
+/**
+ * Сума в $ за рядами [грн, дата, свій курс?]; null — долари вимкнено або в якогось ряду нема дати чи курсу.
+ * always — показати й без увімкнених доларів (скільки обійшовся ствол).
+ */
+function usdSum(rows, always = false) {
+  if (!always && !usdOn()) return null;
   let sum = 0;
   for (const [uah, iso, rate] of rows) {
     const n = Number(uah) || 0;
@@ -1408,7 +1546,7 @@ function usdSum(rows) {
 }
 const usdFmt = (v) => `≈$${fmt.num(Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100)}`;
 /** « · ≈$N» у рядок тексту; порожньо, коли доларів нема. */
-const usdTail = (rows) => { const v = usdSum(rows); return v === null ? '' : ` · ${usdFmt(v)}`; };
+const usdTail = (rows, always = false) => { const v = usdSum(rows, always); return v === null ? '' : ` · ${usdFmt(v)}`; };
 /** Розрахункова сума — за сьогоднішнім курсом. */
 const usdNow = (uah) => usdTail([[uah, M.today()]]);
 /** Другий дрібний рядок «≈$N» під сумою на плитці чи в таблиці. */
@@ -1504,7 +1642,7 @@ function renderGear() {
   const total = sum('gun') + sum('mod') + sum('gear');
   const back = -sum('sale');
   if (!state.gear.length && !total) {
-    return empty(t('Экипировка не добавлена'), t('Нажмите «+», чтобы добавить форму, бронежилет, плиты, шлем, разгрузку. Цену покупки ствола и тюнинг указывайте в карточке оружия.'));
+    return empty(t('Экипировка не добавлена'), t('Добавьте форму, бронежилет, плиты, шлем, разгрузку. Цену покупки ствола и тюнинг указывайте в карточке оружия.'), [addBtn()]);
   }
   const rowsOf = (kind) => spent.filter((x) => x.kind === kind).map((x) => [Math.abs(x.price), x.date, x.rate]);
   const split = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка']]
@@ -1628,11 +1766,12 @@ function costTile(w) {
       const el = e.currentTarget.closest('.sheet')?.querySelector('.box[data-buy]');
       if (!el) return;
       if (el.classList.contains('closed')) el.querySelector('.box-toggle').click();
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.scrollIntoView({ behavior: smooth(), block: 'start' });
     },
   }, tuneIcon(),
   h('span', { class: 'tg-tile-value' }, fmt.num(Math.round(total))),
-  h('span', { class: 'tg-tile-label' }, t('обошёлся, грн')), usdLine(usdSum(investRows(w))));
+  usdLine(usdSum(investRows(w), true)),
+  h('span', { class: 'tg-tile-label' }, t('обошёлся')));
 }
 
 /** «Покупка і тюнінг» у картці ствола: за скільки купив, що доставив, разом. */
@@ -1642,15 +1781,14 @@ function buyBox(w, close) {
   const icon = tuneIcon;
   const bought = w.buyPrice || w.buyDate || w.buyPlace;
   const el = box(t('Покупка и тюнинг'), [
+    h('div', { class: 'btn-row' }, btn(t('+ тюнинг'), () => modForm(w))),
     h('div', { class: 'rows' },
       bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate) : null,
       mods.map((m) => priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
         m.price, () => modForm(w, m), icon(), m.date, m.usdRate)),
       isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
-    total ? h('p', { class: 'muted small' }, t('Вложено в ствол: {sum}', { sum: grn(total) + usdTail(investRows(w)) })) : null,
-    h('div', { class: 'btn-row' },
-      btn(t('+ тюнинг'), () => modForm(w)),
-      isSold(w) ? null : btn(t('Продал ствол'), () => sellWeapon(w))),
+    total ? h('p', { class: 'muted small' }, t('Вложено в ствол: {sum}', { sum: grn(total) + usdTail(investRows(w), true) })) : null,
+    isSold(w) ? null : h('div', { class: 'btn-row' }, btn(t('Продал ствол'), () => sellWeapon(w), 'mini quiet')),
   ], { fold: `gun-buy:${w.id}`, count: mods.length });
   el.dataset.buy = '';
   return el;
@@ -1661,7 +1799,7 @@ function renderWeapons() {
   // Повернутий з архіву ствол уже не проданий.
   const archived = archiveBlock(state.weapons.filter((w) => w.archived),
     (w) => saveEntity('weapons', { ...w, archived: false, soldPrice: null, soldDate: null, soldPlace: null }));
-  if (!active.length) return h('div', {}, empty(t('Оружие не добавлено'), t('Нажмите «+», чтобы добавить ствол: калибр, настрел до начала учёта, ресурс ствола и интервал чистки.')), archived);
+  if (!active.length) return h('div', {}, empty(t('Оружие не добавлено'), t('Добавьте ствол: калибр, настрел до начала учёта, ресурс ствола и интервал чистки.'), [addBtn(), importBtn(), btn(t('Демо-данные'), loadDemo)]), archived);
   // Загальний настріл зі званням — лише тут; розбивка: свої стволи, чужа зброя, без ствола, до початку обліку.
   const shots = M.totalShots(state);
   const split = [
@@ -2206,26 +2344,30 @@ function weaponBody(w, close) {
   const moves = state.movements.filter((m) => m.weaponId === w.id);
   const s = M.cleaningStatus(state, w);
   const cost = M.shotsCost(state, moves);
-  const meters = [progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true }), cleanRow(w, { inline: true })].filter(Boolean);
+  const life = progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true });
+  const meters = [life, cleanRow(w, { inline: true })].filter(Boolean);
+  // Плитка — лише для числа, якого не видно на смужках «Стану ствола».
+  const stats = [life ? null : stat(t('настрел'), fmt.num(shots)),
+    s.every && s.unit !== 'sessions' ? null : stat(t('после чистки'), fmt.num(s.since))].filter(Boolean);
   return h('div', {},
     h('p', { class: 'muted' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null, w.note].filter(Boolean).join(' · ')),
     h('div', { class: 'gun-top' }, gallery(w.id), costTile(w), targetsTile(w, () => close())),
     w.scopes?.length ? box(t('Прицелы'), scopeList(w, true)) : null,
-    h('div', { class: 'stats even' },
-      stat(t('настрел'), fmt.num(shots), 'accent'),
-      stat(t('после чистки'), fmt.num(s.since)),
-      cost ? stat(t('стоимость стрельб'), [fmt.num(Math.round(cost)), usdLine(usdMoves(moves))]) : null),
+    stats.length ? h('div', { class: 'stats even' }, stats) : null,
     meters.length ? box(t('Состояние ствола'), h('div', { class: 'meters' }, meters)) : null,
     h('div', { class: 'btn-row' },
-      btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: w }); }, 'shoot'),
-      btn(t('Почистил'), () => { close(); cleanSheet(w); }, 'buy')),
+      btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: w }); }, 'primary'),
+      btn(t('Почистил'), () => { close(); cleanSheet(w); })),
     permitBox(w),
     sizeBox(w),
     buyBox(w, close),
     dopeBox(w, close),
     precisionChart(w),
     ammoPrecisionBox(w, 'precision'),
-    box(t('Стрельбы и чистки'), movementRows(moves, { skip: { weapon: true } }), { fold: `shots:${w.id}`, count: moves.length }));
+    box(t('Стрельбы и чистки'), h('div', { class: 'gun-moves' }, movementRows(moves, { skip: { weapon: true } })), {
+      fold: `shots:${w.id}`, count: moves.length,
+      summary: cost ? h('span', { class: 'box-sum' }, grn(cost) + usdTail(moves.filter((m) => m.kind === 'shot').map((m) => [M.shotCost(state, m), dayOf(m)]))) : null,
+    }));
 }
 
 // ---------- DOPE ----------
@@ -2339,7 +2481,7 @@ function dopeCard(w, d, close) {
   for (const el of [at, speed]) el.addEventListener('input', calc);
   clock.addEventListener('change', calc);
   const calcBox = h('div', { class: `dope-calc ${windy ? 'windy' : ''}` }, at, windy ? speed : null, windy ? clock : null);
-  if (windy) clockPicker(clock);
+  if (windy) clockPicker(clock, { speed });
   return h('div', { class: 'dope-card' },
     h('div', { class: 'dope-head' }, h('span', { class: 'row-title' }, dopeTitle(w, d)),
       toolBtn('target', t('Тренировать в тренажёре'), () => trainDope(d, close), 'small'),
@@ -2606,7 +2748,7 @@ function dopeForm(w, d = null) {
     calcPanel.hidden = !calcPanel.hidden;
     paste.panel.hidden = true;
     paintCalc();
-    if (!calcPanel.hidden) calcPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!calcPanel.hidden) calcPanel.scrollIntoView({ block: 'nearest', behavior: smooth() });
   });
   const body = h('div', {}, f.el, h('h3', {}, t('Поправки')), units, unitHint, windForm.el,
     h('div', { class: 'dope-row dope-cols muted small' }, h('span', {}, t('Дистанция, м')), h('span', {}, t('Поправка')), h('span', {}, t('Ветер'))),
@@ -2885,11 +3027,12 @@ function logRow(m, { date = false, day = false, skip = {} } = {}) {
   // Вправу виділяємо жирним — у списку одразу видно, що стрільба з тренування.
   const rest = [forRecipe, fromExercise ? h('b', { class: 'row-ex' }, fromExercise) : null,
     m.foreignAmmo ? t('чужие патроны') : noStock,
-    fromExercise ? null : m.note, money ? fmt.money(money) + usdTail([[money, dayOf(m), m.usdRate]]) : null,
+    fromExercise || (m.foreignAmmo && m.note === t('чужие патроны')) ? null : m.note, money ? fmt.money(money) + usdTail([[money, dayOf(m), m.usdRate]]) : null,
     each ? t('{price} за {unit}', { price: fmt.money(each), unit: m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт' }) : null];
   // Ствол і приціл — кожен своїм рядком: «ствол (приціл) · вправа · …» в одному рядку на телефоні рвався посеред назви.
   const lines = [[day && m.date ? h('b', { class: 'row-day' }, fmt.date(m.date).slice(0, 5)) : null, date ? null : t(M.KINDS[m.kind]), gun?.name],
-    [gun?.scope, m.kind === 'shot' ? gearText(m) || null : null], rest]
+    // У картці набою приціл щоразу той самий — лише зайвий рядок.
+    [skip.cartridge ? null : gun?.scope, m.kind === 'shot' ? gearText(m) || null : null], rest]
     .map((line) => line.filter(Boolean))
     .filter((line) => line.length)
     .map((line) => h('span', { class: 'muted small' }, line.flatMap((p, i) => (i ? [' · ', p] : [p]))));
@@ -3448,7 +3591,7 @@ function renderLog() {
     h('div', { class: 'log-controls' }, h('div', { class: 'log-bar' }, period, filterBtn), onRow),
     list.length
       ? logGroups(list)
-      : empty(t('Записей нет'), t('Свайпните патрон в разделе БК, чтобы купить или списать.')),
+      : empty(t('Записей нет'), t('Свайпните патрон на «Складе», чтобы купить или списать.'), [btn(t('На склад'), () => { location.hash = '#ammo'; }, 'primary')]),
     csv);
 }
 
@@ -3486,13 +3629,24 @@ function bestSpread(targets) {
   }).filter(Boolean).sort((a, b) => a.at100 - b.at100)[0] ?? null;
 }
 
-/** Рядок купчастості для картки списку: іконка й найкращий розмах у см і MOA. */
+/**
+ * Купчастість ствола одним числом: середній радіус найкучнішого набою — те саме, що перший рядок
+ * «Набоїв за купчастістю». Без груп за набоями — найкращий розмах, із власним підписом.
+ */
+function gunPrecision(w) {
+  const targets = state.targets.filter((x) => x.weaponId === w.id);
+  const top = M.ammoPrecision(targets, state.photos)[0];
+  if (top) return { value: length(top.meanRadius, targetUnit, 100), label: t('ср. радиус') };
+  const best = bestSpread(targets);
+  if (!best) return null;
+  return { value: best.distance > 0 ? length(best.spread, 'moa', best.distance) : length(best.spread, 'cm'), label: t('размах') };
+}
+
 /** Найкраща купчастість — другим числом у правій колонці плитки. */
 function precisionBadge(w) {
-  const best = bestSpread(state.targets.filter((x) => x.weaponId === w.id));
-  if (!best) return null;
-  const main = best.distance > 0 ? length(best.spread, 'moa', best.distance) : length(best.spread, 'cm');
-  return h('div', { class: 'big small-big', title: t('размах') }, bigIco(GROUP_ICO), main, h('span', { class: 'sr' }, t('размах')));
+  const p = gunPrecision(w);
+  if (!p) return null;
+  return h('div', { class: 'big small-big', title: p.label }, bigIco(GROUP_ICO), p.value, h('span', { class: 'sr' }, p.label));
 }
 
 // Купка пробоїн у колі — значок розкиду поруч із числом.
@@ -3529,9 +3683,7 @@ function unitChips(onPick) {
 /** Вхід у «Кучность»: з журналу — усі мішені, з картки зброї — лише її. */
 /** Плитка купчастості поруч із фото — того ж розміру: значок, найкращий розкид і підпис. */
 function targetsTile(weapon, closeSheet = null) {
-  const best = bestSpread(state.targets.filter((x) => x.weaponId === weapon.id));
-  // На плитці — кутова мірка (групи з різних дистанцій порівнянні); без дистанції лишаються сантиметри.
-  const value = best ? length(best.spread, best.distance > 0 ? 'moa' : 'cm', best.distance) : '—';
+  const p = gunPrecision(weapon);
   return h('button', {
     type: 'button', class: 'tg-tile', title: t('Кучность'),
     onclick: () => {
@@ -3542,8 +3694,8 @@ function targetsTile(weapon, closeSheet = null) {
       goTab('#targets');
     },
   }, kindIcon('group'),
-  h('span', { class: 'tg-tile-value' }, value),
-  h('span', { class: 'tg-tile-label' }, t('Кучность')));
+  h('span', { class: 'tg-tile-value' }, p?.value ?? '—'),
+  h('span', { class: 'tg-tile-label' }, p?.label ?? t('Кучность')));
 }
 
 /** Як змінюється купчастість ствола від виїзду до виїзду: середній радіус, зведений до 100 м. */
@@ -3554,7 +3706,7 @@ function precisionChart(w) {
   const angular = targetUnit !== 'cm';
   const shown = (mm) => (angular ? M.toAngle(mm, 100, targetUnit) : mm / 10);
   const unit = angular ? (targetUnit === 'moa' ? 'MOA' : 'MRAD') : t('см');
-  return box(t('Купчастость со временем'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: shown(x.value) })), {
+  return box(t('Средний радиус со временем'), lineChart(series.map((x) => ({ label: fmt.date(x.date), value: shown(x.value) })), {
     up: false,
     format: (v) => `${num(v, angular ? 2 : 1)} ${unit}`,
   }), { fold: `pchart:${w.id}` });
@@ -3575,7 +3727,7 @@ function ammoPrecisionBox(w, fold) {
   const groups = (n) => `${fmt.num(n)} ${plural(n, [t('группа'), t('группы'), t('групп')])}`;
   const list = rows.map((r, i) => {
     const c = findCartridge(r.cartridgeId);
-    const sub = [groups(r.groups), t('{n} выстр.', { n: r.shots }), t('лучший размах {v}', { v: len(r.best) }),
+    const sub = [groups(r.groups), t('{n} выстр.', { n: r.shots }),
       r.offset ? `${t('СТП')}: ${offsetText(r.offset, targetUnit, 100)}` : null].filter(Boolean).join(' · ');
     const badge = r.groups < FEW_GROUPS ? h('span', { class: 'badge small' }, t('мало данных'))
       : i === 0 && rows.length > 1 ? h('span', { class: 'badge ok small' }, t('самый кучный')) : null;
@@ -3918,7 +4070,7 @@ function renderChrono() {
       ? groups.map((g) => fold(`chrono:${g.id}`,
         [h('span', { class: 'fold-title' }, g.name), h('span', { class: 'fold-meta' }, t('серий: {n}', { n: g.items.length }))],
         h('div', { class: 'rows' }, g.items.map((c) => chronoRow(c)))))
-      : empty(t('Скоростей пока нет'), t('Отстреляли серию через хронограф — нажмите «+» и впишите скорость каждого выстрела: приложение посчитает среднюю, ES и SD.')),
+      : empty(t('Скоростей пока нет'), t('Отстреляли серию через хронограф — нажмите «Добавить» и впишите скорость каждого выстрела: приложение посчитает среднюю, ES и SD.'), [addBtn()]),
     h('p', { class: 'muted small' }, t('ES — разница самого быстрого и самого медленного выстрела. SD — насколько скорость гуляет от выстрела к выстрелу: чем меньше, тем меньше вертикальный разброс на дальних дистанциях.')));
 }
 
@@ -4100,7 +4252,7 @@ function renderTargets() {
       ? groups.map((g) => fold(`targets:${g.id}`,
         [h('span', { class: 'fold-title' }, g.name), h('span', { class: 'fold-meta' }, t('мишеней: {n}', { n: g.items.length }))],
         [precisionInGroup(g.id), groupRows(g.items)].filter(Boolean)))
-      : empty(t('Мишеней пока нет'), t('Сфотографируйте мишень и нажмите «+»: отметьте пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
+      : empty(t('Мишеней пока нет'), t('Сфотографируйте мишень и нажмите «Добавить»: отметьте пробоины — приложение посчитает кучность, СТП и поправки в щелчках.'), [addBtn()]),
     h('p', { class: 'muted small' }, t('Размах — между центрами самых дальних пробоин. СТП — средняя точка попадания. Перекос фото исправляет шаг «Выровнять» после выбора фото.')));
 }
 
@@ -4475,7 +4627,7 @@ function whenFields(prev, { date = M.today(), dateType = 'date', timeKey = 'time
  * погода з кнопкою «Підтягнути», вітер циферблатом, координати. f — форма з полями whenFields().
  */
 function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = null, note = '' } = {}) {
-  clockPicker(f.inputs.windClock);
+  clockPicker(f.inputs.windClock, { speed: f.inputs.wind });
   const geo = gpsEditor(gps, onChange);
   const info = h('small', { class: 'muted tg-weather-note' }, note);
   const button = toolBtn('locate', t('Подтянуть погоду'), async () => {
@@ -4485,6 +4637,7 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = n
     // Поля числові — значення з крапкою, не через fmt (там кома).
     f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
     f.inputs.wind.value = String(Math.round(w.wind * 10) / 10);
+    f.inputs.wind.dispatchEvent(new Event('input', { bubbles: true }));
     info.textContent = t('Ветер с {dir} ({deg}°), порывы до {gust} м/с — часы выберите сами.', {
       dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
     });
@@ -4846,7 +4999,7 @@ function targetDetail(tg) {
   const goTo = (i) => {
     focus = focus === i ? null : i;
     drawFigure();
-    figure.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    figure.scrollIntoView({ behavior: smooth(), block: 'center' });
   };
   function drawFigure() {
     paintPreview(figure, photo.thumb, tg, 720, opts()).then(async (cropped) => {
@@ -5020,7 +5173,7 @@ function stockHero(value, count, out, low) {
 
 function stockPane() {
   $('subtitle').textContent = swipeTip('stock', t('Свайп → купить, ← пересчёт'), t('позиций: {n}', { n: state.components.length }));
-  if (!state.components.length) return empty(t('Склад пуст'), t('Нажмите «+», чтобы добавить компоненты: пули, порох, капсюли, гильзы, дробь, пыжи.'));
+  if (!state.components.length) return empty(t('Склад пуст'), t('Добавьте компоненты: пули, порох, капсюли, гильзы, дробь, пыжи.'), [addBtn()]);
   const levels = state.components.map((c) => componentLevel(c, M.componentRunway(state, c)));
   const out = levels.filter((l) => l === 'out').length;
   const low = levels.filter((l) => l === 'low').length;
@@ -5669,7 +5822,7 @@ function onSyncChip() {
 }
 
 // Тема: auto — як у системі. Першу розстановку до малювання робить скрипт в index.html.
-const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Светлая']];
+const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Светлая'], ['night', 'Ночная']];
 const lightScheme = matchMedia('(prefers-color-scheme: light)');
 
 function themePref() {
@@ -5677,11 +5830,20 @@ function themePref() {
   return THEMES.some(([k]) => k === v) ? v : 'auto';
 }
 
+/** Яскравість червоного в нічній темі, 20–100 %. */
+function nightLevel() {
+  const v = Number(recall('shooters-log:night-level'));
+  return v >= 20 && v <= 100 ? v : 80;
+}
+
 function applyTheme() {
   const pref = themePref();
   const theme = pref === 'auto' ? (lightScheme.matches ? 'light' : 'dark') : pref;
   document.documentElement.dataset.theme = theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : '#101310');
+  const k = nightLevel() / 100;
+  document.querySelector('#night-red feColorMatrix')?.setAttribute('values',
+    `${(0.5 * k).toFixed(3)} ${(0.6 * k).toFixed(3)} ${(0.1 * k).toFixed(3)} 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0`);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : '#101310');
 }
 
 lightScheme.addEventListener('change', applyTheme);
@@ -5863,7 +6025,7 @@ function renderSettings() {
     .catch(() => { persisted.textContent = t('неизвестно'); });
   const langChips = chips(Object.entries(LANGS), lang(), switchLang);
   langChips.classList.add('segmented');
-  const themeChips = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooters-log:theme', v); applyTheme(); });
+  const themeChips = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooters-log:theme', v); applyTheme(); render(); });
   themeChips.classList.add('segmented');
   return h('div', {},
     settingsGroup(t('О приложении'), [
@@ -5897,21 +6059,24 @@ function renderSettings() {
         }))),
       h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
         h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
-        h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo)))], { fold: 'data' }),
-    settingsGroup(t('Вид'), [
-      h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
-      h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips),
-      usdPanel()], { fold: 'look' }),
-    settingsGroup(t('Напоминания и упражнения'), [
-      calendarPanel(),
-      hiddenExercisesPanel()], { fold: 'remind' }),
-    settingsGroup(t('Опасная зона'), [
-      h('section', { class: 'panel' },
+        h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))),
+      h('section', { class: 'panel' }, h('h3', {}, t('Опасная зона')),
         btn(t('Удалить данные с устройства'), () => confirmSheet(t('Удалить данные с устройства?'), sync.enabled()
           ? t('Данные будут удалены с этого устройства. Копия на Google Диске останется и вернётся при следующей синхронизации (кроме фото, которые ещё не успели выгрузиться) — чтобы этого не было, сначала отключите синхронизацию.')
           : t('Оружие, БК, журнал, рецепты и фото будут удалены с этого устройства. Отменить нельзя.'), t('Удалить'), async () => {
           await db.clearAll(); await refresh(); toast(t('Данные удалены'));
-        }), 'danger'))], { danger: true }));
+        }), 'danger'))], { fold: 'data' }),
+    settingsGroup(t('Вид'), [
+      h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
+      h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips,
+        // Ніч буває різна: тягнеш — сторінка одразу темнішає чи світлішає
+        themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
+          h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
+            oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null),
+      usdPanel()], { fold: 'look' }),
+    settingsGroup(t('Напоминания и упражнения'), [
+      calendarPanel(),
+      hiddenExercisesPanel()], { fold: 'remind' }));
 }
 
 /**
@@ -5951,12 +6116,11 @@ function guideLink() {
 
 /** «Полігон → Тренажер»: розділ «sim» курсу окремо, розмітка одна з довідником. */
 function renderSim() {
-  $('subtitle').textContent = t('Поправки и дальность по сетке');
   const box = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
   loadGuide().then((html) => {
     const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    initGuide(box, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -6007,7 +6171,7 @@ function renderGuide() {
         search.value = '';
         search.dispatchEvent(new Event('input'));
         folds.forEach((el) => { el.open = false; });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: smooth() });
       },
     }, '☰');
     const updToc = () => { toc.hidden = !folds.some((el) => el.open); };
@@ -6015,7 +6179,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
-    initGuide(list, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -6027,7 +6191,7 @@ function renderGuide() {
     e.preventDefault();
     target.hidden = false;
     target.open = true;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.scrollIntoView({ behavior: smooth(), block: 'start' });
   });
   return list;
 }
@@ -6051,6 +6215,9 @@ function ammoAddMenu() {
             h('span', { class: 'row-qty' }, fmt.num(M.cartridgeStock(state, c.id))))))))) : null));
 }
 
+/** Розділ, з якого відкрили налаштування, — для «Назад». */
+let backTab = 'ammo';
+
 const VIEWS = {
   // «+» — у відкритому розділі: набій, компонент або рецепт.
   ammo: { title: 'Склад', render: renderStock, fab: () => ({ ammo: ammoAddMenu, components: componentForm, recipes: recipeForm }[stockSeg])() },
@@ -6069,10 +6236,14 @@ function render() {
   $('view').replaceChildren(view.render());
   // Таймер пішов з екрана (інша вкладка чи розділ) — мікрофон не слухає непомітно
   if (!document.querySelector('.timer')) stopTimerPanel();
-  $('fab').hidden = !view.fab || Boolean(view.noFab?.());
+  // Порожній екран має свою кнопку «Додати» — «+» поверх неї не потрібен
+  $('fab').hidden = !view.fab || Boolean(view.noFab?.()) || Boolean($('view').querySelector('.empty .btn.add'));
   $('fab').classList.remove('away');
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
+  // У налаштуваннях — «Назад» туди, звідки прийшли
+  $('back-btn').hidden = tab !== 'settings';
+  $('back-btn').href = `#${backTab}`;
   document.querySelector('.tabs a[data-tab="guns"]').classList.toggle('alert',
     state.weapons.some(needsCleaning) || urgentPermits().length > 0);
 }
@@ -6097,7 +6268,9 @@ function route() {
     stockSeg = 'recipes';
     history.replaceState(history.state, '', '#ammo');
   }
-  tab = VIEWS[next] ? next : 'ammo';
+  const to = VIEWS[next] ? next : 'ammo';
+  if (to === 'settings' && tab !== 'settings' && VIEWS[tab]) backTab = tab;
+  tab = to;
   render();
   window.scrollTo(0, 0);
 }
