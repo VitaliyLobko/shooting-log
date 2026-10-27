@@ -5991,7 +5991,7 @@ function lockPanel() {
     render();
   };
   if (lockOn()) {
-    const delay = chips(LOCK_DELAYS.map(([m, label]) => [String(m), t(label)]), String(lockDelay()), (v) => setLockDelay(Number(v)));
+    const delay = chips(LOCK_DELAYS.map((m) => [String(m), m ? t('{n} мин', { n: m }) : t('Сразу')]), String(lockDelay()), (v) => setLockDelay(Number(v)));
     delay.classList.add('segmented');
     body.append(
       h('p', { class: 'muted small' }, t('Блокировать после сворачивания:')), delay,
@@ -6422,7 +6422,9 @@ function registerWorker() {
 
 applyStatic();
 applyTheme();
-initLock();
+initLock({ key: 'shooters-log:lock', name: 'Shooters Log', icon: 'icons/icon-192.png', text: () => ({
+  locked: t('Приложение заблокировано'), unlock: t('Разблокировать'), denied: t('Не подтверждено. Попробуйте ещё раз.'),
+  failed: t('Ошибка: {msg}'), reset: t('Не получается? Создать ключ заново') }) });
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
 // «+» не закриває картки під собою: гортаєш униз — ховається, вгору чи дійшов до кінця — повертається
 let fabY = window.scrollY;
