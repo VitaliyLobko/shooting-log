@@ -13,6 +13,7 @@ import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
 import { timerPanel, stopTimerPanel } from './timer.js';
 import { exercisesPanel, exerciseName, newExercise, openScore, asExercise, scoreOf, EXERCISES } from './exercises.js';
 import { CHANGES, newer } from './changelog.js';
+import { initLock, lockOn, lockDelay, lockAvailable, enableLock, disableLock, setLockDelay, LOCK_DELAYS } from './lock.js';
 import { solve } from './ballistics.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
@@ -1514,8 +1515,11 @@ function renderGuns() {
 }
 
 // Категорії екіпірування: бронезахист окремо від одягу — його цікаво рахувати окремо.
-const GEAR_KINDS = [['armor', 'Бронезащита'], ['carry', 'Разгрузка и подсумки'], ['clothes', 'Одежда и форма'],
-  ['devices', 'Приборы'], ['other', 'Другое']];
+const GEAR_KINDS = [['armor', 'Бронезащита'], ['carry', 'Разгрузка, подсумки и одежда'],
+  ['devices', 'Приборы'], ['cleaning', 'Чистка и уход'], ['cases', 'Чехлы, кейсы и сейф'], ['reload', 'Релоад'],
+  ['other', 'Другое']];
+// Колишня категорія «Одяг і форма» злита з розвантаженням; невідома — в «Інше»
+const gearKind = (k) => (k === 'clothes' ? 'carry' : GEAR_KINDS.some(([x]) => x === k) ? k : 'other');
 
 const placeLine = (date, place) => [date && fmt.date(date), place].filter(Boolean).join(' · ');
 const priceOf = (x) => Number(x) || 0;
@@ -1654,7 +1658,7 @@ function renderGear() {
   const usdTotal = usdSum([...rowsOf('gun'), ...rowsOf('mod'), ...rowsOf('gear')]);
   const usdBack = usdSum(rowsOf('sale'));
   const order = GEAR_KINDS.map(([k]) => k);
-  const groups = groupBy(state.gear.filter((g) => !isSold(g)).sort(byName), (g) => (order.includes(g.kind) ? g.kind : 'other'))
+  const groups = groupBy(state.gear.filter((g) => !isSold(g)).sort(byName), (g) => gearKind(g.kind))
     .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b));
   const sold = soldItems();
   const net = back ? h('div', {}, t('вернул с продаж {back} · чистые расходы {net}', {
@@ -1719,7 +1723,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
 }
 
 function gearForm(g = null) {
-  purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g, {
+  purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind) }, {
     kinds: GEAR_KINDS, placeholder: t('Плитоноска, шлем, подсумок…'),
     onSave: (obj) => saveEntity('gear', obj),
     onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
@@ -5974,6 +5978,34 @@ function hiddenExercisesPanel() {
     h('div', { class: 'btn-row' }, btn(t('Вернуть встроенные упражнения ({n})', { n: hidden.length }), restore)));
 }
 
+/** ⚙ «Вход по отпечатку»: увімкнути, через скільки блокувати у фоні, вимкнути з підтвердженням. */
+function lockPanel() {
+  const body = h('div', {});
+  const act = (fn, done) => async () => {
+    try {
+      await fn();
+      toast(done);
+    } catch (err) {
+      if (err?.name !== 'NotAllowedError') toast(t('Ошибка: {msg}', { msg: err?.message || String(err) }));
+    }
+    render();
+  };
+  if (lockOn()) {
+    const delay = chips(LOCK_DELAYS.map(([m, label]) => [String(m), t(label)]), String(lockDelay()), (v) => setLockDelay(Number(v)));
+    delay.classList.add('segmented');
+    body.append(
+      h('p', { class: 'muted small' }, t('Блокировать после сворачивания:')), delay,
+      h('div', { class: 'btn-row' }, btn(t('Выключить'), act(disableLock, t('Вход по отпечатку выключен')))));
+  } else {
+    lockAvailable().then((ok) => body.append(ok
+      ? h('div', { class: 'btn-row' }, btn(t('Включить'), act(enableLock, t('Вход по отпечатку включён')), 'primary'))
+      : h('p', { class: 'muted small' }, t('На этом устройстве нет отпечатка, лица или PIN-кода, которые браузер может проверить.'))));
+  }
+  return h('section', { class: 'panel' }, h('h3', {}, t('Вход по отпечатку')),
+    h('p', { class: 'muted small' }, t('Приложение открывается отпечатком, лицом или PIN-кодом телефона — только на этом устройстве. Это защита от чужих глаз, данные не шифруются.')),
+    body);
+}
+
 /** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
 function usdPanel() {
   const row = chips([['off', t('Только гривны')], ['on', t('Гривны и $')]], usdOn() ? 'on' : 'off', (v) => {
@@ -6039,6 +6071,7 @@ function renderSettings() {
         h('p', { class: 'muted small' }, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.')))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
+      lockPanel(),
       h('section', { class: 'panel' },
         h('h3', {}, t('Резервная копия')),
         h('p', { class: 'muted small' }, sync.enabled()
@@ -6389,6 +6422,7 @@ function registerWorker() {
 
 applyStatic();
 applyTheme();
+initLock();
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
 // «+» не закриває картки під собою: гортаєш униз — ховається, вгору чи дійшов до кінця — повертається
 let fabY = window.scrollY;

@@ -34,6 +34,7 @@ const ASSETS = [
   './js/warp-worker.js',
   './js/usd.js',
   './js/usd-rates.js',
+  './js/lock.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',
   './guide/img/prone-bipod.jpg',
