@@ -494,7 +494,7 @@ function scope(svg, o) {
     // Кільце там, що ставиться на ціль, і підпис виносу поруч — щоб «де тримати» було видно на самій сітці
     // Кільце обводить зону ураження з запасом — на дальній дистанції не закриває її, а обрамлює
     const x = o.hx * k; const y = o.hy * k; const r = Math.max(R * 0.04 / z, kzReach(o.tgt) * H * 1.25);
-    mk('circle', { cx: x, cy: y, r, class: 'r-hold', 'stroke-width': R * 0.008 / z }, g);
+    mk('circle', { cx: x, cy: y, r, class: 'r-hold', 'stroke-width': R * 0.005 / z }, g);
     // Стрілки — куди виносити приціл (мітка ліворуч від центру = брати правіше), а не де стоїть мітка на сітці
     const parts = [Math.abs(o.hy) > 0.05 ? `${o.hy > 0 ? '↑' : '↓'}${f(Math.abs(y), C.u === 'MOA' ? 1 : 2)}` : null,
       Math.abs(o.hx) > 0.05 ? `${o.hx > 0 ? '←' : '→'}${f(Math.abs(x), C.u === 'MOA' ? 1 : 2)}` : null].filter(Boolean);
@@ -988,7 +988,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       val.append(Object.assign(document.createElement('span'), { className: 'u', textContent: ` ${t('м')}` }));
       b.append(val);
       b.setAttribute('aria-pressed', String(st.meas === i + 1));
-      b.addEventListener('click', () => { if (st.meas !== i + 1) navigator.vibrate?.(8); st.meas = i + 1; draw(); });
+      // Ще раз по вибраній — скоба зникає з прицілу (0 — нічого не підсвічено)
+      b.addEventListener('click', () => { navigator.vibrate?.(8); st.meas = st.meas === i + 1 ? 0 : i + 1; draw(); });
       return b;
     }));
     const shot = scope(svg, { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, rx: st.ret[0], ry: st.ret[1], meas: ranging ? st.meas : 0, zoom: st.zoom, ...realOf(st, st.tgt), ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0 });
@@ -998,7 +999,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     paintRetReset(ranging && (st.ret[0] || st.ret[1]));
     const sz = C.size(T.h, d); const rows = [];
     // У далекомірі — той розмір, що вибраний кнопкою; у прицілюванні — висота цілі
-    const [mName, mSize] = ranging && MS.length ? MS[st.meas - 1] : [null, T.h]; const msz = C.size(mSize, d);
+    const [mName, mSize] = ranging && MS.length ? MS[Math.max(0, st.meas - 1)] : [null, T.h]; const msz = C.size(mSize, d);
     // Формула без пробілів навколо × і ÷ — щоб рядок «Ціль» уміщався в один рядок на телефоні
     const formula = moa ? `${f(mSize * 100, 0)} см×34,38÷${f(msz, 2)}` : `${f(mSize, 2)}×1000÷${f(msz, 2)}`;
     // Розмір уже є у формулі й на кнопці — у підписі лише що міряємо

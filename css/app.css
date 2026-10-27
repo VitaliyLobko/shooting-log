@@ -1430,9 +1430,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .r-gr { fill: var(--ground); }
 .guide .r-tgt { fill: var(--tgt); }
 .guide .r-tgt-d { fill: color-mix(in srgb, var(--tgt) 45%, #1a1d16); }
-.guide .r-hold { stroke: var(--shoot); fill: none; }
+.guide .r-hold { stroke: var(--shoot); fill: none; opacity: .5; }
 /* Зона ураження на цілі — світла пляма з білим контуром: видно на піщаному силуеті й не плутається з червоним кільцем виносу */
-.guide .r-kz { fill: rgb(255 255 255 / 0.38); stroke: #fff; stroke-width: 1.5px; }
+/* Зона й кільце — підказка, а не мішень: тонкий пунктир без заливки, щоб не перекривали ціль */
+.guide .r-kz { fill: none; stroke: rgb(255 255 255 / .6); stroke-width: 1px; stroke-dasharray: 3 3; }
 .guide .r-kz.o { fill: none; }
 /* Далекомір: скоба на відрізку, яким міряємо */
 .guide .r-meas { fill: none; stroke: #fff; stroke-width: 2.5px; stroke-linecap: round; }
@@ -1444,7 +1445,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @keyframes r-flash { 0%, 40%, 80% { opacity: 1; } 20%, 60% { opacity: 0.25; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .guide .r-flash { animation: r-flash-still 1.8s step-end forwards; } }
 @keyframes r-flash-still { 0% { opacity: 1; } 100% { opacity: 0; } }
-.guide .ret.photo .r-kz { fill: rgb(255 255 255 / 0.14); stroke: rgb(255 255 255 / 0.9); stroke-width: 1.5px; }
+.guide .ret.photo .r-kz { fill: none; stroke: rgb(255 255 255 / .7); stroke-width: 1px; stroke-dasharray: 3 3; }
 .guide .ret.photo .r-kz.o { fill: none; }
 .guide .ret.photo .r-meas { stroke: #fff; stroke-width: 2px; }
 .guide .ret.photo .r-hold { stroke: #fff; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
