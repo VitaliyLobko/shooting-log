@@ -734,16 +734,6 @@ function sparkline(values) {
   return el;
 }
 
-// Ознаки сили вітру — та сама шкала, що в розділі 13 статті: верхня межа, м/с → як виглядає
-const WIND_SIGNS = [
-  [1, 'дым поднимается почти вертикально, мираж «кипит» вертикально'],
-  [2, 'ветер чувствуется лицом, дым заметно наклоняется, листья шевелятся'],
-  [4, 'листья и тонкие ветки в постоянном движении, лёгкий флаг развевается'],
-  [6, 'поднимает пыль и бумагу, двигаются небольшие ветки, трава ложится волнами'],
-  [Infinity, 'раскачиваются небольшие деревья, ветер мешает держать изготовку стоя'],
-];
-
-
 function at(arr, d) {
   const x = d / 50 - 1;
   const i = Math.max(0, Math.min(arr.length - 2, Math.floor(x)));
@@ -906,22 +896,24 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
     list.replaceChildren(...marks.map((v) => Object.assign(document.createElement('option'), { value: String(v) })));
   };
 
-  let drag = null; let swiped = false;
+  let drag = null; let swiped = false; let paintWind = null;
   const draw = () => {
     if (quiz) { drawQuiz(); return; }
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const u = C.u; const moa = u === 'MOA';
     const d = +$('s-dist').value; const m = +$('s-mag').value; const mv = $('s-barrel').value; const z = L.zero ?? +$('s-zero').value;
     const w = +$('s-wind').value; const hour = +$('s-wdir').value || 0;
     const left = hour > 6; const share = Math.abs(Math.sin((hour * Math.PI) / 6));
-    windDesc.textContent = w > 0 ? `${t('Как выглядит')}: ${t(WIND_SIGNS.find(([max]) => w <= max)[1])}` : t('Штиль: бокового ветра нет');
-    $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`; $('s-wind-v').textContent = `${fm(w)} ${t('м/с')}`;
+    paintWind?.();
+    $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`;
     // Заголовки згорнутих блоків — поточне значення, щоб не розгортати заради перевірки
     $('s-wind-sum').textContent = w > 0 ? `${fm(w)} ${t('м/с')} · ${t('{n} ч', { n: hour })}` : t('нет');
     const opt = (id) => $(id).selectedOptions[0]?.textContent ?? '';
     const tSum = +$('s-temp').value; const aSum = +$('s-alt').value;
-    // На кнопці — з чим рахуємо: своя зброя чи набір і від якої пристрілки
-    $('s-gun-sum').textContent = L.my ? 'DOPE' : [L.gun ? L.label.split(' · ')[0] : kitName($('s-kit').value).split(' + ')[0], `${z} ${t('м')}`,
-      tSum !== 15 || aSum ? `${tSum > 0 ? '+' : ''}${tSum}°${aSum ? ` ${aSum} м` : ''}` : null].filter(Boolean).join(' · ');
+    // На кнопці — з чим рахуємо: назва повністю, під нею набій (своя таблиця — DOPE) і від якої пристрілки
+    const [gunName, ...gunRest] = L.gun || L.my ? L.label.split(' · ') : kitName($('s-kit').value).split(' + ');
+    $('s-gun-name').textContent = gunName;
+    $('s-gun-sum').textContent = [L.my ? 'DOPE' : gunRest.join(' · '), L.my ? null : `${t('пристрелка')} ${z} ${t('м')}`,
+      !L.my && (tSum !== 15 || aSum) ? `${tSum > 0 ? '+' : ''}${tSum}°${aSum ? ` ${aSum} м` : ''}` : null].filter(Boolean).join(' · ');
     save();
     const tC = +$('s-temp').value; const alt = +$('s-alt').value; const air = airRatio(tC, alt);
     const tb = atmTab($('s-kit').value, mv, tC, alt);
@@ -1008,17 +1000,13 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
   }));
   seg('m-aim', 'm-range', 'mode', { 'm-aim': 'aim', 'm-range': 'range' });
   ['m-aim', 'm-range'].forEach((id) => $(id).addEventListener('click', () => { st.ret = [0, 0]; draw(); }));
-  // Підказка під повзунком вітру — як така сила виглядає на місцевості
-  const windDesc = document.createElement('p');
-  windDesc.className = 'wind-desc';
-  $('s-wind').closest('label').after(windDesc);
   const wdir = $('s-wdir');
   wdir.replaceChildren(...Array.from({ length: 12 }, (_, i) => {
     const op = document.createElement('option');
     op.value = String(i + 1); op.textContent = t('с {n} ч', { n: i + 1 }); op.selected = i + 1 === 9;
     return op;
   }));
-  clockPicker?.(wdir);
+  paintWind = clockPicker?.(wdir, { speed: $('s-wind'), hideSpeed: true }) ?? null;
   const fill = (id, list, def, label) => $(id).replaceChildren(...list.map((v) => {
     const op = document.createElement('option');
     op.value = String(v); op.textContent = label(v); op.selected = v === def;
