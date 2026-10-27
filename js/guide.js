@@ -36,6 +36,10 @@ export function parseGuide(html) {
 
 const f = (x, d) => x.toLocaleString(locale(), { maximumFractionDigits: d, minimumFractionDigits: d });
 const fm = (m) => f(m, m % 1 ? 1 : 0);
+// Розмір цілі: 1,85 — до сотих, 0,5 — до десятих, 2 — ціле
+const sizeTxt = (m) => f(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0);
+// Швидкість цілі на кнопці «Рух» — як її кажуть: крок, біг, авто в км/год
+const MOVE_SHORT = { 1.4: 'шаг', 3.5: 'бег', 8.3: '30 км/ч', 13.9: '50 км/ч' };
 /** Розмір у метрах без зайвих нулів і без округлення до десятої: 1,45 · 0,25 · 1. */
 const mFmt = (m) => m.toLocaleString(locale(), { maximumFractionDigits: 2 });
 
@@ -734,16 +738,6 @@ function sparkline(values) {
   return el;
 }
 
-// Ознаки сили вітру — та сама шкала, що в розділі 13 статті: верхня межа, м/с → як виглядає
-const WIND_SIGNS = [
-  [1, 'дым поднимается почти вертикально, мираж «кипит» вертикально'],
-  [2, 'ветер чувствуется лицом, дым заметно наклоняется, листья шевелятся'],
-  [4, 'листья и тонкие ветки в постоянном движении, лёгкий флаг развевается'],
-  [6, 'поднимает пыль и бумагу, двигаются небольшие ветки, трава ложится волнами'],
-  [Infinity, 'раскачиваются небольшие деревья, ветер мешает держать изготовку стоя'],
-];
-
-
 function at(arr, d) {
   const x = d / 50 - 1;
   const i = Math.max(0, Math.min(arr.length - 2, Math.floor(x)));
@@ -786,7 +780,7 @@ function bplexWhere(v, M, beyond = 'ниже кончика столба — к�
 }
 
 /** Тренажер: вид у приціл з ціллю, виносом і вітром. */
-export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGuesses } = {}) {
+export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPicker, myLoads, myGuns, windGuesses } = {}) {
   const $ = (id) => root.querySelector(`#${id}`);
   const svg = $('sim-svg');
   if (!svg) return;
@@ -906,22 +900,38 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
     list.replaceChildren(...marks.map((v) => Object.assign(document.createElement('option'), { value: String(v) })));
   };
 
-  let drag = null; let swiped = false;
+  let drag = null; let swiped = false; let paintWind = null;
+  const tool = (key) => root.querySelector(`.sim-tool[data-panel="${key}"]`);
+  const toolIco = (key) => tool(key).querySelector('svg');
+  const toolHot = (key, on) => tool(key).classList.toggle('hot', on);
+  // Підпис кнопки — назва з розмітки (мовою сторінки) і, якщо є, уточнення через крапку
+  const toolLabel = (key, extra) => {
+    const el = tool(key).querySelector('.sim-tool-t');
+    el.dataset.name ??= el.textContent;
+    el.textContent = extra ? `${el.dataset.name} · ${extra}` : el.dataset.name;
+  };
   const draw = () => {
     if (quiz) { drawQuiz(); return; }
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret]; const u = C.u; const moa = u === 'MOA';
     const d = +$('s-dist').value; const m = +$('s-mag').value; const mv = $('s-barrel').value; const z = L.zero ?? +$('s-zero').value;
     const w = +$('s-wind').value; const hour = +$('s-wdir').value || 0;
     const left = hour > 6; const share = Math.abs(Math.sin((hour * Math.PI) / 6));
-    windDesc.textContent = w > 0 ? `${t('Как выглядит')}: ${t(WIND_SIGNS.find(([max]) => w <= max)[1])}` : t('Штиль: бокового ветра нет');
-    $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`; $('s-wind-v').textContent = `${fm(w)} ${t('м/с')}`;
-    // Заголовки згорнутих блоків — поточне значення, щоб не розгортати заради перевірки
-    $('s-wind-sum').textContent = w > 0 ? `${fm(w)} ${t('м/с')} · ${t('{n} ч', { n: hour })}` : t('нет');
+    paintWind?.();
+    $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`;
+    // Кнопки ряду — зведення умов пострілу: підпис зверху, значення під ним; що зсуває поправку — в рамці
+    const windOn = w > 0 && !(L.my && !L.windy);
+    toolLabel('sim-wind', w > 0 ? t('{n} ч', { n: hour }) : '');
+    $('s-wind-sum').textContent = w > 0 ? `${fm(w)} ${t('м/с')}` : t('штиль');
+    toolHot('sim-wind', windOn);
+    // Значок вітру (струмені зліва направо — дме з 9 год) повернуто туди, куди дме
+    toolIco('sim-wind').style.transform = w > 0 ? `rotate(${(hour - 9) * 30}deg)` : '';
     const opt = (id) => $(id).selectedOptions[0]?.textContent ?? '';
     const tSum = +$('s-temp').value; const aSum = +$('s-alt').value;
-    // На кнопці — з чим рахуємо: своя зброя чи набір і від якої пристрілки
-    $('s-gun-sum').textContent = L.my ? 'DOPE' : [L.gun ? L.label.split(' · ')[0] : kitName($('s-kit').value).split(' + ')[0], `${z} ${t('м')}`,
-      tSum !== 15 || aSum ? `${tSum > 0 ? '+' : ''}${tSum}°${aSum ? ` ${aSum} м` : ''}` : null].filter(Boolean).join(' · ');
+    // На кнопці — з чим рахуємо: назва повністю, під нею набій (своя таблиця — DOPE) і від якої пристрілки
+    const [gunName, ...gunRest] = L.gun || L.my ? L.label.split(' · ') : kitName($('s-kit').value).split(' + ');
+    $('s-gun-name').textContent = gunName;
+    $('s-gun-sum').textContent = [L.my ? 'DOPE' : gunRest.join(' · '), L.my ? null : `${t('пристрелка')} ${z} ${t('м')}`,
+      !L.my && (tSum !== 15 || aSum) ? `${tSum > 0 ? '+' : ''}${tSum}°${aSum ? ` ${aSum} м` : ''}` : null].filter(Boolean).join(' · ');
     save();
     const tC = +$('s-temp').value; const alt = +$('s-alt').value; const air = airRatio(tC, alt);
     const tb = atmTab($('s-kit').value, mv, tC, alt);
@@ -931,18 +941,22 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
     // Упередження: швидкість × час польоту ÷ дистанція; ціль іде праворуч — центр праворуч від неї (мітка ліворуч від центру)
     // У далекомірі вітер, рух і гвинтівка не потрібні — на їхньому місці кнопки «чим міряти»
     for (const key of ['sim-wind', 'sim-move', 'sim-gun']) {
-      const tool = root.querySelector(`.sim-tool[data-panel="${key}"]`);
-      if (!tool) continue;
+      const btn = tool(key);
+      if (!btn) continue;
       // Своя таблиця: руху без часу польоту не порахувати, вітру — без колонки вітру
       const off = key !== 'sim-gun' && L.my && (key === 'sim-move' || !L.windy);
-      tool.hidden = ranging;
-      tool.disabled = off;
-      if (off || ranging) { tool.setAttribute('aria-expanded', 'false'); $(key).hidden = true; }
+      btn.hidden = ranging;
+      btn.disabled = off;
+      if (off || ranging) { btn.setAttribute('aria-expanded', 'false'); $(key).hidden = true; }
     }
     const vt = ranging || L.my ? 0 : +$('s-mv').value || 0; const goRight = $('s-mvdir').value === 'R'; const tof = tb.T ? at(tb.T, d) : 0;
     const lead = (vt * tof / d) * (moa ? 3437.75 : 1000);
     const hx = (left ? wm : -wm) + (goRight ? -lead : lead);
-    $('s-mv-sum').textContent = vt ? `${fm(vt)} ${t('м/с')} ${goRight ? '→' : '←'}` : t('стоит');
+    const mvRaw = +$('s-mv').value || 0;
+    $('s-mv-sum').textContent = mvRaw ? `${t(MOVE_SHORT[mvRaw] ?? `${fm(mvRaw)} м/с`)} ${goRight ? '→' : '←'}` : t('стоит');
+    toolHot('sim-move', vt > 0);
+    // Бігун на значку дивиться туди, куди йде ціль
+    toolIco('sim-move').style.transform = mvRaw && !goRight ? 'scaleX(-1)' : '';
     const MS = MEAS[st.tgt] ?? []; if (st.meas > MS.length) st.meas = 1;
     measBox.hidden = !ranging || !MS.length;
     measBox.replaceChildren(...MS.map(([name, size], i) => {
@@ -1008,17 +1022,13 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
   }));
   seg('m-aim', 'm-range', 'mode', { 'm-aim': 'aim', 'm-range': 'range' });
   ['m-aim', 'm-range'].forEach((id) => $(id).addEventListener('click', () => { st.ret = [0, 0]; draw(); }));
-  // Підказка під повзунком вітру — як така сила виглядає на місцевості
-  const windDesc = document.createElement('p');
-  windDesc.className = 'wind-desc';
-  $('s-wind').closest('label').after(windDesc);
   const wdir = $('s-wdir');
   wdir.replaceChildren(...Array.from({ length: 12 }, (_, i) => {
     const op = document.createElement('option');
     op.value = String(i + 1); op.textContent = t('с {n} ч', { n: i + 1 }); op.selected = i + 1 === 9;
     return op;
   }));
-  clockPicker?.(wdir);
+  paintWind = clockPicker?.(wdir, { speed: $('s-wind'), hideSpeed: true }) ?? null;
   const fill = (id, list, def, label) => $(id).replaceChildren(...list.map((v) => {
     const op = document.createElement('option');
     op.value = String(v); op.textContent = label(v); op.selected = v === def;
@@ -1207,7 +1217,10 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
   };
   const paintTgt = () => {
     $('s-tgt-ico')?.replaceChildren(st.real ? sceneIcon(st.real) : tgtIcon(st.tgt));
-    if ($('s-tgt-sum')) $('s-tgt-sum').textContent = st.real ? sceneName(st.real) : t(TGT[st.tgt].short);
+    // Підпис — що за ціль, значення — її висота: від неї рахують дальність
+    const tgtT = root.querySelector('[data-pop="pop-tgt"] .sim-tool-t');
+    if (tgtT) tgtT.textContent = st.real ? sceneName(st.real) : t(TGT[st.tgt].short);
+    if ($('s-tgt-sum')) $('s-tgt-sum').textContent = `${sizeTxt(TGT[st.tgt].h)} ${t('м')}`;
     if ($('tgt-note')) $('tgt-note').textContent = tgtNote();
     let on = null;
     grid?.querySelectorAll('.tgt-opt:not([data-random])').forEach((b) => {
@@ -2170,8 +2183,63 @@ export function initSim(root, { clockPicker, kitPicker, myLoads, myGuns, windGue
     if (quiz && phase() === 'hold' && !answered(quiz.cur)) { answerHold(e); return; }
     nextZoom();
   });
+  // Свайп по кнопці вітру чи руху вбік — сила (крок 1 м/с) чи швидкість і напрям руху, без панелі;
+  // довге натискання — нуль. Після жесту тап не відкриває панель; кнопка лишається під пальцем, хоч зведення над нею й виросло
+  const nudge = {
+    'sim-wind': (dir) => {
+      const el = $('s-wind');
+      const v = Math.min(+el.max, Math.max(0, (dir > 0 ? Math.floor(+el.value) : Math.ceil(+el.value)) + dir));
+      if (dir === 0 ? +el.value === 0 : v === +el.value) return false;
+      el.value = String(dir === 0 ? 0 : v);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    },
+    // Рух — шкала зі знаком: свайп у бік руху цілі — швидше, назустріч — повільніше до «стоїть» і далі в інший бік
+    'sim-move': (dir) => {
+      const el = $('s-mv'); const side = $('s-mvdir');
+      const top = el.options.length - 1;
+      const now = el.selectedIndex * (side.value === 'L' ? -1 : 1);
+      const next = dir === 0 ? 0 : Math.min(top, Math.max(-top, now + dir));
+      if (next === now) return false;
+      el.selectedIndex = Math.abs(next);
+      if (next) side.value = next < 0 ? 'L' : 'R';
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+  };
+  const STEP_PX = 28;
+  for (const [key, step] of Object.entries(nudge)) {
+    const btn = tool(key);
+    let g = null;
+    const end = () => { clearTimeout(g?.timer); g = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      g = { x: e.clientX, y: e.clientY, n: 0, moved: false };
+      g.timer = setTimeout(() => {
+        if (!g || g.moved) return;
+        btn.dataset.gest = '1';
+        if (keepPlace(btn, () => step(0))) navigator.vibrate?.(20);
+      }, 550);
+    });
+    btn.addEventListener('pointermove', (e) => {
+      if (!g) return;
+      const dx = e.clientX - g.x;
+      if (!g.moved && Math.abs(e.clientY - g.y) > Math.abs(dx) && Math.abs(e.clientY - g.y) > 8) { end(); return; }
+      if (!g.moved && Math.abs(dx) < 10) return;
+      if (!g.moved) { g.moved = true; clearTimeout(g.timer); btn.setPointerCapture(e.pointerId); btn.dataset.gest = '1'; }
+      const n = Math.trunc(dx / STEP_PX);
+      while (g.n !== n) {
+        const dir = Math.sign(n - g.n);
+        g.n += dir;
+        if (keepPlace(btn, () => step(dir))) navigator.vibrate?.(8);
+      }
+    });
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
   // Вітер, рух, гвинтівка — іконками в рядок; тап відкриває свою панель під рядком (одна за раз)
   root.querySelectorAll('.sim-tool[data-panel]').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.dataset.gest) { delete btn.dataset.gest; return; }
     const open = btn.getAttribute('aria-expanded') !== 'true';
     root.querySelectorAll('.sim-tool[data-panel]').forEach((b) => {
       const on = b === btn && open;
