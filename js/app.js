@@ -323,14 +323,49 @@ function kitPicker(select) {
   });
 }
 
-function clockPicker(select) {
+// Ознаки сили вітру — шкала розділу 13 статті: верхня межа, м/с → як виглядає; короткий підпис — на кнопках швидкого вибору
+const WIND_SIGNS = [
+  [1, 'дым поднимается почти вертикально, мираж «кипит» вертикально'],
+  [2, 'ветер чувствуется лицом, дым заметно наклоняется, листья шевелятся'],
+  [4, 'листья и тонкие ветки в постоянном движении, лёгкий флаг развевается'],
+  [6, 'поднимает пыль и бумагу, двигаются небольшие ветки, трава ложится волнами'],
+  [Infinity, 'раскачиваются небольшие деревья, ветер мешает держать изготовку стоя'],
+];
+const WIND_QUICK = [[0, 'штиль'], [2, 'дым'], [4, 'листья'], [6, 'пыль'], [8, 'деревья']];
+// Ручка сили: від WP_R0 (ледь дме) до WP_R0 + WP_RS (край шкали) у одиницях циферблата; тягненням — крок 1 м/с
+const WP_R0 = 8;
+const WP_RS = 29;
+
+/** Виконати fn і догорнути сторінку так, щоб el лишився на тому ж місці екрана. */
+function keepPlace(el, fn) {
+  const before = el.getBoundingClientRect().top;
+  const out = fn();
+  const shift = el.getBoundingClientRect().top - before;
+  if (Math.abs(shift) >= 1) window.scrollBy(0, shift);
+  return out;
+}
+
+/**
+ * Годинник «звідки дме». З speed (поле сили, м/с) — усе на ньому: тап по годині — напрям,
+ * тягни від центру — сила (край = max поля, інакше 10), кнопки швидкого вибору й зведення під ним.
+ */
+function clockPicker(select, { speed = null, hideSpeed = false } = {}) {
   if (!select) return () => {};
-  const dial = h('div', { class: 'wind-pick', role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
+  const dial = h('div', { class: `wind-pick${speed ? ' wp-speed' : ''}`, role: 'radiogroup', 'aria-label': fieldName(select) ?? t('Откуда ветер') });
   const canClear = [...select.options].some((o) => o.value === '');
   const current = () => Number(select.value) || 0;
+  const max = Number(speed?.max) || 10;
+  const force = () => Math.max(0, Number(String(speed?.value ?? '').replace(',', '.')) || 0);
+  // Зміна могла перебудувати вміст над годинником (у тренажері — рядок поправки на вітер) — годинник лишається під пальцем
+  const fire = (el, ...types) => keepPlace(dial, () => types.forEach((type) => el.dispatchEvent(new Event(type, { bubbles: true }))));
   const set = (value) => {
     select.value = value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    fire(select, 'change');
+  };
+  const setForce = (v) => {
+    if (v === force() && speed.value !== '') return;
+    speed.value = String(v);
+    fire(speed, 'input', 'change');
   };
   // Циферблат будується раз, далі міняється лише стан — фокус лишається на натиснутій годині
   const hours = Array.from({ length: 12 }, (_, i) => {
@@ -343,24 +378,65 @@ function clockPicker(select) {
     }, String(n));
   });
   const face = h('span', { class: 'wp-face', 'aria-hidden': 'true' });
-  // Стрілку вітру намальовано для 12-ї години й повернуто на вибрану
+  // Стрілку вітру намальовано для 12-ї години й повернуто на вибрану; із силою вона починається від ручки
+  const scale = speed ? [0.5, 1].map((f) => {
+    const r = WP_R0 + WP_RS * f;
+    const [x, y] = dialPt(45, r);
+    return `<circle class="wp-scale" cx="50" cy="50" r="${r}"/><text class="wp-text wp-scale-text" x="${(x + 1).toFixed(1)}" y="${(y - 1).toFixed(1)}"></text>`;
+  }).join('') : '';
   face.innerHTML = `<svg viewBox="0 0 100 100">
     <circle class="wp-ring" cx="50" cy="50" r="38"/>
-    <path class="wp-zone" d="${dialWedge(60, 120, 38)}"/><path class="wp-zone" d="${dialWedge(240, 300, 38)}"/>
+    <path class="wp-zone" d="${dialWedge(60, 120, 38)}"/><path class="wp-zone" d="${dialWedge(240, 300, 38)}"/>${scale}
     <line class="wp-aim" x1="50" y1="47" x2="50" y2="19"/><path class="wp-aim-head" d="M50 13.5 L53 19 L47 19 Z"/>
     <text class="wp-text wp-aim-text" x="53.5" y="25"></text>
     <g class="wp-wind"><line x1="50" y1="16" x2="50" y2="41"/><path d="M50 44 L52.8 38.8 L47.2 38.8 Z"/></g>
     <circle class="wp-me" cx="50" cy="50" r="3"/>
-    <text class="wp-text wp-me-text" x="50" y="60" text-anchor="middle"></text></svg>`;
+    <text class="wp-text wp-me-text" x="50" y="60" text-anchor="middle"></text>${speed ? '<circle class="wp-knob" r="6"/><text class="wp-knob-text" text-anchor="middle"></text>' : ''}</svg>`;
   face.querySelector('.wp-aim-text').textContent = t('цель');
+  const scaleText = face.querySelectorAll('.wp-scale-text');
+  scaleText.forEach((el, i) => { el.textContent = fmt.num(i ? max : max / 2); });
   const me = face.querySelector('.wp-me-text');
   me.textContent = t('стрелок');
   const [right, left] = face.querySelectorAll('.wp-zone');
   const wind = face.querySelector('.wp-wind');
+  const shaft = wind.querySelector('line');
+  const knob = face.querySelector('.wp-knob');
+  const knobText = face.querySelector('.wp-knob-text');
   const note = h('p', { class: 'wp-note', 'aria-live': 'polite' });
-  dial.append(face, ...hours);
+  const more = h('p', { class: 'wp-more' });
+  let pad = null;
+  let quick = [];
+  if (speed) {
+    // Сила — тягненням усередині кільця годин; поза ним сторінка гортається як завжди
+    const pick = (e) => {
+      const box = dial.getBoundingClientRect();
+      const dx = ((e.clientX - box.left) / box.width) * 100 - 50;
+      const dy = ((e.clientY - box.top) / box.height) * 100 - 50;
+      const r = Math.hypot(dx, dy);
+      const v = r < 6 ? 0 : Math.min(max, Math.max(1, Math.round(((r - WP_R0) / WP_RS) * max)));
+      const n = Math.round(((Math.atan2(dx, -dy) * 180) / Math.PI + 360) / 30) % 12 || 12;
+      if (v > 0 && n !== current()) set(String(n));
+      setForce(v);
+    };
+    pad = h('span', {
+      class: 'wp-pad', role: 'slider', tabindex: '0', 'aria-label': t('Сила ветра'),
+      'aria-valuemin': '0', 'aria-valuemax': String(max),
+      onpointerdown: (e) => { pad.setPointerCapture(e.pointerId); pick(e); },
+      onpointermove: (e) => { if (pad.hasPointerCapture(e.pointerId)) pick(e); },
+      onkeydown: (e) => {
+        const step = { ArrowUp: 0.5, ArrowRight: 0.5, ArrowDown: -0.5, ArrowLeft: -0.5 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        setForce(Math.min(max, Math.max(0, force() + step)));
+      },
+    });
+    quick = WIND_QUICK.filter(([v]) => v <= max).map(([v, sign]) => h('button', { type: 'button', onclick: () => setForce(v) },
+      h('b', {}, fmt.num(v)), h('small', {}, t(sign))));
+  }
+  dial.append(face, ...(pad ? [pad] : []), ...hours);
   const paint = () => {
     const v = current();
+    const w = force();
     hours.forEach((b, i) => {
       b.classList.toggle('on', i + 1 === v);
       b.setAttribute('aria-checked', String(i + 1 === v));
@@ -368,18 +444,44 @@ function clockPicker(select) {
     right.classList.toggle('on', v >= 2 && v <= 4);
     left.classList.toggle('on', v >= 8 && v <= 10);
     wind.setAttribute('transform', `rotate(${v * 30} 50 50)`);
-    wind.style.display = v ? '' : 'none';
+    wind.style.display = v && (!speed || w > 0) ? '' : 'none';
     // Вітер знизу (4–8) перекрив би підпис під стрільцем — підпис збоку, навпроти стрілки
     const side = v >= 4 && v <= 8 ? (v < 6 ? -1 : 1) : 0;
     me.setAttribute('x', side ? 50 + side * 5 : 50);
     me.setAttribute('y', side ? 51.8 : 60);
     me.setAttribute('text-anchor', side < 0 ? 'end' : side ? 'start' : 'middle');
-    note.textContent = v ? t('{n} ч — {what}', { n: v, what: t(WIND_NOTE[windZone(v)]) }) : t('коснитесь часа, откуда дует');
+    const zone = v ? t(WIND_NOTE[windZone(v)]) : '';
+    if (!speed) {
+      note.textContent = v ? t('{n} ч — {what}', { n: v, what: zone }) : t('коснитесь часа, откуда дует');
+      return;
+    }
+    const r = WP_R0 + WP_RS * Math.min(1, w / max);
+    shaft.setAttribute('y1', String(50 - r + 6));
+    shaft.setAttribute('y2', '41');
+    const [kx, ky] = dialPt(v * 30, r);
+    knob.setAttribute('cx', kx.toFixed(2)); knob.setAttribute('cy', ky.toFixed(2));
+    knobText.setAttribute('x', kx.toFixed(2)); knobText.setAttribute('y', (ky + 2.2).toFixed(2));
+    knobText.textContent = fmt.num(w);
+    knob.style.display = knobText.style.display = v && w > 0 ? '' : 'none';
+    dial.classList.toggle('calm', w === 0);
+    pad.setAttribute('aria-valuenow', String(w));
+    pad.setAttribute('aria-valuetext', `${fmt.num(w)} ${t('м/с')}`);
+    quick.forEach((b, i) => b.setAttribute('aria-pressed', String(WIND_QUICK[i][0] === w)));
+    const ms = `${fmt.num(w)} ${t('м/с')}`;
+    note.textContent = w === 0 ? t('Штиль') : v ? t('{w} с {n} ч — {what}', { w: ms, n: v, what: zone })
+      : t('{w} — коснитесь часа, откуда дует', { w: ms });
+    // Не чисто боковий — скільки з нього зносить кулю
+    const share = M.windShare(v);
+    const cross = w > 0 && v && share > 0.05 && share < 0.97 ? t('Боковая составляющая ≈{v} м/с', { v: fmt.num(Math.round(w * share * 10) / 10) }) : '';
+    const look = w > 0 ? `${t('Как выглядит')}: ${t(WIND_SIGNS.find(([top]) => w <= top)[1])}` : t('тяните от центра — сила ветра, край — {max} м/с', { max: fmt.num(max) });
+    more.textContent = [cross, look].filter(Boolean).join('. ');
   };
   select.hidden = true;
-  select.after(h('div', { class: 'wind-pick-wrap' }, dial, note));
+  if (speed && hideSpeed) (speed.closest('label') ?? speed).hidden = true;
+  select.after(h('div', { class: 'wind-pick-wrap' }, ...(speed ? [note, dial, h('div', { class: 'wp-quick' }, ...quick), more] : [dial, note])));
   paint();
   select.addEventListener('change', paint);
+  speed?.addEventListener('input', paint);
   return paint;
 }
 
@@ -2339,7 +2441,7 @@ function dopeCard(w, d, close) {
   for (const el of [at, speed]) el.addEventListener('input', calc);
   clock.addEventListener('change', calc);
   const calcBox = h('div', { class: `dope-calc ${windy ? 'windy' : ''}` }, at, windy ? speed : null, windy ? clock : null);
-  if (windy) clockPicker(clock);
+  if (windy) clockPicker(clock, { speed });
   return h('div', { class: 'dope-card' },
     h('div', { class: 'dope-head' }, h('span', { class: 'row-title' }, dopeTitle(w, d)),
       toolBtn('target', t('Тренировать в тренажёре'), () => trainDope(d, close), 'small'),
@@ -4475,7 +4577,7 @@ function whenFields(prev, { date = M.today(), dateType = 'date', timeKey = 'time
  * погода з кнопкою «Підтягнути», вітер циферблатом, координати. f — форма з полями whenFields().
  */
 function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = null, note = '' } = {}) {
-  clockPicker(f.inputs.windClock);
+  clockPicker(f.inputs.windClock, { speed: f.inputs.wind });
   const geo = gpsEditor(gps, onChange);
   const info = h('small', { class: 'muted tg-weather-note' }, note);
   const button = toolBtn('locate', t('Подтянуть погоду'), async () => {
@@ -4485,6 +4587,7 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = n
     // Поля числові — значення з крапкою, не через fmt (там кома).
     f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
     f.inputs.wind.value = String(Math.round(w.wind * 10) / 10);
+    f.inputs.wind.dispatchEvent(new Event('input', { bubbles: true }));
     info.textContent = t('Ветер с {dir} ({deg}°), порывы до {gust} м/с — часы выберите сами.', {
       dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
     });
@@ -5951,12 +6054,11 @@ function guideLink() {
 
 /** «Полігон → Тренажер»: розділ «sim» курсу окремо, розмітка одна з довідником. */
 function renderSim() {
-  $('subtitle').textContent = t('Поправки и дальность по сетке');
   const box = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
   loadGuide().then((html) => {
     const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    initGuide(box, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -6015,7 +6117,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
-    initGuide(list, { clockPicker, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });

@@ -91,6 +91,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar > * { max-width: 688px; margin-inline: auto; }
 .topbar h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
 .topbar #subtitle { font-size: 15px; min-height: 20px; }
+/* У тренажері підзаголовка немає — без порожнього рядка, прицілу більше місця */
+body:has(#view .guide .sim) .topbar #subtitle:empty { display: none; }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .topbar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .app-icon { width: 30px; height: 30px; flex: none; border-radius: 8px; object-fit: cover; }
@@ -1015,7 +1017,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .item-row .chips.seg-unit button { min-height: 38px; padding: 0; border-radius: 8px; }
 .item-row .item-unit.off + .chips { visibility: hidden; }
 /* Звідки вітер: циферблат, 12 — з боку цілі, стрілець у центрі; червоне — повний боковий, оливкове — половина зносу. */
-.wind-pick { position: relative; width: min(236px, 100%); aspect-ratio: 1; margin: 6px auto 2px; }
+.wind-pick { position: relative; width: min(250px, 100%); aspect-ratio: 1; margin: 6px auto 2px; }
 .wind-pick .wp-face { position: absolute; inset: 0; pointer-events: none; }
 .wind-pick .wp-face svg { width: 100%; height: 100%; overflow: visible; }
 .wp-ring { fill: var(--surface-2); stroke: var(--text); stroke-opacity: .55; stroke-width: .7; }
@@ -1035,6 +1037,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .wind-pick button.on { background: var(--accent); color: var(--on-accent); }
 .wind-pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wp-note { margin: 2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.wp-speed .wp-face { transition: opacity .15s; }
+.wp-speed.calm .wp-face { opacity: .45; }
+.wp-pad { position: absolute; inset: 13%; border-radius: 50%; touch-action: none; cursor: grab; }
+.wp-pad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wp-scale { fill: none; stroke: var(--muted); stroke-opacity: .35; stroke-width: .5; stroke-dasharray: 1.5 2; }
+.wind-pick .wp-scale-text { font-size: 4px; }
+.wp-knob { fill: var(--accent); }
+.wind-pick .wp-knob-text { fill: var(--on-accent); font-size: 5.5px; font-weight: 800; }
+.wind-pick-wrap:has(.wp-speed) .wp-note { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: var(--text); }
+.wp-quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.wp-quick button { display: grid; justify-items: center; gap: 1px; min-height: 44px; padding: 4px 2px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.wp-quick b { font: 700 15px var(--mono); }
+.wp-quick small { font-size: 11px; color: var(--muted); }
+.wp-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wp-more { margin: 6px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
 .tg-weather .field:has(> .wind-pick-wrap) { grid-column: 1 / -1; }
 .tg-weather .field:has(> [name="windGuess"]) { grid-column: 1 / -1; }
 .scope-row input, .scope-row select {
@@ -1397,12 +1415,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .ret.photo .r-kz.o { fill: none; }
 .guide .ret.photo .r-meas { stroke: #fff; stroke-width: 2px; }
 .guide .ret.photo .r-hold { stroke: #fff; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
-/* Чим міряти — у рядку інструментів замість вітру, руху й гвинтівки: іконка й розмір під нею, як у сусідів */
-.guide .sim-meas { display: contents; }
-.guide .sim-meas[hidden], .guide .sim-tool[hidden] { display: none; }
-.guide .sim-meas button { display: grid; justify-items: center; gap: 2px; min-width: 0; padding: 6px 4px; border: 1px solid var(--line); border-radius: 12px;
-  background: var(--surface-2); color: var(--text); font: 600 12px var(--mono); letter-spacing: -0.04em; cursor: pointer; }
-.guide .sim-meas button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-2); }
+/* Чим міряти — у верхньому рядку поруч із режимами: значок і розмір, кнопки ділять залишок рядка порівну */
+.guide .sim-meas { display: flex; flex: 1; min-width: 0; gap: 4px; }
+.guide .sim-meas[hidden], .guide .sim-tool[hidden], .guide .sim-tools[hidden] { display: none; }
+.guide .sim-meas button { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 2px; height: 40px; padding: 0 4px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--text); font: 600 12px var(--mono);
+  letter-spacing: -0.04em; white-space: nowrap; overflow: hidden; cursor: pointer; }
+.guide .sim-meas button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--accent-2); }
 .guide .r-ok { fill: none; stroke: #4cc38a; }
 .guide .r-zone { fill: none; stroke: color-mix(in srgb, var(--tgt) 55%, #000); }
 .guide .quiz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
@@ -1436,8 +1455,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .guide .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .guide .seg button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-2); font-size: 13px; cursor: pointer; }
 .guide .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 650; }
-.guide .readout { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); font: 14px/1.55 var(--mono); font-variant-numeric: tabular-nums; }
-.guide .readout .k { display: block; font: 12.5px system-ui, sans-serif; color: var(--muted); }
+/* Щільно, щоб під кнопками вміщалось на першому екрані: підпис і значення в одному рядку */
+.guide .readout { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); font: 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .readout .k { font: 12px system-ui, sans-serif; color: var(--muted); }
+.guide .readout .k::after { content: ': '; }
 .guide .readout .v { font-weight: 600; color: var(--accent-2); }
 .guide .readout .w { color: var(--warn); }
 
@@ -1969,10 +1990,18 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-dots i.cur { background: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .guide .quiz-ibtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .guide .quiz-ibtn svg { flex: none; width: 18px; height: 18px; margin: 0; }
-.guide .sim-meas button svg { width: 26px; height: 26px; max-width: none; margin: 0; }
+.guide .sim-meas button svg { flex: none; width: 16px; height: 16px; max-width: none; margin: 0; }
+/* Вузький екран: лише число — назва й одиниця в підказці; рядок не розпирає сторінку */
+.guide .ctl > .sim-row, .guide .sim-line { min-width: 0; }
+@media (max-width: 400px) {
+  .guide .sim-meas button svg, .guide .sim-meas .u { display: none; }
+}
 .guide .quiz-acts > button { flex: 1 1 0; min-width: 0; margin: 0; }
 /* Складність — свій випадний список: згорнуто — вибраний рівень зі стрілкою, розгорнуто — усі рівні під ним */
-.guide .quiz-levels { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.guide .quiz-levels { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.guide .quiz-level-nav { width: 28px; height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 24px system-ui, sans-serif; cursor: pointer; }
+.guide .quiz-level-nav:disabled { opacity: .25; cursor: default; }
+.guide .quiz-level-note { grid-column: 1 / -1; padding-inline: 4px; }
 .guide .quiz-level-strip .quiz-level { gap: 8px; padding: 0 12px 0 10px; color: var(--fg); font-size: 14.5px; font-weight: 600; cursor: pointer; }
 .guide .quiz-level-note { white-space: normal; }
 .guide .ql-bars { display: flex; align-items: flex-end; gap: 2px; height: 20px; }
@@ -2092,7 +2121,31 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-mode svg { width: 24px; height: 24px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .guide .quiz-sens { color: var(--muted); }
 /* Вітер, рух, гвинтівка — три іконки в рядок зі значенням під кожною; налаштування — у панелі під рядком */
-.guide .sim-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.guide .sim-tools { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.guide .sim-tool:not(.sim-gun) { grid-template-columns: auto minmax(0, 1fr); column-gap: 7px; row-gap: 0; align-items: center;
+  justify-items: start; padding: 6px 8px; text-align: left; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.guide .sim-tool:not(.sim-gun) > :first-child { grid-row: span 2; transition: transform .2s; }
+.guide .sim-tool:not(.sim-gun) .sim-tool-t { position: static; width: auto; height: auto; overflow: hidden; clip-path: none; max-width: 100%;
+  text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.2; color: var(--muted); }
+.guide .sim-tool:not(.sim-gun) .sim-tool-v { font-size: 13px; line-height: 1.25; }
+.guide .sim-tool:not(.sim-gun).hot { border-color: var(--accent); }
+.guide .sim-tool:not(.sim-gun).swipe { position: relative; padding-inline: 13px; }
+.guide .sim-tool:not(.sim-gun).swipe::before, .guide .sim-tool:not(.sim-gun).swipe::after { position: absolute; top: 50%; transform: translateY(-55%);
+  font: 600 15px system-ui, sans-serif; color: var(--muted); opacity: .6; pointer-events: none; }
+.guide .sim-tool:not(.sim-gun).swipe::before { content: '‹'; left: 4px; }
+.guide .sim-tool:not(.sim-gun).swipe::after { content: '›'; right: 4px; }
+.guide .sim-tool:not(.sim-gun).hot svg { color: var(--accent-2); }
+/* У далекомірі ціль — лише значком, щоб поруч умістилось «чим міряти»; свайп по ній так само міняє ціль */
+.guide .sim-line > .sim-tool[data-pop] { flex: none; width: 44px; height: 40px; padding: 0; display: grid; place-items: center; }
+.guide .sim-line > .sim-tool[data-pop] > :not(:first-child), .guide .sim-line > .sim-tool[data-pop]::before, .guide .sim-line > .sim-tool[data-pop]::after { display: none; }
+.guide .sim-line > .sim-tool[data-pop] > :first-child { grid-row: auto; }
+.guide .sim-line > .sim-gun { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; text-align: left; }
+/* Назва й набій — одним рядком, хвіст обрізається: кнопка заввишки як кнопки режимів */
+.guide .sim-gun-txt { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.guide .sim-gun-txt small::before { content: ' · '; }
+.guide .sim-gun-txt b { font-size: 14px; }
+.guide .sim-gun-txt small { font-size: 12px; color: var(--muted); }
+.guide .sim-gun-chev { color: var(--muted); }
 .guide .sim-tool { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--surface-2); color: var(--text); cursor: pointer; min-width: 0; }
 .guide .sim-tool svg { width: 26px; height: 26px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -2178,7 +2231,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-tool:disabled { opacity: .35; cursor: default; }
 /* Вітер у тренажері: опис сили під повзунком і менший циферблат */
 .guide .wind-desc { margin: 0; font-size: 13px; color: var(--muted); }
-.guide .sim-panel .wind-pick { width: min(170px, 100%); }
+.guide .sim-panel .wind-pick { width: min(230px, 100%); }
 .guide .sim-panel .wp-note { margin-top: 0; }
 .guide .quiz-go:disabled { opacity: .45; cursor: default; }
 
