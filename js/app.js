@@ -1714,16 +1714,18 @@ function spendingPeriodSheet(title, items, prev = null) {
   const sales = items.filter((x) => x.kind === 'sale');
   const total = boughtSum(items);
   const before = (kind) => (prev ? boughtSum(prev.items, kind) : 0);
+  // Долари — дрібно поруч із гривнями, як у решті застосунку (лише коли ввімкнено й у всіх покупок є курс)
+  const usdRows = (kind = null) => bought.filter((x) => !kind || x.kind === kind).map((x) => [x.price, x.date, x.rate]);
   const shares = SPEND_PARTS.map(([k, label], i) => {
     const sum = boughtSum(items, k);
     if (!sum) return null;
     const pct = Math.round((sum / total) * 100);
     return h('div', { class: 'spend-share' },
       h('div', { class: 'progress-label' }, h('span', {}, spendPartIcon(i), t(label)),
-        h('span', {}, `${grn(sum)} · ${pct}%`, spendDelta(sum, before(k)))),
+        h('span', {}, `${grn(sum)}${usdTail(usdRows(k))} · ${pct}%`, spendDelta(sum, before(k)))),
       h('div', { class: 'bar' }, h('div', { class: `fill bar-part p${i}`, style: `width:${Math.max(2, pct)}%` })));
   });
-  const head = h('div', { class: 'spend-total' }, h('span', {}, t('Итого')), h('b', {}, grn(total)),
+  const head = h('div', { class: 'spend-total' }, h('span', {}, t('Итого')), h('b', {}, tileMoney(total, usdSum(usdRows()))),
     before() ? h('span', { class: 'muted small' }, spendDelta(total, before()), ' ', t('к {period}', { period: prev.label })) : null);
   const open = (x) => () => {
     close();
@@ -1778,10 +1780,7 @@ function sellForm(item, onSave) {
 
 /** Витрати по роках; якщо рік один — по місяцях (останні 12). */
 function spendingChart(list) {
-  // У доларах видно справжню різницю між роками; лише коли кожна сума має курс
   const dated = list.filter((x) => x.date);
-  const inUsd = usdSum(dated.map((x) => [x.price, x.date, x.rate])) !== null;
-  const amount = (x) => (inUsd ? usdOf(x.price, x.date, x.rate) : x.price);
   const by = (period) => [...dated.reduce((map, x) => {
     const key = periodOf(x.date, period).key;
     return map.set(key, [...(map.get(key) ?? []), x]);
@@ -1790,7 +1789,7 @@ function spendingChart(list) {
   let rows = by(period);
   if (rows.length < 2) { period = 'month'; rows = by(period).slice(-12); }
   if (rows.length < 2) return null;
-  const sumOf = (items) => items.reduce((s, x) => s + amount(x), 0);
+  const sumOf = (items) => items.reduce((s, x) => s + x.price, 0);
   // Стовпчик — чисті витрати (з продажами) одним кольором; тап — розбір періоду за категоріями
   const labelOf = (key) => PERIOD_CHART[period].label(key);
   const bars = rows.map(([key, items], i) => {
@@ -1799,7 +1798,7 @@ function spendingChart(list) {
   });
   const csv = toolBtn('share', t('Экспорт в CSV'), () => exportSpendingCsv(list), 'small box-corner');
   return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'), h('div', {},
-    barChart(bars, { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))), inside: true }),
+    barChart(bars, { format: (v) => fmt.num(Math.round(v)), inside: true }),
     h('p', { class: 'muted small' }, t(period === 'year' ? 'Нажмите на год — разбивка по категориям' : 'Нажмите на месяц — разбивка по категориям'))),
     { fold: 'spend-chart', corner: csv });
 }
