@@ -2446,6 +2446,10 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .md pre { font: 13px/1.45 var(--mono); background: var(--surface-2); padding: 10px 12px; border-radius: 8px; overflow-x: auto; white-space: pre; }
 .md blockquote { margin: 0 0 12px; padding: 2px 0 2px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
 .md hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+.md figure { margin: 0 0 14px; }
+.md .md-img { display: block; max-width: 100%; max-height: 70vh; height: auto; border-radius: 8px; cursor: zoom-in; }
+.md p .md-img { margin: 6px 0; }
+.md figcaption { margin-top: 6px; font-size: 13px; color: var(--muted); }
 .md-table { overflow-x: auto; margin: 0 0 12px; }
 .md table { border-collapse: collapse; font-size: 14px; min-width: 100%; }
 .md th, .md td { padding: 7px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }

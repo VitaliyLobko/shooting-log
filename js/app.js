@@ -5427,13 +5427,35 @@ function articlesBox() {
     h('span', { class: 'muted small' }, articleDay(a))));
   return box(t('Статьи'), list.length
     ? h('div', {}, h('div', { class: 'article-list' }, rows), h('div', { class: 'btn-row' }, add))
-    : h('div', {}, h('p', { class: 'muted small' }, t('Свои заметки по снаряжению: джамп, посадка, навески, методика. Писать удобнее на компьютере — на телефон придут через Google Диск.')), h('div', { class: 'btn-row' }, add)));
+    : h('div', {}, h('p', { class: 'muted small' }, t('Свои заметки по снаряжению: джамп, посадка, навески, методика. Писать удобнее на компьютере — на телефон придут через Google Диск.')), h('div', { class: 'btn-row' }, add)), { fold: 'articles', count: list.length });
+}
+
+const articlePhotos = (articleId) => state.photos.filter((p) => p.articleId === articleId);
+const ARTICLE_IMAGE = /!\[[^\]]*\]\(photo:([\w-]+)\)/g;
+const articleImageIds = (body) => new Set([...String(body ?? '').matchAll(ARTICLE_IMAGE)].map((m) => m[1]));
+
+/**
+ * Картинка статті: одразу мініатюра, потім повне фото (ще не докачане з Диска — лишається мініатюра).
+ * Тап — усі картинки статті на весь екран.
+ */
+function articleImage(articleId) {
+  return (id, alt) => {
+    const photo = state.photos.find((p) => p.id === id);
+    if (!photo) return h('span', { class: 'muted small' }, `[${alt || t('картинка')}]`);
+    const img = h('img', { class: 'md-img', src: photo.thumb, alt: alt || '', loading: 'lazy' });
+    coverUrl(photo).then((url) => { if (url) img.src = url; });
+    img.addEventListener('click', () => {
+      const list = articlePhotos(articleId);
+      viewer(list, Math.max(0, list.findIndex((p) => p.id === id)));
+    });
+    return img;
+  };
 }
 
 function articleView(a) {
   const body = () => {
     const cur = state.articles.find((x) => x.id === a.id);
-    return cur ? h('div', {}, h('div', { class: 'md' }, renderMarkdown(cur.body)),
+    return cur ? h('div', {}, h('div', { class: 'md' }, renderMarkdown(cur.body, { image: articleImage(a.id) })),
       h('p', { class: 'muted small article-day' }, t('Изменено {date}', { date: articleDay(cur) }))) : null;
   };
   const tools = [
@@ -5441,7 +5463,12 @@ function articleView(a) {
     toolBtn('delete', t('Удалить'), () => {
       close();
       confirmSheet(t('Удалить статью?'), t('«{name}» удалится и с других устройств после синхронизации.', { name: a.title }), t('Удалить'),
-        async () => { await db.write({ articles: { del: [a.id] } }); await refresh(); });
+        async () => {
+          await db.write({ articles: { del: [a.id] } });
+          const photos = articlePhotos(a.id);
+          if (photos.length) await removePhotos(photos);
+          else await refresh();
+        });
     }, 'danger'),
   ];
   const close = sheet(a.title, body(), { live: body, tools, full: true });
@@ -5455,11 +5482,15 @@ function articleForm(a = null) {
     placeholder: t('## Заголовок\nОбычный текст, **жирный**, *курсив*.\n\n- пункт списка\n\n| Навеска | Скорость |\n|---|---|\n| 43,5 gr | 2620 fps |'),
   });
   src.value = a?.body ?? '';
+  // id наперед: картинки записуються одразу з articleId, ще до збереження статті
+  const id = a?.id ?? db.uid();
   const preview = h('div', { class: 'md md-preview' });
   let queued = false;
   const paint = () => {
     queued = false;
-    preview.replaceChildren(src.value.trim() ? renderMarkdown(src.value) : h('p', { class: 'muted' }, t('Здесь будет видно, как статья выглядит')));
+    preview.replaceChildren(src.value.trim()
+      ? renderMarkdown(src.value, { image: articleImage(id) })
+      : h('p', { class: 'muted' }, t('Здесь будет видно, как статья выглядит')));
   };
   src.addEventListener('input', () => { if (!queued) { queued = true; requestAnimationFrame(paint); } });
   paint();
@@ -5479,6 +5510,55 @@ function articleForm(a = null) {
     return [lines.map((l, n) => (mark === '1. ' ? `${n + 1}. ` : mark) + l).join('\n'), start, e];
   });
   const block = (text) => () => edit((sel, v, s, e) => [`${s && v[s - 1] !== '\n' ? '\n\n' : ''}${text}\n`, s, e]);
+
+  // Картинки: кнопкою, вставкою з буфера чи перетягуванням; кожна — фото з articleId, у тексті ![](photo:id)
+  const added = [];
+  const addImages = async (files) => {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (!images.length) return false;
+    const lines = [];
+    for (const file of images) {
+      try {
+        const { blob, thumb, w, h: height } = await preparePhoto(file);
+        const photoId = db.uid();
+        await db.write({
+          photos: { put: [{ id: photoId, articleId: id, created: Date.now(), thumb, w, h: height, driveId: null }] },
+          blobs: { put: [{ id: photoId, blob }] },
+        });
+        added.push(photoId);
+        lines.push(`![](photo:${photoId})`);
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+    await refresh();
+    if (lines.length) {
+      // Після виділення, курсор — за картинкою: наступна вставка не замінить попередню
+      const { selectionEnd: at, value } = src;
+      src.focus();
+      const gap = !at || value.slice(at - 2, at) === '\n\n' ? '' : value[at - 1] === '\n' ? '\n' : '\n\n';
+      src.setRangeText(`${gap}${lines.join('\n\n')}\n`, at, at, 'end');
+      src.dispatchEvent(new Event('input'));
+    }
+    return true;
+  };
+  const picker = h('input', {
+    type: 'file', accept: 'image/*', multiple: true, hidden: true,
+    onchange: (e) => { const files = [...e.target.files]; e.target.value = ''; addImages(files); },
+  });
+  src.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files ?? [])];
+    if (files.some((f) => f.type.startsWith('image/'))) { e.preventDefault(); addImages(files); }
+  });
+  src.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
+  src.addEventListener('drop', (e) => {
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (!files.some((f) => f.type.startsWith('image/'))) return;
+    e.preventDefault();
+    src.focus();
+    addImages(files);
+  });
+
   const tool = (label, title, onclick) => h('button', { type: 'button', class: 'md-tool', title, 'aria-label': title, onclick }, label);
   const toolbar = h('div', { class: 'md-toolbar' },
     tool('H', t('Заголовок'), prefix('## ')),
@@ -5488,7 +5568,8 @@ function articleForm(a = null) {
     tool('1.', t('Нумерованный список'), prefix('1. ')),
     tool('❝', t('Цитата'), prefix('> ')),
     tool('▦', t('Таблица'), block(`| ${t('Навеска')} | ${t('Скорость')} | ${t('Группа')} |\n|---|---|---|\n|  |  |  |`)),
-    tool('🔗', t('Ссылка'), wrap('', `[${t('текст')}](https://)`)));
+    tool('🔗', t('Ссылка'), wrap('', `[${t('текст')}](https://)`)),
+    tool('🖼', t('Картинка'), () => picker.click()), picker);
 
   // Телефон: або текст, або перегляд; на широкому екрані CSS показує обидва й ховає перемикач
   const editor = h('div', { class: 'md-editor show-src' });
@@ -5501,9 +5582,14 @@ function articleForm(a = null) {
 
   const initial = JSON.stringify([title.value, src.value]);
   const dirty = () => JSON.stringify([title.value, src.value]) !== initial;
+  let saved = false;
+  // Вийшли без збереження — картинки, додані цього разу, не потрібні
+  const onClose = () => {
+    if (!saved && added.length) removePhotos(state.photos.filter((p) => added.includes(p.id)));
+  };
   const close = sheet(a ? t('Изменить статью') : t('Новая статья'), h('div', { class: 'article-form' }, title, modes, editor), {
     actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
-    full: true, dirty,
+    full: true, dirty, onClose,
   });
   const onKey = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
@@ -5514,8 +5600,14 @@ function articleForm(a = null) {
   async function save() {
     const name = title.value.trim();
     if (!name) { formError(t('Введите название статьи')); title.focus(); return; }
+    saved = true;
     close();
-    await saveEntity('articles', { ...(a ?? { id: db.uid(), created: Date.now() }), title: name, body: src.value.replace(/\s+$/, '') });
+    const body = src.value.replace(/\s+$/, '');
+    await saveEntity('articles', { ...(a ?? { id, created: Date.now() }), title: name, body });
+    // Картинки, які прибрали з тексту, — з пристрою й у кошик Диска
+    const used = articleImageIds(body);
+    const unused = articlePhotos(id).filter((p) => !used.has(p.id));
+    if (unused.length) await removePhotos(unused);
   }
 }
 
