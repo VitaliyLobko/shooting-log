@@ -258,7 +258,11 @@ export async function editPhoto(blob, { square = false } = {}) {
  * Перегляд на весь екран: свайп або стрілки — сусіднє фото.
  * photos — масив записів; isCover(p), onCover(p), onDelete(p) → Promise<bool>, onEdit(p) → Promise<новий запис|null>.
  */
-export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
+/**
+ * Перегляд фото на весь екран. Обробники — за потреби: без onCover / onEdit / onDelete відповідної кнопки немає
+ * (фото тюнінгу — лише подивитись). p.file — ще не збережене фото, його показуємо без сховища.
+ */
+export function viewer(photos, index, { isCover = null, onCover = null, onDelete = null, onEdit = null } = {}) {
   const list = [...photos];
   let i = index;
   let url = null;
@@ -290,8 +294,8 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
       img,
       h('button', { type: 'button', class: 'viewer-nav next', 'aria-label': t('Следующее'), onclick: () => go(1) }, '›'),
       note),
-    h('footer', { class: 'viewer-actions' }, coverBtn,
-      h('button', {
+    onCover || onEdit || onDelete ? h('footer', { class: 'viewer-actions' }, onCover ? coverBtn : null,
+      onEdit ? h('button', {
         type: 'button', class: 'btn',
         onclick: async () => {
           const fresh = await onEdit(list[i]);
@@ -299,8 +303,8 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
           list[i] = fresh;
           show();
         },
-      }, t('✎ Изменить')),
-      h('button', {
+      }, t('✎ Изменить')) : null,
+      onDelete ? h('button', {
         type: 'button', class: 'btn danger',
         onclick: async () => {
           const p = list[i];
@@ -310,7 +314,7 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
           i = Math.min(i, list.length - 1);
           show();
         },
-      }, t('Удалить'))));
+      }, t('Удалить')) : null) : null);
 
   let startX = null;
   img.addEventListener('pointerdown', (e) => { startX = e.clientX; });
@@ -325,13 +329,13 @@ export function viewer(photos, index, { isCover, onCover, onDelete, onEdit }) {
     const p = list[i];
     counter.textContent = list.length > 1 ? `${i + 1} / ${list.length}` : '';
     root.classList.toggle('single', list.length < 2);
-    const cover = isCover(p);
+    const cover = Boolean(isCover?.(p));
     coverBtn.textContent = cover ? t('★ Главное фото') : t('☆ Сделать главным');
     coverBtn.disabled = cover;
     note.textContent = '';
     img.src = p.thumb;
     if (url) { URL.revokeObjectURL(url); url = null; }
-    const blob = await db.getBlob(p.id);
+    const blob = p.file ?? await db.getBlob(p.id);
     if (list[i] !== p) return;
     if (blob) {
       url = URL.createObjectURL(blob);

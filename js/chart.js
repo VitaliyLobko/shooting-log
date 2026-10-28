@@ -126,15 +126,18 @@ export function lineChart(points, { up = true, format = (v) => String(Math.round
 }
 
 /** Стовпчики за місяцями: [{ label, value, sub }]. Найбільший — акцентом. */
+/** parts — частки стовпчика знизу вгору (відтінки .bar-part p0, p1…); onclick — стовпчик натискається. */
 export function barChart(rows, { format = (v) => String(Math.round(v)) } = {}) {
   const el = h('div', { class: 'bars' });
   if (!rows.length) return el;
   const max = Math.max(...rows.map((r) => r.value)) || 1;
   for (const r of rows) {
-    const bar = h('div', { class: `bar-col ${r.value === max ? 'top' : ''}`, title: `${r.label}: ${format(r.value)}` },
+    const tap = r.onclick ? { role: 'button', tabindex: 0, onclick: r.onclick, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); r.onclick(); } } } : {};
+    const bar = h('div', { class: `bar-col ${r.value === max ? 'top' : ''} ${r.onclick ? 'tap' : ''}`, title: `${r.label}: ${format(r.value)}`, ...tap },
       h('span', { class: 'bar-val' }, format(r.value)),
       // Від'ємне (продав більше, ніж купив) — без стовпчика, лише підпис з мінусом.
-      h('span', { class: 'bar-fill', style: `height:${r.value > 0 ? Math.max(3, (r.value / max) * 100) : 0}%` }),
+      h('span', { class: r.parts ? 'bar-fill parts' : 'bar-fill', style: `height:${r.value > 0 ? Math.max(3, (r.value / max) * 100) : 0}%` },
+        r.parts?.map((v, i) => (v > 0 ? h('span', { class: `bar-part p${i}`, style: `flex:${v} 1 0` }) : null))),
       h('span', { class: 'bar-lbl' }, r.label));
     el.append(bar);
   }
