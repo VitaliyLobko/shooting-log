@@ -1662,7 +1662,10 @@ function rateHint(f, name, dateName) {
   show();
 }
 /** Покупка ствола й увесь тюнінг — кожне за своєю датою. */
-const investRows = (w) => [[w.buyPrice, w.buyDate, w.usdRate], ...(w.mods ?? []).map((m) => [m.price, m.date, m.usdRate])];
+/** День для курсу $: покупка без дати — за сьогоднішнім курсом, щоб підсумок у $ не зникав. */
+const gunDay = (w) => w.buyDate ?? M.today();
+const modDay = (w, m) => m.date ?? M.today();
+const investRows = (w) => [[w.buyPrice, gunDay(w), w.usdRate], ...(w.mods ?? []).map((m) => [m.price, modDay(w, m), m.usdRate])];
 
 const isSold = (x) => Boolean(x?.soldDate);
 
@@ -2066,12 +2069,12 @@ function buyBox(w, close) {
   const modRow = (m) => {
     const p = modPhoto(m.id);
     return priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-      m.price, () => modForm(w, m), photoThumb(p), m.date, m.usdRate, isSold(m) ? 'tune sold' : 'tune');
+      m.price, () => modForm(w, m), photoThumb(p), modDay(w, m), m.usdRate, isSold(m) ? 'tune sold' : 'tune');
   };
   const el = box(t('Покупка и тюнинг'), [
     total ? investSummary(w, total) : null,
     h('div', { class: 'rows invest-rows' },
-      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate, 'gun') : null,
+      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, gunDay(w), w.usdRate, 'gun') : null,
       mods.map(modRow),
       isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
     h('div', { class: 'btn-row' },
