@@ -1837,8 +1837,9 @@ function gearForm(g = null, { file = null, preset = null } = {}) {
 }
 
 /**
- * Одне фото до запису: плитка-прев'ю (тап — з галереї), «Знайти фото» — Google Картинки за назвою,
- * «Вставити» — скопійоване зображення; на комп'ютері ще Ctrl+V і перетягування. Пишеться разом із формою.
+ * Одне фото до запису: плитка-прев'ю (тап — фото на весь екран, порожня — вибрати), «З галереї»,
+ * «Знайти фото» — Google Картинки за назвою, «Вставити» — скопійоване зображення;
+ * на комп'ютері ще Ctrl+V і перетягування. Пишеться разом із формою.
  */
 function photoPicker(current, { file: preset = null, query = () => '', onSearch = null } = {}) {
   let file = preset;
@@ -1886,14 +1887,18 @@ function photoPicker(current, { file: preset = null, query = () => '', onSearch 
     const src = url ?? (removed ? null : current?.thumb);
     el.replaceChildren(
       h('button', {
-        type: 'button', class: `photo-pick-thumb ${src ? '' : 'empty'}`, 'aria-label': t('Фото'), onclick: () => input.click(),
+        type: 'button', class: `photo-pick-thumb ${src ? '' : 'empty'}`, 'aria-label': t('Фото'),
+        onclick: () => (src ? viewer([file ? { id: 'new', thumb: url, file } : current], 0) : input.click()),
         ondragover: (e) => e.preventDefault(),
         ondrop: (e) => { e.preventDefault(); take(e.dataTransfer?.files?.[0]); },
       }, src ? h('img', { src, alt: '' }) : h('span', {}, '+ ', t('Фото'))),
       h('div', { class: 'photo-pick-acts' },
         btn(`🔍 ${t('Найти фото')}`, search, 'mini'),
         navigator.clipboard?.read ? btn(t('Вставить'), paste, 'mini quiet') : null,
+        btn(t('Из галереи'), () => input.click(), 'mini quiet'),
         src ? btn(t('Убрать фото'), () => { file = null; removed = true; paint(); }, 'mini quiet') : null),
+      navigator.clipboard?.read ? h('p', { class: 'muted small photo-pick-hint' },
+        t('В Google: долгий тап по картинке → «Копировать изображение» → здесь «Вставить».')) : null,
       input);
   }
   paint();
@@ -1930,7 +1935,11 @@ async function takeSharedImage() {
 
 const modPhoto = (modId) => state.photos.find((p) => p.modId === modId) ?? null;
 const gearPhoto = (gearId) => state.photos.find((p) => p.gearId === gearId) ?? null;
-const photoThumb = (p) => (p ? h('img', { class: 'row-thumb', src: p.thumb, alt: '' }) : null);
+/** Мініатюра в рядку: тап по ній — фото на весь екран, по решті рядка — форма. */
+const photoThumb = (p) => (p ? h('img', {
+  class: 'row-thumb', src: p.thumb, alt: t('Фото'),
+  onclick: (e) => { e.stopPropagation(); viewer([p], 0); },
+}) : null);
 
 /**
  * Фото тюнінгу чи екіпірування — owner { modId } або { gearId }, без weaponId, щоб не потрапило в галерею ствола.

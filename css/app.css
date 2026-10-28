@@ -824,7 +824,9 @@ button.gun-stat { cursor: pointer; }
 .invest-rows .row.sold { opacity: .6; }
 .row-thumb { flex: none; width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: var(--surface-2); }
 /* Фото тюнінгу у формі: плитка-прев'ю, тап — вибрати чи замінити */
-.photo-pick { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.photo-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px; }
+.photo-pick-hint { flex-basis: 100%; margin: -4px 0 0; }
+.row-thumb { cursor: zoom-in; }
 .photo-pick-thumb {
   flex: none;
   width: 96px;
