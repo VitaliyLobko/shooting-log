@@ -1906,9 +1906,10 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .bar-fill { width: 100%; min-height: 2px; align-self: end; border-radius: 6px 6px 0 0; background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
 .bar-col.top .bar-fill { background: var(--accent); }
 .bar-col.tap { cursor: pointer; border-radius: 6px; }
-/* Наведення: решта стовпчиків блідне — видно, який рік відкриється тапом */
+/* Наведення: стовпчик змінює колір — видно, який рік відкриється тапом; у світлій темі він темний, число біле */
 @media (hover: hover) {
-  .bars:has(.bar-col.tap:hover) .bar-col:not(:hover) .bar-fill { opacity: .4; }
+  .bar-col.tap:hover .bar-fill, .bar-col.tap.top:hover .bar-fill { background: var(--accent-2); }
+  :root[data-theme="light"] .bar-col.tap:hover .bar-in { color: #fff; }
   .bar-col.tap:hover .bar-lbl { color: var(--text); font-weight: 700; }
 }
 .bar-col.tap:active .bar-fill { filter: brightness(1.12); }
