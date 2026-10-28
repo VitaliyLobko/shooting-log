@@ -1709,8 +1709,13 @@ function spendingPeriodSheet(title, items) {
     else if (kind === 'mod') modForm(x.weapon, x.item);
     else gearForm(x.item);
   };
-  const row = (x) => priceRow(x.item.name, [fmt.date(x.date), x.weapon?.name].filter(Boolean).join(' · '), Math.abs(x.price), open(x), null, x.date, x.rate);
-  const close = sheet(title, h('div', {},
+  // Квадратик відтінку з графіка й категорія в підписі — видно, куди пішла покупка
+  const row = (x) => {
+    const i = SPEND_PARTS.findIndex(([k]) => k === (x.of ?? x.kind));
+    return priceRow([spendPartIcon(i), x.item.name], [t(SPEND_PARTS[i][1]), fmt.date(x.date), x.weapon?.name].filter(Boolean).join(' · '),
+      Math.abs(x.price), open(x), null, x.date, x.rate);
+  };
+  const close = sheet(title, h('div', { class: 'spend-sheet' },
     total ? box(t('Покупки'), h('div', {}, shares, h('div', { class: 'rows spend-rows' }, bought.map(row)))) : null,
     sales.length ? box(t('Продано'), h('div', { class: 'rows' }, sales.map(row))) : null));
 }

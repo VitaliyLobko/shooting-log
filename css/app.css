@@ -1908,7 +1908,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 :root[data-theme="light"] .bar-part.p1 { background: color-mix(in srgb, var(--accent) 62%, var(--surface-2)); }
 :root[data-theme="light"] .bar-part.p2 { background: color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
 .bar-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
-.bar-legend i, .spend-share i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.bar-legend i, .spend-share i, .spend-sheet .row-title i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .spend-share + .spend-share { margin-top: 10px; }
 .spend-rows { margin-top: 14px; }
 .bar-col.top .bar-val { color: var(--accent-2); font-weight: 700; }
