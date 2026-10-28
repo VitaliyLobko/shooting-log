@@ -1678,49 +1678,80 @@ function soldItems() {
   ].sort((a, b) => b.item.soldDate.localeCompare(a.item.soldDate));
 }
 
-/** Усі витрати з датою: покупка стволів (і архівних), тюнінг, екіпірування; продаж — мінусом. */
+/**
+ * Усі витрати з датою: покупка стволів (і архівних), тюнінг, екіпірування, набої й компоненти; продаж — мінусом.
+ * Набої й компоненти — лише покупки: спорядження вже оплачене покупкою компонентів.
+ */
 function spending() {
   const all = [...state.weapons.map((w) => ['gun', w, null]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m, w])),
     ...state.gear.map((g) => ['gear', g, null])];
+  const unit = (m) => (m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт');
   return [
-    ...all.map(([kind, x, weapon]) => ({ kind, item: x, weapon, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
-    ...all.filter(([, x]) => isSold(x)).map(([of, x, weapon]) => ({ kind: 'sale', of, item: x, weapon, date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
+    ...all.map(([kind, x, weapon]) => ({ kind, item: x, weapon, name: x.name, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
+    ...all.filter(([, x]) => isSold(x)).map(([of, x, weapon]) => ({ kind: 'sale', of, item: x, weapon, name: x.name, date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
+    ...state.movements.filter((m) => m.kind === 'buy' && (m.cartridgeId || m.componentId))
+      .map((m) => ({ kind: m.componentId ? 'reload' : 'ammo', item: m, weapon: null, name: movementTitle(m), qty: `${fmt.num(m.qty)} ${unit(m)}`, date: dayOf(m), price: priceOf(m.price), rate: m.usdRate })),
   ].filter((x) => x.price);
 }
 
 /** Частки витрат — у цьому порядку знизу вгору в стовпчику й у розборі періоду. */
-const SPEND_PARTS = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка']];
+// Набої — готові патрони; релоад — компоненти для спорядження (порох, капсулі, кулі, гільзи)
+const SPEND_PARTS = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка'], ['ammo', 'патроны'], ['reload', 'релоад']];
 const spendPartIcon = (i) => h('i', { class: `bar-part p${i}` });
+const spendPart = (x) => SPEND_PARTS.findIndex(([k]) => k === (x.of ?? x.kind));
+/** Сума покупок (без продажів) — уся чи однієї категорії. */
+const boughtSum = (items, kind = null) => items.reduce((s, x) => s + (x.kind !== 'sale' && (!kind || x.kind === kind) ? x.price : 0), 0);
+/** Зміна до попереднього періоду: «↑35%»; попереднього нема чи там нуль — нічого. */
+function spendDelta(cur, before) {
+  if (!before) return null;
+  const pct = Math.round(((cur - before) / before) * 100);
+  return h('span', { class: 'spend-delta' }, `${pct > 0 ? '↑' : pct < 0 ? '↓' : '±'}${Math.abs(pct)}%`);
+}
 
-/** Розбір витрат за рік чи місяць: частки зброї, тюнінгу й екіпірування, покупки й продажі. */
-function spendingPeriodSheet(title, items) {
+/** Розбір витрат за рік чи місяць: частки категорій і зміна до попереднього періоду, покупки й продажі. */
+function spendingPeriodSheet(title, items, prev = null) {
   const bought = items.filter((x) => x.kind !== 'sale').sort((a, b) => b.price - a.price);
   const sales = items.filter((x) => x.kind === 'sale');
-  const total = bought.reduce((s, x) => s + x.price, 0);
+  const total = boughtSum(items);
+  const before = (kind) => (prev ? boughtSum(prev.items, kind) : 0);
   const shares = SPEND_PARTS.map(([k, label], i) => {
-    const sum = bought.filter((x) => x.kind === k).reduce((s, x) => s + x.price, 0);
+    const sum = boughtSum(items, k);
     if (!sum) return null;
     const pct = Math.round((sum / total) * 100);
     return h('div', { class: 'spend-share' },
-      h('div', { class: 'progress-label' }, h('span', {}, spendPartIcon(i), t(label)), h('span', {}, `${grn(sum)} · ${pct}%`)),
+      h('div', { class: 'progress-label' }, h('span', {}, spendPartIcon(i), t(label)),
+        h('span', {}, `${grn(sum)} · ${pct}%`, spendDelta(sum, before(k)))),
       h('div', { class: 'bar' }, h('div', { class: `fill bar-part p${i}`, style: `width:${Math.max(2, pct)}%` })));
   });
+  const head = h('div', { class: 'spend-total' }, h('span', {}, t('Итого')), h('b', {}, grn(total)),
+    before() ? h('span', { class: 'muted small' }, spendDelta(total, before()), ' ', t('к {period}', { period: prev.label })) : null);
   const open = (x) => () => {
     close();
     const kind = x.of ?? x.kind;
     if (kind === 'gun') weaponDetail(x.item);
     else if (kind === 'mod') modForm(x.weapon, x.item);
+    else if (kind === 'ammo' || kind === 'reload') movementDetail(x.item);
     else gearForm(x.item);
   };
   // Квадратик відтінку з графіка й категорія в підписі — видно, куди пішла покупка
   const row = (x) => {
-    const i = SPEND_PARTS.findIndex(([k]) => k === (x.of ?? x.kind));
-    return priceRow([spendPartIcon(i), x.item.name], [t(SPEND_PARTS[i][1]), fmt.date(x.date), x.weapon?.name].filter(Boolean).join(' · '),
+    const i = spendPart(x);
+    return priceRow([spendPartIcon(i), x.name], [t(SPEND_PARTS[i][1]), fmt.date(x.date), x.weapon?.name, x.qty].filter(Boolean).join(' · '),
       Math.abs(x.price), open(x), null, x.date, x.rate);
   };
   const close = sheet(title, h('div', { class: 'spend-sheet' },
-    total ? box(t('Покупки'), h('div', {}, shares, h('div', { class: 'rows spend-rows' }, bought.map(row)))) : null,
+    total ? box(t('Покупки'), h('div', {}, head, shares, h('div', { class: 'rows spend-rows' }, bought.map(row)))) : null,
     sales.length ? box(t('Продано'), h('div', { class: 'rows' }, sales.map(row))) : null));
+}
+
+/** Витрати в CSV для Excel: покупки й продажі (мінусом) від старих до нових, сума в грн і $. */
+async function exportSpendingCsv(list) {
+  if (!list.length) { toast(t('Нет записей для экспорта')); return; }
+  const rows = [...list].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')).map((x) => [
+    x.date ? fmt.date(x.date) : '', t(x.kind === 'sale' ? 'Продажа' : 'Покупка'), t(SPEND_PARTS[spendPart(x)][1]), x.name ?? '',
+    x.weapon?.name ?? '', x.qty ?? '', csvNum(x.price), csvNum(x.date || x.rate ? usdOf(x.price, x.date, x.rate) : null)]);
+  const head = [t('Дата'), t('Тип'), t('Категория'), t('Название'), t('Оружие'), t('Количество'), t('Сумма, грн'), t('Сумма, $')];
+  await offerFile(`shooters-log-spending-${M.today()}.csv`, csvText(head, rows), 'text/csv');
 }
 
 /** Продаж: ціна, дата, кому чи де; «Не продано» скасовує продаж. */
@@ -1759,16 +1790,18 @@ function spendingChart(list) {
   let rows = by(period);
   if (rows.length < 2) { period = 'month'; rows = by(period).slice(-12); }
   if (rows.length < 2) return null;
-  const sumOf = (items, kind) => items.filter((x) => !kind || x.kind === kind).reduce((s, x) => s + amount(x), 0);
-  // Стовпчик — чисті витрати (з продажами), відтінки всередині — частки покупок; тап — розбір періоду
-  const bars = rows.map(([key, items]) => {
-    const label = PERIOD_CHART[period].label(key);
-    return { label, value: sumOf(items), parts: SPEND_PARTS.map(([k]) => sumOf(items, k)), onclick: () => spendingPeriodSheet(label, items) };
+  const sumOf = (items) => items.reduce((s, x) => s + amount(x), 0);
+  // Стовпчик — чисті витрати (з продажами) одним кольором; тап — розбір періоду за категоріями
+  const labelOf = (key) => PERIOD_CHART[period].label(key);
+  const bars = rows.map(([key, items], i) => {
+    const prev = rows[i - 1] ? { label: labelOf(rows[i - 1][0]), items: rows[i - 1][1] } : null;
+    return { label: labelOf(key), value: sumOf(items), onclick: () => spendingPeriodSheet(labelOf(key), items, prev) };
   });
+  const csv = toolBtn('share', t('Экспорт в CSV'), () => exportSpendingCsv(list), 'small box-corner');
   return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'), h('div', {},
-    barChart(bars, { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))) }),
-    h('div', { class: 'bar-legend' }, SPEND_PARTS.map(([, label], i) => h('span', {}, spendPartIcon(i), t(label))))),
-    { fold: 'spend-chart' });
+    barChart(bars, { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))), inside: true }),
+    h('p', { class: 'muted small' }, t(period === 'year' ? 'Нажмите на год — разбивка по категориям' : 'Нажмите на месяц — разбивка по категориям'))),
+    { fold: 'spend-chart', corner: csv });
 }
 
 function renderGear() {
@@ -2593,9 +2626,9 @@ function weaponBody(w, close) {
   const moves = state.movements.filter((m) => m.weaponId === w.id);
   const cost = M.shotsCost(state, moves);
   const main = M.defaultScope(w) ?? w.scopes?.[0];
-  // Калібр у підписі шапки — кольором калібру, як монограма; номер і комплект — звичайним
+  // Калібр у підписі шапки — іконкою набою й кольором калібру, як у Складі; номер і комплект — звичайним
   const rest = [w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ');
-  const caption = [w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
+  const caption = [w.caliber ? cartridgeIcon(w.caliber) : null, w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
     w.caliber && rest ? ' · ' : null, rest || null].filter(Boolean);
   return h('div', { class: 'gun-card' },
     gunHero(w, caption),
@@ -5870,20 +5903,25 @@ async function exportData(share) {
  */
 async function exportCsv(list) {
   if (!list.length) { toast(t('Нет записей для экспорта')); return; }
-  const cell = (v) => {
-    const s = v === null || v === undefined ? '' : String(v);
-    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-  };
-  const dec = (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : '');
   const rows = [...list].sort((a, b) => M.byDateDesc(b, a)).map((m) => {
     const gun = m.kind === 'clean' ? findWeapon(m.weaponId)?.name : shotGun(m)?.name;
     const unit = m.kind === 'clean' ? '' : m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт';
     return [fmt.date(m.date), m.time ?? '', t(M.KINDS[m.kind]), gun ?? '', m.kind === 'clean' ? '' : movementTitle(m),
-      m.kind === 'clean' ? '' : String(m.qty).replace('.', ','), unit, dec(m.kind === 'shot' ? M.shotCost(state, m) : m.price), m.note ?? ''];
+      m.kind === 'clean' ? '' : String(m.qty).replace('.', ','), unit, csvNum(m.kind === 'shot' ? M.shotCost(state, m) : m.price), m.note ?? ''];
   });
   const head = [t('Дата'), t('Время'), t('Тип'), t('Оружие'), t('Патрон / компонент'), t('Количество'), t('Ед.'), t('Сумма'), t('Примечание')];
-  const text = `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
-  await offerFile(`shooters-log-journal-${M.today()}.csv`, text, 'text/csv');
+  await offerFile(`shooters-log-journal-${M.today()}.csv`, csvText(head, rows), 'text/csv');
+}
+
+/** Число для CSV: десяткова кома, два знаки; нуль чи не число — порожньо. */
+const csvNum = (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : '');
+/** Таблиця в CSV: «;», лапки за потреби, BOM — щоб Excel не поламав кирилицю. */
+function csvText(head, rows) {
+  const cell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  return `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
 }
 
 // Коли востаннє зберігали копію — для нагадування й рядка в ⚙ (лише на цьому пристрої).

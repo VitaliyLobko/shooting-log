@@ -760,6 +760,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-overflow: ellipsis;
 }
 .gun-hero-cal { color: hsl(var(--h) 90% 76%); font-weight: 800; }
+.gun-hero-cap .ammo-ico { display: inline-grid; width: 30px; height: 30px; border-radius: 9px; margin-right: 8px; vertical-align: middle; }
+/* Підпис лежить на темному затемненні фото — плитка темна в обох темах */
+:root[data-theme="light"] .gun-hero-cap .ammo-ico {
+  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 40% 28%), hsl(var(--h) 30% 12%) 75%);
+  border-color: hsl(var(--h) 35% 30%); }
+.gun-hero-cap .ammo-ico svg { height: 25px; }
+.gun-hero-cap .ammo-ico svg.pistol { height: 20px; }
+.gun-hero-cap .ammo-ico svg.rimfire { height: 17px; }
+.gun-hero-cap .ammo-ico svg.shot { height: 23px; }
 .gun-hero-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
 .gun-hero-count, .gun-hero-add {
   display: inline-flex;
@@ -1899,21 +1908,27 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .bar-col.tap { cursor: pointer; border-radius: 6px; }
 .bar-col.tap:active .bar-fill { filter: brightness(1.12); }
 .bar-col.tap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.bar-fill.parts, .bar-col.top .bar-fill.parts { display: flex; flex-direction: column-reverse; overflow: hidden; background: none; }
-.bar-fill.parts > .bar-part + .bar-part { border-bottom: 1px solid var(--surface); }
-.bar-part.p0 { background: var(--accent); }
-.bar-part.p1 { background: color-mix(in srgb, var(--accent) 72%, var(--surface-2)); }
-.bar-part.p2 { background: color-mix(in srgb, var(--accent) 24%, var(--surface-2)); }
-:root[data-theme="light"] .bar-part.p0 { background: var(--accent); }
-:root[data-theme="light"] .bar-part.p1 { background: color-mix(in srgb, var(--accent) 62%, var(--surface-2)); }
-:root[data-theme="light"] .bar-part.p2 { background: color-mix(in srgb, var(--accent) 32%, var(--surface-2)); }
-.bar-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
-.bar-legend i, .spend-share i, .spend-sheet .row-title i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+/* Категоріальна палітра розбору витрат — перевірена на дальтонізм (dataviz validate_palette): зброя, тюнінг, екіпірування, набої, релоад */
+:root { --series-1: #d95926; --series-2: #3987e5; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; }
+:root[data-theme="light"] { --series-1: #eb6834; --series-2: #2a78d6; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; }
+.bar-part.p0 { background: var(--series-1); }
+.bar-part.p1 { background: var(--series-2); }
+.bar-part.p2 { background: var(--series-3); }
+.bar-part.p3 { background: var(--series-4); }
+.bar-part.p4 { background: var(--series-5); }
+.spend-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 12px; }
+.spend-total b { font-size: 20px; }
+.spend-delta { margin-left: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.spend-share i, .spend-sheet .row-title i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .spend-share + .spend-share { margin-top: 10px; }
 .spend-rows { margin-top: 14px; }
 .bar-col.top .bar-val { color: var(--accent-2); font-weight: 700; }
 .bar-lbl { font-size: 10px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; }
 .bar-val { max-width: 100%; overflow: hidden; }
+.bar-val.ghost { visibility: hidden; }
+.bars.inside { height: 160px; }
+.bar-fill.with-val { display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }
+.bar-in { padding-bottom: 6px; line-height: 1; max-width: 100%; overflow: hidden; white-space: nowrap; font-size: 12px; font-weight: 750; color: #16130f; font-variant-numeric: tabular-nums; }
 @media (max-width: 420px) { .bar-lbl, .bar-val { font-size: 9px; } .bars { gap: 3px; } }
 
 /* Вправи — плитками: назва, рекорд, звання. Решта в картці вправи. */
