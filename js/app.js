@@ -6092,8 +6092,9 @@ const FIRST_TRACKED = '0.7.0';
 
 function changesSheet(list) {
   const key = lang() === 'ru' ? 'ru' : 'uk';
-  sheet(t('Что нового'), h('div', {}, list.map((c) => box(`${c.label ?? c.v} · ${fmt.date(c.date)}`,
-    h('ul', { class: 'changes' }, c[key].map((x) => h('li', {}, x)))))));
+  const close = sheet(t('Что нового'), h('div', {}, list.map((c) => box(`${c.label ?? c.v} · ${fmt.date(c.date)}`,
+    h('ul', { class: 'changes' }, c[key].map((x) => h('li', {}, x)))))),
+  { actions: [btn(t('Понятно'), () => close(), 'primary')] });
 }
 
 /** Після оновлення — один раз, що змінилося з версії, яку людина бачила; нова установка — без шторки. */
