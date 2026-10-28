@@ -38,6 +38,10 @@ function ensureGradients() {
     <linearGradient id="sl-copper" x1="0" x2="1"><stop offset="0" stop-color="#6e2c0e"/><stop offset=".32" stop-color="#ffbf8a"/><stop offset=".6" stop-color="#cf6c32"/><stop offset="1" stop-color="#55210a"/></linearGradient>
     <linearGradient id="sl-lead" x1="0" x2="1"><stop offset="0" stop-color="#4a4f55"/><stop offset=".35" stop-color="#d4d9de"/><stop offset="1" stop-color="#5d636a"/></linearGradient>
     <linearGradient id="sl-hull" x1="0" x2="1"><stop offset="0" stop-color="#6d1010"/><stop offset=".35" stop-color="#ff6a5c"/><stop offset=".6" stop-color="#c62828"/><stop offset="1" stop-color="#5a0d0d"/></linearGradient>
+    <linearGradient id="sl-can" x1="0" x2="1"><stop offset="0" stop-color="#15191c"/><stop offset=".35" stop-color="#5b646c"/><stop offset="1" stop-color="#121518"/></linearGradient>
+    <linearGradient id="sl-plastic" x1="0" x2="1"><stop offset="0" stop-color="#7d858c"/><stop offset=".35" stop-color="#f4f6f8"/><stop offset=".6" stop-color="#c5ccd2"/><stop offset="1" stop-color="#6f777e"/></linearGradient>
+    <radialGradient id="sl-ball" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#f0f3f5"/><stop offset=".45" stop-color="#8a9096"/><stop offset="1" stop-color="#33383c"/></radialGradient>
+    <radialGradient id="sl-cup" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff3c4"/><stop offset=".5" stop-color="#d9a640"/><stop offset="1" stop-color="#6b470f"/></radialGradient>
   </defs>`;
   document.body.append(svg);
 }
@@ -58,6 +62,35 @@ const CARTRIDGE_SVG = {
   shot: ['0 6 20 57', `<rect fill="url(#sl-hull)" x="3" y="8" width="14" height="42" rx="2"/><path stroke="#3a0707" stroke-width="1" d="M5 10.5h10M5 13h10"/>
     <rect fill="url(#sl-brass)" x="3" y="45" width="14" height="14"/><rect fill="url(#sl-brass)" x="2" y="58.5" width="16" height="3.6" rx="1"/>`],
 };
+
+// Компоненти: витягнуті (куля, гільза, контейнер) — під нахилом, як набої; «flat» — прямо.
+const COMPONENT_SVG = {
+  bullet: [18, '0 0 14 40', `<path fill="url(#sl-copper)" d="M3 26C3 14 5.5 5 7 1 8.5 5 11 14 11 26V34L9.5 38.5H4.5L3 34Z"/>
+    <rect fill="#6e2c0e" x="3" y="27.5" width="8" height=".9"/>`],
+  case: [42, '0 12 20 52', `<path fill="url(#sl-brass)" d="M7 14h6v6l3 5v32H4V25l3-5Z"/><rect fill="#3d2908" x="7" y="14" width="6" height="1.3"/>
+    <rect fill="#5e3f0e" x="5" y="57" width="10" height="2"/><rect fill="url(#sl-brass)" x="3.5" y="59" width="13" height="3.5" rx="1"/>`],
+  powder: [150, '0 0 32 32', `<rect fill="url(#sl-hull)" x="10" y="3.5" width="12" height="5" rx="1"/>
+    <rect fill="url(#sl-can)" x="7.5" y="8" width="17" height="21" rx="2.2"/>
+    <rect fill="#e8e1cf" x="7.5" y="13.5" width="17" height="9"/><rect fill="#a33a14" x="10.5" y="16" width="11" height="1.6"/>
+    <rect fill="#6b6b6b" x="10.5" y="19" width="7" height="1.3"/>`, 'flat'],
+  primer: [210, '0 0 32 32', `<circle fill="url(#sl-cup)" cx="20.5" cy="20.5" r="8"/><circle fill="none" stroke="#5e3f0e" stroke-width=".8" cx="20.5" cy="20.5" r="6"/>
+    <circle fill="url(#sl-cup)" cx="11.5" cy="11.5" r="8"/><circle fill="none" stroke="#5e3f0e" stroke-width=".8" cx="11.5" cy="11.5" r="6"/>`, 'flat'],
+  shot: [240, '0 0 32 32', [[9, 23], [16, 23], [23, 23], [12.5, 16.5], [19.5, 16.5], [16, 10]]
+    .map(([x, y]) => `<circle fill="url(#sl-ball)" cx="${x}" cy="${y}" r="3.7"/>`).join(''), 'flat'],
+  wad: [190, '0 0 20 40', `<path fill="url(#sl-plastic)" d="M4 2h12v22H4Z"/><path stroke="#6f777e" stroke-width=".8" d="M8 2v14M12 2v14"/>
+    <rect fill="url(#sl-plastic)" x="7" y="24" width="6" height="6"/><rect fill="url(#sl-plastic)" x="4" y="30" width="12" height="7" rx="1"/>`],
+  other: [30, '0 0 32 32', `<path fill="#c9a06a" d="M5 12l11-5 11 5-11 5Z"/><path fill="#9c7440" d="M5 12v12l11 5V17Z"/>
+    <path fill="#b48a55" d="M27 12v12l-11 5V17Z"/><path stroke="#6b4c22" stroke-width=".8" fill="none" d="M10.5 9.5l11 5v4"/>`, 'flat'],
+};
+
+/** Плитка з компонентом спорядження: куля, порох, капсуль, гільза, дріб, пиж чи інше. */
+export function componentIcon(kind) {
+  ensureGradients();
+  const [hue, box, body, cls = ''] = COMPONENT_SVG[kind] ?? COMPONENT_SVG.other;
+  const el = h('span', { class: 'ammo-ico', style: `--h:${hue}`, 'aria-hidden': 'true' });
+  el.innerHTML = `<svg class="part-${kind} ${cls}" viewBox="${box}">${body}</svg>`;
+  return el;
+}
 
 /** Плитка з набоєм: колір — від калібру, форма — за типом. */
 export function cartridgeIcon(caliber) {
