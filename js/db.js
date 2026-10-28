@@ -5,8 +5,8 @@
 // ponytail: ім'я бази лишилося старим — перейменування сховало б дані, вже записані на пристрої.
 // Міняти разом із міграцією (перелити стори зі старої бази), коли з'явиться привід.
 const DB_NAME = 'shooting-log';
-const DB_VERSION = 9;
-export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores', 'exercises', 'chrono', 'gear'];
+const DB_VERSION = 10;
+export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores', 'exercises', 'chrono', 'gear', 'articles'];
 const ALL = [...STORES, 'tombstones'];
 const BLOBS = 'blobs';
 
