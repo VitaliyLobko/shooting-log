@@ -7,7 +7,7 @@ import { alignTarget, squareToQuad, quadToSquare } from './align.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
-import { cartridgeIcon, caliberHue } from './ammo.js';
+import { cartridgeIcon, caliberHue, componentIcon } from './ammo.js';
 import { lineChart, barChart } from './chart.js';
 import { toUsd, rateOn, refreshRates, rateSeries } from './usd.js';
 import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
@@ -5658,7 +5658,7 @@ function stockPane() {
   return h('div', {},
     stockHero(M.stockValue(state), state.components.length, out, low),
     groups.map(([kind, list]) => fold(`stock:${kind}`,
-      [h('span', { class: 'fold-title' }, t(M.COMPONENT_KINDS[kind])), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
+      [componentIcon(kind), h('span', { class: 'fold-title' }, t(M.COMPONENT_KINDS[kind])), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
       list.map(componentCard))));
 }
 

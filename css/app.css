@@ -266,6 +266,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.pistol { height: 21px; }
 :is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.rimfire { height: 18px; }
 :is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.shot { height: 25px; }
+/* Компоненти: круглі й коробки — прямо, без нахилу */
+.ammo-ico svg.flat { height: 34px; transform: none; }
+:is(.fold-head, .shots-head, .cal-head) .ammo-ico svg.flat { height: 26px; }
 
 /* --- групи, що згортаються --- */
 .fold { margin-bottom: 10px; }
