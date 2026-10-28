@@ -1757,7 +1757,7 @@ function renderGear() {
       [h('span', { class: 'fold-title' }, t(GEAR_KINDS.find(([k]) => k === kind)[1])),
         h('span', { class: 'fold-meta' }, t('{n} поз.', { n: items.length })),
         h('span', { class: 'fold-sum' }, grn(items.reduce((s, g) => s + priceOf(g.price), 0)) + usdTail(items.map((g) => [g.price, g.date, g.usdRate])))],
-      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), null, g.date, g.usdRate))))),
+      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate))))),
     sold.length ? fold('gear:sold',
       [h('span', { class: 'fold-title' }, t('Продано')), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: sold.length })),
         h('span', { class: 'fold-sum' }, grn(back) + (usdBack === null ? '' : ` · ${usdFmt(usdBack)}`))],
@@ -1816,12 +1816,23 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
   });
 }
 
-function gearForm(g = null) {
+function gearForm(g = null, { file = null, preset = null } = {}) {
   purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind) }, {
     kinds: GEAR_KINDS, placeholder: t('Плитоноска, шлем, подсумок…'),
-    onSave: (obj) => saveEntity('gear', obj),
+    photo: { current: g ? gearPhoto(g.id) : null, file },
+    preset,
+    onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ gearId: g?.id ?? null, draft: g ? null : values })),
+    onSave: async (obj, photo) => {
+      await saveEntity('gear', obj);
+      await saveItemPhoto({ gearId: obj.id }, photo);
+    },
     onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
-    onRemove: async () => { await db.write({ gear: { del: [g.id] } }); await refresh(); },
+    onRemove: async () => {
+      await db.write({ gear: { del: [g.id] } });
+      const p = gearPhoto(g.id);
+      if (p) await removePhotos([p]);
+      else await refresh();
+    },
   });
 }
 
@@ -1889,10 +1900,10 @@ function photoPicker(current, { file: preset = null, query = () => '', onSearch 
   return { el, value: () => ({ file, removed: removed || Boolean(file) }) };
 }
 
-// Пошук фото тюнінгу: перед переходом у Google запам'ятовуємо, куди повернути картинку
+// Пошук фото тюнінгу чи екіпірування: перед переходом у Google запам'ятовуємо, куди повернути картинку
 const PHOTO_FOR = 'shooters-log:photo-for';
 
-/** Картинка, якою поділились у застосунок: service worker кладе її в кеш, тут — відкрити той самий тюнінг. */
+/** Картинка, якою поділились у застосунок: service worker кладе її в кеш, тут — відкрити ту саму форму. */
 async function takeSharedImage() {
   const cache = await caches.open('shared-image');
   const res = await cache.match('shared');
@@ -1903,25 +1914,37 @@ async function takeSharedImage() {
   let target = null;
   try { target = JSON.parse(recall(PHOTO_FOR) || 'null'); } catch { /* зіпсований запис — як немає */ }
   remember(PHOTO_FOR, '');
-  const w = target && findWeapon(target.weaponId);
-  if (!w) { toast(t('Откройте тюнинг и нажмите «Найти фото» — потом поделитесь картинкой')); return; }
-  const m = target.modId ? (w.mods ?? []).find((x) => x.id === target.modId) : null;
-  modForm(w, m, { file, preset: m ? null : target.draft });
-  toast(t('Картинка получена — сохраните тюнинг'));
+  const w = target?.weaponId && findWeapon(target.weaponId);
+  if (w) {
+    const m = target.modId ? (w.mods ?? []).find((x) => x.id === target.modId) : null;
+    modForm(w, m, { file, preset: m ? null : target.draft });
+  } else if (target && 'gearId' in target) {
+    const g = target.gearId ? state.gear.find((x) => x.id === target.gearId) ?? null : null;
+    gearForm(g, { file, preset: g ? null : target.draft });
+  } else {
+    toast(t('Откройте тюнинг или экипировку и нажмите «Найти фото» — потом поделитесь картинкой'));
+    return;
+  }
+  toast(t('Картинка получена — сохраните'));
 }
 
 const modPhoto = (modId) => state.photos.find((p) => p.modId === modId) ?? null;
+const gearPhoto = (gearId) => state.photos.find((p) => p.gearId === gearId) ?? null;
+const photoThumb = (p) => (p ? h('img', { class: 'row-thumb', src: p.thumb, alt: '' }) : null);
 
-/** Фото тюнінгу: нове — записати (без weaponId, щоб не потрапило в галерею ствола), старе — у кошик Диска. */
-async function saveModPhoto(modId, change) {
+/**
+ * Фото тюнінгу чи екіпірування — owner { modId } або { gearId }, без weaponId, щоб не потрапило в галерею ствола.
+ * Нове — записати, старе — у кошик Диска.
+ */
+async function saveItemPhoto(owner, change) {
   if (!change?.removed) return;
-  const old = modPhoto(modId);
+  const old = state.photos.find((p) => Object.entries(owner).every(([k, v]) => p[k] === v)) ?? null;
   if (change.file) {
     try {
       const { blob, thumb, w, h: height } = await preparePhoto(change.file);
       const id = db.uid();
       await db.write({
-        photos: { put: [{ id, modId, created: Date.now(), thumb, w, h: height, driveId: null }] },
+        photos: { put: [{ id, ...owner, created: Date.now(), thumb, w, h: height, driveId: null }] },
         blobs: { put: [{ id, blob }] },
       });
     } catch (err) {
@@ -1944,7 +1967,7 @@ function modForm(w, m = null, { file = null, preset = null } = {}) {
     onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ weaponId: w.id, modId: m?.id ?? null, draft: m ? null : values })),
     onSave: async (obj, photo) => {
       await saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] });
-      await saveModPhoto(obj.id, photo);
+      await saveItemPhoto({ modId: obj.id }, photo);
     },
     onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), { ...m, ...sale }] }),
     onRemove: async () => {
@@ -1983,7 +2006,7 @@ function buyBox(w, close) {
   const modRow = (m) => {
     const p = modPhoto(m.id);
     return priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-      m.price, () => modForm(w, m), p ? h('img', { class: 'row-thumb', src: p.thumb, alt: '' }) : null, m.date, m.usdRate, isSold(m) ? 'tune sold' : 'tune');
+      m.price, () => modForm(w, m), photoThumb(p), m.date, m.usdRate, isSold(m) ? 'tune sold' : 'tune');
   };
   const el = box(t('Покупка и тюнинг'), [
     total ? investSummary(w, total) : null,
