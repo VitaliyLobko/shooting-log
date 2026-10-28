@@ -5,6 +5,7 @@ import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from '.
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
 import { alignTarget, squareToQuad, quadToSquare } from './align.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
+import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue } from './ammo.js';
 import { lineChart, barChart } from './chart.js';
@@ -25,7 +26,7 @@ import {
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [] };
+let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -5406,10 +5407,116 @@ function recipeCard(r) {
 
 function recipesPane() {
   $('subtitle').textContent = swipeTip('recipes', t('Свайп → снарядить'), t('рецептов: {n}', { n: state.recipes.length }));
-  if (!state.recipes.length) return empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.'));
+  if (!state.recipes.length) return h('div', {}, empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.')), articlesBox());
   // Групи за калібром — такими ж картками, як набої; без суми: рецепти ділять компоненти
   return h('div', {}, loadedHero(), groupBy(state.recipes, (r) => r.caliber || t('Без калибра'))
-    .map(([caliber, list]) => calGroup({ caliber, list: list.sort(byName) }, { prefix: 'recipes', card: recipeCard })));
+    .map(([caliber, list]) => calGroup({ caliber, list: list.sort(byName) }, { prefix: 'recipes', card: recipeCard })),
+  articlesBox());
+}
+
+// ---------- статті з релоаду: свої нотатки в Markdown, правляться на комп'ютері, синхронізуються з Диском ----------
+
+const articleDay = (a) => new Date(a.updated ?? a.created).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
+
+function articlesBox() {
+  const list = [...state.articles].sort((a, b) => (b.updated ?? 0) - (a.updated ?? 0));
+  const add = btn(t('+ статья'), () => articleForm());
+  const rows = list.map((a) => h('button', { type: 'button', class: 'article-row', 'data-id': a.id, onclick: () => articleView(a) },
+    h('span', { class: 'article-title' }, a.title),
+    excerpt(a.body) ? h('span', { class: 'muted small article-sub' }, excerpt(a.body)) : null,
+    h('span', { class: 'muted small' }, articleDay(a))));
+  return box(t('Статьи'), list.length
+    ? h('div', {}, h('div', { class: 'article-list' }, rows), h('div', { class: 'btn-row' }, add))
+    : h('div', {}, h('p', { class: 'muted small' }, t('Свои заметки по снаряжению: джамп, посадка, навески, методика. Писать удобнее на компьютере — на телефон придут через Google Диск.')), h('div', { class: 'btn-row' }, add)));
+}
+
+function articleView(a) {
+  const body = () => {
+    const cur = state.articles.find((x) => x.id === a.id);
+    return cur ? h('div', {}, h('div', { class: 'md' }, renderMarkdown(cur.body)),
+      h('p', { class: 'muted small article-day' }, t('Изменено {date}', { date: articleDay(cur) }))) : null;
+  };
+  const tools = [
+    toolBtn('edit', t('Изменить'), () => { close(); articleForm(state.articles.find((x) => x.id === a.id) ?? a); }),
+    toolBtn('delete', t('Удалить'), () => {
+      close();
+      confirmSheet(t('Удалить статью?'), t('«{name}» удалится и с других устройств после синхронизации.', { name: a.title }), t('Удалить'),
+        async () => { await db.write({ articles: { del: [a.id] } }); await refresh(); });
+    }, 'danger'),
+  ];
+  const close = sheet(a.title, body(), { live: body, tools, full: true });
+}
+
+/** Редактор: текст і перегляд поруч на широкому екрані, на телефоні — перемикачем. Ctrl+S — зберегти. */
+function articleForm(a = null) {
+  const title = h('input', { type: 'text', class: 'article-name', value: a?.title ?? '', placeholder: t('Название статьи'), 'aria-label': t('Название статьи') });
+  const src = h('textarea', {
+    class: 'md-src', spellcheck: 'true', 'aria-label': t('Текст статьи'),
+    placeholder: t('## Заголовок\nОбычный текст, **жирный**, *курсив*.\n\n- пункт списка\n\n| Навеска | Скорость |\n|---|---|\n| 43,5 gr | 2620 fps |'),
+  });
+  src.value = a?.body ?? '';
+  const preview = h('div', { class: 'md md-preview' });
+  let queued = false;
+  const paint = () => {
+    queued = false;
+    preview.replaceChildren(src.value.trim() ? renderMarkdown(src.value) : h('p', { class: 'muted' }, t('Здесь будет видно, как статья выглядит')));
+  };
+  src.addEventListener('input', () => { if (!queued) { queued = true; requestAnimationFrame(paint); } });
+  paint();
+
+  // Кнопки розмітки: обгорнути виділене або додати префікс рядкам
+  const edit = (fn) => {
+    const { selectionStart: s, selectionEnd: e, value } = src;
+    const [text, from, to] = fn(value.slice(s, e), value, s, e);
+    src.focus();
+    src.setRangeText(text, from, to, 'select');
+    src.dispatchEvent(new Event('input'));
+  };
+  const wrap = (mark, sample) => () => edit((sel, v, s, e) => [`${mark}${sel || sample}${mark}`, s, e]);
+  const prefix = (mark) => () => edit((sel, v, s, e) => {
+    const start = v.lastIndexOf('\n', s - 1) + 1;
+    const lines = v.slice(start, e).split('\n');
+    return [lines.map((l, n) => (mark === '1. ' ? `${n + 1}. ` : mark) + l).join('\n'), start, e];
+  });
+  const block = (text) => () => edit((sel, v, s, e) => [`${s && v[s - 1] !== '\n' ? '\n\n' : ''}${text}\n`, s, e]);
+  const tool = (label, title, onclick) => h('button', { type: 'button', class: 'md-tool', title, 'aria-label': title, onclick }, label);
+  const toolbar = h('div', { class: 'md-toolbar' },
+    tool('H', t('Заголовок'), prefix('## ')),
+    tool(h('b', {}, 'Ж'), t('Жирный'), wrap('**', t('текст'))),
+    tool(h('i', {}, 'К'), t('Курсив'), wrap('*', t('текст'))),
+    tool('•', t('Список'), prefix('- ')),
+    tool('1.', t('Нумерованный список'), prefix('1. ')),
+    tool('❝', t('Цитата'), prefix('> ')),
+    tool('▦', t('Таблица'), block(`| ${t('Навеска')} | ${t('Скорость')} | ${t('Группа')} |\n|---|---|---|\n|  |  |  |`)),
+    tool('🔗', t('Ссылка'), wrap('', `[${t('текст')}](https://)`)));
+
+  // Телефон: або текст, або перегляд; на широкому екрані CSS показує обидва й ховає перемикач
+  const editor = h('div', { class: 'md-editor show-src' });
+  const modes = chips([['src', t('Текст')], ['view', t('Просмотр')]], 'src', (m) => {
+    editor.classList.toggle('show-src', m === 'src');
+    editor.classList.toggle('show-view', m === 'view');
+  });
+  modes.classList.add('md-modes');
+  editor.append(h('div', { class: 'md-pane md-pane-src' }, toolbar, src), h('div', { class: 'md-pane md-pane-view' }, preview));
+
+  const initial = JSON.stringify([title.value, src.value]);
+  const dirty = () => JSON.stringify([title.value, src.value]) !== initial;
+  const close = sheet(a ? t('Изменить статью') : t('Новая статья'), h('div', { class: 'article-form' }, title, modes, editor), {
+    actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
+    full: true, dirty,
+  });
+  const onKey = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  };
+  editor.closest('.sheet')?.addEventListener('keydown', onKey);
+  if (!a) title.focus();
+
+  async function save() {
+    const name = title.value.trim();
+    if (!name) { formError(t('Введите название статьи')); title.focus(); return; }
+    close();
+    await saveEntity('articles', { ...(a ?? { id: db.uid(), created: Date.now() }), title: name, body: src.value.replace(/\s+$/, '') });
+  }
 }
 
 /** Скільки всього споряджено й на яку суму — за собівартістю на день спорядження. */

@@ -2420,3 +2420,57 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   position: absolute;
   inset: min(0px, calc(50% - 22px));
 }
+
+/* ---------- статті релоаду ---------- */
+.md, .md-editor { --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.article-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.article-row {
+  display: grid; gap: 2px; width: 100%; text-align: left; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px; color: inherit; font: inherit; cursor: pointer;
+}
+.article-row:hover { border-color: var(--line); }
+.article-title { font-weight: 650; }
+.article-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.article-day { margin-top: 18px; }
+
+.md { line-height: 1.55; overflow-wrap: anywhere; }
+.md p { margin: 0 0 12px; }
+.sheet-body .md h3, .md h3 { margin: 22px 0 8px; font-size: 18px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); }
+.md h4 { margin: 18px 0 6px; font-size: 16px; }
+.md h5, .md h6 { margin: 14px 0 6px; font-size: 14px; }
+.md > :first-child { margin-top: 0; }
+.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+.md li { margin-bottom: 4px; }
+.md a { color: var(--accent-2); text-underline-offset: 3px; }
+.md code { font: .9em var(--mono); background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+.md pre { font: 13px/1.45 var(--mono); background: var(--surface-2); padding: 10px 12px; border-radius: 8px; overflow-x: auto; white-space: pre; }
+.md blockquote { margin: 0 0 12px; padding: 2px 0 2px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+.md-table { overflow-x: auto; margin: 0 0 12px; }
+.md table { border-collapse: collapse; font-size: 14px; min-width: 100%; }
+.md th, .md td { padding: 7px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.md th { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface-2); }
+
+.article-form { display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
+.article-name { font-size: 18px; font-weight: 650; }
+.md-editor { display: grid; gap: 12px; flex: 1; min-height: 0; }
+.md-pane { display: flex; flex-direction: column; min-width: 0; }
+.md-editor.show-src .md-pane-view, .md-editor.show-view .md-pane-src { display: none; }
+.md-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.md-tool {
+  min-width: 36px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface-2); color: inherit; font: 600 14px/1 inherit; cursor: pointer;
+}
+.md-tool:hover { border-color: var(--accent); }
+.md-src { flex: 1; min-height: 55vh; resize: vertical; font: 14px/1.5 var(--mono); padding: 10px 12px; tab-size: 2; }
+.md-preview { padding: 2px 2px 12px; }
+
+/* Комп'ютер: шторка ширша, текст і перегляд поруч, перемикач не потрібен */
+@media (min-width: 960px) {
+  .sheet.full:has(.md-editor) { max-width: min(1400px, 96vw); }
+  .md-modes { display: none; }
+  .md-editor, .md-editor.show-src, .md-editor.show-view { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .md-editor.show-src .md-pane-view, .md-editor.show-view .md-pane-src { display: flex; }
+  .md-src { min-height: calc(100dvh - 260px); }
+  .md-pane-view { max-height: calc(100dvh - 210px); overflow-y: auto; border-left: 1px solid var(--line-soft); padding-left: 16px; }
+}

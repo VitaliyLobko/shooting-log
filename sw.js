@@ -18,6 +18,7 @@ const ASSETS = [
   './js/i18n.js',
   './js/photos.js',
   './js/guide.js',
+  './js/md.js',
   './js/ballistics.js',
   './js/target.js',
   './js/chart.js',
