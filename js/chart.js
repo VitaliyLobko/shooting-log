@@ -125,16 +125,23 @@ export function lineChart(points, { up = true, format = (v) => String(Math.round
   return el;
 }
 
-/** Стовпчики за місяцями: [{ label, value, sub }]. Найбільший — акцентом. */
-export function barChart(rows, { format = (v) => String(Math.round(v)) } = {}) {
-  const el = h('div', { class: 'bars' });
+/**
+ * Стовпчики за місяцями: [{ label, value, onclick? }]. Найбільший — акцентом; з onclick стовпчик натискається.
+ * inside — числа темним усередині стовпчиків, в один рядок біля основи; де стовпчик занизький — число над ним.
+ */
+export function barChart(rows, { format = (v) => String(Math.round(v)), inside = false } = {}) {
+  const el = h('div', { class: inside ? 'bars inside' : 'bars' });
   if (!rows.length) return el;
   const max = Math.max(...rows.map((r) => r.value)) || 1;
   for (const r of rows) {
-    const bar = h('div', { class: `bar-col ${r.value === max ? 'top' : ''}`, title: `${r.label}: ${format(r.value)}` },
-      h('span', { class: 'bar-val' }, format(r.value)),
+    const tap = r.onclick ? { role: 'button', tabindex: 0, onclick: r.onclick, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); r.onclick(); } } } : {};
+    const pct = r.value > 0 ? Math.max(3, (r.value / max) * 100) : 0;
+    const inBar = inside && pct >= 16;
+    const bar = h('div', { class: `bar-col ${r.value === max ? 'top' : ''} ${r.onclick ? 'tap' : ''}`, title: `${r.label}: ${format(r.value)}`, ...tap },
+      // Рядок числа лишається й порожнім (прихованим) — інакше висота стовпчиків рахувалась би від різної основи
+      h('span', { class: `bar-val ${inBar ? 'ghost' : ''}` }, format(r.value)),
       // Від'ємне (продав більше, ніж купив) — без стовпчика, лише підпис з мінусом.
-      h('span', { class: 'bar-fill', style: `height:${r.value > 0 ? Math.max(3, (r.value / max) * 100) : 0}%` }),
+      h('span', { class: `bar-fill ${inBar ? 'with-val' : ''}`, style: `height:${pct}%` }, inBar ? h('span', { class: 'bar-in' }, format(r.value)) : null),
       h('span', { class: 'bar-lbl' }, r.label));
     el.append(bar);
   }
