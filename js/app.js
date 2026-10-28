@@ -1478,14 +1478,14 @@ function gunHero(w, caption) {
     onchange: (e) => { const files = [...e.target.files]; e.target.value = ''; addPhotos(w.id, files); },
   });
   const pic = cover ? h('img', { class: 'gun-hero-img', src: cover.thumb, alt: '' })
-    : h('span', { class: 'gun-hero-mono', style: `--h:${caliberHue(w.caliber)}`, 'aria-hidden': 'true' }, monogram(w));
+    : h('span', { class: 'gun-hero-mono', 'aria-hidden': 'true' }, monogram(w));
   if (cover) coverUrl(cover).then((url) => { if (url) pic.src = url; });
-  return h('div', { class: `gun-hero ${cover ? '' : 'empty'}` },
+  return h('div', { class: `gun-hero ${cover ? '' : 'empty'}`, style: `--h:${caliberHue(w.caliber)}` },
     h('button', {
       type: 'button', class: 'gun-hero-pic', 'aria-label': cover ? t('Фото') : t('Добавить фото'),
       onclick: () => (cover ? openPhotos(w.id, photos.indexOf(cover)) : input.click()),
     }, pic),
-    caption ? h('span', { class: 'gun-hero-cap' }, caption) : null,
+    caption?.length ? h('span', { class: 'gun-hero-cap' }, caption) : null,
     h('span', { class: 'gun-hero-tools' },
       photos.length > 1 ? h('span', { class: 'gun-hero-count' }, icon('camera'), fmt.num(photos.length)) : null,
       h('button', { type: 'button', class: 'gun-hero-add', onclick: () => input.click() }, '+ ', t('Фото'))),
@@ -1773,28 +1773,36 @@ function renderGear() {
 }
 
 /** Рядок покупки: назва, «дата · де», сума праворуч. */
-function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = null) {
-  return h('button', { type: 'button', class: `row ${icon ? 'kind-tune' : ''}`, onclick }, icon,
+function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = null, cls = '') {
+  return h('button', { type: 'button', class: `row ${icon ? 'kind-tune' : ''} ${cls}`, onclick }, icon,
     h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub ? h('span', { class: 'muted small' }, sub) : null),
     priceOf(price) ? h('span', { class: 'row-qty' }, tileMoney(priceOf(price), usdSum([[price, iso, rate]]))) : null);
 }
 
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
-function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell }) {
+function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null }) {
+  // preset — незбережена чернетка (повернулись із пошуку фото): лише значення полів, без «Видалити»/«Продав»
+  const src = item ?? preset;
   const f = form([
-    { name: 'name', label: t('Название'), required: true, value: item?.name, placeholder, wide: true },
-    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: item?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
-    { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: item?.price, half: true },
-    { name: 'date', label: t('Дата покупки'), type: 'date', value: item?.date ?? M.today(), half: true },
-    rateField('usdRate', item?.usdRate),
-    { name: 'place', label: t('Где купил'), value: item?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
-    { name: 'note', label: t('Примечание'), value: item?.note, wide: true },
+    { name: 'name', label: t('Название'), required: true, value: src?.name, placeholder, wide: true },
+    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: src?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
+    { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: src?.price, half: true },
+    { name: 'date', label: t('Дата покупки'), type: 'date', value: src?.date ?? M.today(), half: true },
+    rateField('usdRate', src?.usdRate),
+    { name: 'place', label: t('Где купил'), value: src?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
+    { name: 'note', label: t('Примечание'), value: src?.note, wide: true },
   ].filter(Boolean));
   rateHint(f, 'usdRate', 'date');
   // Категорія — чипами, як тип компонента: видно всі одразу, без системного списку
   chipPicker(f.inputs.kind, { seg: false, cls: 'chips-sm' });
+  // Фото — лише там, де його передали (тюнінг); undefined — форма без фото
+  const pick = photo === undefined ? null : photoPicker(photo?.current ?? null, {
+    file: photo?.file ?? null,
+    query: () => f.inputs.name.value.trim(),
+    onSearch: onSearch && (() => onSearch(f.values())),
+  });
   // Видалити й продати — іконками в шапці, як в інших картках; внизу лише «Скасувати» і «Зберегти»
-  const close = sheet(title, f.el, {
+  const close = sheet(title, pick ? h('div', {}, pick.el, f.el) : f.el, {
     lead: item ? toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger') : null,
     tools: item ? [toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); })] : [],
     actions: [
@@ -1802,7 +1810,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
       btn(t('Сохранить'), async () => {
         if (invalidField(f)) return;
         close();
-        await onSave({ ...(item ?? { id: db.uid(), created: Date.now() }), ...f.values() });
+        await onSave({ ...(item ?? { id: db.uid(), created: Date.now() }), ...f.values() }, pick?.value());
       }, 'primary'),
     ],
   });
@@ -1817,14 +1825,133 @@ function gearForm(g = null) {
   });
 }
 
-/** Тюнінг живе в записі ствола, як і приціли. */
-function modForm(w, m = null) {
+/**
+ * Одне фото до запису: плитка-прев'ю (тап — з галереї), «Знайти фото» — Google Картинки за назвою,
+ * «Вставити» — скопійоване зображення; на комп'ютері ще Ctrl+V і перетягування. Пишеться разом із формою.
+ */
+function photoPicker(current, { file: preset = null, query = () => '', onSearch = null } = {}) {
+  let file = preset;
+  let removed = Boolean(preset);
+  let url = null;
+  const el = h('div', { class: 'photo-pick' });
+  const take = (f) => {
+    if (!f?.type?.startsWith('image/')) return false;
+    file = f;
+    removed = false;
+    paint();
+    return true;
+  };
+  const input = h('input', {
+    type: 'file', accept: 'image/*', hidden: true,
+    onchange: (e) => { take(e.target.files[0]); e.target.value = ''; },
+  });
+  const search = () => {
+    const q = query();
+    if (!q) { toast(t('Сначала впишите название')); return; }
+    onSearch?.();
+    window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`, '_blank', 'noopener');
+  };
+  const paste = async () => {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((x) => x.startsWith('image/'));
+        if (type) { take(new File([await item.getType(type)], 'clip', { type })); return; }
+      }
+      toast(t('В буфере нет картинки — скопируйте изображение'));
+    } catch {
+      toast(t('Браузер не дал прочитать буфер — поделитесь картинкой в приложение или сохраните её в галерею'));
+    }
+  };
+  // Ctrl+V, поки форма відкрита; закрилась — слухач знімає себе сам
+  const onPaste = (e) => {
+    if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
+    const f = [...(e.clipboardData?.files ?? [])].find((x) => x.type.startsWith('image/'));
+    if (f && take(f)) e.preventDefault();
+  };
+  document.addEventListener('paste', onPaste);
+  function paint() {
+    if (url) URL.revokeObjectURL(url);
+    url = file ? URL.createObjectURL(file) : null;
+    const src = url ?? (removed ? null : current?.thumb);
+    el.replaceChildren(
+      h('button', {
+        type: 'button', class: `photo-pick-thumb ${src ? '' : 'empty'}`, 'aria-label': t('Фото'), onclick: () => input.click(),
+        ondragover: (e) => e.preventDefault(),
+        ondrop: (e) => { e.preventDefault(); take(e.dataTransfer?.files?.[0]); },
+      }, src ? h('img', { src, alt: '' }) : h('span', {}, '+ ', t('Фото'))),
+      h('div', { class: 'photo-pick-acts' },
+        btn(`🔍 ${t('Найти фото')}`, search, 'mini'),
+        navigator.clipboard?.read ? btn(t('Вставить'), paste, 'mini quiet') : null,
+        src ? btn(t('Убрать фото'), () => { file = null; removed = true; paint(); }, 'mini quiet') : null),
+      input);
+  }
+  paint();
+  return { el, value: () => ({ file, removed: removed || Boolean(file) }) };
+}
+
+// Пошук фото тюнінгу: перед переходом у Google запам'ятовуємо, куди повернути картинку
+const PHOTO_FOR = 'shooters-log:photo-for';
+
+/** Картинка, якою поділились у застосунок: service worker кладе її в кеш, тут — відкрити той самий тюнінг. */
+async function takeSharedImage() {
+  const cache = await caches.open('shared-image');
+  const res = await cache.match('shared');
+  if (!res) return;
+  await cache.delete('shared');
+  const blob = await res.blob();
+  const file = new File([blob], 'shared', { type: blob.type || 'image/jpeg' });
+  let target = null;
+  try { target = JSON.parse(recall(PHOTO_FOR) || 'null'); } catch { /* зіпсований запис — як немає */ }
+  remember(PHOTO_FOR, '');
+  const w = target && findWeapon(target.weaponId);
+  if (!w) { toast(t('Откройте тюнинг и нажмите «Найти фото» — потом поделитесь картинкой')); return; }
+  const m = target.modId ? (w.mods ?? []).find((x) => x.id === target.modId) : null;
+  modForm(w, m, { file, preset: m ? null : target.draft });
+  toast(t('Картинка получена — сохраните тюнинг'));
+}
+
+const modPhoto = (modId) => state.photos.find((p) => p.modId === modId) ?? null;
+
+/** Фото тюнінгу: нове — записати (без weaponId, щоб не потрапило в галерею ствола), старе — у кошик Диска. */
+async function saveModPhoto(modId, change) {
+  if (!change?.removed) return;
+  const old = modPhoto(modId);
+  if (change.file) {
+    try {
+      const { blob, thumb, w, h: height } = await preparePhoto(change.file);
+      const id = db.uid();
+      await db.write({
+        photos: { put: [{ id, modId, created: Date.now(), thumb, w, h: height, driveId: null }] },
+        blobs: { put: [{ id, blob }] },
+      });
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+  }
+  if (old) await removePhotos([old]);
+  else await refresh();
+}
+
+/** Тюнінг живе в записі ствола, як і приціли; його фото — у сховищі фото з modId. */
+function modForm(w, m = null, { file = null, preset = null } = {}) {
   const others = () => (findWeapon(w.id)?.mods ?? []).filter((x) => x.id !== m?.id);
   purchaseForm(m ? t('Изменить тюнинг') : t('Тюнинг: {name}', { name: w.name }), m, {
     placeholder: t('Спуск, цевьё, ДТК, приклад…'),
-    onSave: (obj) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] }),
+    photo: { current: m ? modPhoto(m.id) : null, file },
+    preset,
+    // Незбережений тюнінг — чернеткою: поки шукали картинку, застосунок могли закрити
+    onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ weaponId: w.id, modId: m?.id ?? null, draft: m ? null : values })),
+    onSave: async (obj, photo) => {
+      await saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] });
+      await saveModPhoto(obj.id, photo);
+    },
     onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), { ...m, ...sale }] }),
-    onRemove: () => saveEntity('weapons', { ...findWeapon(w.id), mods: others() }),
+    onRemove: async () => {
+      await saveEntity('weapons', { ...findWeapon(w.id), mods: others() });
+      const p = modPhoto(m.id);
+      if (p) await removePhotos([p]);
+    },
   });
 }
 
@@ -1833,35 +1960,41 @@ function sellWeapon(w) {
   sellForm(w, (sale) => saveEntity('weapons', { ...findWeapon(w.id), ...sale, archived: Boolean(sale.soldDate) }));
 }
 
-// Тюнінг і «обійшовся» — лише знак долара, збільшений на всю іконку
-const TUNE_ICON = '<g transform="translate(12 12) scale(1.7) translate(-12 -11.8)" stroke-width="1.25">'
-  + '<path d="M14.6 9c-.52-.78-1.43-1.3-2.6-1.3-1.43 0-2.47.78-2.47 1.95 0 2.6 5.07 1.43 5.07 4.03 0 1.17-1.17 2.08-2.6 2.08-1.17 0-2.21-.52-2.73-1.3M12 6v1.7M12 15.8v1.8"/></g>';
-
 /** У скільки обійшовся ствол: покупка й увесь тюнінг. */
 const weaponInvested = (w) => priceOf(w.buyPrice) + (w.mods ?? []).reduce((s, m) => s + priceOf(m.price), 0);
 
-function tuneIcon() {
-  const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
-  el.innerHTML = `<svg viewBox="0 0 24 24">${TUNE_ICON}</svg>`;
-  return el;
+/** Підсумок «Покупки й тюнінгу»: скільки вкладено й смуга — яка частка пішла на ствол, яка на тюнінг. */
+function investSummary(w, total) {
+  const gun = priceOf(w.buyPrice);
+  const tune = total - gun;
+  const part = (cls, v) => (v > 0 ? h('span', { class: `invest-part ${cls}`, style: `flex-grow:${v}` }) : null);
+  const legend = (cls, label, v) => (v > 0 ? h('span', { class: `invest-key ${cls}` }, label, ' ', h('b', {}, fmt.num(Math.round(v)))) : null);
+  return h('div', { class: 'invest' },
+    h('div', { class: 'invest-total' }, tileMoney(total, usdSum(investRows(w), true)), h('span', { class: 'muted small' }, t('вложено в ствол'))),
+    gun > 0 && tune > 0 ? h('div', { class: 'invest-bar' }, part('gun', gun), part('tune', tune)) : null,
+    gun > 0 && tune > 0 ? h('div', { class: 'invest-legend small' }, legend('gun', t('ствол'), gun), legend('tune', t('тюнинг'), tune)) : null);
 }
 
 /** «Покупка і тюнінг» у картці ствола: за скільки купив, що доставив, разом. */
 function buyBox(w, close) {
   const mods = [...(w.mods ?? [])].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   const total = weaponInvested(w);
-  const icon = tuneIcon;
   const bought = w.buyPrice || w.buyDate || w.buyPlace;
+  const modRow = (m) => {
+    const p = modPhoto(m.id);
+    return priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
+      m.price, () => modForm(w, m), p ? h('img', { class: 'row-thumb', src: p.thumb, alt: '' }) : null, m.date, m.usdRate, isSold(m) ? 'tune sold' : 'tune');
+  };
   const el = box(t('Покупка и тюнинг'), [
-    h('div', { class: 'btn-row' }, btn(t('+ тюнинг'), () => modForm(w))),
-    h('div', { class: 'rows' },
-      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate) : null,
-      mods.map((m) => priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-        m.price, () => modForm(w, m), icon(), m.date, m.usdRate)),
+    total ? investSummary(w, total) : null,
+    h('div', { class: 'rows invest-rows' },
+      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate, 'gun') : null,
+      mods.map(modRow),
       isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
-    total ? h('p', { class: 'muted small' }, t('Вложено в ствол: {sum}', { sum: grn(total) + usdTail(investRows(w), true) })) : null,
-    isSold(w) ? null : h('div', { class: 'btn-row' }, btn(t('Продал ствол'), () => sellWeapon(w), 'mini quiet')),
-  ], { fold: `gun-buy:${w.id}`, count: mods.length });
+    h('div', { class: 'btn-row' },
+      btn(t('+ тюнинг'), () => modForm(w), 'mini'),
+      isSold(w) ? null : btn(t('Продал ствол'), () => sellWeapon(w), 'mini quiet')),
+  ], { fold: `gun-buy:${w.id}`, count: mods.length, summary: total ? h('span', { class: 'box-sum' }, grn(total)) : null });
   el.dataset.buy = '';
   return el;
 }
@@ -2365,7 +2498,7 @@ function removeWeapon(w) {
   }
   confirmSheet(t('Удалить оружие?'), w.name, t('Удалить'), async () => {
     await db.write({ weapons: { del: [w.id] } });
-    await removePhotos(weaponPhotos(w.id));
+    await removePhotos([...weaponPhotos(w.id), ...(w.mods ?? []).map((m) => modPhoto(m.id)).filter(Boolean)]);
     await refresh();
   });
 }
@@ -2374,8 +2507,13 @@ function weaponBody(w, close) {
   const moves = state.movements.filter((m) => m.weaponId === w.id);
   const cost = M.shotsCost(state, moves);
   const main = M.defaultScope(w) ?? w.scopes?.[0];
+  // Калібр у підписі шапки — кольором калібру, як монограма; номер і комплект — звичайним
+  const rest = [w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ');
+  const caption = [w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
+    w.caliber && rest ? ' · ' : null, rest || null].filter(Boolean);
   return h('div', { class: 'gun-card' },
-    gunHero(w, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ')),
+    gunHero(w, caption),
+    sizeBox(w),
     w.note ? h('p', { class: 'muted small gun-note' }, w.note) : null,
     gunFlags(w, true),
     gunStats(w, close),
@@ -2386,7 +2524,6 @@ function weaponBody(w, close) {
     }) : null,
     buyBox(w, close),
     permitBox(w),
-    sizeBox(w),
     dopeBox(w, close),
     precisionChart(w),
     ammoPrecisionBox(w, 'precision'),
@@ -2942,7 +3079,11 @@ function sizeRows(w) {
 function sizeBox(w) {
   const rows = sizeRows(w);
   if (!rows.length) return null;
-  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), { fold: `size:${w.id}` });
+  // У згорнутому заголовку — довжина й вага: найчастіше потрібні саме вони
+  const sum = rows.filter(([k]) => k === t('Длина') || k === t('Вес')).map(([, v]) => v).join(' · ');
+  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), {
+    fold: `size:${w.id}`, summary: sum ? h('span', { class: 'box-sum' }, sum) : null,
+  });
 }
 
 /** Блок «Габарити й вага» у формі зброї. */
@@ -6363,6 +6504,7 @@ function pickCartridge(title, next) {
 // Ключ — ?go=… в адресі ярлика; набір ярликів задає manifest, тут — усі можливі дії
 const SHORTCUTS = {
   shot: () => pickWeapon(t('Записать стрельбу'), (w) => shootSheet({ weapon: w })),
+  shared: () => takeSharedImage().catch((err) => toast(err.message)),
   target: () => { goRange('targets'); newTarget({ weaponId: targetWeapon || null }); },
   timer: () => goRange('timer'),
   sim: () => goRange('sim'),

@@ -759,6 +759,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.gun-hero-cal { color: hsl(var(--h) 90% 76%); font-weight: 800; }
 .gun-hero-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
 .gun-hero-count, .gun-hero-add {
   display: inline-flex;
@@ -805,6 +806,42 @@ button.gun-stat { cursor: pointer; }
 .ring.warn .ring-arc { stroke: var(--warn); }
 .ring.over .ring-arc { stroke: var(--shoot); }
 .big-col .ring { width: 22px; height: 22px; }
+
+/* «Покупка й тюнінг»: підсумок зі смугою частки — ствол / тюнінг; ті ж кольори — мітки зліва в рядках */
+.invest { margin: 2px 0 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); }
+.invest-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.invest-total > .nw { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.invest-bar { display: flex; gap: 3px; height: 8px; margin: 10px 0 6px; border-radius: 4px; overflow: hidden; }
+.invest-part { flex-basis: 0; min-width: 6px; }
+.invest-part.gun, .invest-key.gun::before, .invest-rows .row.gun::before { background: var(--accent); }
+.invest-part.tune, .invest-key.tune::before, .invest-rows .row.tune::before { background: var(--buy); }
+.invest-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); }
+.invest-key { display: inline-flex; align-items: center; gap: 6px; }
+.invest-key::before { content: ''; width: 8px; height: 8px; border-radius: 50%; }
+.invest-key b { color: var(--text); font-variant-numeric: tabular-nums; }
+.invest-rows .row { position: relative; overflow: hidden; padding-left: 16px; }
+.invest-rows .row.gun::before, .invest-rows .row.tune::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; }
+.invest-rows .row.sold { opacity: .6; }
+.row-thumb { flex: none; width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: var(--surface-2); }
+/* Фото тюнінгу у формі: плитка-прев'ю, тап — вибрати чи замінити */
+.photo-pick { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.photo-pick-thumb {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.photo-pick-thumb.empty { border-style: dashed; }
+.photo-pick-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.photo-pick-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* --- перегляд фото --- */
 .viewer {
