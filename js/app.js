@@ -1677,12 +1677,42 @@ function soldItems() {
 
 /** Усі витрати з датою: покупка стволів (і архівних), тюнінг, екіпірування; продаж — мінусом. */
 function spending() {
-  const all = [...state.weapons.map((w) => ['gun', w]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m])),
-    ...state.gear.map((g) => ['gear', g])];
+  const all = [...state.weapons.map((w) => ['gun', w, null]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m, w])),
+    ...state.gear.map((g) => ['gear', g, null])];
   return [
-    ...all.map(([kind, x]) => ({ kind, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
-    ...all.filter(([, x]) => isSold(x)).map(([, x]) => ({ kind: 'sale', date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
+    ...all.map(([kind, x, weapon]) => ({ kind, item: x, weapon, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
+    ...all.filter(([, x]) => isSold(x)).map(([of, x, weapon]) => ({ kind: 'sale', of, item: x, weapon, date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
   ].filter((x) => x.price);
+}
+
+/** Частки витрат — у цьому порядку знизу вгору в стовпчику й у розборі періоду. */
+const SPEND_PARTS = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка']];
+const spendPartIcon = (i) => h('i', { class: `bar-part p${i}` });
+
+/** Розбір витрат за рік чи місяць: частки зброї, тюнінгу й екіпірування, покупки й продажі. */
+function spendingPeriodSheet(title, items) {
+  const bought = items.filter((x) => x.kind !== 'sale').sort((a, b) => b.price - a.price);
+  const sales = items.filter((x) => x.kind === 'sale');
+  const total = bought.reduce((s, x) => s + x.price, 0);
+  const shares = SPEND_PARTS.map(([k, label], i) => {
+    const sum = bought.filter((x) => x.kind === k).reduce((s, x) => s + x.price, 0);
+    if (!sum) return null;
+    const pct = Math.round((sum / total) * 100);
+    return h('div', { class: 'spend-share' },
+      h('div', { class: 'progress-label' }, h('span', {}, spendPartIcon(i), t(label)), h('span', {}, `${grn(sum)} · ${pct}%`)),
+      h('div', { class: 'bar' }, h('div', { class: `fill bar-part p${i}`, style: `width:${Math.max(2, pct)}%` })));
+  });
+  const open = (x) => () => {
+    close();
+    const kind = x.of ?? x.kind;
+    if (kind === 'gun') weaponDetail(x.item);
+    else if (kind === 'mod') modForm(x.weapon, x.item);
+    else gearForm(x.item);
+  };
+  const row = (x) => priceRow(x.item.name, [fmt.date(x.date), x.weapon?.name].filter(Boolean).join(' · '), Math.abs(x.price), open(x), null, x.date, x.rate);
+  const close = sheet(title, h('div', {},
+    total ? box(t('Покупки'), h('div', {}, shares, h('div', { class: 'rows spend-rows' }, bought.map(row)))) : null,
+    sales.length ? box(t('Продано'), h('div', { class: 'rows' }, sales.map(row))) : null));
 }
 
 /** Продаж: ціна, дата, кому чи де; «Не продано» скасовує продаж. */
@@ -1712,16 +1742,24 @@ function spendingChart(list) {
   // У доларах видно справжню різницю між роками; лише коли кожна сума має курс
   const dated = list.filter((x) => x.date);
   const inUsd = usdSum(dated.map((x) => [x.price, x.date, x.rate])) !== null;
+  const amount = (x) => (inUsd ? usdOf(x.price, x.date, x.rate) : x.price);
   const by = (period) => [...dated.reduce((map, x) => {
     const key = periodOf(x.date, period).key;
-    return map.set(key, (map.get(key) ?? 0) + (inUsd ? usdOf(x.price, x.date, x.rate) : x.price));
+    return map.set(key, [...(map.get(key) ?? []), x]);
   }, new Map())].sort(([a], [b]) => (a < b ? -1 : 1));
   let period = 'year';
   let rows = by(period);
   if (rows.length < 2) { period = 'month'; rows = by(period).slice(-12); }
   if (rows.length < 2) return null;
-  return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'),
-    barChart(rows.map(([key, value]) => ({ label: PERIOD_CHART[period].label(key), value })), { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))) }),
+  const sumOf = (items, kind) => items.filter((x) => !kind || x.kind === kind).reduce((s, x) => s + amount(x), 0);
+  // Стовпчик — чисті витрати (з продажами), відтінки всередині — частки покупок; тап — розбір періоду
+  const bars = rows.map(([key, items]) => {
+    const label = PERIOD_CHART[period].label(key);
+    return { label, value: sumOf(items), parts: SPEND_PARTS.map(([k]) => sumOf(items, k)), onclick: () => spendingPeriodSheet(label, items) };
+  });
+  return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'), h('div', {},
+    barChart(bars, { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))) }),
+    h('div', { class: 'bar-legend' }, SPEND_PARTS.map(([, label], i) => h('span', {}, spendPartIcon(i), t(label))))),
     { fold: 'spend-chart' });
 }
 
