@@ -18,7 +18,7 @@ import { solve } from './ballistics.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
-  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab, reveal,
+  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, toolIcon, goTab, reveal,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate,
 } from './ui.js';
 
@@ -1386,45 +1386,127 @@ function coverPhoto(w) {
   return list.find((p) => p.id === w.coverId) ?? list[0] ?? null;
 }
 
+const monogram = (w) => String(w.name ?? '').split(/[\s-]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase() || '—';
+
 /** Без фото — монограма за назвою на плитці кольору калібру: стволи видно один від одного. */
 function weaponThumb(w) {
   const cover = coverPhoto(w);
   if (cover) return h('img', { class: 'thumb', src: cover.thumb, alt: '' });
-  const letters = String(w.name ?? '').split(/[\s-]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('');
-  return h('div', { class: 'thumb mono', style: `--h:${caliberHue(w.caliber)}`, 'aria-hidden': 'true' }, letters.toUpperCase() || '—');
+  return h('div', { class: 'thumb mono', style: `--h:${caliberHue(w.caliber)}`, 'aria-hidden': 'true' }, monogram(w));
 }
 
-/** Підпис прогресу чистки в одиницях інтервалу. */
+/** Кільце частки 0–100: сіра доріжка, дуга кольору стану (як смуги — зелена, жовта, червона). */
+function ringIco(pct, fill = '') {
+  const r = 9;
+  const len = 2 * Math.PI * r;
+  const el = h('span', { class: `ring ${fill}`, 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="0 0 24 24"><circle class="ring-track" cx="12" cy="12" r="${r}"/>`
+    + `<circle class="ring-arc" cx="12" cy="12" r="${r}" stroke-dasharray="${((pct / 100) * len).toFixed(1)} ${len.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>`;
+  return el;
+}
+
+/** Частка ресурсу ствола, %; без ресурсу — null. */
+function barrelWear(w) {
+  const life = Number(w.barrelLife);
+  return life > 0 ? Math.min(100, (M.weaponShots(state, w) / life) * 100) : null;
+}
+
 /**
- * Чистка одним рядком. З інтервалом: зліва — коли чистили або «Пора чистить», справа — скільки
- * набралося з інтервалу, під ними смуга. Без інтервалу — лише плашка стану.
+ * Стан ствола чипами: дозвіл, чистка, знос ствола. all — у картці (і спокійні «почищено», «дозвіл до…»),
+ * без нього — на плитці списку, лише те, що потребує уваги.
  */
-function cleanRow(w, { inline = false } = {}) {
-  const s = M.cleaningStatus(state, w);
-  if (!s.every) return cleanBadge(w);
-  const pct = Math.min(100, (s.count / s.every) * 100);
-  const unit = s.unit === 'sessions' ? t('стрельб') : t('выстрелов');
-  const status = s.due ? h('span', { class: 'clean-due' }, t('Пора чистить'))
-    : s.reached ? h('span', { class: 'clean-wait' }, t('Напомню {date}', { date: fmt.date(s.dueDate) }))
-      : h('span', {}, s.last ? t('Почищено {date}', { date: fmt.date(s.last.date) }) : t('Чистка'));
-  const fill = s.due && pct >= 100 ? 'over' : s.reached || pct >= 85 ? 'warn' : '';
-  return meter(status, `${fmt.num(s.count)} / ${fmt.num(s.every)} ${unit}`, pct, fill, inline);
+function gunFlags(w, all = false) {
+  const p = M.permitStatus(w.permit);
+  const c = M.cleaningStatus(state, w);
+  const wear = barrelWear(w);
+  const permit = p && (all || p.level !== 'ok')
+    ? [p.level === 'over' ? 'danger' : p.level === 'warn' ? 'warn' : 'ok', t('Разрешение: {left}', { left: permitLeft(p) })] : null;
+  const clean = c.due ? [c.every ? 'danger' : 'warn', c.every ? t('Пора чистить')
+    : c.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(c.lastShot) }) : t('Не почищено после стрельбы')]
+    : !all ? null
+      : c.reached ? ['ok', t('Не почищено · напомню {date}', { date: fmt.date(c.dueDate) })]
+        : c.last ? ['ok', t('Почищено {date}', { date: fmt.date(c.last.date) })] : null;
+  const worn = wear >= 85 ? [wear >= 100 ? 'danger' : 'warn', t('Ресурс ствола {n}%', { n: Math.round(wear) })] : null;
+  const flags = [permit, clean, worn].filter(Boolean);
+  if (!flags.length) return null;
+  return h('div', { class: 'gun-flags' }, flags.map(([level, text]) => h('span', { class: `badge small ${level}` }, text)));
 }
 
-/** Плашка стану чистки: червона — час чистити, жовта — не почищено після стрільби. */
-function cleanBadge(w) {
-  const s = M.cleaningStatus(state, w);
-  if (s.due && s.every) {
-    return h('div', { class: 'badge danger small' }, s.unit === 'sessions'
-      ? t('Пора чистить: стрельб после чистки — {n}', { n: fmt.num(s.count) })
-      : t('Пора чистить: {n} выстрелов после чистки', { n: fmt.num(s.since) }));
-  }
-  if (s.due) {
-    return h('div', { class: 'badge warn small' },
-      s.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(s.lastShot) }) : t('Не почищено после стрельбы'));
-  }
-  if (s.reached) return h('div', { class: 'badge ok small' }, t('Не почищено · напомню {date}', { date: fmt.date(s.dueDate) }));
-  return s.last ? h('div', { class: 'badge ok small' }, t('Почищено {date}', { date: fmt.date(s.last.date) })) : null;
+/** Три головні числа картки: настріл із кільцем ресурсу, після чистки, купчастість (тап — мішені ствола). */
+function gunStats(w, close) {
+  const shots = M.weaponShots(state, w);
+  const wear = barrelWear(w);
+  const c = M.cleaningStatus(state, w);
+  const p = gunPrecision(w);
+  const tile = (value, label, sub, attrs = {}) => h(attrs.onclick ? 'button' : 'div', { class: 'gun-stat', ...attrs },
+    h('span', { class: 'gun-stat-value' }, value), h('span', { class: 'gun-stat-label' }, label), sub);
+  const cleanPct = c.every ? Math.min(100, (c.count / c.every) * 100) : null;
+  return h('div', { class: 'gun-stats' },
+    tile(fmt.num(shots), t('настрел'), wear === null ? null
+      : h('span', { class: 'gun-stat-sub' }, ringIco(Math.max(2, wear), fillClass(wear)), t('{n}% ресурса', { n: Math.round(wear) }))),
+    tile(c.every ? `${fmt.num(c.count)} / ${fmt.num(c.every)}` : fmt.num(c.since),
+      c.every && c.unit === 'sessions' ? t('стрельб после чистки') : t('после чистки'),
+      cleanPct === null ? null : h('div', { class: 'bar' }, h('div', { class: `fill ${c.due ? 'over' : fillClass(cleanPct)}`, style: `width:${Math.max(4, cleanPct)}%` }))),
+    tile(p?.value ?? '—', p?.label ?? t('Кучность'), null, { type: 'button', title: t('Кучность'), onclick: () => openTargets(w, close) }));
+}
+
+// Повні фото обкладинок — object URL на сеанс: шапка не перечитує blob при кожному оновленні картки
+const coverUrls = new Map();
+
+function dropCoverUrl(id) {
+  if (coverUrls.has(id)) URL.revokeObjectURL(coverUrls.get(id));
+  coverUrls.delete(id);
+}
+
+async function coverUrl(p) {
+  if (coverUrls.has(p.id)) return coverUrls.get(p.id);
+  const blob = await db.getBlob(p.id).catch(() => null);
+  if (!blob) return null;
+  coverUrls.set(p.id, URL.createObjectURL(blob));
+  return coverUrls.get(p.id);
+}
+
+/**
+ * Шапка картки: обкладинка на всю ширину (повне фото; поки вантажиться чи не синхронізоване — мініатюра),
+ * без фото — монограма на кольорі калібру. Тап — усі фото на весь екран, «+ Фото» — додати.
+ */
+function gunHero(w, caption) {
+  const photos = weaponPhotos(w.id);
+  const cover = coverPhoto(w);
+  const input = h('input', {
+    type: 'file', accept: 'image/*', multiple: true, hidden: true,
+    onchange: (e) => { const files = [...e.target.files]; e.target.value = ''; addPhotos(w.id, files); },
+  });
+  const pic = cover ? h('img', { class: 'gun-hero-img', src: cover.thumb, alt: '' })
+    : h('span', { class: 'gun-hero-mono', 'aria-hidden': 'true' }, monogram(w));
+  if (cover) coverUrl(cover).then((url) => { if (url) pic.src = url; });
+  return h('div', { class: `gun-hero ${cover ? '' : 'empty'}`, style: `--h:${caliberHue(w.caliber)}` },
+    h('button', {
+      type: 'button', class: 'gun-hero-pic', 'aria-label': cover ? t('Фото') : t('Добавить фото'),
+      onclick: () => (cover ? openPhotos(w.id, photos.indexOf(cover)) : input.click()),
+    }, pic),
+    caption?.length ? h('span', { class: 'gun-hero-cap' }, caption) : null,
+    h('span', { class: 'gun-hero-tools' },
+      photos.length > 1 ? h('span', { class: 'gun-hero-count' }, icon('camera'), fmt.num(photos.length)) : null,
+      h('button', { type: 'button', class: 'gun-hero-add', onclick: () => input.click() }, '+ ', t('Фото'))),
+    input);
+}
+
+/** Фото ствола на весь екран: обкладинка, правка, видалення; картку оновить refresh (шторка live). */
+function openPhotos(weaponId, index) {
+  viewer(weaponPhotos(weaponId), Math.max(0, index), {
+    isCover: (p) => coverPhoto(findWeapon(weaponId))?.id === p.id,
+    onCover: (p) => saveEntity('weapons', { ...findWeapon(weaponId), coverId: p.id }),
+    // Правка зберігає фото з новим id і сама оновлює стан
+    onEdit: (p) => editWeaponPhoto(p),
+    onDelete: (p) => new Promise((resolve) => {
+      confirmSheet(t('Удалить фото?'), t('Фото удалится на всех устройствах.'), t('Удалить'), async () => {
+        dropCoverUrl(p.id);
+        await removePhotos([p]);
+        resolve(true);
+      });
+    }),
+  });
 }
 
 const needsCleaning = (w) => !w.archived && M.cleaningStatus(state, w).due;
@@ -1454,23 +1536,27 @@ function cleanSheet(w) {
 
 function weaponCard(w) {
   const shots = M.weaponShots(state, w);
-  const meters = [progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true }), permitMeter(w, { inline: true }), cleanRow(w, { inline: true })].filter(Boolean);
+  const wear = barrelWear(w);
   // Кожна частина переноситься цілком: «№» не відривається від номера, калібр — від своїх цифр.
   const info = [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean)
     .flatMap((x, i) => [i ? ' · ' : null, h('span', { class: 'nw' }, x)]).filter(Boolean);
+  const flags = gunFlags(w);
   const card = h('article', { class: 'card tall', 'data-id': w.id },
     h('div', { class: 'swipe-body wrap' },
       weaponThumb(w),
       h('div', { class: 'card-main' },
         h('div', { class: 'card-title' }, w.name),
         info.length ? h('div', { class: 'muted small' }, info) : null),
-      // Настріл і розкид — значками замість підписів: колонка вужча, назві й номеру лишається місце.
+      // Настріл і розкид — значками замість підписів; з ресурсом ствола значок — кільце зносу.
       h('div', { class: 'big-col' },
-        h('div', { class: 'big', title: t('настрел') }, bigIco(KIND_ICON.shot), fmt.num(shots), h('span', { class: 'sr' }, t('настрел'))),
+        h('div', { class: 'big', title: wear === null ? t('настрел') : t('настрел · {n}% ресурса', { n: Math.round(wear) }) },
+          wear === null ? bigIco(KIND_ICON.shot) : ringIco(Math.max(2, wear), fillClass(wear)), fmt.num(shots),
+          h('span', { class: 'sr' }, t('настрел'))),
         precisionBadge(w)),
       // Приціл — рядком на всю ширину: між фото й настрілом на телефоні його назва рвалась посеред слова.
       w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w)) : null,
-      meters.length ? h('div', { class: 'card-foot meters' }, meters) : null));
+      // Смуг немає: плитка говорить лише про те, що потребує уваги, решта — в картці
+      flags ? h('div', { class: 'card-foot' }, flags) : null));
   return swipeable(card, {
     rightLabel: swipeLabel('clean', t('Почистил')), leftLabel: swipeLabel('shot', t('Настрел'), 'left'),
     onRight: () => recordCleaning(w),
@@ -1576,7 +1662,10 @@ function rateHint(f, name, dateName) {
   show();
 }
 /** Покупка ствола й увесь тюнінг — кожне за своєю датою. */
-const investRows = (w) => [[w.buyPrice, w.buyDate, w.usdRate], ...(w.mods ?? []).map((m) => [m.price, m.date, m.usdRate])];
+/** День для курсу $: покупка без дати — за сьогоднішнім курсом, щоб підсумок у $ не зникав. */
+const gunDay = (w) => w.buyDate ?? M.today();
+const modDay = (w, m) => m.date ?? M.today();
+const investRows = (w) => [[w.buyPrice, gunDay(w), w.usdRate], ...(w.mods ?? []).map((m) => [m.price, modDay(w, m), m.usdRate])];
 
 const isSold = (x) => Boolean(x?.soldDate);
 
@@ -1589,14 +1678,82 @@ function soldItems() {
   ].sort((a, b) => b.item.soldDate.localeCompare(a.item.soldDate));
 }
 
-/** Усі витрати з датою: покупка стволів (і архівних), тюнінг, екіпірування; продаж — мінусом. */
+/**
+ * Усі витрати з датою: покупка стволів (і архівних), тюнінг, екіпірування, набої й компоненти; продаж — мінусом.
+ * Набої й компоненти — лише покупки: спорядження вже оплачене покупкою компонентів.
+ */
 function spending() {
-  const all = [...state.weapons.map((w) => ['gun', w]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m])),
-    ...state.gear.map((g) => ['gear', g])];
+  const all = [...state.weapons.map((w) => ['gun', w, null]), ...state.weapons.flatMap((w) => (w.mods ?? []).map((m) => ['mod', m, w])),
+    ...state.gear.map((g) => ['gear', g, null])];
+  const unit = (m) => (m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт');
   return [
-    ...all.map(([kind, x]) => ({ kind, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
-    ...all.filter(([, x]) => isSold(x)).map(([, x]) => ({ kind: 'sale', date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
+    ...all.map(([kind, x, weapon]) => ({ kind, item: x, weapon, name: x.name, date: kind === 'gun' ? x.buyDate : x.date, price: priceOf(kind === 'gun' ? x.buyPrice : x.price), rate: x.usdRate })),
+    ...all.filter(([, x]) => isSold(x)).map(([of, x, weapon]) => ({ kind: 'sale', of, item: x, weapon, name: x.name, date: x.soldDate, price: -priceOf(x.soldPrice), rate: x.soldUsdRate })),
+    ...state.movements.filter((m) => m.kind === 'buy' && (m.cartridgeId || m.componentId))
+      .map((m) => ({ kind: m.componentId ? 'reload' : 'ammo', item: m, weapon: null, name: movementTitle(m), qty: `${fmt.num(m.qty)} ${unit(m)}`, date: dayOf(m), price: priceOf(m.price), rate: m.usdRate })),
   ].filter((x) => x.price);
+}
+
+/** Частки витрат — у цьому порядку знизу вгору в стовпчику й у розборі періоду. */
+// Набої — готові патрони; релоад — компоненти для спорядження (порох, капсулі, кулі, гільзи)
+const SPEND_PARTS = [['gun', 'оружие'], ['mod', 'тюнинг'], ['gear', 'экипировка'], ['ammo', 'патроны'], ['reload', 'релоад']];
+const spendPartIcon = (i) => h('i', { class: `bar-part p${i}` });
+const spendPart = (x) => SPEND_PARTS.findIndex(([k]) => k === (x.of ?? x.kind));
+/** Сума покупок (без продажів) — уся чи однієї категорії. */
+const boughtSum = (items, kind = null) => items.reduce((s, x) => s + (x.kind !== 'sale' && (!kind || x.kind === kind) ? x.price : 0), 0);
+/** Зміна до попереднього періоду: «↑35%»; попереднього нема чи там нуль — нічого. */
+function spendDelta(cur, before) {
+  if (!before) return null;
+  const pct = Math.round(((cur - before) / before) * 100);
+  return h('span', { class: 'spend-delta' }, `${pct > 0 ? '↑' : pct < 0 ? '↓' : '±'}${Math.abs(pct)}%`);
+}
+
+/** Розбір витрат за рік чи місяць: частки категорій і зміна до попереднього періоду, покупки й продажі. */
+function spendingPeriodSheet(title, items, prev = null) {
+  const bought = items.filter((x) => x.kind !== 'sale').sort((a, b) => b.price - a.price);
+  const sales = items.filter((x) => x.kind === 'sale');
+  const total = boughtSum(items);
+  const before = (kind) => (prev ? boughtSum(prev.items, kind) : 0);
+  // Долари — дрібно поруч із гривнями, як у решті застосунку (лише коли ввімкнено й у всіх покупок є курс)
+  const usdRows = (kind = null) => bought.filter((x) => !kind || x.kind === kind).map((x) => [x.price, x.date, x.rate]);
+  const shares = SPEND_PARTS.map(([k, label], i) => {
+    const sum = boughtSum(items, k);
+    if (!sum) return null;
+    const pct = Math.round((sum / total) * 100);
+    return h('div', { class: 'spend-share' },
+      h('div', { class: 'progress-label' }, h('span', {}, spendPartIcon(i), t(label)),
+        h('span', {}, `${grn(sum)}${usdTail(usdRows(k))} · ${pct}%`, spendDelta(sum, before(k)))),
+      h('div', { class: 'bar' }, h('div', { class: `fill bar-part p${i}`, style: `width:${Math.max(2, pct)}%` })));
+  });
+  const head = h('div', { class: 'spend-total' }, h('span', {}, t('Итого')), h('b', {}, tileMoney(total, usdSum(usdRows()))),
+    before() ? h('span', { class: 'muted small' }, spendDelta(total, before()), ' ', t('к {period}', { period: prev.label })) : null);
+  const open = (x) => () => {
+    close();
+    const kind = x.of ?? x.kind;
+    if (kind === 'gun') weaponDetail(x.item);
+    else if (kind === 'mod') modForm(x.weapon, x.item);
+    else if (kind === 'ammo' || kind === 'reload') movementDetail(x.item);
+    else gearForm(x.item);
+  };
+  // Квадратик відтінку з графіка й категорія в підписі — видно, куди пішла покупка
+  const row = (x) => {
+    const i = spendPart(x);
+    return priceRow([spendPartIcon(i), x.name], [t(SPEND_PARTS[i][1]), fmt.date(x.date), x.weapon?.name, x.qty].filter(Boolean).join(' · '),
+      Math.abs(x.price), open(x), null, x.date, x.rate);
+  };
+  const close = sheet(title, h('div', { class: 'spend-sheet' },
+    total ? box(t('Покупки'), h('div', {}, head, shares, h('div', { class: 'rows spend-rows' }, bought.map(row)))) : null,
+    sales.length ? box(t('Продано'), h('div', { class: 'rows' }, sales.map(row))) : null));
+}
+
+/** Витрати в CSV для Excel: покупки й продажі (мінусом) від старих до нових, сума в грн і $. */
+async function exportSpendingCsv(list) {
+  if (!list.length) { toast(t('Нет записей для экспорта')); return; }
+  const rows = [...list].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')).map((x) => [
+    x.date ? fmt.date(x.date) : '', t(x.kind === 'sale' ? 'Продажа' : 'Покупка'), t(SPEND_PARTS[spendPart(x)][1]), x.name ?? '',
+    x.weapon?.name ?? '', x.qty ?? '', csvNum(x.price), csvNum(x.date || x.rate ? usdOf(x.price, x.date, x.rate) : null)]);
+  const head = [t('Дата'), t('Тип'), t('Категория'), t('Название'), t('Оружие'), t('Количество'), t('Сумма, грн'), t('Сумма, $')];
+  await offerFile(`shooters-log-spending-${M.today()}.csv`, csvText(head, rows), 'text/csv');
 }
 
 /** Продаж: ціна, дата, кому чи де; «Не продано» скасовує продаж. */
@@ -1623,20 +1780,27 @@ function sellForm(item, onSave) {
 
 /** Витрати по роках; якщо рік один — по місяцях (останні 12). */
 function spendingChart(list) {
-  // У доларах видно справжню різницю між роками; лише коли кожна сума має курс
   const dated = list.filter((x) => x.date);
-  const inUsd = usdSum(dated.map((x) => [x.price, x.date, x.rate])) !== null;
   const by = (period) => [...dated.reduce((map, x) => {
     const key = periodOf(x.date, period).key;
-    return map.set(key, (map.get(key) ?? 0) + (inUsd ? usdOf(x.price, x.date, x.rate) : x.price));
+    return map.set(key, [...(map.get(key) ?? []), x]);
   }, new Map())].sort(([a], [b]) => (a < b ? -1 : 1));
   let period = 'year';
   let rows = by(period);
   if (rows.length < 2) { period = 'month'; rows = by(period).slice(-12); }
   if (rows.length < 2) return null;
-  return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'),
-    barChart(rows.map(([key, value]) => ({ label: PERIOD_CHART[period].label(key), value })), { format: (v) => (inUsd ? `$${fmt.num(Math.round(v))}` : fmt.num(Math.round(v))) }),
-    { fold: 'spend-chart' });
+  const sumOf = (items) => items.reduce((s, x) => s + x.price, 0);
+  // Стовпчик — чисті витрати (з продажами) одним кольором; тап — розбір періоду за категоріями
+  const labelOf = (key) => PERIOD_CHART[period].label(key);
+  const bars = rows.map(([key, items], i) => {
+    const prev = rows[i - 1] ? { label: labelOf(rows[i - 1][0]), items: rows[i - 1][1] } : null;
+    return { label: labelOf(key), value: sumOf(items), onclick: () => spendingPeriodSheet(labelOf(key), items, prev) };
+  });
+  const csv = toolBtn('share', t('Экспорт в CSV'), () => exportSpendingCsv(list), 'small box-corner');
+  return box(t(period === 'year' ? 'Расходы по годам' : 'Расходы по месяцам'), h('div', {},
+    barChart(bars, { format: (v) => fmt.num(Math.round(v)), inside: true }),
+    h('p', { class: 'muted small' }, t(period === 'year' ? 'Нажмите на год — разбивка по категориям' : 'Нажмите на месяц — разбивка по категориям'))),
+    { fold: 'spend-chart', corner: csv });
 }
 
 function renderGear() {
@@ -1671,7 +1835,7 @@ function renderGear() {
       [h('span', { class: 'fold-title' }, t(GEAR_KINDS.find(([k]) => k === kind)[1])),
         h('span', { class: 'fold-meta' }, t('{n} поз.', { n: items.length })),
         h('span', { class: 'fold-sum' }, grn(items.reduce((s, g) => s + priceOf(g.price), 0)) + usdTail(items.map((g) => [g.price, g.date, g.usdRate])))],
-      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), null, g.date, g.usdRate))))),
+      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate))))),
     sold.length ? fold('gear:sold',
       [h('span', { class: 'fold-title' }, t('Продано')), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: sold.length })),
         h('span', { class: 'fold-sum' }, grn(back) + (usdBack === null ? '' : ` · ${usdFmt(usdBack)}`))],
@@ -1687,28 +1851,43 @@ function renderGear() {
 }
 
 /** Рядок покупки: назва, «дата · де», сума праворуч. */
-function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = null) {
-  return h('button', { type: 'button', class: `row ${icon ? 'kind-tune' : ''}`, onclick }, icon,
+function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = null, cls = '') {
+  return h('button', { type: 'button', class: `row ${icon ? 'kind-tune' : ''} ${cls}`, onclick }, icon,
     h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), sub ? h('span', { class: 'muted small' }, sub) : null),
     priceOf(price) ? h('span', { class: 'row-qty' }, tileMoney(priceOf(price), usdSum([[price, iso, rate]]))) : null);
 }
 
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
-function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell }) {
+function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null }) {
+  // preset — незбережена чернетка (повернулись із пошуку фото): лише значення полів, без «Видалити»/«Продав»
+  const src = item ?? preset;
   const f = form([
-    { name: 'name', label: t('Название'), required: true, value: item?.name, placeholder, wide: true },
-    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: item?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
-    { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: item?.price, half: true },
-    { name: 'date', label: t('Дата покупки'), type: 'date', value: item?.date ?? M.today(), half: true },
-    rateField('usdRate', item?.usdRate),
-    { name: 'place', label: t('Где купил'), value: item?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
-    { name: 'note', label: t('Примечание'), value: item?.note, wide: true },
+    { name: 'name', label: t('Название'), required: true, value: src?.name, placeholder, wide: true },
+    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: src?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
+    { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: src?.price, half: true },
+    { name: 'date', label: t('Дата покупки'), type: 'date', value: src?.date ?? M.today(), half: true },
+    rateField('usdRate', src?.usdRate),
+    { name: 'place', label: t('Где купил'), value: src?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
+    { name: 'note', label: t('Примечание'), value: src?.note, wide: true },
+    // Характеристики — з сайту виробника чи магазину: «🔍 Характеристики» шукає в Google, текст вставляють сюди
+    photo === undefined ? null : { name: 'specs', label: t('Характеристики'), type: 'textarea', rows: 4, value: src?.specs, placeholder: t('Вес, размеры, крепление… — скопируйте с сайта'), wide: true },
   ].filter(Boolean));
   rateHint(f, 'usdRate', 'date');
+  f.inputs.specs?.closest('label')?.after(h('div', { class: 'specs-find' }, btn(`🔍 ${t('Характеристики')}`, () => {
+    const q = f.inputs.name.value.trim();
+    if (!q) { toast(t('Сначала впишите название')); return; }
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(`${q} ${t('характеристики')}`)}`, '_blank', 'noopener');
+  }, 'mini')));
   // Категорія — чипами, як тип компонента: видно всі одразу, без системного списку
   chipPicker(f.inputs.kind, { seg: false, cls: 'chips-sm' });
+  // Фото — лише там, де його передали (тюнінг); undefined — форма без фото
+  const pick = photo === undefined ? null : photoPicker(photo?.current ?? null, {
+    file: photo?.file ?? null,
+    query: () => f.inputs.name.value.trim(),
+    onSearch: onSearch && (() => onSearch(f.values())),
+  });
   // Видалити й продати — іконками в шапці, як в інших картках; внизу лише «Скасувати» і «Зберегти»
-  const close = sheet(title, f.el, {
+  const close = sheet(title, pick ? h('div', {}, pick.el, f.el) : f.el, {
     lead: item ? toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger') : null,
     tools: item ? [toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); })] : [],
     actions: [
@@ -1716,29 +1895,181 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
       btn(t('Сохранить'), async () => {
         if (invalidField(f)) return;
         close();
-        await onSave({ ...(item ?? { id: db.uid(), created: Date.now() }), ...f.values() });
+        await onSave({ ...(item ?? { id: db.uid(), created: Date.now() }), ...f.values() }, pick?.value());
       }, 'primary'),
     ],
   });
 }
 
-function gearForm(g = null) {
+function gearForm(g = null, { file = null, preset = null } = {}) {
   purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind) }, {
     kinds: GEAR_KINDS, placeholder: t('Плитоноска, шлем, подсумок…'),
-    onSave: (obj) => saveEntity('gear', obj),
+    photo: { current: g ? gearPhoto(g.id) : null, file },
+    preset,
+    onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ gearId: g?.id ?? null, draft: g ? null : values })),
+    onSave: async (obj, photo) => {
+      await saveEntity('gear', obj);
+      await saveItemPhoto({ gearId: obj.id }, photo);
+    },
     onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
-    onRemove: async () => { await db.write({ gear: { del: [g.id] } }); await refresh(); },
+    onRemove: async () => {
+      await db.write({ gear: { del: [g.id] } });
+      const p = gearPhoto(g.id);
+      if (p) await removePhotos([p]);
+      else await refresh();
+    },
   });
 }
 
-/** Тюнінг живе в записі ствола, як і приціли. */
-function modForm(w, m = null) {
+/**
+ * Одне фото до запису: плитка-прев'ю (тап — фото на весь екран, порожня — вибрати), «З галереї»,
+ * «Знайти фото» — Google Картинки за назвою, «Вставити» — скопійоване зображення;
+ * на комп'ютері ще Ctrl+V і перетягування. Пишеться разом із формою.
+ */
+function photoPicker(current, { file: preset = null, query = () => '', onSearch = null } = {}) {
+  let file = preset;
+  let removed = Boolean(preset);
+  let url = null;
+  const el = h('div', { class: 'photo-pick' });
+  const take = (f) => {
+    if (!f?.type?.startsWith('image/')) return false;
+    file = f;
+    removed = false;
+    paint();
+    return true;
+  };
+  const input = h('input', {
+    type: 'file', accept: 'image/*', hidden: true,
+    onchange: (e) => { take(e.target.files[0]); e.target.value = ''; },
+  });
+  const search = () => {
+    const q = query();
+    if (!q) { toast(t('Сначала впишите название')); return; }
+    onSearch?.();
+    window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`, '_blank', 'noopener');
+  };
+  const paste = async () => {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((x) => x.startsWith('image/'));
+        if (type) { take(new File([await item.getType(type)], 'clip', { type })); return; }
+      }
+      toast(t('В буфере нет картинки — скопируйте изображение'));
+    } catch {
+      toast(t('Браузер не дал прочитать буфер — поделитесь картинкой в приложение или сохраните её в галерею'));
+    }
+  };
+  // Ctrl+V, поки форма відкрита; закрилась — слухач знімає себе сам
+  const onPaste = (e) => {
+    if (!el.isConnected) { document.removeEventListener('paste', onPaste); return; }
+    const f = [...(e.clipboardData?.files ?? [])].find((x) => x.type.startsWith('image/'));
+    if (f && take(f)) e.preventDefault();
+  };
+  document.addEventListener('paste', onPaste);
+  function paint() {
+    if (url) URL.revokeObjectURL(url);
+    url = file ? URL.createObjectURL(file) : null;
+    const src = url ?? (removed ? null : current?.thumb);
+    el.replaceChildren(
+      h('button', {
+        type: 'button', class: `photo-pick-thumb ${src ? '' : 'empty'}`, 'aria-label': t('Фото'),
+        onclick: () => (src ? viewer([file ? { id: 'new', thumb: url, file } : current], 0) : input.click()),
+        ondragover: (e) => e.preventDefault(),
+        ondrop: (e) => { e.preventDefault(); take(e.dataTransfer?.files?.[0]); },
+      }, src ? h('img', { src, alt: '' }) : h('span', {}, '+ ', t('Фото'))),
+      h('div', { class: 'photo-pick-acts' },
+        btn(`🔍 ${t('Найти фото')}`, search, 'mini'),
+        h('div', { class: 'photo-pick-icons' },
+          navigator.clipboard?.read ? toolBtn('paste', t('Вставить'), paste) : null,
+          toolBtn('gallery', t('Из галереи'), () => input.click()),
+          src ? toolBtn('delete', t('Убрать фото'), () => { file = null; removed = true; paint(); }, 'danger') : null)),
+      navigator.clipboard?.read ? h('p', { class: 'muted small photo-pick-hint' },
+        t('В Google: долгий тап по картинке → «Копировать изображение» → здесь'), ' ', toolIcon('paste')) : null,
+      input);
+  }
+  paint();
+  return { el, value: () => ({ file, removed: removed || Boolean(file) }) };
+}
+
+// Пошук фото тюнінгу чи екіпірування: перед переходом у Google запам'ятовуємо, куди повернути картинку
+const PHOTO_FOR = 'shooters-log:photo-for';
+
+/** Картинка, якою поділились у застосунок: service worker кладе її в кеш, тут — відкрити ту саму форму. */
+async function takeSharedImage() {
+  const cache = await caches.open('shared-image');
+  const res = await cache.match('shared');
+  if (!res) return;
+  await cache.delete('shared');
+  const blob = await res.blob();
+  const file = new File([blob], 'shared', { type: blob.type || 'image/jpeg' });
+  let target = null;
+  try { target = JSON.parse(recall(PHOTO_FOR) || 'null'); } catch { /* зіпсований запис — як немає */ }
+  remember(PHOTO_FOR, '');
+  const w = target?.weaponId && findWeapon(target.weaponId);
+  if (w) {
+    const m = target.modId ? (w.mods ?? []).find((x) => x.id === target.modId) : null;
+    modForm(w, m, { file, preset: m ? null : target.draft });
+  } else if (target && 'gearId' in target) {
+    const g = target.gearId ? state.gear.find((x) => x.id === target.gearId) ?? null : null;
+    gearForm(g, { file, preset: g ? null : target.draft });
+  } else {
+    toast(t('Откройте тюнинг или экипировку и нажмите «Найти фото» — потом поделитесь картинкой'));
+    return;
+  }
+  toast(t('Картинка получена — сохраните'));
+}
+
+const modPhoto = (modId) => state.photos.find((p) => p.modId === modId) ?? null;
+const gearPhoto = (gearId) => state.photos.find((p) => p.gearId === gearId) ?? null;
+/** Мініатюра в рядку: тап по ній — фото на весь екран, по решті рядка — форма. */
+const photoThumb = (p) => (p ? h('img', {
+  class: 'row-thumb', src: p.thumb, alt: t('Фото'),
+  onclick: (e) => { e.stopPropagation(); viewer([p], 0); },
+}) : null);
+
+/**
+ * Фото тюнінгу чи екіпірування — owner { modId } або { gearId }, без weaponId, щоб не потрапило в галерею ствола.
+ * Нове — записати, старе — у кошик Диска.
+ */
+async function saveItemPhoto(owner, change) {
+  if (!change?.removed) return;
+  const old = state.photos.find((p) => Object.entries(owner).every(([k, v]) => p[k] === v)) ?? null;
+  if (change.file) {
+    try {
+      const { blob, thumb, w, h: height } = await preparePhoto(change.file);
+      const id = db.uid();
+      await db.write({
+        photos: { put: [{ id, ...owner, created: Date.now(), thumb, w, h: height, driveId: null }] },
+        blobs: { put: [{ id, blob }] },
+      });
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+  }
+  if (old) await removePhotos([old]);
+  else await refresh();
+}
+
+/** Тюнінг живе в записі ствола, як і приціли; його фото — у сховищі фото з modId. */
+function modForm(w, m = null, { file = null, preset = null } = {}) {
   const others = () => (findWeapon(w.id)?.mods ?? []).filter((x) => x.id !== m?.id);
   purchaseForm(m ? t('Изменить тюнинг') : t('Тюнинг: {name}', { name: w.name }), m, {
     placeholder: t('Спуск, цевьё, ДТК, приклад…'),
-    onSave: (obj) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] }),
+    photo: { current: m ? modPhoto(m.id) : null, file },
+    preset,
+    // Незбережений тюнінг — чернеткою: поки шукали картинку, застосунок могли закрити
+    onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ weaponId: w.id, modId: m?.id ?? null, draft: m ? null : values })),
+    onSave: async (obj, photo) => {
+      await saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] });
+      await saveItemPhoto({ modId: obj.id }, photo);
+    },
     onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), { ...m, ...sale }] }),
-    onRemove: () => saveEntity('weapons', { ...findWeapon(w.id), mods: others() }),
+    onRemove: async () => {
+      await saveEntity('weapons', { ...findWeapon(w.id), mods: others() });
+      const p = modPhoto(m.id);
+      if (p) await removePhotos([p]);
+    },
   });
 }
 
@@ -1747,53 +2078,41 @@ function sellWeapon(w) {
   sellForm(w, (sale) => saveEntity('weapons', { ...findWeapon(w.id), ...sale, archived: Boolean(sale.soldDate) }));
 }
 
-// Тюнінг і «обійшовся» — лише знак долара, збільшений на всю іконку
-const TUNE_ICON = '<g transform="translate(12 12) scale(1.7) translate(-12 -11.8)" stroke-width="1.25">'
-  + '<path d="M14.6 9c-.52-.78-1.43-1.3-2.6-1.3-1.43 0-2.47.78-2.47 1.95 0 2.6 5.07 1.43 5.07 4.03 0 1.17-1.17 2.08-2.6 2.08-1.17 0-2.21-.52-2.73-1.3M12 6v1.7M12 15.8v1.8"/></g>';
-
 /** У скільки обійшовся ствол: покупка й увесь тюнінг. */
 const weaponInvested = (w) => priceOf(w.buyPrice) + (w.mods ?? []).reduce((s, m) => s + priceOf(m.price), 0);
 
-function tuneIcon() {
-  const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
-  el.innerHTML = `<svg viewBox="0 0 24 24">${TUNE_ICON}</svg>`;
-  return el;
-}
-
-/** Плитка «обійшовся» поруч із купчастістю; тап — розгорнути «Покупку й тюнінг» і прокрутити до неї. */
-function costTile(w) {
-  const total = weaponInvested(w);
-  if (!total) return null;
-  return h('button', {
-    type: 'button', class: 'tg-tile cost-tile', title: t('обошёлся'),
-    onclick: (e) => {
-      const el = e.currentTarget.closest('.sheet')?.querySelector('.box[data-buy]');
-      if (!el) return;
-      if (el.classList.contains('closed')) el.querySelector('.box-toggle').click();
-      el.scrollIntoView({ behavior: smooth(), block: 'start' });
-    },
-  }, tuneIcon(),
-  h('span', { class: 'tg-tile-value' }, fmt.num(Math.round(total))),
-  usdLine(usdSum(investRows(w), true)),
-  h('span', { class: 'tg-tile-label' }, t('обошёлся')));
+/** Підсумок «Покупки й тюнінгу»: скільки вкладено й смуга — яка частка пішла на ствол, яка на тюнінг. */
+function investSummary(w, total) {
+  const gun = priceOf(w.buyPrice);
+  const tune = total - gun;
+  const part = (cls, v) => (v > 0 ? h('span', { class: `invest-part ${cls}`, style: `flex-grow:${v}` }) : null);
+  const legend = (cls, label, v) => (v > 0 ? h('span', { class: `invest-key ${cls}` }, label, ' ', h('b', {}, fmt.num(Math.round(v)))) : null);
+  return h('div', { class: 'invest' },
+    h('div', { class: 'invest-total' }, tileMoney(total, usdSum(investRows(w), true)), h('span', { class: 'muted small' }, t('вложено в ствол'))),
+    gun > 0 && tune > 0 ? h('div', { class: 'invest-bar' }, part('gun', gun), part('tune', tune)) : null,
+    gun > 0 && tune > 0 ? h('div', { class: 'invest-legend small' }, legend('gun', t('ствол'), gun), legend('tune', t('тюнинг'), tune)) : null);
 }
 
 /** «Покупка і тюнінг» у картці ствола: за скільки купив, що доставив, разом. */
 function buyBox(w, close) {
   const mods = [...(w.mods ?? [])].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   const total = weaponInvested(w);
-  const icon = tuneIcon;
   const bought = w.buyPrice || w.buyDate || w.buyPlace;
+  const modRow = (m) => {
+    const p = modPhoto(m.id);
+    return priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
+      m.price, () => modForm(w, m), photoThumb(p), modDay(w, m), m.usdRate, isSold(m) ? 'tune sold' : 'tune');
+  };
   const el = box(t('Покупка и тюнинг'), [
-    h('div', { class: 'btn-row' }, btn(t('+ тюнинг'), () => modForm(w))),
-    h('div', { class: 'rows' },
-      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, w.buyDate, w.usdRate) : null,
-      mods.map((m) => priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-        m.price, () => modForm(w, m), icon(), m.date, m.usdRate)),
+    total ? investSummary(w, total) : null,
+    h('div', { class: 'rows invest-rows' },
+      bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, gunDay(w), w.usdRate, 'gun') : null,
+      mods.map(modRow),
       isSold(w) ? priceRow(t('Продажа'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
-    total ? h('p', { class: 'muted small' }, t('Вложено в ствол: {sum}', { sum: grn(total) + usdTail(investRows(w), true) })) : null,
-    isSold(w) ? null : h('div', { class: 'btn-row' }, btn(t('Продал ствол'), () => sellWeapon(w), 'mini quiet')),
-  ], { fold: `gun-buy:${w.id}`, count: mods.length });
+    h('div', { class: 'btn-row' },
+      btn(t('+ тюнинг'), () => modForm(w), 'mini'),
+      isSold(w) ? null : btn(t('Продал ствол'), () => sellWeapon(w), 'mini quiet')),
+  ], { fold: `gun-buy:${w.id}`, count: mods.length, summary: total ? h('span', { class: 'box-sum' }, grn(total)) : null });
   el.dataset.buy = '';
   return el;
 }
@@ -2116,56 +2435,15 @@ async function editWeaponPhoto(p) {
   return fresh;
 }
 
-/** Галерея в картці зброї: мініатюри, «+ Фото», тап — перегляд на весь екран. */
-function gallery(weaponId) {
-  const box = h('div', { class: 'gallery' });
-  const input = h('input', {
-    type: 'file', accept: 'image/*', multiple: true, hidden: true,
-    onchange: async (e) => {
-      const files = [...e.target.files];
-      e.target.value = '';
-      await addPhotos(weaponId, files);
-      fill();
-    },
-  });
-  const open = (index) => viewer(weaponPhotos(weaponId), index, {
-    isCover: (p) => coverPhoto(findWeapon(weaponId))?.id === p.id,
-    onCover: async (p) => { await saveEntity('weapons', { ...findWeapon(weaponId), coverId: p.id }); fill(); },
-    onEdit: async (p) => {
-      const fresh = await editWeaponPhoto(p);
-      fill();
-      return fresh;
-    },
-    onDelete: (p) => new Promise((resolve) => {
-      confirmSheet(t('Удалить фото?'), t('Фото удалится на всех устройствах.'), t('Удалить'), async () => {
-        await removePhotos([p]);
-        fill();
-        resolve(true);
-      });
-    }),
-  });
-  function fill() {
-    const w = findWeapon(weaponId);
-    if (!w) return;
-    const cover = coverPhoto(w);
-    box.replaceChildren(
-      ...weaponPhotos(weaponId).map((p, index) => h('button', {
-        type: 'button', class: `gallery-item ${cover?.id === p.id ? 'cover' : ''}`, 'aria-label': t('Фото'), onclick: () => open(index),
-      }, h('img', { src: p.thumb, alt: '' }))),
-      h('button', { type: 'button', class: 'gallery-add', onclick: () => input.click() },
-        h('span', { class: 'gallery-plus', 'aria-hidden': 'true' }, '+'), h('span', {}, t('Фото'))),
-      input);
-  }
-  fill();
-  return box;
-}
-
 function weaponDetail(w) {
   const body = () => { const cur = findWeapon(w.id); return cur ? weaponBody(cur, () => close()) : null; };
   const tools = [toolBtn('report', t('Отчёт'), () => reportSheet(findWeapon(w.id) ?? w)),
     ...cardTools(() => { close(); weaponForm(findWeapon(w.id) ?? w); }, weaponInUse(w),
       () => { close(); removeWeapon(findWeapon(w.id) ?? w); })];
-  const close = sheet(w.name, body(), { live: body, tools, full: true });
+  // Головні дії — внизу шторки, завжди на виду: до них не треба гортати історію стрільб
+  const actions = [btn(t('Почистил'), () => { close(); cleanSheet(findWeapon(w.id) ?? w); }),
+    btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: findWeapon(w.id) ?? w }); }, 'primary')];
+  const close = sheet(w.name, body(), { live: body, tools, full: true, actions });
 }
 
 const REPORT_PERIODS = [['all', 'За всё время'], ['year', 'Этот год'], ['last', 'Прошлый год'], ['12m', 'Последние 12 месяцев']];
@@ -2338,33 +2616,32 @@ function removeWeapon(w) {
   }
   confirmSheet(t('Удалить оружие?'), w.name, t('Удалить'), async () => {
     await db.write({ weapons: { del: [w.id] } });
-    await removePhotos(weaponPhotos(w.id));
+    await removePhotos([...weaponPhotos(w.id), ...(w.mods ?? []).map((m) => modPhoto(m.id)).filter(Boolean)]);
     await refresh();
   });
 }
 
 function weaponBody(w, close) {
-  const shots = M.weaponShots(state, w);
   const moves = state.movements.filter((m) => m.weaponId === w.id);
-  const s = M.cleaningStatus(state, w);
   const cost = M.shotsCost(state, moves);
-  const life = progress(t('Ресурс ствола'), shots, Number(w.barrelLife), { inline: true });
-  const meters = [life, cleanRow(w, { inline: true })].filter(Boolean);
-  // Плитка — лише для числа, якого не видно на смужках «Стану ствола».
-  const stats = [life ? null : stat(t('настрел'), fmt.num(shots)),
-    s.every && s.unit !== 'sessions' ? null : stat(t('после чистки'), fmt.num(s.since))].filter(Boolean);
-  return h('div', {},
-    h('p', { class: 'muted' }, [w.caliber, w.serial && `№ ${w.serial}`, kitText(w) || null, w.note].filter(Boolean).join(' · ')),
-    h('div', { class: 'gun-top' }, gallery(w.id), costTile(w), targetsTile(w, () => close())),
-    w.scopes?.length ? box(t('Прицелы'), scopeList(w, true)) : null,
-    stats.length ? h('div', { class: 'stats even' }, stats) : null,
-    meters.length ? box(t('Состояние ствола'), h('div', { class: 'meters' }, meters)) : null,
-    h('div', { class: 'btn-row' },
-      btn(t('Записать стрельбу'), () => { close(); shootSheet({ weapon: w }); }, 'primary'),
-      btn(t('Почистил'), () => { close(); cleanSheet(w); })),
-    permitBox(w),
+  const main = M.defaultScope(w) ?? w.scopes?.[0];
+  // Калібр у підписі шапки — іконкою набою й кольором калібру, як у Складі; номер і комплект — звичайним
+  const rest = [w.serial && `№ ${w.serial}`, kitText(w) || null].filter(Boolean).join(' · ');
+  const caption = [w.caliber ? cartridgeIcon(w.caliber) : null, w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
+    w.caliber && rest ? ' · ' : null, rest || null].filter(Boolean);
+  return h('div', { class: 'gun-card' },
+    gunHero(w, caption),
     sizeBox(w),
+    w.note ? h('p', { class: 'muted small gun-note' }, w.note) : null,
+    gunFlags(w, true),
+    gunStats(w, close),
+    // Розділи згорнуті, у заголовку — головне з кожного: картка вміщається на екран, деталі — тапом
+    main ? box(w.scopes.length > 1 ? t('Прицелы') : t('Прицел'), scopeList(w, true), {
+      fold: `scopes:${w.id}`, count: w.scopes.length > 1 ? w.scopes.length : null,
+      summary: h('span', { class: 'box-sum' }, main.name),
+    }) : null,
     buyBox(w, close),
+    permitBox(w),
     dopeBox(w, close),
     precisionChart(w),
     ammoPrecisionBox(w, 'precision'),
@@ -2920,7 +3197,11 @@ function sizeRows(w) {
 function sizeBox(w) {
   const rows = sizeRows(w);
   if (!rows.length) return null;
-  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), { fold: `size:${w.id}` });
+  // У згорнутому заголовку — довжина й вага: найчастіше потрібні саме вони
+  const sum = rows.filter(([k]) => k === t('Длина') || k === t('Вес')).map(([, v]) => v).join(' · ');
+  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), {
+    fold: `size:${w.id}`, summary: sum ? h('span', { class: 'box-sum' }, sum) : null,
+  });
 }
 
 /** Блок «Габарити й вага» у формі зброї. */
@@ -3685,21 +3966,12 @@ function unitChips(onPick) {
 }
 
 /** Вхід у «Кучность»: з журналу — усі мішені, з картки зброї — лише її. */
-/** Плитка купчастості поруч із фото — того ж розміру: значок, найкращий розкид і підпис. */
-function targetsTile(weapon, closeSheet = null) {
-  const p = gunPrecision(weapon);
-  return h('button', {
-    type: 'button', class: 'tg-tile', title: t('Кучность'),
-    onclick: () => {
-      closeSheet?.();
-      targetWeapon = weapon.id;
-      rangeSeg = 'targets';
-      remember('shooters-log:range-seg', rangeSeg);
-      goTab('#targets');
-    },
-  }, kindIcon('group'),
-  h('span', { class: 'tg-tile-value' }, p?.value ?? '—'),
-  h('span', { class: 'tg-tile-label' }, p?.label ?? t('Кучность')));
+function openTargets(weapon, closeSheet = null) {
+  closeSheet?.();
+  targetWeapon = weapon.id;
+  rangeSeg = 'targets';
+  remember('shooters-log:range-seg', rangeSeg);
+  goTab('#targets');
 }
 
 /** Як змінюється купчастість ствола від виїзду до виїзду: середній радіус, зведений до 100 м. */
@@ -5630,20 +5902,25 @@ async function exportData(share) {
  */
 async function exportCsv(list) {
   if (!list.length) { toast(t('Нет записей для экспорта')); return; }
-  const cell = (v) => {
-    const s = v === null || v === undefined ? '' : String(v);
-    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-  };
-  const dec = (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : '');
   const rows = [...list].sort((a, b) => M.byDateDesc(b, a)).map((m) => {
     const gun = m.kind === 'clean' ? findWeapon(m.weaponId)?.name : shotGun(m)?.name;
     const unit = m.kind === 'clean' ? '' : m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт';
     return [fmt.date(m.date), m.time ?? '', t(M.KINDS[m.kind]), gun ?? '', m.kind === 'clean' ? '' : movementTitle(m),
-      m.kind === 'clean' ? '' : String(m.qty).replace('.', ','), unit, dec(m.kind === 'shot' ? M.shotCost(state, m) : m.price), m.note ?? ''];
+      m.kind === 'clean' ? '' : String(m.qty).replace('.', ','), unit, csvNum(m.kind === 'shot' ? M.shotCost(state, m) : m.price), m.note ?? ''];
   });
   const head = [t('Дата'), t('Время'), t('Тип'), t('Оружие'), t('Патрон / компонент'), t('Количество'), t('Ед.'), t('Сумма'), t('Примечание')];
-  const text = `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
-  await offerFile(`shooters-log-journal-${M.today()}.csv`, text, 'text/csv');
+  await offerFile(`shooters-log-journal-${M.today()}.csv`, csvText(head, rows), 'text/csv');
+}
+
+/** Число для CSV: десяткова кома, два знаки; нуль чи не число — порожньо. */
+const csvNum = (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? String(Math.round(Number(v) * 100) / 100).replace('.', ',') : '');
+/** Таблиця в CSV: «;», лапки за потреби, BOM — щоб Excel не поламав кирилицю. */
+function csvText(head, rows) {
+  const cell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[;"\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  return `\uFEFF${[head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n')}\r\n`;
 }
 
 // Коли востаннє зберігали копію — для нагадування й рядка в ⚙ (лише на цьому пристрої).
@@ -5898,8 +6175,9 @@ const FIRST_TRACKED = '0.7.0';
 
 function changesSheet(list) {
   const key = lang() === 'ru' ? 'ru' : 'uk';
-  sheet(t('Что нового'), h('div', {}, list.map((c) => box(`${c.label ?? c.v} · ${fmt.date(c.date)}`,
-    h('ul', { class: 'changes' }, c[key].map((x) => h('li', {}, x)))))));
+  const close = sheet(t('Что нового'), h('div', {}, list.map((c) => box(`${c.label ?? c.v} · ${fmt.date(c.date)}`,
+    h('ul', { class: 'changes' }, c[key].map((x) => h('li', {}, x)))))),
+  { actions: [btn(t('Понятно'), () => close(), 'primary')] });
 }
 
 /** Після оновлення — один раз, що змінилося з версії, яку людина бачила; нова установка — без шторки. */
@@ -6350,6 +6628,7 @@ function pickCartridge(title, next) {
 // Ключ — ?go=… в адресі ярлика; набір ярликів задає manifest, тут — усі можливі дії
 const SHORTCUTS = {
   shot: () => pickWeapon(t('Записать стрельбу'), (w) => shootSheet({ weapon: w })),
+  shared: () => takeSharedImage().catch((err) => toast(err.message)),
   target: () => { goRange('targets'); newTarget({ weaponId: targetWeapon || null }); },
   timer: () => goRange('timer'),
   sim: () => goRange('sim'),

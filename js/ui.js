@@ -667,6 +667,8 @@ const TOOL_ICON = {
   archive: '<path d="M3 4h18v5H3z"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/>',
   delete: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   copy: '<path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/>',
+  // буфер обміну — вставити скопійоване
+  paste: '<path d="M9 3.5h6v3H9z"/><path d="M9 5H5.5v15.5h13V5H15"/><path d="M9 12h6M9 16h4"/>',
   // знак долара — продав
   sell: '<path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   share: '<path d="M12 3v13"/><path d="M8 7l4-4 4 4"/><path d="M5 14v6h14v-6"/>',
@@ -725,6 +727,13 @@ export function icon(name) {
 }
 
 /** Кнопка-іконка в шапці шторки. */
+/** Значок без кнопки — той самий, що на кнопці-іконці; для підказок у тексті. */
+export function toolIcon(icon) {
+  const el = h('span', { class: 'tool-ico', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="0 0 24 24">${TOOL_ICON[icon]}</svg>`;
+  return el;
+}
+
 export function toolBtn(icon, label, onclick, cls = '') {
   const el = h('button', { type: 'button', class: `icon-btn tool ${cls}`, 'aria-label': label, title: label, onclick });
   el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TOOL_ICON[icon]}</svg>`;
