@@ -18,7 +18,7 @@ import { solve } from './ballistics.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
-  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, goTab, reveal,
+  h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, toolIcon, goTab, reveal,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate,
 } from './ui.js';
 
@@ -1791,8 +1791,15 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     rateField('usdRate', src?.usdRate),
     { name: 'place', label: t('Где купил'), value: src?.place, placeholder: t('Магазин, сайт, с рук…'), wide: true },
     { name: 'note', label: t('Примечание'), value: src?.note, wide: true },
+    // Характеристики — з сайту виробника чи магазину: «🔍 Характеристики» шукає в Google, текст вставляють сюди
+    photo === undefined ? null : { name: 'specs', label: t('Характеристики'), type: 'textarea', rows: 4, value: src?.specs, placeholder: t('Вес, размеры, крепление… — скопируйте с сайта'), wide: true },
   ].filter(Boolean));
   rateHint(f, 'usdRate', 'date');
+  f.inputs.specs?.closest('label')?.after(h('div', { class: 'specs-find' }, btn(`🔍 ${t('Характеристики')}`, () => {
+    const q = f.inputs.name.value.trim();
+    if (!q) { toast(t('Сначала впишите название')); return; }
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(`${q} ${t('характеристики')}`)}`, '_blank', 'noopener');
+  }, 'mini')));
   // Категорія — чипами, як тип компонента: видно всі одразу, без системного списку
   chipPicker(f.inputs.kind, { seg: false, cls: 'chips-sm' });
   // Фото — лише там, де його передали (тюнінг); undefined — форма без фото
@@ -1894,11 +1901,12 @@ function photoPicker(current, { file: preset = null, query = () => '', onSearch 
       }, src ? h('img', { src, alt: '' }) : h('span', {}, '+ ', t('Фото'))),
       h('div', { class: 'photo-pick-acts' },
         btn(`🔍 ${t('Найти фото')}`, search, 'mini'),
-        navigator.clipboard?.read ? btn(t('Вставить'), paste, 'mini quiet') : null,
-        btn(t('Из галереи'), () => input.click(), 'mini quiet'),
-        src ? btn(t('Убрать фото'), () => { file = null; removed = true; paint(); }, 'mini quiet') : null),
+        h('div', { class: 'photo-pick-icons' },
+          navigator.clipboard?.read ? toolBtn('paste', t('Вставить'), paste) : null,
+          toolBtn('gallery', t('Из галереи'), () => input.click()),
+          src ? toolBtn('delete', t('Убрать фото'), () => { file = null; removed = true; paint(); }, 'danger') : null)),
       navigator.clipboard?.read ? h('p', { class: 'muted small photo-pick-hint' },
-        t('В Google: долгий тап по картинке → «Копировать изображение» → здесь «Вставить».')) : null,
+        t('В Google: долгий тап по картинке → «Копировать изображение» → здесь'), ' ', toolIcon('paste')) : null,
       input);
   }
   paint();
