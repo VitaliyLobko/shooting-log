@@ -1165,6 +1165,7 @@
         <button type="button" class="sim-badge br" data-pop="pop-mag" aria-expanded="false" title="Кратність"><small class="mag-rng" id="s-mag-r">1–6×</small><small>крат.</small><b id="s-mag-v">6×</b></button>
         <label class="sim-pop" id="pop-dist" for="s-dist" hidden>Дистанція<input id="s-dist" type="range" min="25" max="700" step="25" value="400" list="dist-ticks"><datalist id="dist-ticks"><option value="25"></option><option value="100"></option><option value="200"></option><option value="300"></option><option value="400"></option><option value="500"></option><option value="600"></option><option value="700"></option></datalist><span class="ticks at" aria-hidden="true"><span style="--p:0.0000">25</span><span style="--p:0.1111">100</span><span style="--p:0.2593">200</span><span style="--p:0.4074">300</span><span style="--p:0.5556">400</span><span style="--p:0.7037">500</span><span style="--p:0.8519">600</span><span style="--p:1.0000">700</span></span></label>
         <label class="sim-pop" id="pop-mag" for="s-mag" hidden>Кратність<input id="s-mag" type="range" min="1" max="6" step="0.5" value="6"></label>
+        <div class="sim-pop aim-bar" id="pop-aim" role="group" aria-label="Куди цілитись" hidden><button type="button" class="aim-opt" data-head="0" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="3.6"/><path d="M4 22q0-8.5 8-8.5t8 8.5z"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg><span>Центр мас</span></button><button type="button" class="aim-opt" data-head="1" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="3.6"/><path d="M4 22q0-8.5 8-8.5t8 8.5z"/><circle cx="12" cy="6" r="1.8" fill="currentColor"/></svg><span>Голова</span></button></div>
         <div class="sim-pop tgt-bar" id="pop-tgt" hidden>
           <select id="s-tgt" hidden></select>
           <button type="button" class="tgt-kind" id="tgt-kind" title="Фото чи схеми" aria-label="Фото чи схеми"></button>
@@ -1179,7 +1180,7 @@
       <h4>Приціл</h4>
       <ul class="sim-legend">
         <li><span class="lg-ico lg-txt">🔍</span><span><b>Лупа</b> — збільшити центр прицілу, щоб точніше прочитати сітку. Ще тап — назад до 1×.</span></li>
-        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Фото-сцени</b> — знімки з навчань замість схеми: «Ланцюг» (троє на повний зріст, двоє на коліні), «Спішились» (біля БТР: двоє на коліні, двоє йдуть на нас), «Одинак» (один іде на нас), «Колона» (четверо дорогою), «Узлісся» (літо, біля зеленого лісу), «Околиця» (село, один цілиться з вікна), «Сутінки» (поле ввечері, низький контраст), «Окоп» (позиція з бліндажем: кулеметник у бійниці й двоє з-за бруствера; поле в масштабі прицілу), «Лежачи» (цілиться в нас із поля: ≈0,5 м заввишки й по ліктях; поле й ліс у масштабі прицілу, боєць на будь-якій дистанції до горизонту), «Пікап збоку» й «Пікап у лоб» (ціль — водій; поле в масштабі прицілу, як у «Лежачи»). Кільце на початку завдання показує, хто ціль; якщо бійців кілька, кнопка на прицілі зі значком людини й «2/5» — <b>наступний боєць</b>, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
+        <li><span class="lg-ico"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9.5" r="1.5"/></svg></span><span><b>Фото-сцени</b> — знімки з навчань замість схеми: «Ланцюг» (троє на повний зріст, двоє на коліні), «Колона» (четверо дорогою), «Узлісся» (літо, біля зеленого лісу), «Околиця» (село, один цілиться з вікна), «Сутінки» (поле ввечері, низький контраст), «Окоп» (позиція з бліндажем: кулеметник у бійниці й двоє з-за бруствера; поле в масштабі прицілу), «Лежачи» (цілиться в нас із поля: ≈0,5 м заввишки й по ліктях; поле й ліс у масштабі прицілу, боєць на будь-якій дистанції до горизонту), «Пікап збоку» й «Пікап у лоб» (ціль — водій; поле в масштабі прицілу, як у «Лежачи»). Кільце на початку завдання показує, хто ціль; якщо бійців кілька, кнопка на прицілі зі значком людини й «2/5» — <b>наступний боєць</b>, дистанція — до нього. Розмір цілі в мілах той самий: від дистанції й кратності. <small>Фото: Міноборони РФ (mil.ru), CC BY 4.0 (Wikimedia Commons).</small></span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v6M12 14.5v6M3.5 12h6M14.5 12h6"/></svg></span><span><b>Колір сітки</b> — чорна чи біла: яку краще видно на тлі. На фото типово чорна, як у справжньому прицілі.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M8.5 6.5 12 3l3.5 3.5M8.5 17.5 12 21l3.5-3.5"/></svg></span><span><b>Дистанція</b> — плашка внизу ліворуч: тап — повзунок. Або свайп по прицілу: вгору — далі, вниз — ближче.</span></li>
         <li><span class="lg-ico"><svg viewBox="0 0 24 24"><path d="M1.5 9.5h3l2 1.5h10l2-2.5h4v7h-4l-2-2.5h-10l-2 1.5h-3z"/><path d="M10 11V8.5h2.5V11"/></svg></span><span><b>Кратність</b> — плашка внизу праворуч: збільшення прицілу; або свайп по прицілу праворуч — більша, ліворуч — менша. У сітки в другій фокальній площині поділки правильні лише на калібрувальній кратності.</span></li>
@@ -1232,26 +1233,29 @@
       </div>
       <div class="sim-panel" id="sim-wind" hidden>
         <label for="s-wind">Бічний вітер: <b id="s-wind-v">0 м/с</b><input id="s-wind" type="range" min="0" max="10" step="0.5" value="0"></label>
-        <label for="s-wdir">Звідки дме
-          <select id="s-wdir"></select></label>
+        <label for="s-wdir" aria-label="Звідки дме"><select id="s-wdir"></select></label>
       </div>
       <div class="sim-panel" id="sim-move" hidden>
-        <label for="s-mv">Швидкість цілі
-          <select id="s-mv"><option value="0" selected>стоїть</option><option value="1.4">крок 1,4 м/с</option><option value="3.5">біг 3,5 м/с</option><option value="8.3">авто 30 км/год</option><option value="13.9">авто 50 км/год</option></select></label>
-        <label for="s-mvdir">Куди йде
-          <select id="s-mvdir"><option value="R" selected>праворуч → (у прицілі)</option><option value="L">← ліворуч (у прицілі)</option></select></label>
+        <div class="sim-move-row"><span>Рух</span>
+          <select id="s-mvdir" aria-label="Куди йде"><option value="L">← ліворуч</option><option value="R" selected>праворуч →</option></select>
+          <select id="s-mv" aria-label="Швидкість цілі"><option value="0" selected>стоїть</option><option value="1.4">крок 1,4 м/с</option><option value="3.5">біг 3,5 м/с</option><option value="8.3">авто 30 км/год</option><option value="13.9">авто 50 км/год</option></select></div>
       </div>
       <div class="sim-panel" id="sim-gun" hidden>
         <label for="s-kit">Набір
-          <select id="s-kit"><option value="m855" selected>Stryker DSMR + 5.56 M855</option><option value="b308">Burris Scout + .308 175 гр</option><option value="acog">ACOG TA31 + 5.56 M855</option><option value="ebr">Vortex EBR-2C + .308 175 гр</option></select></label>
+          <select id="s-kit"><option value="m855" selected>Stryker DSMR + 5.56 M855</option><option value="b308">Burris Scout + .308 175 гр</option><option value="se16">Vortex Strike Eagle 1–6 + 5.56 M855</option><option value="pa16">Primary Arms SLx 1–6 FFP + 5.56 M855</option><option value="pst16">Vortex Viper PST II 1–6 + 5.56 M855</option><option value="t6t">SIG Tango6T 1–6 FFP + 5.56 M855</option><option value="lp3">Leupold Mark 3HD 1,5–4 + 5.56 M855</option><option value="acog">ACOG TA31 + 5.56 M855</option><option value="ebr">Vortex EBR-2C + .308 175 гр</option></select></label>
         <label for="s-barrel">Ствол
           <select id="s-barrel"><option value="905">14,5″ · 905 м/с</option><option value="915" selected>16″ · 915 м/с</option><option value="948">20″ · 948 м/с</option></select></label>
         <label for="s-zero">Пристрілка
           <select id="s-zero"></select></label>
-        <label for="s-temp">Температура повітря
+        <label for="s-temp" title="Температура повітря">Температура
           <select id="s-temp"></select></label>
-        <label for="s-alt">Висота над рівнем моря
+        <label for="s-alt" title="Висота над рівнем моря">Висота
           <select id="s-alt"></select></label>
+        <label for="s-disp">Розкид
+          <select id="s-disp"><option value="0" selected>немає</option><option value="1">1 MOA</option><option value="1.5">1.5 MOA</option><option value="2">2 MOA</option><option value="3">3 MOA</option><option value="4">4 MOA</option></select></label>
+        <label for="s-cmp">Другий приціл
+          <select id="s-cmp"></select></label>
+        <button type="button" class="sim-dope-btn" id="s-dope">Таблиця поправок</button>
       </div>
       <div class="readout" id="sim-out" aria-live="polite"></div>
       <div class="quiz" id="sim-quiz" aria-live="polite"></div>

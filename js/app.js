@@ -204,7 +204,7 @@ function ammoPicker(select, caliber = null) {
  * для свого запису (other — у групу «інші» під підписом otherLabel); null — простий пункт із текстом option.
  * group(value) → [ключ, назва] — свої записи згортками за групами; відкрита та, де поточний вибір.
  */
-function listPicker(select, { title, item, ownLabel = null, otherLabel = null, cls = '', group = null }) {
+function listPicker(select, { title, item, ownLabel = null, otherLabel = null, cls = '', group = null, caps = false }) {
   if (!select) return () => {};
   const face = h('button', { type: 'button', class: `picker ${cls}`.trim() });
   const describe = (value) => item(value)
@@ -246,6 +246,8 @@ function listPicker(select, { title, item, ownLabel = null, otherLabel = null, c
         groups.get(key).items.push(o);
       }
       const current = item(select.value) ? group(select.value)[0] : null;
+      // caps — розділи заголовками, усе видно одразу (їх мало, а порівнювати зручніше поруч)
+      if (caps) return [...groups].flatMap(([, g]) => [h('div', { class: 'picker-cap' }, g.label), list(g.items)]);
       return [...groups].map(([key, g]) => {
         // Без запам'ятовування: інакше з часом у виборі були б розгорнуті всі групи
         const el = fold(null,
@@ -314,7 +316,9 @@ const dialWedge = (from, to, r) => {
  * Стрілка йде від вибраної години до стрільця. Повторний тап скидає вибір, якщо в select є порожній варіант.
  */
 /** Тренажер: вибір гвинтівки й набою шторкою — своя зброя й таблиці DOPE зверху, довідкові набори під підписом. */
-function kitPicker(select) {
+function kitPicker(select, describe = null) {
+  // Тренажер дає опис кожного набору: розділи з заголовками, мініатюра сітки, набій і мітки (MOA/MRAD, FFP/SFP, BDC)
+  if (describe) return listPicker(select, { title: t('Винтовка и патрон'), item: describe, group: (v) => describe(v)?.section ?? ['ar', ''], caps: true });
   return listPicker(select, {
     title: t('Винтовка и патрон'),
     ownLabel: t('Моё оружие'),
@@ -3109,15 +3113,13 @@ function urgentPermitsBlock() {
   }));
 }
 
-/** Блок дозволу в картці зброї: смужка й номер з датою. */
+/** Блок дозволу в картці зброї: номер і дати; скільки лишилося — на плашці над плитками, тут не повторюємо. */
 function permitBox(w) {
   if (!w.permit) return null;
   const p = w.permit;
-  return box(t('Разрешение на оружие'), [
-    permitMeter(w),
-    h('p', { class: 'muted small' }, [p.number ? `№ ${p.number}` : null, p.issued ? t('выдан {date}', { date: fmt.date(p.issued) }) : null,
-      p.expires ? t('действует до {date}', { date: fmt.date(p.expires) }) : null].filter(Boolean).join(' · ')),
-  ], { fold: `permit:${w.id}` });
+  return box(t('Разрешение на оружие'),
+    h('p', { class: 'muted small' }, [p.number ? `№ ${p.number}` : null, p.issued ? t('выдан {date}', { date: fmt.date(p.issued) }) : null].filter(Boolean).join(' · ') || '—'),
+    { fold: `permit:${w.id}`, summary: p.expires ? h('span', { class: 'box-sum' }, t('действует до {date}', { date: fmt.date(p.expires) })) : null });
 }
 
 /** Блок «Дозвіл на зброю» у формі зброї. */
@@ -3200,7 +3202,8 @@ function sizeBox(w) {
   if (!rows.length) return null;
   // У згорнутому заголовку — довжина й вага: найчастіше потрібні саме вони
   const sum = rows.filter(([k]) => k === t('Длина') || k === t('Вес')).map(([, v]) => v).join(' · ');
-  return box(t('Габариты и вес'), h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])), {
+  // Розгорнуто — пари «назва значення» в рядок із переносом, а не стовпчик на 7 рядків
+  return box(t('Габариты и вес'), h('div', { class: 'size-line small' }, rows.map(([k, v]) => h('span', {}, h('span', { class: 'muted' }, k), ' ', v))), {
     fold: `size:${w.id}`, summary: sum ? h('span', { class: 'box-sum' }, sum) : null,
   });
 }
@@ -4127,7 +4130,6 @@ function renderRange() {
 }
 
 function renderExercises() {
-  $('subtitle').textContent = t('результатов: {n}', { n: state.scores.length });
   return exercisesPanel(exerciseCtx());
 }
 
@@ -4276,7 +4278,6 @@ function timerSheet(onDone) {
 }
 
 function renderTimer() {
-  $('subtitle').textContent = t('серий: {n}', { n: state.drills.length });
   const weapons = state.weapons.filter((w) => !w.archived).sort(byName).map((w) => [w.id, w.name]);
   return h('div', {},
     timerPanel({ weapons, pickWeapon: (select) => weaponPicker(select), onSave: (drill) => saveEntity('drills', { id: db.uid(), created: Date.now(), ...drill }) }),
@@ -4337,7 +4338,6 @@ const chronoWeapon = (c) => findWeapon(c.weaponId)?.name ?? (c.weaponId ? t('(у
 
 function renderChrono() {
   const list = [...state.chrono].sort(M.byDateDesc);
-  $('subtitle').textContent = t('серий: {n}', { n: list.length });
   // Групи за набоєм: швидкість — властивість набою (і ствола); серії без набою — в кінці
   const groups = groupBy(list, (x) => x.cartridgeId || '')
     .map(([id, items]) => ({ id, items, name: id ? (findCartridge(id)?.name ?? t('(удалено)')) : t('Без патрона') }))
@@ -4512,7 +4512,6 @@ function chronoForm(c = null) {
 
 function renderTargets() {
   const list = [...state.targets].sort(M.byDateDesc);
-  $('subtitle').textContent = t('мишеней: {n}', { n: list.length });
   // Прийшли з картки зброї — її група розгорнута.
   if (targetWeapon) setUnfolded(`targets:${targetWeapon}`, true);
   const groupRows = (items) => {
