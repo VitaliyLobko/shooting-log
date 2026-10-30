@@ -1418,6 +1418,14 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const tool = (key) => root.querySelector(`.sim-tool[data-panel="${key}"]`);
   const toolIco = (key) => tool(key).querySelector('svg');
   const toolHot = (key, on) => tool(key).classList.toggle('hot', on);
+  // Поворот значка — плавно лише при зміні; щойно намальований значок одразу стає як треба, без прокруту при вході
+  const toolTurn = (key, tf) => {
+    const ico = toolIco(key);
+    if (ico.dataset.set) { ico.style.transform = tf; return; }
+    ico.style.transition = 'none'; ico.style.transform = tf;
+    void ico.getBoundingClientRect();
+    ico.style.transition = ''; ico.dataset.set = '1';
+  };
   // Підпис кнопки — назва з розмітки (мовою сторінки) і, якщо є, уточнення через крапку
   const toolLabel = (key, extra) => {
     const el = tool(key).querySelector('.sim-tool-t');
@@ -1564,7 +1572,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     $('s-wind-sum').textContent = w > 0 ? `${fm(w)} ${t('м/с')}` : t('штиль');
     toolHot('sim-wind', windOn);
     // Значок вітру (струмені зліва направо — дме з 9 год) повернуто туди, куди дме
-    toolIco('sim-wind').style.transform = w > 0 ? `rotate(${(hour - 9) * 30}deg)` : '';
+    toolTurn('sim-wind', w > 0 ? `rotate(${(hour - 9) * 30}deg)` : '');
     const opt = (id) => $(id).selectedOptions[0]?.textContent ?? '';
     const tSum = +$('s-temp').value; const aSum = +$('s-alt').value;
     // На кнопці — одним рядком назва й набій (своя таблиця — DOPE); пристрілка й погода — у підказці та в панелі
@@ -1611,7 +1619,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     if ((ranging || !aimChoice()) && !$('pop-aim').hidden) { $('pop-aim').hidden = true; $('m-aim').setAttribute('aria-expanded', 'false'); }
     root.querySelectorAll('#pop-aim .aim-opt').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.head === '1') === st.head)));
     // Бігун на значку дивиться туди, куди йде ціль
-    toolIco('sim-move').style.transform = mvRaw && !goRight ? 'scaleX(-1)' : '';
+    toolTurn('sim-move', mvRaw && !goRight ? 'scaleX(-1)' : '');
     // Зріст (висота) на фото — справжній ріст цього бійця з розмітки, а не типовий
     const MS = measList();
     // Чим міряли — за назвою, щоб на наступній цілі лишилося те саме (ріст ↔ висота, плечі ↔ ширина — одне й те саме)

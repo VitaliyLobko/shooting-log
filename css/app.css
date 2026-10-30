@@ -1335,10 +1335,11 @@ button.gun-stat { cursor: pointer; }
 .tabs a.play[data-tab="ammo"] g:nth-child(2) { animation-delay: .12s; }
 .tabs a.play[data-tab="ammo"] g:nth-child(3) { animation-delay: .24s; }
 @keyframes tab-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
-.tabs a.play[data-tab="guns"] path:first-child { animation: tab-shield 1.2s ease-in-out 2; }
-.tabs a.play[data-tab="guns"] .gem { animation: tab-gem 1.2s ease-in-out 2; }
-@keyframes tab-shield { 0%, 100% { transform: none; } 30% { transform: scale(1.08); } }
-@keyframes tab-gem { 0% { transform: none; } 30% { transform: scale(1.9) rotate(180deg); } 60%, 100% { transform: rotate(360deg); } }
+.tabs a.play[data-tab="guns"] .emb { stroke-dasharray: 1; animation: tab-emb 2.4s ease-in-out both; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(3), .tabs a.play[data-tab="guns"] .emb:nth-child(4) { animation-delay: .35s; }
+.tabs a.play[data-tab="guns"] path:first-child { animation: tab-shield 2.4s ease-out; }
+@keyframes tab-emb { 0%, 5% { stroke-dashoffset: 1; } 45%, 100% { stroke-dashoffset: 0; } }
+@keyframes tab-shield { 0%, 60% { transform: none; } 68% { transform: scale(1.1); } 80%, 100% { transform: none; } }
 .tabs a.play[data-tab="log"] .ln { stroke-dasharray: 1; animation: tab-write 1.2s ease-out 2 both; }
 .tabs a.play[data-tab="log"] .ln:nth-of-type(3) { animation-delay: .2s; }
 .tabs a.play[data-tab="log"] .ln:nth-of-type(4) { animation-delay: .4s; }
@@ -1347,6 +1348,34 @@ button.gun-stat { cursor: pointer; }
 .tabs a.play[data-tab="targets"] .hit { animation: tab-hit 1.2s ease-out 2; }
 @keyframes tab-ticks { 0%, 100% { transform: none; } 40% { transform: rotate(45deg) scale(.8); } 70% { transform: rotate(90deg); } }
 @keyframes tab-hit { 0%, 55% { transform: none; } 65% { transform: scale(2.2); } 80%, 100% { transform: none; } }
+/* Розділи Полігону: щойно перейшов — значок ~2,4 с грає своє: кубок гойдається, кільця мішені розходяться,
+   стрілка спідометра злітає, секундомір дзеленчить, у прицілі боєць перебігає */
+.range-seg svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.range-seg .play[data-seg="exercises"] svg { transform-origin: 50% 85%; animation: seg-cup .8s ease-in-out 3; }
+@keyframes seg-cup { 0%, 100% { transform: none; } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+.range-seg .play[data-seg="targets"] circle { animation: seg-ring 1.2s ease-out 2; }
+.range-seg .play[data-seg="targets"] circle:nth-child(2) { animation-delay: .12s; }
+.range-seg .play[data-seg="targets"] circle:nth-child(1) { animation-delay: .24s; }
+@keyframes seg-ring { 0%, 100% { transform: none; } 30% { transform: scale(1.16); } }
+.range-seg .play[data-seg="chrono"] path:nth-child(2) { transform-box: view-box; transform-origin: 12px 17px; animation: seg-needle 1.2s ease-in-out 2; }
+@keyframes seg-needle { 0%, 100% { transform: none; } 35% { transform: rotate(-95deg); } 65% { transform: rotate(10deg); } }
+.range-seg .play[data-seg="timer"] svg { transform-origin: 50% 55%; animation: seg-ring-bell 1.2s ease-in-out 2; }
+@keyframes seg-ring-bell { 0%, 50%, 100% { transform: none; } 8%, 24%, 40% { transform: rotate(-9deg); } 16%, 32% { transform: rotate(9deg); } }
+.range-seg .play[data-seg="sim"] :is(circle:nth-child(3), path:nth-child(4)) { animation: seg-dash 1.2s ease-in-out 2; }
+@keyframes seg-dash { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
+/* Розділи Складу й Арсеналу: патрон підстрибує, у компонентах куля підскакує й капсулі блимають, у колбі рідина хлюпає,
+   гвинтівка тричі віддає, жилет «дихає» */
+.range-seg .play[data-seg="ammo"] svg { animation: seg-hop .8s ease-in-out 3; }
+@keyframes seg-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
+.range-seg .play[data-seg="components"] path:nth-child(5) { animation: seg-hop .8s ease-in-out 3; }
+.range-seg .play[data-seg="components"] circle { animation: seg-ring 1.2s ease-out 2; }
+.range-seg .play[data-seg="components"] circle:nth-child(4) { animation-delay: .12s; }
+.range-seg .play[data-seg="recipes"] path:nth-child(2) { animation: seg-slosh 1.2s ease-in-out 2; }
+@keyframes seg-slosh { 0%, 100% { transform: none; } 25% { transform: rotate(-12deg) translateY(-1px); } 75% { transform: rotate(12deg) translateY(-1px); } }
+.range-seg .play[data-seg="guns"] svg { animation: seg-recoil .8s ease-out 3; }
+@keyframes seg-recoil { 0%, 100% { transform: none; } 12% { transform: translateX(-3px) rotate(-4deg); } 40% { transform: none; } }
+.range-seg .play[data-seg="gear"] svg { animation: seg-breathe 1.2s ease-in-out 2; }
+@keyframes seg-breathe { 0%, 100% { transform: none; } 40% { transform: scale(1.12); } }
 .tabs a { position: relative; }
 .tabs a.alert::after {
   content: "";

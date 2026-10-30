@@ -4110,15 +4110,21 @@ function spreadCell(text) {
 const RANGE_SEGS = [['exercises', 'Упражнения', 'drill'], ['targets', 'Мишени', 'target'], ['chrono', 'Скорости', 'speed', 'Скор.'], ['timer', 'Таймер', 'timer'], ['sim', 'Тренажёр', 'sim', 'Трен.']];
 let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooters-log:range-seg')) ? recall('shooters-log:range-seg') : 'exercises';
 
+// Розділ, на який щойно перейшли тапом чи свайпом: його значок один раз грає свою анімацію
+let segJust = null;
+
 /** Панель розділів: значок і підпис під ним у кожного; свайп по панелі — сусідній розділ. */
 function segBar(segs, current, go) {
+  const goPlay = (k) => { if (k !== current) segJust = k; go(k); };
   const bar = h('div', { class: 'range-seg seg-nav', role: 'tablist' }, segs.map(([k, label, ico, short]) => h('button', {
-    type: 'button', role: 'tab', class: k === current ? 'on' : null, 'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
-    onclick: () => go(k),
+    type: 'button', role: 'tab', class: k === current ? (segJust === k ? 'on play' : 'on') : null, dataset: { seg: k },
+    'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
+    onclick: () => goPlay(k),
   }, icon(ico), h('span', { class: short ? 'seg-long' : null }, t(label)), short ? h('span', { class: 'seg-short', 'aria-hidden': 'true' }, t(short)) : null)));
+  segJust = null;
   return swipeStep(bar, (dir) => {
     const next = segs[segs.findIndex(([k]) => k === current) + dir];
-    if (next) go(next[0]);
+    if (next) goPlay(next[0]);
     return Boolean(next);
   });
 }
