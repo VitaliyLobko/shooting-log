@@ -130,6 +130,9 @@ function buildPanel(source, pickWeapon) {
 
   const time = h('div', { class: 'tm-time' }, num(0, 2));
   const status = h('div', { class: 'tm-status muted' }, t('Нажмите «Старт» и ждите сигнал'));
+  const face = h('div', { class: 'tm-face' }, time, status);
+  // Поки мікрофон слухає — у кутку циферблата блимає червона точка, як при записі
+  const listening = (on) => face.classList.toggle('live', on);
   const fill = h('div', { class: 'tm-level-fill' });
   const mark = h('div', { class: 'tm-level-mark' });
   const sens = h('input', { type: 'range', min: 0, max: 100, step: 1, class: 'tm-sens', 'aria-label': t('Чувствительность') });
@@ -200,7 +203,7 @@ function buildPanel(source, pickWeapon) {
 
   function tick() {
     const el = engine.now() - t0;
-    if (mode === 'wait' && el >= 0) { mode = 'run'; status.textContent = t('Огонь!'); }
+    if (mode === 'wait' && el >= 0) { mode = 'run'; status.textContent = t('Огонь!'); status.classList.add('fire'); }
     time.textContent = mode === 'wait' ? '—' : num(Math.max(0, el), 2);
     time.classList.toggle('over', mode === 'run' && parValue() !== null && el > parValue());
     if (mode === 'run' && el > MAX_RUN) { stop(); return; }
@@ -244,6 +247,7 @@ function buildPanel(source, pickWeapon) {
     engine.reset();
     shots = [];
     mode = 'armed';
+    listening(true);
     time.textContent = num(0, 2);
     status.textContent = t('Скажите «старт» или хлопните');
     startBtn.textContent = t('Стоп');
@@ -263,6 +267,8 @@ function buildPanel(source, pickWeapon) {
     engine.beep(t0);
     if (parValue()) engine.beep(t0 + parValue(), PAR_BEEP, 1600);
     mode = 'wait';
+    listening(true);
+    status.classList.remove('fire');
     status.textContent = t('Приготовьтесь…');
     startBtn.textContent = t('Стоп');
     startBtn.classList.add('stop');
@@ -282,6 +288,8 @@ function buildPanel(source, pickWeapon) {
     clearTimeout(stopTimer);
     const was = mode;
     mode = was === 'wait' || was === 'armed' ? 'idle' : 'done';
+    listening(false);
+    status.classList.remove('fire');
     engine.release();
     lock?.release().catch(() => {});
     lock = null;
@@ -297,6 +305,7 @@ function buildPanel(source, pickWeapon) {
   async function toggleCheck() {
     if (mode === 'check') {
       mode = 'idle';
+      listening(false);
       engine.release();
       checkBtn.textContent = t('Проверить микрофон');
       fill.style.width = '0';
@@ -306,6 +315,7 @@ function buildPanel(source, pickWeapon) {
     if (!(await openAudio())) return;
     engine.reset();
     mode = 'check';
+    listening(true);
     checkBtn.textContent = t('Закончить проверку');
     status.textContent = t('Хлопните или щёлкните спуском: красная метка — порог, выстрел должен заходить за неё');
   }
@@ -342,7 +352,7 @@ function buildPanel(source, pickWeapon) {
   });
 
   const el = h('div', { class: 'timer' },
-    h('div', { class: 'tm-face' }, time, status),
+    face,
     startBtn,
     list,
     after,

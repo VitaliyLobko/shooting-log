@@ -142,6 +142,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sync-chip.idle { color: var(--buy); }
 .sync-chip.auth { color: var(--accent-2); border-color: var(--accent); }
 .sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
+/* Синхронізація йде: три крапки по черзі підстрибують і світлішають */
+.sync-dots { display: inline-flex; gap: 2px; vertical-align: middle; }
+.sync-dots i { width: 3.5px; height: 3.5px; border-radius: 50%; background: currentColor; animation: sync-dot 1s ease-in-out infinite; }
+.sync-dots i:nth-child(2) { animation-delay: .15s; }
+.sync-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes sync-dot { 0%, 80%, 100% { opacity: .3; transform: none; } 40% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .sync-dots i { animation: none !important; } }
 
 .update {
   display: flex;
@@ -225,7 +232,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .rank-ring-bg, .rank-ring-fill { fill: none; stroke-width: 5; }
 .rank-ring-bg { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
 .rank-ring-fill { stroke: var(--accent); stroke-linecap: round; }
+/* Відблиск на ящиках БК і личках: смуга світла повільно проходить раз на кілька секунд */
+.lv-shine { animation: lv-shine 7s ease-in-out infinite; }
+@keyframes lv-shine { 0% { transform: translateX(0); } 30%, 100% { transform: translateX(170px); } }
 .rank-ring .lv-art { position: absolute; left: 50%; top: 50%; width: 84px; height: 66px; transform: translate(-50%, -50%); }
+/* Нове звання: кільце заповнюється з нуля, лички підскакують і спалахують, навколо — хвиля кольору акценту */
+.rank-up .rank-ring { border-radius: 50%; animation: rank-wave 1.2s ease-out .9s; }
+.rank-up .rank-ring-fill { animation: rank-fill 1s ease-out; }
+.rank-up .rank-ring .lv-art { animation: rank-pop .7s ease-out .9s both; }
+.rank-up .rank-name { animation: rank-glow 1.4s ease-out .9s; }
+@keyframes rank-fill { from { stroke-dasharray: 0 264; } }
+@keyframes rank-pop {
+  0% { transform: translate(-50%, -50%); filter: none; }
+  40% { transform: translate(-50%, -50%) scale(1.18); filter: brightness(1.7); }
+  100% { transform: translate(-50%, -50%); filter: none; }
+}
+@keyframes rank-wave { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 18px transparent; } }
+@keyframes rank-glow { 0%, 100% { text-shadow: none; } 30% { text-shadow: 0 0 10px var(--accent); } }
 .lv-wide { grid-column: 1 / -1; margin-top: -4px; }
 .lv-wide .hint-legend { gap: 6px; }
 .lv-wide .hint-legend li { display: grid; grid-template-columns: 4.5em 1fr; gap: 10px; align-items: baseline; }
@@ -513,6 +536,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .badge.ok { color: var(--muted); background: var(--surface-2); font-weight: 500; }
 .badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .badge.danger { color: var(--shoot); background: color-mix(in srgb, var(--shoot) 14%, transparent); }
+/* «Пора чистити» в картці ствола: при відкритті двічі розходиться хвилею свого кольору */
+.badge.nudge { animation: badge-nudge 1s ease-out .4s 2; }
+@keyframes badge-nudge { 0% { box-shadow: 0 0 0 0 currentColor; } 100% { box-shadow: 0 0 0 8px transparent; } }
 .clean-due { color: var(--shoot); font-weight: 700; }
 .clean-wait { color: var(--warn); font-weight: 600; }
 .stat.warn .stat-value { color: var(--warn); }
@@ -1303,6 +1329,57 @@ button.gun-stat { cursor: pointer; }
 }
 .tabs a.active { color: var(--accent-2); }
 .tabs a.active svg { background: var(--accent-soft); }
+/* Перейшли на розділ — його значок ~2,4 с грає своє: набої підстрибують хвилею, щит блищить, рядки журналу пишуться, мішень ловить влучання */
+.tabs svg :is(g, path, circle) { transform-box: fill-box; transform-origin: center; }
+.tabs a.play[data-tab="ammo"] g { animation: tab-hop .8s ease-in-out 3; }
+.tabs a.play[data-tab="ammo"] g:nth-child(2) { animation-delay: .12s; }
+.tabs a.play[data-tab="ammo"] g:nth-child(3) { animation-delay: .24s; }
+@keyframes tab-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
+/* Лише transform: «промальовування» через stroke-dashoffset перераховувало значок щокадру й гальмувало перехід */
+.tabs a.play[data-tab="guns"] .emb { animation: tab-emb 1.6s ease-out both; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(2) { transform-origin: 50% 100%; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(3) { transform-origin: 100% 100%; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(4) { transform-origin: 0% 100%; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(3), .tabs a.play[data-tab="guns"] .emb:nth-child(4) { animation-delay: .35s; }
+.tabs a.play[data-tab="guns"] path:first-child { animation: tab-shield 2.4s ease-out; }
+@keyframes tab-emb { 0%, 5% { transform: scale(0); } 50% { transform: scale(1.12); } 70%, 100% { transform: none; } }
+@keyframes tab-shield { 0%, 60% { transform: none; } 68% { transform: scale(1.1); } 80%, 100% { transform: none; } }
+.tabs a.play[data-tab="log"] .ln { transform-origin: 0% 50%; animation: tab-write 1.2s ease-out 2 both; }
+.tabs a.play[data-tab="log"] .ln:nth-of-type(3) { animation-delay: .2s; }
+.tabs a.play[data-tab="log"] .ln:nth-of-type(4) { animation-delay: .4s; }
+@keyframes tab-write { 0%, 10% { transform: scaleX(0); } 55%, 100% { transform: none; } }
+.tabs a.play[data-tab="targets"] .ticks { animation: tab-ticks 1.2s ease-in-out 2; }
+.tabs a.play[data-tab="targets"] .hit { animation: tab-hit 1.2s ease-out 2; }
+@keyframes tab-ticks { 0%, 100% { transform: none; } 40% { transform: rotate(45deg) scale(.8); } 70% { transform: rotate(90deg); } }
+@keyframes tab-hit { 0%, 55% { transform: none; } 65% { transform: scale(2.2); } 80%, 100% { transform: none; } }
+/* Розділи Полігону: щойно перейшов — значок ~2,4 с грає своє: кубок гойдається, кільця мішені розходяться,
+   стрілка спідометра злітає, секундомір дзеленчить, у прицілі боєць перебігає */
+.range-seg svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.range-seg .play[data-seg="exercises"] svg { transform-origin: 50% 85%; animation: seg-cup .8s ease-in-out 3; }
+@keyframes seg-cup { 0%, 100% { transform: none; } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+.range-seg .play[data-seg="targets"] circle { animation: seg-ring 1.2s ease-out 2; }
+.range-seg .play[data-seg="targets"] circle:nth-child(2) { animation-delay: .12s; }
+.range-seg .play[data-seg="targets"] circle:nth-child(1) { animation-delay: .24s; }
+@keyframes seg-ring { 0%, 100% { transform: none; } 30% { transform: scale(1.16); } }
+.range-seg .play[data-seg="chrono"] path:nth-child(2) { transform-box: view-box; transform-origin: 12px 17px; animation: seg-needle 1.2s ease-in-out 2; }
+@keyframes seg-needle { 0%, 100% { transform: none; } 35% { transform: rotate(-95deg); } 65% { transform: rotate(10deg); } }
+.range-seg .play[data-seg="timer"] svg { transform-origin: 50% 55%; animation: seg-ring-bell 1.2s ease-in-out 2; }
+@keyframes seg-ring-bell { 0%, 50%, 100% { transform: none; } 8%, 24%, 40% { transform: rotate(-9deg); } 16%, 32% { transform: rotate(9deg); } }
+.range-seg .play[data-seg="sim"] :is(circle:nth-child(3), path:nth-child(4)) { animation: seg-dash 1.2s ease-in-out 2; }
+@keyframes seg-dash { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
+/* Розділи Складу й Арсеналу: патрон підстрибує, у компонентах куля підскакує й капсулі блимають, у колбі рідина хлюпає,
+   гвинтівка тричі віддає, жилет «дихає» */
+.range-seg .play[data-seg="ammo"] svg { animation: seg-hop .8s ease-in-out 3; }
+@keyframes seg-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
+.range-seg .play[data-seg="components"] path:nth-child(5) { animation: seg-hop .8s ease-in-out 3; }
+.range-seg .play[data-seg="components"] circle { animation: seg-ring 1.2s ease-out 2; }
+.range-seg .play[data-seg="components"] circle:nth-child(4) { animation-delay: .12s; }
+.range-seg .play[data-seg="recipes"] path:nth-child(2) { animation: seg-slosh 1.2s ease-in-out 2; }
+@keyframes seg-slosh { 0%, 100% { transform: none; } 25% { transform: rotate(-12deg) translateY(-1px); } 75% { transform: rotate(12deg) translateY(-1px); } }
+.range-seg .play[data-seg="guns"] svg { animation: seg-recoil .8s ease-out 3; }
+@keyframes seg-recoil { 0%, 100% { transform: none; } 12% { transform: translateX(-3px) rotate(-4deg); } 40% { transform: none; } }
+.range-seg .play[data-seg="gear"] svg { animation: seg-breathe 1.2s ease-in-out 2; }
+@keyframes seg-breathe { 0%, 100% { transform: none; } 40% { transform: scale(1.12); } }
 .tabs a { position: relative; }
 .tabs a.alert::after {
   content: "";
@@ -1586,6 +1663,11 @@ button.gun-stat { cursor: pointer; }
 .guide .mark-scale { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .guide .mark-scale input { width: 100%; accent-color: var(--accent); }
 .guide .mark-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide .mark-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+.guide .mark-row[hidden] { display: none; }
+.guide .mark-seg { display: flex; gap: 4px; }
+.guide .mark-seg button { flex: 1; min-width: 0; min-height: 36px; padding: 4px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: 600 13px system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+.guide .mark-seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .guide .mark-acts button, .guide .mark-on { flex: 1 1 auto; min-height: 40px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .guide .mark-acts button.primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .guide .mark-acts button:disabled { opacity: .45; cursor: default; }
@@ -1907,6 +1989,12 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tm-time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .tm-time.over { color: var(--shoot); }
 .tm-status { margin-top: 8px; min-height: 1.4em; }
+/* Мікрофон слухає — червона точка запису в кутку; «Вогонь!» — спалахом */
+.tm-face { position: relative; }
+.tm-face.live::after { content: ''; position: absolute; top: 14px; right: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--shoot); animation: tm-rec 1.2s ease-in-out infinite; }
+@keyframes tm-rec { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--shoot) 55%, transparent); } 50% { opacity: .5; box-shadow: 0 0 0 7px transparent; } }
+.tm-status.fire { animation: tm-fire .6s ease-out; }
+@keyframes tm-fire { 0% { transform: scale(1.6); color: var(--shoot); font-weight: 800; } 70% { color: var(--shoot); font-weight: 800; } 100% { transform: none; } }
 .tm-start { min-height: 64px; font-size: 20px; }
 .tm-start.stop { background: var(--shoot); border-color: var(--shoot); }
 .tm-shots { display: grid; }
@@ -2198,6 +2286,18 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-box { margin: 4px 0 0; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .guide .quiz-box > legend { color: var(--accent); }
 .guide .quiz-box .quiz { padding-top: 4px; border-top: 0; }
+/* Згорнуте «Перевір себе»: мішень, у центр раз на кілька секунд влучає куля зі спалахом */
+.guide .quiz-ico { display: inline-grid; flex: none; }
+.guide .quiz-box:not(.closed) .quiz-ico { display: none; }
+/* Гліф «›» сидить нижче середини рядка — поруч із круглою мішенню це видно, тож піднятий до її центру */
+.guide .quiz-box.closed .box-chevron { position: relative; top: -.15em; }
+.guide .quiz-ico svg { width: 18px; height: 18px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; overflow: visible; animation: quiz-ico-kick 3.2s ease-out infinite; }
+.guide .quiz-ico .quiz-ico-hit { fill: var(--accent); stroke: none; transform-origin: 12px 12px; animation: quiz-ico-hit 3.2s ease-out infinite; }
+.guide .quiz-ico .quiz-ico-ring { stroke: var(--accent-2); stroke-width: 1.2; opacity: 0; transform-origin: 12px 12px; animation: quiz-ico-ring 3.2s ease-out infinite; }
+@keyframes quiz-ico-hit { 0%, 62% { transform: scale(0); } 66% { transform: scale(1.5); } 74%, 92% { transform: scale(1); } 100% { transform: scale(0); } }
+@keyframes quiz-ico-ring { 0%, 64% { opacity: 0; transform: scale(.6); } 66% { opacity: 1; } 84%, 100% { opacity: 0; transform: scale(3.4); } }
+@keyframes quiz-ico-kick { 0%, 64% { transform: none; } 67% { transform: rotate(-8deg) scale(1.08); } 76%, 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-ico svg, .guide .quiz-ico .quiz-ico-hit, .guide .quiz-ico .quiz-ico-ring { animation: none !important; } .guide .quiz-ico .quiz-ico-hit { transform: none; } }
 /* Статистика тренувань — компактні таблички: назва рядка ліворуч, числа праворуч */
 .guide .sim-stats { display: grid; gap: 4px; }
 .guide .sim-stats > b { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
@@ -2222,8 +2322,33 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-dots:has(i.picked) i:not(.picked) { opacity: .45; }
 .guide .quiz-dots i.picked { outline: 1.5px solid var(--fg); outline-offset: 2px; }
 .guide .quiz-dots i.cur { background: none; box-shadow: inset 0 0 0 2px var(--accent); }
+/* Щойно зарахований кружечок «влучає», як куля в значку згорнутого блоку: виростає й розходиться кільцем свого кольору */
+.guide .quiz-dots i.good { color: var(--buy); }
+.guide .quiz-dots i.bad { color: var(--shoot); }
+.guide .quiz-dots i.near { color: var(--warn); }
+.guide .quiz-dots i.fresh { animation: quiz-dot-hit .7s ease-out; }
+@keyframes quiz-dot-hit {
+  0% { transform: scale(0); box-shadow: 0 0 0 0 currentColor; }
+  40% { transform: scale(1.5); }
+  65% { transform: scale(1); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+/* Вердикт після «Перевірити»: влучив — підскакує, частково — легко гойднувся, мимо — струшується */
+.guide .quiz-res.fresh.good { animation: quiz-res-pop .45s ease-out; }
+.guide .quiz-res.fresh.ok { animation: quiz-res-nudge .45s ease-out; }
+.guide .quiz-res.fresh.bad { animation: quiz-res-shake .45s ease-out; }
+@keyframes quiz-res-pop { 0% { transform: scale(.94); opacity: .4; } 55% { transform: scale(1.025); opacity: 1; } 100% { transform: none; } }
+@keyframes quiz-res-nudge { 0%, 100% { transform: none; } 35% { transform: translateY(-3px); } 70% { transform: translateY(1px); } }
+@keyframes quiz-res-shake { 0%, 100% { transform: none; } 15% { transform: translateX(-6px); } 35% { transform: translateX(5px); } 55% { transform: translateX(-3px); } 75% { transform: translateX(2px); } }
 .guide .quiz-ibtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .guide .quiz-ibtn svg { flex: none; width: 18px; height: 18px; margin: 0; }
+/* «Перевірити» — постріл: кнопка коротко віддає назад, куля вилітає зі значка вправо, сліди тягнуться за нею */
+.guide .quiz-ibtn svg { overflow: visible; }
+.guide .quiz-go.fire { overflow: hidden; animation: shot-kick .2s ease-out; }
+.guide .quiz-go.fire svg { animation: shot-fly .3s linear forwards; }
+.guide .quiz-go.fire > span { visibility: hidden; }
+@keyframes shot-kick { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } }
+@keyframes shot-fly { to { transform: translateX(var(--fly)); } }
 .guide .sim-meas button svg { flex: none; width: 16px; height: 16px; max-width: none; margin: 0; }
 /* Вузький екран: лише число — назва й одиниця в підказці; рядок не розпирає сторінку */
 .guide .ctl > .sim-row, .guide .sim-line { min-width: 0; }
@@ -2266,10 +2391,38 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-calc > i { grid-column: 1 / -1; font-style: normal; color: var(--muted); }
 .guide .quiz-calc3 { grid-template-columns: auto auto auto; justify-content: start; column-gap: 22px; }
 .guide .quiz-calc > .n { text-align: right; white-space: nowrap; }
+/* Розбір виносу: шапка «вердикт | помилка», таблиця по осях, рядки «назва — значення», легенда під рискою */
+.guide .quiz-res:has(.quiz-res-head) { gap: 10px; font: 14px/1.4 system-ui, sans-serif; border-left: 4px solid var(--res-c, var(--line)); }
+.guide .quiz-res.good { --res-c: var(--buy); }
+.guide .quiz-res.ok { --res-c: var(--warn); }
+.guide .quiz-res.bad { --res-c: var(--shoot); }
+.guide .quiz-res-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.guide .quiz-res-head > b { font-size: 17px; line-height: 1.25; }
+.guide .quiz-res-err { display: grid; justify-items: end; text-align: right; white-space: nowrap; }
+.guide .quiz-res-err strong { font: 700 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .quiz-res-err small { font-size: 12px; color: var(--muted); }
+.guide .quiz-res-note { color: var(--muted); }
+.guide .quiz-res .quiz-calc3 { grid-template-columns: max-content 1fr 1fr; gap: 0; margin: 0;
+  padding: 2px 10px; border-radius: 8px; background: var(--surface); font: 13.5px/1.9 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .quiz-calc3 > .h { text-align: right; font: 600 11.5px/2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.guide .quiz-res .quiz-calc3 > .n, .guide .quiz-calc3 > .h { padding-left: 12px; }
+.guide .quiz-calc3 > .e { font-weight: 650; border-top: 1px solid var(--line); }
+.guide .quiz-calc3 > .e ~ .n { font-weight: 650; border-top: 1px solid var(--line); }
+.guide .quiz-calc3 > .n.ok { color: var(--buy); }
+.guide .quiz-calc3 > .n.w { color: var(--warn); }
+.guide .quiz-kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
+.guide .quiz-kv dt { color: var(--muted); }
+.guide .quiz-kv dd { display: grid; margin: 0; font-variant-numeric: tabular-nums; }
+.guide .quiz-kv dd > span + span { color: var(--muted); }
+.guide .quiz-res .quiz-legend { padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
 .guide .quiz-sum { font-weight: 650; }
 /* Памятка навчальних рівнів: як рахувати — кроками, і табличка для набору */
 .guide .quiz-memo { display: grid; gap: 6px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--fg) 4%, transparent); font-size: 13.5px; }
-.guide .quiz-memo > b { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.guide .quiz-memo > summary { display: flex; gap: 6px; align-items: baseline; margin: -9px -11px; padding: 9px 11px; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); cursor: pointer; list-style: none; }
+.guide .quiz-memo > summary::-webkit-details-marker { display: none; }
+.guide .quiz-memo > summary::before { content: '›'; color: var(--muted); transition: transform .15s; }
+.guide .quiz-memo[open] > summary { margin-bottom: 0; }
+.guide .quiz-memo[open] > summary::before { transform: rotate(90deg); }
 .guide .quiz-memo ol { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .guide .quiz-memo-tab { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 2px 10px; font: 500 12.5px var(--mono); }
 .guide .quiz-memo-tab .h { color: var(--muted); }
@@ -2513,6 +2666,33 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Діапазон кратності прицілу — на місці значка, рамкою, як напис на прицілі */
 .guide .sim-badge .mag-rng { padding: 1px 5px; border: 1px solid var(--line); border-radius: 6px; font: 600 12px var(--mono); }
 .guide .sim-badge .mag-rng:empty { display: none; }
+/* Кнопки на прицілі — один стиль: однакова висота, відступ від країв, напівпрозоре тло без розмиття
+   (розмиття під кнопками гальмувало б, коли тягнеш приціл); активне — помаранчевим значком, не рамкою */
+.guide .sim-frame { --ov: 34px; --ov-gap: 8px; }
+.guide .sim-frame > :is(.sim-zoom, .hint-btn, .sim-badge), .guide .sim-frame > .sim-corner {
+  height: var(--ov); box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--bg) 72%, transparent); color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }
+.guide .sim-frame > .hint-btn { left: var(--ov-gap); top: var(--ov-gap); width: var(--ov); border-radius: 50%; }
+/* «Боєць n/5» і лупа — одна плашка з розділювачем */
+.guide .sim-frame > .sim-corner { right: var(--ov-gap); top: var(--ov-gap); gap: 0; padding: 0; border-radius: calc(var(--ov) / 2); overflow: hidden; }
+.guide .sim-corner > .sim-zoom { height: 100%; padding: 0 11px; border: 0; border-radius: 0; background: none; color: inherit; }
+.guide .sim-corner > .sim-zoom + .sim-zoom:not([hidden]), .guide .sim-corner > .sim-fig:not([hidden]) + .sim-zoom { border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); }
+.guide .sim-corner > .sim-zoom[aria-pressed="true"] { background: none; color: var(--accent-2); }
+/* Круглі кнопки — рівною колонкою під плашкою, по її правому краю */
+.guide .sim-frame > :is(.sim-ink, .sim-ret, .sim-focus) { right: var(--ov-gap); width: var(--ov); min-width: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.guide .sim-frame > .sim-ink { top: calc(var(--ov-gap) * 2 + var(--ov)); }
+.guide .sim-frame > .sim-ret { top: calc(var(--ov-gap) * 3 + var(--ov) * 2); }
+.guide .sim-frame > .sim-focus { top: calc(var(--ov-gap) * 3 + var(--ov) * 2); }
+.guide .sim-frame > .sim-ret:not([hidden]) ~ .sim-focus { top: calc(var(--ov-gap) * 4 + var(--ov) * 3); }
+/* Дистанція й кратність — плашки однієї висоти; підписи «дист.»/«крат.» — у підказці, значок і число говорять самі */
+.guide .sim-frame > .sim-badge { bottom: var(--ov-gap); padding: 0 12px; border-radius: calc(var(--ov) / 2); gap: 6px; }
+.guide .sim-frame > .sim-badge.bl { left: var(--ov-gap); }
+.guide .sim-frame > .sim-badge.br { right: var(--ov-gap); }
+.guide .sim-frame > .sim-badge > small:not(.mag-rng) { display: none; }
+.guide .sim-frame > .sim-badge[aria-expanded="true"] { border-color: color-mix(in srgb, var(--text) 14%, transparent); color: var(--accent-2); }
+.guide .sim-frame > .sim-badge[aria-expanded="true"] svg { color: var(--accent-2); }
+.guide .sim-frame > .hint-btn[aria-expanded="true"] { color: var(--accent-2); border-color: color-mix(in srgb, var(--text) 14%, transparent); background: color-mix(in srgb, var(--bg) 72%, transparent); }
+.guide .sim-frame > .sim-pop { bottom: calc(var(--ov-gap) * 2 + var(--ov)); }
 .guide .sim-pop .ticks { display: flex; justify-content: space-between; padding: 0 2px; font: 12px var(--mono); color: var(--muted); }
 .guide .sim-pop .ticks span { width: 0; display: flex; justify-content: center; }
 /* Підписи на своїх місцях шкали (не через рівні проміжки): --p — частка від min до max, 8px — пів повзунка */
