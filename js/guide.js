@@ -2436,8 +2436,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     exit: '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
     repeat: '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
     start: '<path d="M7 4.5v15l12-7.5z"/>',
-    // «Перевірити» — постріл: куля летить управо, позаду — сліди руху
-    check: '<g class="shot-bullet"><path d="M8.5 9h5.5c2.6 0 5 1.4 7 3-2 1.6-4.4 3-7 3H8.5z"/><path d="M11.5 9v6"/></g><path class="shot-trail" d="M2 10h4.5M3.5 12H7M2 14h4.5"/>',
+    // «Перевірити» — куля в польоті: суцільна, з пояском, позаду — змазаний слід
+    check: '<path d="M7 9h6c4 0 7.6 1.7 9.7 2.8v.4c-2.1 1.1-5.7 2.8-9.7 2.8H7z" fill="currentColor" stroke-width="1"/><path d="M13.2 9.2v5.6" style="stroke: var(--accent)" stroke-width="1"/><path d="M0 9.6h4.5M-1 12h5.5M0 14.4h4.5" stroke-width="1.5" stroke-opacity=".45"/>',
     // Вправи — ті самі значки, що в легенді «Перевір себе»
     range: '<path d="M4 3.5h5M6.5 3.5v17M4 20.5h5M5 8h3M5 12h3M5 16h3"/><circle cx="16" cy="6" r="2.2"/><path d="M16 8.5v6.5M12.5 11h7M16 15l-2.2 5.5M16 15l2.2 5.5"/>',
     hold: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>',
@@ -2446,11 +2446,14 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   };
   // «Перевірити» як постріл: кнопка віддає, куля вилітає зі значка — і вже тоді розбір; таймер рівня стоїть,
   // поки летить куля, тож ці 0,2 с не з'їдають час; повторний тап нічого не робить
+  // Напис зникає одразу, куля летить від значка за правий край кнопки
   const fire = (btn, go) => {
     if (btn.classList.contains('fire')) return;
     clearTick();
+    const T = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300;
+    btn.style.setProperty('--fly', `${btn.getBoundingClientRect().right - btn.querySelector('svg').getBoundingClientRect().left}px`);
     btn.classList.add('fire');
-    setTimeout(go, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200);
+    setTimeout(go, T);
   };
   const iconBtn = (cls, icon, text) => {
     const b = el('button', { type: 'button', className: `${cls} quiz-ibtn` });
@@ -2560,10 +2563,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       line.append(`${what} `, el('b', {}, `${mFmt(fh)} ${t('м')}`), ` → ${t('в сетке')} `, el('b', {}, `${f(C.size(fh, q.dist), moa ? 1 : 2)} ${C.u}`));
       qBox.append(line);
     }
-    // Памятка: як рахувати — кроками з числами цієї цілі, і табличка для набору
+    // Памятка: як рахувати — кроками з числами цієї цілі, і табличка для набору; згорнута, розкрита лишається до наступного питання
     const memo = (title, steps, head, rows, foot) => {
-      const box = el('div', { className: 'quiz-memo' });
-      box.append(el('b', {}, title));
+      const box = el('details', { className: 'quiz-memo', open: !!q.memo });
+      box.addEventListener('toggle', () => { q.memo = box.open; });
+      box.append(el('summary', {}, title));
       const ol = el('ol'); steps.forEach((x) => ol.append(el('li', {}, x))); box.append(ol);
       const tab = el('div', { className: 'quiz-memo-tab' });
       [head, ...rows].forEach((r, n) => r.forEach((c, m) => tab.append(el('span', { className: n === 0 || m === 0 ? 'h' : '' }, c))));
