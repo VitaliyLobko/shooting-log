@@ -1335,15 +1335,19 @@ button.gun-stat { cursor: pointer; }
 .tabs a.play[data-tab="ammo"] g:nth-child(2) { animation-delay: .12s; }
 .tabs a.play[data-tab="ammo"] g:nth-child(3) { animation-delay: .24s; }
 @keyframes tab-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
-.tabs a.play[data-tab="guns"] .emb { stroke-dasharray: 1; animation: tab-emb 2.4s ease-in-out both; }
+/* Лише transform: «промальовування» через stroke-dashoffset перераховувало значок щокадру й гальмувало перехід */
+.tabs a.play[data-tab="guns"] .emb { animation: tab-emb 1.6s ease-out both; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(2) { transform-origin: 50% 100%; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(3) { transform-origin: 100% 100%; }
+.tabs a.play[data-tab="guns"] .emb:nth-child(4) { transform-origin: 0% 100%; }
 .tabs a.play[data-tab="guns"] .emb:nth-child(3), .tabs a.play[data-tab="guns"] .emb:nth-child(4) { animation-delay: .35s; }
 .tabs a.play[data-tab="guns"] path:first-child { animation: tab-shield 2.4s ease-out; }
-@keyframes tab-emb { 0%, 5% { stroke-dashoffset: 1; } 45%, 100% { stroke-dashoffset: 0; } }
+@keyframes tab-emb { 0%, 5% { transform: scale(0); } 50% { transform: scale(1.12); } 70%, 100% { transform: none; } }
 @keyframes tab-shield { 0%, 60% { transform: none; } 68% { transform: scale(1.1); } 80%, 100% { transform: none; } }
-.tabs a.play[data-tab="log"] .ln { stroke-dasharray: 1; animation: tab-write 1.2s ease-out 2 both; }
+.tabs a.play[data-tab="log"] .ln { transform-origin: 0% 50%; animation: tab-write 1.2s ease-out 2 both; }
 .tabs a.play[data-tab="log"] .ln:nth-of-type(3) { animation-delay: .2s; }
 .tabs a.play[data-tab="log"] .ln:nth-of-type(4) { animation-delay: .4s; }
-@keyframes tab-write { 0%, 10% { stroke-dashoffset: 1; } 55%, 100% { stroke-dashoffset: 0; } }
+@keyframes tab-write { 0%, 10% { transform: scaleX(0); } 55%, 100% { transform: none; } }
 .tabs a.play[data-tab="targets"] .ticks { animation: tab-ticks 1.2s ease-in-out 2; }
 .tabs a.play[data-tab="targets"] .hit { animation: tab-hit 1.2s ease-out 2; }
 @keyframes tab-ticks { 0%, 100% { transform: none; } 40% { transform: rotate(45deg) scale(.8); } 70% { transform: rotate(90deg); } }
