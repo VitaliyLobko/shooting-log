@@ -2556,6 +2556,30 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     };
     const kitNow = $('s-kit').value; const tbNow = atmTab(kitNow, LOADS[kitNow].def, +$('s-temp').value, +$('s-alt').value);
     const B = (x) => el('b', {}, x); const dg = moa ? 1 : 2;
+    // «Навчання»: поправка по вертикалі — скільки й звідки: падіння кулі в см за таблицею набою → кутові одиниці
+    if (quiz.level === 'learn') {
+      const z = L.zero ?? +$('s-zero').value;
+      const toCm = (v, d) => (moa ? v * 2.9089 * d / 100 : v * d / 10);
+      const line = el('p', { className: 'quiz-facts quiz-size' });
+      if (Math.abs(q.hy) < 0.05) line.append(t('Поправки нет — целься центром сетки'));
+      else {
+        line.append(`${t('Поправка')} `, B(`${q.hy > 0 ? '↑' : '↓'} ${f(Math.abs(q.hy), dg)} ${C.u}`));
+        if (C.marks) line.append(` · ${markShort(q.hy, C)}`);
+      }
+      qBox.append(line);
+      const cm = f(Math.abs(toCm(q.hy, q.dist)), 0);
+      const steps = Math.abs(q.hy) < 0.05 ? [t('На дистанции пристрелки пуля приходит в точку прицеливания — поправка не нужна')] : [
+        t('По таблице патрона при пристрелке {z} м пуля на {d} м приходит на {cm} см {dir} точки прицеливания', { z, d: q.dist, cm, dir: t(q.hy > 0 ? 'ниже' : 'выше') }),
+        moa ? t('В MOA: {cm} см ÷ 2,91 × 100 ÷ {d} м = {v} MOA', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) })
+          : t('В милах: {cm} см × 10 ÷ {d} м = {v} MRAD', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) }),
+        t(q.hy > 0 ? 'Держи выше: на цель наводишь метку на {v} {u} ниже центра сетки' : 'Держи ниже: на цель наводишь метку на {v} {u} выше центра сетки', { v: f(Math.abs(q.hy), dg), u: C.u }),
+      ];
+      // Табличка — три сусідні сотні навколо цієї дистанції: видно, як поправка росте
+      const d0 = Math.max(100, Math.round(q.dist / 100) * 100 - 100); const ds = [d0, d0 + 100, d0 + 200];
+      const hyAt = (d) => holdAt(tbNow.H, d) - (L.my ? 0 : zeroShift(tbNow.H, z));
+      qBox.append(memo(t('Как считать поправку'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
+        [[`${t('падение')}, ${t('см')}`, ...ds.map((d) => f(toCm(hyAt(d), d), 0))], [`${t('поправка')}, ${C.u}`, ...ds.map((d) => f(hyAt(d), dg))]]));
+    }
     // «Вітер»: розрахунок — знос на 1 м/с × сила (× частка бокового) = винос
     if (windLearn() && q.wind) {
       const share = Math.abs(Math.sin((q.hour * Math.PI) / 6));

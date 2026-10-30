@@ -95,16 +95,7 @@ function recall(key) {
 }
 
 /** Підказка про свайп у підзаголовку — доки на цьому екрані жодного разу не свайпнули; потім — other. */
-// Поки свайп не освоєно, перша видима картка раз за сеанс сама «визирає» вбік — показує підкладку дії
-const peeked = new Set();
-const swipeTip = (key, tip, other) => {
-  if (recall(`shooters-log:swiped:${key}`)) return other;
-  if (!peeked.has(key)) {
-    peeked.add(key);
-    setTimeout(() => [...document.querySelectorAll('main .card.swipe')].find((c) => c.offsetParent)?.classList.add('peek'), 600);
-  }
-  return tip;
-};
+const swipeTip = (key, tip, other) => (recall(`shooters-log:swiped:${key}`) ? other : tip);
 const learnSwipe = (key) => () => remember(`shooters-log:swiped:${key}`, '1');
 
 // Застосунок перейменовано: налаштування зі старого префікса переносимо один раз,
@@ -6754,6 +6745,23 @@ const VIEWS = {
   targets: { title: 'Полигон', render: renderRange, fab: () => (rangeSeg === 'exercises' ? newExercise() : rangeSeg === 'chrono' ? chronoForm() : newTarget({ weaponId: targetWeapon || null })), noFab: () => rangeSeg === 'timer' || rangeSeg === 'sim' },
 };
 
+// Перейшли на інший розділ — його значок у нижньому меню пару секунд грає свою анімацію; при старті — ні
+let shownTab = null;
+let tabPlay = 0;
+function playTab(now) {
+  const was = shownTab;
+  shownTab = now;
+  if (!was || was === now) return;
+  const links = document.querySelectorAll('.tabs a');
+  links.forEach((a) => a.classList.remove('play'));
+  const link = document.querySelector(`.tabs a[data-tab="${now}"]`);
+  if (!link) return;
+  void link.offsetWidth;
+  link.classList.add('play');
+  clearTimeout(tabPlay);
+  tabPlay = setTimeout(() => link.classList.remove('play'), 2600);
+}
+
 function render() {
   const view = VIEWS[tab];
   $('title').textContent = t(view.title);
@@ -6765,6 +6773,7 @@ function render() {
   $('fab').hidden = !view.fab || Boolean(view.noFab?.()) || Boolean($('view').querySelector('.empty .btn.add'));
   $('fab').classList.remove('away');
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
+  playTab(view.tab ?? tab);
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
   // У налаштуваннях — «Назад» туди, звідки прийшли
   $('back-btn').hidden = tab !== 'settings';
