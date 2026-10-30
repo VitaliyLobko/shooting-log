@@ -2655,6 +2655,33 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Діапазон кратності прицілу — на місці значка, рамкою, як напис на прицілі */
 .guide .sim-badge .mag-rng { padding: 1px 5px; border: 1px solid var(--line); border-radius: 6px; font: 600 12px var(--mono); }
 .guide .sim-badge .mag-rng:empty { display: none; }
+/* Кнопки на прицілі — один стиль: однакова висота, відступ від країв, напівпрозоре тло без розмиття
+   (розмиття під кнопками гальмувало б, коли тягнеш приціл); активне — помаранчевим значком, не рамкою */
+.guide .sim-frame { --ov: 34px; --ov-gap: 8px; }
+.guide .sim-frame > :is(.sim-zoom, .hint-btn, .sim-badge), .guide .sim-frame > .sim-corner {
+  height: var(--ov); box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--bg) 72%, transparent); color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }
+.guide .sim-frame > .hint-btn { left: var(--ov-gap); top: var(--ov-gap); width: var(--ov); border-radius: 50%; }
+/* «Боєць n/5» і лупа — одна плашка з розділювачем */
+.guide .sim-frame > .sim-corner { right: var(--ov-gap); top: var(--ov-gap); gap: 0; padding: 0; border-radius: calc(var(--ov) / 2); overflow: hidden; }
+.guide .sim-corner > .sim-zoom { height: 100%; padding: 0 11px; border: 0; border-radius: 0; background: none; color: inherit; }
+.guide .sim-corner > .sim-zoom + .sim-zoom:not([hidden]), .guide .sim-corner > .sim-fig:not([hidden]) + .sim-zoom { border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); }
+.guide .sim-corner > .sim-zoom[aria-pressed="true"] { background: none; color: var(--accent-2); }
+/* Круглі кнопки — рівною колонкою під плашкою, по її правому краю */
+.guide .sim-frame > :is(.sim-ink, .sim-ret, .sim-focus) { right: var(--ov-gap); width: var(--ov); min-width: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.guide .sim-frame > .sim-ink { top: calc(var(--ov-gap) * 2 + var(--ov)); }
+.guide .sim-frame > .sim-ret { top: calc(var(--ov-gap) * 3 + var(--ov) * 2); }
+.guide .sim-frame > .sim-focus { top: calc(var(--ov-gap) * 3 + var(--ov) * 2); }
+.guide .sim-frame > .sim-ret:not([hidden]) ~ .sim-focus { top: calc(var(--ov-gap) * 4 + var(--ov) * 3); }
+/* Дистанція й кратність — плашки однієї висоти; підписи «дист.»/«крат.» — у підказці, значок і число говорять самі */
+.guide .sim-frame > .sim-badge { bottom: var(--ov-gap); padding: 0 12px; border-radius: calc(var(--ov) / 2); gap: 6px; }
+.guide .sim-frame > .sim-badge.bl { left: var(--ov-gap); }
+.guide .sim-frame > .sim-badge.br { right: var(--ov-gap); }
+.guide .sim-frame > .sim-badge > small:not(.mag-rng) { display: none; }
+.guide .sim-frame > .sim-badge[aria-expanded="true"] { border-color: color-mix(in srgb, var(--text) 14%, transparent); color: var(--accent-2); }
+.guide .sim-frame > .sim-badge[aria-expanded="true"] svg { color: var(--accent-2); }
+.guide .sim-frame > .hint-btn[aria-expanded="true"] { color: var(--accent-2); border-color: color-mix(in srgb, var(--text) 14%, transparent); background: color-mix(in srgb, var(--bg) 72%, transparent); }
+.guide .sim-frame > .sim-pop { bottom: calc(var(--ov-gap) * 2 + var(--ov)); }
 .guide .sim-pop .ticks { display: flex; justify-content: space-between; padding: 0 2px; font: 12px var(--mono); color: var(--muted); }
 .guide .sim-pop .ticks span { width: 0; display: flex; justify-content: center; }
 /* Підписи на своїх місцях шкали (не через рівні проміжки): --p — частка від min до max, 8px — пів повзунка */

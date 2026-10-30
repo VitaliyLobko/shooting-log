@@ -273,6 +273,12 @@ function visibleAnchor(el) {
   return target?.getClientRects().length ? target : null;
 }
 
+/** Де лежить запис id: його картка чи рядок, а якщо згорнута група ще не будувала рядків — її заголовок. */
+function holders(id) {
+  const q = CSS.escape(id);
+  return [...document.querySelectorAll(`[data-id="${q}"]`), ...document.querySelectorAll(`details[data-has~="${q}"]:not([open]) > summary`)];
+}
+
 function flash(target) {
   target.classList.remove('flash');
   void target.offsetWidth;   // перезапуск анімації, якщо картка ще світиться
@@ -284,7 +290,7 @@ function flash(target) {
 export function confirmed(ids = []) {
   navigator.vibrate?.(20);
   for (const id of new Set(ids.filter(Boolean))) {
-    for (const el of document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`)) {
+    for (const el of holders(id)) {
       const target = visibleAnchor(el);
       if (target) flash(target);
     }
@@ -293,7 +299,7 @@ export function confirmed(ids = []) {
 
 /** Прокрутити до картки id і підсвітити; екран ще малюється — кілька спроб. Повертає, чи знайшли. */
 export function reveal(id, tries = 10) {
-  const el = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
+  const el = holders(id)[0];
   const target = el && visibleAnchor(el);
   if (!target) { if (tries > 0) setTimeout(() => reveal(id, tries - 1), 60); return; }
   target.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });

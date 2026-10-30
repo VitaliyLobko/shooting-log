@@ -591,12 +591,22 @@ function setUnfolded(key, open) {
   remember('shooters-log:unfolded', JSON.stringify([...unfolded]));
 }
 
-/** Група, що згортається: за замовчуванням згорнута, розгорнуту запам'ятовує; без ключа — не запам'ятовує. */
-function fold(key, head, body) {
-  const el = h('details', { class: 'fold', open: key ? unfolded.has(key) : false, dataset: key ? { key } : {} },
-    h('summary', { class: 'fold-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), head),
-    h('div', { class: 'fold-body' }, body));
+/**
+ * Група, що згортається: за замовчуванням згорнута, розгорнуту запам'ятовує; без ключа — не запам'ятовує.
+ * body-функція — вміст будується лише при розгортанні (журнал на сотні рядків не будує сховане);
+ * has — id записів усередині: підсвітка після дії знайде заголовок, поки рядків ще немає.
+ */
+function fold(key, head, body, has = null) {
+  const lazy = typeof body === 'function';
+  const inner = h('div', { class: 'fold-body' }, lazy ? null : body);
+  const el = h('details', { class: 'fold', open: key ? unfolded.has(key) : false, dataset: { ...(key ? { key } : {}), ...(has ? { has: has.join(' ') } : {}) } },
+    h('summary', { class: 'fold-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), head), inner);
   if (key) el.addEventListener('toggle', () => setUnfolded(key, el.open));
+  if (lazy) {
+    const fill = () => { if (el.open && !inner.childNodes.length) inner.append(...[body()].flat().filter(Boolean)); };
+    el.addEventListener('toggle', fill);
+    fill();
+  }
   return el;
 }
 
@@ -3283,10 +3293,15 @@ function swipeLabel(kind, label, side = 'right') {
   return side === 'left' ? [label, ico] : [ico, label];
 }
 
+// Значок руху розбирається з тексту один раз, далі — копія: у журналі їх сотні
+const kindIconTpl = {};
 function kindIcon(kind) {
-  const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
-  el.innerHTML = KIND_ICON[kind] ? `<svg viewBox="0 0 24 24">${KIND_ICON[kind]}</svg>` : '•';
-  return el;
+  if (!kindIconTpl[kind]) {
+    const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
+    el.innerHTML = KIND_ICON[kind] ? `<svg viewBox="0 0 24 24">${KIND_ICON[kind]}</svg>` : '•';
+    kindIconTpl[kind] = el;
+  }
+  return kindIconTpl[kind].cloneNode(true);
 }
 
 function movementTitle(m) {
@@ -3745,7 +3760,7 @@ function logGroups(list) {
       // Дві строки з кожного боку: великий настріл і сума не вміщаються в один рядок на телефоні.
       [h('span', { class: 'fold-stack' }, h('span', { class: 'fold-title' }, g.label), h('span', { class: 'fold-meta' }, t('записей: {n}', { n: g.rows.length }))),
         amount || money ? h('span', { class: 'fold-sum stack' }, amount, money ? h('span', { class: 'fold-cost' }, fmt.money(money) + usdTail(groupMoneyRows(g.rows))) : null) : null],
-      h('div', { class: 'rows' }, g.rows.map((m) => logRow(m, { day: logPeriod !== 'day' }))));
+      () => h('div', { class: 'rows' }, g.rows.map((m) => logRow(m, { day: logPeriod !== 'day' }))), g.rows.map((m) => m.id));
   });
 }
 
@@ -5669,7 +5684,7 @@ function stockPane() {
     stockHero(M.stockValue(state), state.components.length, out, low),
     groups.map(([kind, list]) => fold(`stock:${kind}`,
       [componentIcon(kind), h('span', { class: 'fold-title' }, t(M.COMPONENT_KINDS[kind])), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
-      list.map(componentCard))));
+      () => list.map(componentCard), list.map((c) => c.id))));
 }
 
 /** «Склад»: набої, компоненти й рецепти — розділи значками, як у «Полігоні», вибраний — з назвою. */
