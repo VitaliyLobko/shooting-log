@@ -2141,7 +2141,13 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const toggle = Object.assign(document.createElement('button'), { type: 'button', className: 'box-toggle' });
     const chev = Object.assign(document.createElement('span'), { className: 'box-chevron', textContent: '›' });
     chev.setAttribute('aria-hidden', 'true');
-    toggle.append(chev, t('Проверь себя'), Object.assign(document.createElement('span'), { className: 'box-sum', id: 'sim-quiz-sum' }));
+    // Згорнутим — мішень, у яку час від часу влучає куля: видно, що тут вправи
+    const ico = Object.assign(document.createElement('span'), { className: 'quiz-ico' });
+    ico.setAttribute('aria-hidden', 'true');
+    ico.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>'
+      + '<path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>'
+      + '<circle class="quiz-ico-ring" cx="12" cy="12" r="2.4"/><circle class="quiz-ico-hit" cx="12" cy="12" r="1.6"/></svg>';
+    toggle.append(chev, ico, t('Проверь себя'), Object.assign(document.createElement('span'), { className: 'box-sum', id: 'sim-quiz-sum' }));
     toggle.addEventListener('click', () => quizFold(fs.classList.contains('closed')));
     const legend = document.createElement('legend'); legend.append(toggle);
     const body = Object.assign(document.createElement('div'), { className: 'box-body' });

@@ -2203,6 +2203,16 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-box { margin: 4px 0 0; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 .guide .quiz-box > legend { color: var(--accent); }
 .guide .quiz-box .quiz { padding-top: 4px; border-top: 0; }
+/* Згорнуте «Перевір себе»: мішень, у центр раз на кілька секунд влучає куля зі спалахом */
+.guide .quiz-ico { display: inline-grid; flex: none; }
+.guide .quiz-box:not(.closed) .quiz-ico { display: none; }
+.guide .quiz-ico svg { width: 18px; height: 18px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; overflow: visible; animation: quiz-ico-kick 3.2s ease-out infinite; }
+.guide .quiz-ico .quiz-ico-hit { fill: var(--accent); stroke: none; transform-origin: 12px 12px; animation: quiz-ico-hit 3.2s ease-out infinite; }
+.guide .quiz-ico .quiz-ico-ring { stroke: var(--accent-2); stroke-width: 1.2; opacity: 0; transform-origin: 12px 12px; animation: quiz-ico-ring 3.2s ease-out infinite; }
+@keyframes quiz-ico-hit { 0%, 62% { transform: scale(0); } 66% { transform: scale(1.5); } 74%, 92% { transform: scale(1); } 100% { transform: scale(0); } }
+@keyframes quiz-ico-ring { 0%, 64% { opacity: 0; transform: scale(.6); } 66% { opacity: 1; } 84%, 100% { opacity: 0; transform: scale(3.4); } }
+@keyframes quiz-ico-kick { 0%, 64% { transform: none; } 67% { transform: rotate(-8deg) scale(1.08); } 76%, 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-ico svg, .guide .quiz-ico .quiz-ico-hit, .guide .quiz-ico .quiz-ico-ring { animation: none !important; } .guide .quiz-ico .quiz-ico-hit { transform: none; } }
 /* Статистика тренувань — компактні таблички: назва рядка ліворуч, числа праворуч */
 .guide .sim-stats { display: grid; gap: 4px; }
 .guide .sim-stats > b { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
