@@ -2370,6 +2370,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     quiz.done.push(q);
     buzz(ok);
     drawQuiz();
+    // Щойно зарахований кружечок і вердикт — з одноразовою анімацією; наступне малювання її знімає
+    qBox.querySelectorAll('.quiz-dots i')[quiz.done.length - 1]?.classList.add('fresh');
+    qBox.querySelector('.quiz-res')?.classList.add('fresh');
     reveal();
     if (quiz.done.length >= quiz.total) showEnd();
   };

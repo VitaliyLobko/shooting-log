@@ -95,7 +95,16 @@ function recall(key) {
 }
 
 /** Підказка про свайп у підзаголовку — доки на цьому екрані жодного разу не свайпнули; потім — other. */
-const swipeTip = (key, tip, other) => (recall(`shooters-log:swiped:${key}`) ? other : tip);
+// Поки свайп не освоєно, перша видима картка раз за сеанс сама «визирає» вбік — показує підкладку дії
+const peeked = new Set();
+const swipeTip = (key, tip, other) => {
+  if (recall(`shooters-log:swiped:${key}`)) return other;
+  if (!peeked.has(key)) {
+    peeked.add(key);
+    setTimeout(() => [...document.querySelectorAll('main .card.swipe')].find((c) => c.offsetParent)?.classList.add('peek'), 600);
+  }
+  return tip;
+};
 const learnSwipe = (key) => () => remember(`shooters-log:swiped:${key}`, '1');
 
 // Застосунок перейменовано: налаштування зі старого префікса переносимо один раз,
@@ -1426,15 +1435,16 @@ function gunFlags(w, all = false) {
   const wear = barrelWear(w);
   const permit = p && (all || p.level !== 'ok')
     ? [p.level === 'over' ? 'danger' : p.level === 'warn' ? 'warn' : 'ok', t('Разрешение: {left}', { left: permitLeft(p) })] : null;
+  // У картці ствола «пора чистити» двічі пульсує при відкритті — щоб не загубилось серед чипів
   const clean = c.due ? [c.every ? 'danger' : 'warn', c.every ? t('Пора чистить')
-    : c.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(c.lastShot) }) : t('Не почищено после стрельбы')]
+    : c.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(c.lastShot) }) : t('Не почищено после стрельбы'), all ? ' nudge' : '']
     : !all ? null
       : c.reached ? ['ok', t('Не почищено · напомню {date}', { date: fmt.date(c.dueDate) })]
         : c.last ? ['ok', t('Почищено {date}', { date: fmt.date(c.last.date) })] : null;
   const worn = wear >= 85 ? [wear >= 100 ? 'danger' : 'warn', t('Ресурс ствола {n}%', { n: Math.round(wear) })] : null;
   const flags = [permit, clean, worn].filter(Boolean);
   if (!flags.length) return null;
-  return h('div', { class: 'gun-flags' }, flags.map(([level, text]) => h('span', { class: `badge small ${level}` }, text)));
+  return h('div', { class: 'gun-flags' }, flags.map(([level, text, more = '']) => h('span', { class: `badge small ${level}${more}` }, text)));
 }
 
 /** Три головні числа картки: настріл із кільцем ресурсу, після чистки, купчастість (тап — мішені ствола). */
@@ -3781,7 +3791,11 @@ function groupSummary(rows) {
 function shotsHero(total, split) {
   const level = shotLevel(total);
   const legend = h('div', { class: 'lv-wide' }, hintLegend(t('Из чего складывается'), split));
-  return h('section', { class: 'hero lv' },
+  // Нове звання з минулого перегляду — кільце один раз дозаповнюється, лички спалахують; уперше лише запам'ятовуємо
+  const seen = recall('shooters-log:rank-seen');
+  const up = seen !== null && Number(seen) < level.max;
+  remember('shooters-log:rank-seen', String(level.max));
+  return h('section', { class: `hero lv${up ? ' rank-up' : ''}` },
     h('div', {},
       h('div', { class: 'hero-label' }, t('Общий настрел'), hintButton(legend, 'shots')),
       h('div', { class: 'hero-value' }, fmt.num(total)),
@@ -6271,7 +6285,7 @@ function syncPanel() {
 
 const CHIP = {
   idle: () => `☁ ✓ ${fmt.time(sync.status.lastSync)}`,
-  syncing: () => '☁ …',
+  syncing: () => '☁ ',
   offline: () => t('☁ офлайн'),
   auth: () => t('☁ войти'),
   error: () => t('☁ ошибка'),
@@ -6282,6 +6296,8 @@ function renderSyncChip(s) {
   chip.hidden = !CHIP[s.state];
   if (CHIP[s.state]) {
     chip.textContent = CHIP[s.state]();
+    // Синхронізація йде — три крапки біжать по черзі, видно, що не зависло
+    if (s.state === 'syncing') chip.append(h('span', { class: 'sync-dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
     chip.className = `sync-chip ${s.state}`;
     chip.title = s.message || t('Синхронизация с Google Диском');
   }

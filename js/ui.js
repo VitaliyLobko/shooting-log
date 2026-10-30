@@ -596,6 +596,8 @@ export function chips(options, value, onPick) {
 export function swipeable(card, { onRight, onLeft, onTap, onSwipe, rightLabel, leftLabel }) {
   const body = card.querySelector('.swipe-body');
   card.classList.add('swipe');
+  card.dataset.dirs = `${onRight ? 'r' : ''}${onLeft ? 'l' : ''}`;
+  card.addEventListener('animationend', (e) => { if (e.animationName.startsWith('swipe-peek')) card.classList.remove('peek'); });
   card.prepend(
     h('div', { class: 'swipe-bg right' }, rightLabel ?? ''),
     h('div', { class: 'swipe-bg left' }, leftLabel ?? ''));
@@ -615,6 +617,7 @@ export function swipeable(card, { onRight, onLeft, onTap, onSwipe, rightLabel, l
 
   card.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || e.target.closest('button, a, input')) return;
+    card.classList.remove('peek');
     start = { x: e.clientX, y: e.clientY, id: e.pointerId };
     axis = null; dx = 0; tapArmed = false;
     body.style.transition = 'none';
