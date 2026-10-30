@@ -1586,6 +1586,11 @@ button.gun-stat { cursor: pointer; }
 .guide .mark-scale { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .guide .mark-scale input { width: 100%; accent-color: var(--accent); }
 .guide .mark-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide .mark-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+.guide .mark-row[hidden] { display: none; }
+.guide .mark-seg { display: flex; gap: 4px; }
+.guide .mark-seg button { flex: 1; min-width: 0; min-height: 36px; padding: 4px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: 600 13px system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+.guide .mark-seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .guide .mark-acts button, .guide .mark-on { flex: 1 1 auto; min-height: 40px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .guide .mark-acts button.primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .guide .mark-acts button:disabled { opacity: .45; cursor: default; }
@@ -2266,6 +2271,30 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-calc > i { grid-column: 1 / -1; font-style: normal; color: var(--muted); }
 .guide .quiz-calc3 { grid-template-columns: auto auto auto; justify-content: start; column-gap: 22px; }
 .guide .quiz-calc > .n { text-align: right; white-space: nowrap; }
+/* Розбір виносу: шапка «вердикт | помилка», таблиця по осях, рядки «назва — значення», легенда під рискою */
+.guide .quiz-res:has(.quiz-res-head) { gap: 10px; font: 14px/1.4 system-ui, sans-serif; border-left: 4px solid var(--res-c, var(--line)); }
+.guide .quiz-res.good { --res-c: var(--buy); }
+.guide .quiz-res.ok { --res-c: var(--warn); }
+.guide .quiz-res.bad { --res-c: var(--shoot); }
+.guide .quiz-res-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.guide .quiz-res-head > b { font-size: 17px; line-height: 1.25; }
+.guide .quiz-res-err { display: grid; justify-items: end; text-align: right; white-space: nowrap; }
+.guide .quiz-res-err strong { font: 700 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .quiz-res-err small { font-size: 12px; color: var(--muted); }
+.guide .quiz-res-note { color: var(--muted); }
+.guide .quiz-res .quiz-calc3 { grid-template-columns: max-content 1fr 1fr; gap: 0; margin: 0;
+  padding: 2px 10px; border-radius: 8px; background: var(--surface); font: 13.5px/1.9 var(--mono); font-variant-numeric: tabular-nums; }
+.guide .quiz-calc3 > .h { text-align: right; font: 600 11.5px/2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.guide .quiz-res .quiz-calc3 > .n, .guide .quiz-calc3 > .h { padding-left: 12px; }
+.guide .quiz-calc3 > .e { font-weight: 650; border-top: 1px solid var(--line); }
+.guide .quiz-calc3 > .e ~ .n { font-weight: 650; border-top: 1px solid var(--line); }
+.guide .quiz-calc3 > .n.ok { color: var(--buy); }
+.guide .quiz-calc3 > .n.w { color: var(--warn); }
+.guide .quiz-kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
+.guide .quiz-kv dt { color: var(--muted); }
+.guide .quiz-kv dd { display: grid; margin: 0; font-variant-numeric: tabular-nums; }
+.guide .quiz-kv dd > span + span { color: var(--muted); }
+.guide .quiz-res .quiz-legend { padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
 .guide .quiz-sum { font-weight: 650; }
 /* Памятка навчальних рівнів: як рахувати — кроками, і табличка для набору */
 .guide .quiz-memo { display: grid; gap: 6px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--fg) 4%, transparent); font-size: 13.5px; }

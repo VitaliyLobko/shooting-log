@@ -450,7 +450,7 @@ const figH = (key, fig) => markOf(fig)?.h ?? TGT[key].h;
 
 /** Обидві зони цілі — груди й голова, у метрах від росту бійця (s — старий множник зон, лишився для сумісності). */
 function zonesOf(key, fig = null, big = false) {
-  const T = TGT[key]; const m = markOf(fig) ?? {}; const s = m.s ?? 1; const hd = m.hd ?? HEAD[key]; const fh = figH(key, fig);
+  const T = TGT[key]; const m = markOf(fig) ?? {}; const s = m.s ?? 1; const hd = m.nohd ? null : m.hd ?? HEAD[key]; const fh = figH(key, fig);
   const head = hd ? { ax: hd[0], ap: hd[1], kz: ['c', hd[0], hd[1], (HEAD_R * s) / fh] } : null;
   if (m.only) return { head, body: null };
   // Груди людини — плита з центром у точці прицілювання (з кадру чи типова для силуету); гонг, IPSC, пікапи — своя зона з KZ
@@ -537,33 +537,34 @@ try { marks = JSON.parse(localStorage.getItem(MARKS)) ?? {}; } catch { marks = {
 const markOf = (fig) => (fig ? { ...fig[5], ...marks[fig.id] } : null);
 const r3 = (v) => Math.round(v * 1000) / 1000;
 /** Розмітка бійця тим самим записом, що у figs, — щоб вставити в код як є. */
-const markTxt = (m) => `{ ${[m.only ? 'only: true' : null, m.c ? `c: [${r3(m.c[0])}, ${r3(m.c[1])}]` : null,
+const markTxt = (m) => `{ ${[m.tp ? `tp: '${m.tp}'` : null, m.only ? 'only: true' : null, m.nohd ? 'nohd: true' : null, m.c ? `c: [${r3(m.c[0])}, ${r3(m.c[1])}]` : null,
   m.hd ? `hd: [${r3(m.hd[0])}, ${r3(m.hd[1])}]` : null, m.h ? `h: ${r3(m.h)}` : null, m.s && m.s !== 1 ? `s: ${r3(m.s)}` : null].filter(Boolean).join(', ')} }`;
 
 const SCENES = {
   // Ланцюг: п'ятеро йдуть на нас степом, двоє з них на коліні ціляться; позаду БМП і танк;
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  assault: { name: 'Цепь', px: [8361, 3584], tone: ['#a8c9f0', '#b57f51'],
+  assault: { name: 'Цепь', px: [8361, 3584], tone: ['#a8c9f0', '#b57f51'], gnd: [0.225, 0.105],
     figs: [['man', 1585, 2010, 2855, null, { c: [-0.045, 0.262], hd: [-0.065, 0.091] }], ['kneel', 1765, 2285, 3470, null, { c: [-0.068, 0.348], hd: [-0.123, 0.146], h: 1.25 }], ['man', 1540, 2075, 4200, null, { c: [0, 0.249], hd: [0.004, 0.09] }], ['kneel', 1730, 2265, 4980, null, { c: [-0.019, 0.339], hd: [-0.025, 0.123], h: 1.27 }], ['man', 1527, 1925, 5520, null, { c: [-0.092, 0.262], hd: [-0.072, 0.105] }]] },
   // Колона: четверо в маскхалатах ідуть зимовою дорогою на нас уступом — по черзі правим і лівим краєм; кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
   arctic: { name: 'Колонна', px: [8403, 3584], tone: ['#adb8d6', '#c3c9e2'],
     figs: [['man', 1573, 2245, 5424], ['man', 1700, 1987, 4670], ['man', 1724, 2004, 3835, null, { c: [-0.038, 0.283], hd: [-0.035, 0.1] }], ['man', 1734, 1882, 4355]] },
   // Узлісся: літо, зелена лука перед лісом — один стоїть біля куща в тіні, один іде на нас, один на коліні цілиться;
   // кадр згенеровано (Nano Banana 4K), боки й верхівки дерев дорисовано
-  green: { name: 'Опушка', px: [8358, 4687], tone: ['#91bce9', '#687a35'],
+  green: { name: 'Опушка', px: [8358, 4687], tone: ['#91bce9', '#687a35'], gnd: [0.2249, 0.0899],
     figs: [['man', 2816, 3335, 4178, null, { c: [0.004, 0.267], hd: [0, 0.09] }], ['man', 2772, 3243, 5143, null, { c: [0.015, 0.281], hd: [0, 0.09] }], ['kneel', 2954, 3263, 3173, null, { c: [0.05, 0.37], hd: [-0.08, 0.17], h: 1.08 }]] },
   // Околиця села: один біля рогу хати, один іде вулицею, один цілиться з вікна (грудна ціль 0,5 м — за шириною шолома ≈0,27 м);
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  town: { name: 'Окраина', px: [8406, 3584], tone: ['#dce5f4', '#99867d'],
+  town: { name: 'Окраина', px: [8406, 3584], tone: ['#dce5f4', '#99867d'], gnd: [0.1874, 0.1046],
     figs: [['man', 1452, 1952, 2622, null, { c: [-0.02, 0.3], hd: [0.02, 0.1] }], ['man', 1556, 1952, 5045, null, { c: [-0.03, 0.3], hd: [-0.015, 0.11] }], ['chest', 1454, 1572, 6269, null, { c: [0.08, 0.75], hd: [-0.03, 0.38] }]] },
   // Сутінки: поле після заходу, низький контраст — двоє йдуть на нас, один на коліні цілиться;
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  dusk: { name: 'Сумерки', px: [8358, 3584], tone: ['#44505d', '#1c1812'],
+  dusk: { name: 'Сумерки', px: [8358, 3584], tone: ['#44505d', '#1c1812'], gnd: [0.2249, 0.12],
     figs: [['man', 1629, 1998, 3733, null, { c: [-0.002, 0.267], hd: [0, 0.09] }], ['man', 1636, 1999, 4173, null, { c: [0.004, 0.27], hd: [0, 0.09] }], ['kneel', 1737, 1994, 4648, null, { c: [-0.026, 0.374], hd: [0.006, 0.115], h: 1.3 }]] },
   // Окоп: позиція на полі — бліндаж із кулеметником у бійниці й окоп, з якого двоє визирають з-за бруствера;
-  // грудна ціль 0,5 м — за шоломами (≈0,27 м), масштаб у всіх однаковий; 5-й елемент — земля під бійцем
+  // грудна ціль 0,5 м — за шоломами (≈0,27 м), масштаб у всіх однаковий; 5-й елемент — земля під бійцем;
+  // у кулеметника видно плечі — є й груди, у двох за бруствером — лише голова
   trench: { name: 'Окоп', px: [3168, 648], bg: FIELD,
-    figs: [['chest', 271, 435, 1078, 540, { only: true, hd: [0.037, 0.345] }], ['chest', 179, 343, 2059, 531, { only: true, hd: [0.042, 0.353] }], ['chest', 177, 341, 2432, 531, { only: true, hd: [0.054, 0.336] }]] },
+    figs: [['chest', 271, 435, 1078, 540, { c: [-0.17, 0.8], hd: [0.037, 0.345] }], ['chest', 179, 343, 2059, 531, { only: true, hd: [0.042, 0.353] }], ['chest', 177, 341, 2432, 531, { only: true, hd: [0.054, 0.336] }]] },
   // Лежачи: боєць окремим спрайтом (px — його розмір) на тлі bg з постійним кутовим розміром, як у справжньому прицілі:
   // поле й ліс не змінюються з дистанцією, боєць меншає й підходить до горизонту (ноги на eye/d нижче нього)
   prone: { name: 'Лёжа', px: [1965, 1050], bg: FIELD,
@@ -574,7 +575,8 @@ const SCENES = {
   pickupf: { name: 'Пикап в лоб', px: [1122, 1114], bg: FIELD,
     figs: [['pickupf', 1, 1059, 563]] },
 };
-Object.entries(SCENES).forEach(([sk, sc]) => sc.figs.forEach((f, i) => { f.id = `${sk}-${i}`; }));
+// tp0 — тип із коду: «Скинути бійця» повертає його, коли в розмітці тип змінили
+Object.entries(SCENES).forEach(([sk, sc]) => sc.figs.forEach((f, i) => { f.id = `${sk}-${i}`; f.tp0 = f[0]; f[0] = marks[f.id]?.tp ?? f[0]; }));
 
 /** Сцена й боєць для цілі tgt: вибрана сцена pref, якщо така ціль на ній є, інакше випадкова з нею, інакше будь-яка (лише тло). */
 function pickScene(tgt, pref) {
@@ -688,6 +690,28 @@ function scope(svg, o) {
       if (!bare) mk('image', { href: img(''), x: bx, y: by, width: bw, height: bh, preserveAspectRatio: 'none' }, g);
       ground = { fill: grC };
       mk('rect', { x: -R, y: Math.max(by + bh - 1, -R), width: 2 * R, height: 2 * R, ...ground }, g);
+      if (sc.gnd) {
+        // Земля під кадром — плитка -gnd з його ж низу (gnd — її ширина й висота в частках кадру): перша смуга в масштабі кадру
+        // лягає на місце, де кадр тане в рівний колір, кожна нижча — в 1,8 раза крупніша (земля ближче); смуга проявляється
+        // зверху поступово (маска), тож стиків між смугами й з кадром не видно. Смуги зсунуті одна відносно одної — повтори не стають у стовпчики;
+        // ближча земля в прицілі не в фокусі — нижчі смуги розмиті сильніше, це й ховає повтор плитки
+        const fade = mk('mask', { id: `${id}f`, maskContentUnits: 'objectBoundingBox' }, defs);
+        const lg = mk('linearGradient', { id: `${id}fg`, x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+        mk('stop', { offset: 0, 'stop-color': '#000' }, lg); mk('stop', { offset: 0.25, 'stop-color': '#fff' }, lg);
+        mk('rect', { width: 1, height: 1, fill: `url(#${id}fg)` }, fade);
+        const [tw, th] = sc.gnd;
+        let y = by + bh * 0.8; let sz = 1;
+        for (let i = 0; y < R && i < 14; i++) {
+          const w = tw * bw * sz; const h = th * bh * sz; const band = h * 3;
+          if (y + band > -R) {
+            pat(`${id}n${i}`, img('-gnd'), bx + w * ((i * 0.381) % 1), y, w, h);
+            const blur = i ? { filter: `url(#${id}b${i})` } : {};
+            if (i) mk('feGaussianBlur', { stdDeviation: h * 0.012 * i }, mk('filter', { id: `${id}b${i}`, x: 0, y: -0.1, width: 1, height: 1.2 }, defs));
+            mk('rect', { x: -R, y, width: 2 * R, height: band, fill: `url(#${id}n${i})`, mask: `url(#${id}f)`, ...blur }, g);
+          }
+          y += band * 0.55; sz *= 1.8;
+        }
+      }
     }
   } else mk('rect', { x: -R, y: top + H, width: 2 * R, height: 2 * R, ...ground }, g);
   const tg = mk('g', { transform: `translate(${cx} ${top}) scale(${o.flip ? -H : H} ${H})` }, g);
@@ -1311,7 +1335,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // draw() іде на кожен рух пальця — значок міняємо, лише коли він справді інший
   const setIco = (btn, html) => { if (btn.dataset.ico !== html) { btn.dataset.ico = html; btn.innerHTML = html; } };
   // Є з чого вибирати, куди цілитись: у цілі є голова, і видно не лише її (в окопі — тільки голова)
-  const aimChoice = () => !!HEAD[st.tgt] && !markOf(curFig())?.only;
+  const aimChoice = () => { const z = zonesOf(st.tgt, curFig()); return !!z.head && !!z.body; };
   const saveMarks = () => { try { localStorage.setItem(MARKS, JSON.stringify(marks)); } catch { /* приватний режим */ } };
   const copyBtn = markBtn(t('Скопировать'), async () => {
     const txt = Object.keys(marks).map((id) => {
@@ -1326,13 +1350,47 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     }
     setTimeout(() => { copyBtn.textContent = t('Скопировать'); }, 1800);
   });
-  const resetBtn = markBtn(t('Сбросить бойца'), () => { const f = curFig(); if (f) { delete marks[f.id]; saveMarks(); draw(); } });
+  // Тип бійця міняє й вибрану ціль: сцена та сама, боєць той самий — інакше realOf підбере іншу сцену під новий тип
+  const setFigType = (f, tp) => {
+    if (f[0] === tp) return;
+    f[0] = tp; st.tgt = tp; st.sceneTgt = tp; tgtSel.value = tp; st.meas = 1; paintTgt(); draw();
+  };
+  const resetBtn = markBtn(t('Сбросить бойца'), () => { const f = curFig(); if (f) { delete marks[f.id]; saveMarks(); if (f[0] !== f.tp0) setFigType(f, f.tp0); else draw(); } });
+  // Тип бійця: поза визначає силует для влучань «у ціль», типовий ріст і що ним міряти. Ріст лишаємо тим самим — кадр не стрибає
+  const FIG_TYPES = [['man', 'стоя'], ['kneel', 'на колене'], ['chest', 'грудная'], ['prone', 'лёжа']];
+  const markType = Object.assign(document.createElement('div'), { className: 'seg mark-seg' });
+  markType.setAttribute('role', 'group'); markType.setAttribute('aria-label', t('Тип бойца'));
+  for (const [tp, label] of FIG_TYPES) {
+    const b = markBtn(t(label), () => {
+      const f = curFig(); if (!f || f[0] === tp) return;
+      const h = figH(f[0], f);
+      marks[f.id] = { ...marks[f.id], h, ...(tp === f.tp0 ? {} : { tp }) };
+      if (tp === f.tp0) delete marks[f.id].tp;
+      saveMarks(); setFigType(f, tp);
+    });
+    b.dataset.tp = tp; markType.append(b);
+  }
+  // Зони: груди (плита) і голова — вимкнути, коли їх за укриттям не видно; хоч одна лишається
+  const markZones = Object.assign(document.createElement('div'), { className: 'seg mark-seg' });
+  markZones.setAttribute('role', 'group'); markZones.setAttribute('aria-label', t('Зоны'));
+  for (const [key, label] of [['only', 'грудь'], ['nohd', 'голова']]) {
+    const b = markBtn(t(label), () => {
+      const f = curFig(); if (!f) return;
+      const m = markOf(f); const other = key === 'only' ? 'nohd' : 'only';
+      if (!m[key] && m[other]) return;
+      marks[f.id] = { ...marks[f.id], [key]: !m[key] };
+      saveMarks(); draw();
+    });
+    b.dataset.key = key; markZones.append(b);
+  }
+  const row = (label, ctl) => { const l = Object.assign(document.createElement('div'), { className: 'mark-row' }); l.append(Object.assign(document.createElement('span'), { textContent: t(label) }), ctl); return l; };
+  const markTypeRow = row('Тип', markType); const markZonesRow = row('Зоны', markZones);
   const markActs = Object.assign(document.createElement('div'), { className: 'mark-acts' });
   markActs.append(resetBtn, copyBtn, markBtn(t('Готово'), () => { st.edit = false; draw(); }, 'primary'));
   // Ориентир висоти фігури для пози бійця — щоб було від чого відштовхуватися
   const POSE_H = { man: 'стоя — 1,6–1,85 м', kneel: 'на колене с прямой спиной — 1,15–1,3 м, присел низко — 1,0–1,1 м', prone: 'лёжа — 0,4–0,6 м', chest: 'видна часть над укрытием — от каски до края' };
   const markPose = Object.assign(document.createElement('span'), { className: 'muted mark-pose' });
-  markBar.append(markTitle, markHint, markScaleL, markPose, markActs, markText);
+  markBar.append(markTitle, markHint, markTypeRow, markZonesRow, markScaleL, markPose, markActs, markText);
   markScale.addEventListener('input', () => {
     const f = curFig(); if (!f) return;
     // Ріст міняє масштаб кадру — дистанцію лишаємо, боєць і зони стають більшими чи меншими разом
@@ -1345,11 +1403,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     markTitle.textContent = f ? t('Разметка: {scene}, боец {n}', { scene: t(SCENES[f.id.slice(0, cut)].name), n: +f.id.slice(cut + 1) + 1 }) : t('Разметка сцен');
     markHint.textContent = !f ? t('Выберите фото-сцену с бойцом') : st.mode === 'range' ? t('Переключитесь на прицеливание')
       : t('Тяните плиту или голову по прицелу. Высотой фигуры (на колене — около 1,2 м, стоя — рост) подгоните круг головы ⌀16 см под лицо. Сохраняется сразу');
-    markScaleL.hidden = !f; resetBtn.disabled = !f || !marks[f.id];
+    markScaleL.hidden = !f; markTypeRow.hidden = !f; markZonesRow.hidden = !f; resetBtn.disabled = !f || !marks[f.id];
+    if (f) {
+      markType.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tp === f[0])));
+      markZones.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(!m[b.dataset.key])));
+    }
     markPose.hidden = !f || !POSE_H[st.tgt]; markPose.textContent = POSE_H[st.tgt] ? `${t('Ориентир')}: ${t(POSE_H[st.tgt])}` : '';
     if (f) {
       const base = TGT[st.tgt].h; const h = figH(st.tgt, f);
-      markScale.min = String(r3(base * 0.65)); markScale.max = String(r3(base * 1.35)); markScale.value = String(h);
+      markScale.min = String(r3(Math.min(base * 0.65, h))); markScale.max = String(r3(Math.max(base * 1.35, h))); markScale.value = String(h);
       markScaleV.textContent = `${h.toFixed(2).replace('.', ',')} ${t('м')}`;
     }
   }
@@ -2534,10 +2596,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     }
     if (!answered(q)) {
       const check = iconBtn('quiz-go', 'check', t('Проверить'));
-      check.disabled = !q.pending || hidden;
+      // Без зсуву прицілу відповідь — центр сітки: ціль може вже стояти там, де треба
+      check.disabled = hidden;
       check.addEventListener('click', () => {
-        if (!q.pending || (search && Date.now() < q.appear)) return;
-        q.answer = q.pending;
+        if (search && Date.now() < q.appear) return;
+        q.answer = q.pending ?? [0, 0];
         if (search) q.tm = Math.round((Date.now() - q.appear) / 100) / 10;
         quiz.errs.push(Math.hypot(q.answer[0] + q.hx, q.answer[1] + q.hy)); quiz.shots.push([q.dist, q.tgt]);
         // Розкид гвинтівки: куля відходить від точки випадково (нормально, σ ≈ третина групи по кожній осі); помилка виносу — без нього
@@ -2560,28 +2623,41 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const [cls, said] = BAND[q.band ?? 'miss'];
       const res = el('div', { className: `quiz-res ${cls}` });
       const dir = (v, a, b) => (Math.abs(v) < 0.05 ? '' : `${v > 0 ? a : b} ${f(Math.abs(v), moa ? 1 : 2)}`);
-      res.append(el('b', {}, q.timeout ? t('Не успел — выстрела не было') : t(said)));
+      // Шапка: вердикт ліворуч, помилка крупно праворуч — головне видно без читання
+      const tol = moa ? 0.3 : 0.1; const dg = moa ? 1 : 2; const ex = ax + q.hx; const ey = ay + q.hy;
+      const head = el('div', { className: 'quiz-res-head' });
+      head.append(el('b', {}, q.timeout ? t('Не успел — выстрела не было') : t(said)));
+      if (!q.timeout) {
+        const big = el('span', { className: 'quiz-res-err' });
+        big.append(el('strong', {}, `${f(e, dg)} ${C.u}`), el('small', {}, t('{cm} см на цели', { cm: f(cm, 0) })));
+        head.append(big);
+      }
+      res.append(head);
       if (q.phase) {
-        res.append(el('span', { className: q.guessErr > 10 ? 'w' : '' }, q.guess
+        res.append(el('span', { className: `quiz-res-note${q.guessErr > 10 ? ' w' : ''}` }, q.guess
           ? t('На самом деле {d} м, ты оценил {g} м — ошибка {p} %', { d: q.dist, g: q.guess, p: f(q.guessErr, 0) })
           : t('На самом деле {d} м', { d: q.dist })));
       }
-      // Винос таблицею: рядки «треба» і «ти виніс», стовпці — вертикаль і горизонталь
+      // Винос таблицею: стовпці — висота й горизонталь, рядки «треба», «ти виніс» і помилка по кожній осі
       const calc = el('div', { className: 'quiz-calc quiz-calc3' });
+      calc.append(el('span'), el('span', { className: 'h' }, `↕ ${t('вертикаль')}`), el('span', { className: 'h' }, `↔ ${t('горизонталь')}`));
       for (const [name, y, x] of [['надо', dir(q.hy, '↑', '↓'), dir(q.hx, '←', '→')], ['ты вынес', dir(ay, '↓', '↑'), dir(ax, '→', '←')]]) {
         calc.append(el('span', {}, t(name)), el('span', { className: 'n' }, y || '0'), el('span', { className: 'n' }, x || '0'));
       }
-      const zt = zoneText(q.tgt, qFig(q), q.zone, q.dist);
       // Помилка окремо по висоті й по горизонталі (вітер, упередження): видно, що саме не так
-      const tol = moa ? 0.3 : 0.1; const dg = moa ? 1 : 2; const ex = ax + q.hx; const ey = ay + q.hy;
-      const part = (v, lo, hi) => (Math.abs(v) < tol ? t('точно') : `${v > 0 ? t(lo) : t(hi)} ${f(Math.abs(v), dg)}`);
-      const split = q.timeout ? null : `${t('по высоте')}: ${part(ey, 'ниже', 'выше')} · ${t('по горизонтали')}: ${part(ex, 'правее', 'левее')}`;
-      res.append(el('span', {}, t('Ошибка {e} {u} — {cm} см на цели', { e: f(e, moa ? 1 : 2), u: C.u, cm: f(cm, 0) })), ...(split ? [el('span', {}, split)] : []), calc,
-        ...(zt ? [el('span', { className: 'quiz-zone' }, `${t(zt.name)}: ${zt.size} = ${zt.ang} ${t('на {d} м', { d: q.dist })}`)] : []),
-        ...(q.signs ? [el('span', {}, t('Ветер по приметам {w} м/с — в расчёте середина ступени, {m} м/с.', { w: WIND_Q[q.bucket][0], m: fm(q.wind) }))] : []),
-        ...(q.sp ? [el('span', {}, t('Разброс винтовки увёл пулю на {cm} см', { cm: f(Math.hypot(...q.sp) * (moa ? 2.9089 : 10) * q.dist / 100, 0) }))] : []),
-        ...(q.tm != null ? [el('span', {}, t('Нашёл и выстрелил за {s} с', { s: f(q.tm, 1) }))] : []),
-        legend());
+      if (!q.timeout) {
+        const part = (v, lo, hi) => el('span', { className: `n ${Math.abs(v) < tol ? 'ok' : 'w'}` }, Math.abs(v) < tol ? t('точно') : `${v > 0 ? t(lo) : t(hi)} ${f(Math.abs(v), dg)}`);
+        calc.append(el('span', { className: 'e' }, t('ошибка')), part(ey, 'ниже', 'выше'), part(ex, 'правее', 'левее'));
+      }
+      const zt = zoneText(q.tgt, qFig(q), q.zone, q.dist);
+      // Решта — рядками «назва — значення» (значення може бути в кілька рядків): зона, вітер за прикметами, розкид, час
+      const kv = el('dl', { className: 'quiz-kv' });
+      const add = (k, ...lines) => { const dd = el('dd'); lines.forEach((x) => dd.append(el('span', {}, x))); kv.append(el('dt', {}, k), dd); };
+      if (zt) add(t(zt.name), `${zt.size} ${t('на {d} м', { d: q.dist })}`, zt.ang);
+      if (q.signs) add(t('Ветер по приметам'), t('{w} м/с — в расчёте середина ступени, {m} м/с', { w: WIND_Q[q.bucket][0], m: fm(q.wind) }));
+      if (q.sp) add(t('Разброс винтовки'), t('увёл пулю на {cm} см', { cm: f(Math.hypot(...q.sp) * (moa ? 2.9089 : 10) * q.dist / 100, 0) }));
+      if (q.tm != null) add(t('Время'), t('нашёл и выстрелил за {s} с', { s: f(q.tm, 1) }));
+      res.append(calc, ...(kv.childElementCount ? [kv] : []), legend());
       // «Далі» — над розбором, щоб не гортати до неї після кожної цілі
       const done = quiz.errs.length >= quiz.total;
       if (done) {
