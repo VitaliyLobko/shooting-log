@@ -2436,12 +2436,21 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     exit: '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
     repeat: '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
     start: '<path d="M7 4.5v15l12-7.5z"/>',
-    check: '<path d="M4.5 12.5l5 5 10-11"/>',
+    // «Перевірити» — постріл: куля летить управо, позаду — сліди руху
+    check: '<g class="shot-bullet"><path d="M8.5 9h5.5c2.6 0 5 1.4 7 3-2 1.6-4.4 3-7 3H8.5z"/><path d="M11.5 9v6"/></g><path class="shot-trail" d="M2 10h4.5M3.5 12H7M2 14h4.5"/>',
     // Вправи — ті самі значки, що в легенді «Перевір себе»
     range: '<path d="M4 3.5h5M6.5 3.5v17M4 20.5h5M5 8h3M5 12h3M5 16h3"/><circle cx="16" cy="6" r="2.2"/><path d="M16 8.5v6.5M12.5 11h7M16 15l-2.2 5.5M16 15l2.2 5.5"/>',
     hold: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>',
     combo: '<path d="M3 4h4M5 4v16M3 20h4M4 9h2M4 14h2"/><circle cx="15.5" cy="12" r="5.5"/><path d="M15.5 4.5v4M15.5 15.5v4M8 12h4M19 12h4"/>',
     wind: '<path d="M3 8h10.5a3 3 0 1 0-3-3M3 12h15.5a3 3 0 1 1-3 3M3 16h7"/>',
+  };
+  // «Перевірити» як постріл: кнопка віддає, куля вилітає зі значка — і вже тоді розбір; таймер рівня стоїть,
+  // поки летить куля, тож ці 0,2 с не з'їдають час; повторний тап нічого не робить
+  const fire = (btn, go) => {
+    if (btn.classList.contains('fire')) return;
+    clearTick();
+    btn.classList.add('fire');
+    setTimeout(go, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200);
   };
   const iconBtn = (cls, icon, text) => {
     const b = el('button', { type: 'button', className: `${cls} quiz-ibtn` });
@@ -2641,18 +2650,23 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       check.disabled = hidden;
       check.addEventListener('click', () => {
         if (search && Date.now() < q.appear) return;
-        q.answer = q.pending ?? [0, 0];
-        if (search) q.tm = Math.round((Date.now() - q.appear) / 100) / 10;
-        quiz.errs.push(Math.hypot(q.answer[0] + q.hx, q.answer[1] + q.hy)); quiz.shots.push([q.dist, q.tgt]);
-        // Розкид гвинтівки: куля відходить від точки випадково (нормально, σ ≈ третина групи по кожній осі); помилка виносу — без нього
-        q.disp = dispOf(C.u);
-        if (q.disp) { const g = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()) * q.disp / 3; q.sp = [g(), g()]; }
-        const [sx, sy] = q.sp ?? [0, 0];
-        // Влучання відносно точки прицілювання — там, де на сітці ✕ (сітка на калібрувальній кратності, k = 1)
-        q.band = hitBand(q.tgt, q.answer[0] + q.hx + sx, q.answer[1] + q.hy + sy, C.size(figH(q.tgt, qFig(q)), q.dist), q.vt > 0 && !q.goRight && !qFig(q), qFig(q), q.zone);
-        quiz.hits.push(q.band);
-        if (q.phase) q.guessErr = Math.abs(q.guess - q.dist) / q.dist * 100;
-        scored(q, q.band === 'zone');
+        const tm = search ? Math.round((Date.now() - q.appear) / 100) / 10 : null;
+        const ans = q.pending ?? [0, 0];
+        fire(check, () => {
+          if (answered(q) || quiz?.cur !== q) return;
+          q.answer = ans;
+          if (search) q.tm = tm;
+          quiz.errs.push(Math.hypot(q.answer[0] + q.hx, q.answer[1] + q.hy)); quiz.shots.push([q.dist, q.tgt]);
+          // Розкид гвинтівки: куля відходить від точки випадково (нормально, σ ≈ третина групи по кожній осі); помилка виносу — без нього
+          q.disp = dispOf(C.u);
+          if (q.disp) { const g = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random()) * q.disp / 3; q.sp = [g(), g()]; }
+          const [sx, sy] = q.sp ?? [0, 0];
+          // Влучання відносно точки прицілювання — там, де на сітці ✕ (сітка на калібрувальній кратності, k = 1)
+          q.band = hitBand(q.tgt, q.answer[0] + q.hx + sx, q.answer[1] + q.hy + sy, C.size(figH(q.tgt, qFig(q)), q.dist), q.vt > 0 && !q.goRight && !qFig(q), qFig(q), q.zone);
+          quiz.hits.push(q.band);
+          if (q.phase) q.guessErr = Math.abs(q.guess - q.dist) / q.dist * 100;
+          scored(q, q.band === 'zone');
+        });
       });
       // «Перевірити» — над підказкою, щоб не гортати до неї
       qBox.append(check, el('p', {}, search && Date.now() < q.appear ? t('Ищи цель — появится где-то в прицеле на 5 секунд.')
@@ -2819,7 +2833,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const submit = () => {
         const a = Math.round(Number(String(input.value).replace(',', '.')));
         if (!(a > 0)) { input.focus(); return; }
-        take(a);
+        fire(check, () => { if (!answered(q) && quiz?.cur === q) take(a); });
       };
       check.addEventListener('click', submit);
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
@@ -2882,14 +2896,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       });
       const check = iconBtn('quiz-go', 'check', t('Проверить'));
       check.disabled = !q.pick;
-      check.addEventListener('click', () => {
+      check.addEventListener('click', () => fire(check, () => {
+        if (answered(q) || quiz?.cur !== q) return;
         const [a, z] = q.pick;
         const inside = q.bucket >= a && q.bucket <= z;
         q.answer = q.pick;
         q.pts = inside ? (a === z ? 2 : 1) : 0;
         quiz.errs.push(inside ? 0 : Math.min(Math.abs(q.bucket - a), Math.abs(q.bucket - z)));
         scored(q, inside);
-      });
+      }));
       qBox.append(row, check, el('p', { className: 'quiz-n' }, t('Тапни ступень, тап по соседней — вилка из двух. Узкая верная вилка — 2 очка, широкая — 1.')));
     } else if (!answered(q)) {
       const row = el('div', { className: 'seg quiz-opts quiz-opts5' });

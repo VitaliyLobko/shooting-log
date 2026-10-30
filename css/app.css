@@ -2342,6 +2342,14 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes quiz-res-shake { 0%, 100% { transform: none; } 15% { transform: translateX(-6px); } 35% { transform: translateX(5px); } 55% { transform: translateX(-3px); } 75% { transform: translateX(2px); } }
 .guide .quiz-ibtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .guide .quiz-ibtn svg { flex: none; width: 18px; height: 18px; margin: 0; }
+/* «Перевірити» — постріл: кнопка коротко віддає назад, куля вилітає зі значка вправо, сліди тягнуться за нею */
+.guide .quiz-ibtn svg { overflow: visible; }
+.guide .quiz-go.fire { animation: shot-kick .2s ease-out; }
+.guide .quiz-go.fire .shot-bullet { animation: shot-fly .2s ease-in forwards; }
+.guide .quiz-go.fire .shot-trail { animation: shot-trail .2s ease-out forwards; }
+@keyframes shot-kick { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } }
+@keyframes shot-fly { 0% { transform: none; } 100% { transform: translateX(22px); opacity: 0; } }
+@keyframes shot-trail { 0% { transform: none; } 100% { transform: translateX(12px); opacity: 0; } }
 .guide .sim-meas button svg { flex: none; width: 16px; height: 16px; max-width: none; margin: 0; }
 /* Вузький екран: лише число — назва й одиниця в підказці; рядок не розпирає сторінку */
 .guide .ctl > .sim-row, .guide .sim-line { min-width: 0; }
