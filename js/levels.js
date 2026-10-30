@@ -21,6 +21,7 @@ function ensureDefs() {
     <linearGradient id="lv-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f5f7"/><stop offset=".45" stop-color="#bcc5cc"/><stop offset="1" stop-color="#7d868e"/></linearGradient>
     <linearGradient id="lv-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".45" stop-color="#e0ad3e"/><stop offset="1" stop-color="#9a6d14"/></linearGradient>
     <linearGradient id="lv-ribbon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7532f"/><stop offset="1" stop-color="#a33318"/></linearGradient>
+    <linearGradient id="lv-glint" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
   </defs>`;
   document.body.append(svg);
 }
@@ -138,9 +139,17 @@ export function levelArt(level) {
   const art = level.art();
   const [dx, dy] = centerOffset(art);
   const el = h('div', { class: 'lv-art', 'aria-hidden': 'true' });
-  el.innerHTML = `<svg viewBox="0 0 96 76"><g transform="translate(${dx.toFixed(1)} ${dy.toFixed(1)})">${art}</g></svg>`;
+  const pos = `translate(${dx.toFixed(1)} ${dy.toFixed(1)})`;
+  // Повільний відблиск по металу й ящиках: смуга світла йде навскіс лише по намальованому (маска — сам малюнок)
+  const id = `lv-shine-${++shineSeq}`;
+  const shine = level.max > 0
+    ? `<mask id="${id}" maskUnits="userSpaceOnUse" x="-20" y="-20" width="136" height="116" style="mask-type:alpha"><g transform="${pos}">${art}</g></mask>`
+      + `<g mask="url(#${id})"><g transform="skewX(-20)"><rect class="lv-shine" x="-30" y="-20" width="22" height="116" fill="url(#lv-glint)"/></g></g>`
+    : '';
+  el.innerHTML = `<svg viewBox="0 0 96 76"><g transform="${pos}">${art}</g>${shine}</svg>`;
   return el;
 }
+let shineSeq = 0;
 
 /** Лички звання в кільці, що заповнюється до наступного звання (progress — 0..1). */
 export function rankRing(level) {

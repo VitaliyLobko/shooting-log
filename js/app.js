@@ -591,12 +591,22 @@ function setUnfolded(key, open) {
   remember('shooters-log:unfolded', JSON.stringify([...unfolded]));
 }
 
-/** Група, що згортається: за замовчуванням згорнута, розгорнуту запам'ятовує; без ключа — не запам'ятовує. */
-function fold(key, head, body) {
-  const el = h('details', { class: 'fold', open: key ? unfolded.has(key) : false, dataset: key ? { key } : {} },
-    h('summary', { class: 'fold-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), head),
-    h('div', { class: 'fold-body' }, body));
+/**
+ * Група, що згортається: за замовчуванням згорнута, розгорнуту запам'ятовує; без ключа — не запам'ятовує.
+ * body-функція — вміст будується лише при розгортанні (журнал на сотні рядків не будує сховане);
+ * has — id записів усередині: підсвітка після дії знайде заголовок, поки рядків ще немає.
+ */
+function fold(key, head, body, has = null) {
+  const lazy = typeof body === 'function';
+  const inner = h('div', { class: 'fold-body' }, lazy ? null : body);
+  const el = h('details', { class: 'fold', open: key ? unfolded.has(key) : false, dataset: { ...(key ? { key } : {}), ...(has ? { has: has.join(' ') } : {}) } },
+    h('summary', { class: 'fold-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), head), inner);
   if (key) el.addEventListener('toggle', () => setUnfolded(key, el.open));
+  if (lazy) {
+    const fill = () => { if (el.open && !inner.childNodes.length) inner.append(...[body()].flat().filter(Boolean)); };
+    el.addEventListener('toggle', fill);
+    fill();
+  }
   return el;
 }
 
@@ -1426,15 +1436,16 @@ function gunFlags(w, all = false) {
   const wear = barrelWear(w);
   const permit = p && (all || p.level !== 'ok')
     ? [p.level === 'over' ? 'danger' : p.level === 'warn' ? 'warn' : 'ok', t('Разрешение: {left}', { left: permitLeft(p) })] : null;
+  // У картці ствола «пора чистити» двічі пульсує при відкритті — щоб не загубилось серед чипів
   const clean = c.due ? [c.every ? 'danger' : 'warn', c.every ? t('Пора чистить')
-    : c.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(c.lastShot) }) : t('Не почищено после стрельбы')]
+    : c.lastShot ? t('Не почищено после стрельбы {date}', { date: fmt.date(c.lastShot) }) : t('Не почищено после стрельбы'), all ? ' nudge' : '']
     : !all ? null
       : c.reached ? ['ok', t('Не почищено · напомню {date}', { date: fmt.date(c.dueDate) })]
         : c.last ? ['ok', t('Почищено {date}', { date: fmt.date(c.last.date) })] : null;
   const worn = wear >= 85 ? [wear >= 100 ? 'danger' : 'warn', t('Ресурс ствола {n}%', { n: Math.round(wear) })] : null;
   const flags = [permit, clean, worn].filter(Boolean);
   if (!flags.length) return null;
-  return h('div', { class: 'gun-flags' }, flags.map(([level, text]) => h('span', { class: `badge small ${level}` }, text)));
+  return h('div', { class: 'gun-flags' }, flags.map(([level, text, more = '']) => h('span', { class: `badge small ${level}${more}` }, text)));
 }
 
 /** Три головні числа картки: настріл із кільцем ресурсу, після чистки, купчастість (тап — мішені ствола). */
@@ -3282,10 +3293,15 @@ function swipeLabel(kind, label, side = 'right') {
   return side === 'left' ? [label, ico] : [ico, label];
 }
 
+// Значок руху розбирається з тексту один раз, далі — копія: у журналі їх сотні
+const kindIconTpl = {};
 function kindIcon(kind) {
-  const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
-  el.innerHTML = KIND_ICON[kind] ? `<svg viewBox="0 0 24 24">${KIND_ICON[kind]}</svg>` : '•';
-  return el;
+  if (!kindIconTpl[kind]) {
+    const el = h('span', { class: 'row-icon', 'aria-hidden': 'true' });
+    el.innerHTML = KIND_ICON[kind] ? `<svg viewBox="0 0 24 24">${KIND_ICON[kind]}</svg>` : '•';
+    kindIconTpl[kind] = el;
+  }
+  return kindIconTpl[kind].cloneNode(true);
 }
 
 function movementTitle(m) {
@@ -3744,7 +3760,7 @@ function logGroups(list) {
       // Дві строки з кожного боку: великий настріл і сума не вміщаються в один рядок на телефоні.
       [h('span', { class: 'fold-stack' }, h('span', { class: 'fold-title' }, g.label), h('span', { class: 'fold-meta' }, t('записей: {n}', { n: g.rows.length }))),
         amount || money ? h('span', { class: 'fold-sum stack' }, amount, money ? h('span', { class: 'fold-cost' }, fmt.money(money) + usdTail(groupMoneyRows(g.rows))) : null) : null],
-      h('div', { class: 'rows' }, g.rows.map((m) => logRow(m, { day: logPeriod !== 'day' }))));
+      () => h('div', { class: 'rows' }, g.rows.map((m) => logRow(m, { day: logPeriod !== 'day' }))), g.rows.map((m) => m.id));
   });
 }
 
@@ -3781,7 +3797,11 @@ function groupSummary(rows) {
 function shotsHero(total, split) {
   const level = shotLevel(total);
   const legend = h('div', { class: 'lv-wide' }, hintLegend(t('Из чего складывается'), split));
-  return h('section', { class: 'hero lv' },
+  // Нове звання з минулого перегляду — кільце один раз дозаповнюється, лички спалахують; уперше лише запам'ятовуємо
+  const seen = recall('shooters-log:rank-seen');
+  const up = seen !== null && Number(seen) < level.max;
+  remember('shooters-log:rank-seen', String(level.max));
+  return h('section', { class: `hero lv${up ? ' rank-up' : ''}` },
     h('div', {},
       h('div', { class: 'hero-label' }, t('Общий настрел'), hintButton(legend, 'shots')),
       h('div', { class: 'hero-value' }, fmt.num(total)),
@@ -4105,15 +4125,21 @@ function spreadCell(text) {
 const RANGE_SEGS = [['exercises', 'Упражнения', 'drill'], ['targets', 'Мишени', 'target'], ['chrono', 'Скорости', 'speed', 'Скор.'], ['timer', 'Таймер', 'timer'], ['sim', 'Тренажёр', 'sim', 'Трен.']];
 let rangeSeg = RANGE_SEGS.some(([k]) => k === recall('shooters-log:range-seg')) ? recall('shooters-log:range-seg') : 'exercises';
 
+// Розділ, на який щойно перейшли тапом чи свайпом: його значок один раз грає свою анімацію
+let segJust = null;
+
 /** Панель розділів: значок і підпис під ним у кожного; свайп по панелі — сусідній розділ. */
 function segBar(segs, current, go) {
+  const goPlay = (k) => { if (k !== current) segJust = k; go(k); };
   const bar = h('div', { class: 'range-seg seg-nav', role: 'tablist' }, segs.map(([k, label, ico, short]) => h('button', {
-    type: 'button', role: 'tab', class: k === current ? 'on' : null, 'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
-    onclick: () => go(k),
+    type: 'button', role: 'tab', class: k === current ? (segJust === k ? 'on play' : 'on') : null, dataset: { seg: k },
+    'aria-selected': String(k === current), 'aria-label': t(label), title: t(label),
+    onclick: () => goPlay(k),
   }, icon(ico), h('span', { class: short ? 'seg-long' : null }, t(label)), short ? h('span', { class: 'seg-short', 'aria-hidden': 'true' }, t(short)) : null)));
+  segJust = null;
   return swipeStep(bar, (dir) => {
     const next = segs[segs.findIndex(([k]) => k === current) + dir];
-    if (next) go(next[0]);
+    if (next) goPlay(next[0]);
     return Boolean(next);
   });
 }
@@ -5658,7 +5684,7 @@ function stockPane() {
     stockHero(M.stockValue(state), state.components.length, out, low),
     groups.map(([kind, list]) => fold(`stock:${kind}`,
       [componentIcon(kind), h('span', { class: 'fold-title' }, t(M.COMPONENT_KINDS[kind])), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: list.length }))],
-      list.map(componentCard))));
+      () => list.map(componentCard), list.map((c) => c.id))));
 }
 
 /** «Склад»: набої, компоненти й рецепти — розділи значками, як у «Полігоні», вибраний — з назвою. */
@@ -6271,7 +6297,7 @@ function syncPanel() {
 
 const CHIP = {
   idle: () => `☁ ✓ ${fmt.time(sync.status.lastSync)}`,
-  syncing: () => '☁ …',
+  syncing: () => '☁ ',
   offline: () => t('☁ офлайн'),
   auth: () => t('☁ войти'),
   error: () => t('☁ ошибка'),
@@ -6282,6 +6308,8 @@ function renderSyncChip(s) {
   chip.hidden = !CHIP[s.state];
   if (CHIP[s.state]) {
     chip.textContent = CHIP[s.state]();
+    // Синхронізація йде — три крапки біжать по черзі, видно, що не зависло
+    if (s.state === 'syncing') chip.append(h('span', { class: 'sync-dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
     chip.className = `sync-chip ${s.state}`;
     chip.title = s.message || t('Синхронизация с Google Диском');
   }
@@ -6738,6 +6766,23 @@ const VIEWS = {
   targets: { title: 'Полигон', render: renderRange, fab: () => (rangeSeg === 'exercises' ? newExercise() : rangeSeg === 'chrono' ? chronoForm() : newTarget({ weaponId: targetWeapon || null })), noFab: () => rangeSeg === 'timer' || rangeSeg === 'sim' },
 };
 
+// Перейшли на інший розділ — його значок у нижньому меню пару секунд грає свою анімацію; при старті — ні
+let shownTab = null;
+let tabPlay = 0;
+function playTab(now) {
+  const was = shownTab;
+  shownTab = now;
+  if (!was || was === now) return;
+  const links = document.querySelectorAll('.tabs a');
+  links.forEach((a) => a.classList.remove('play'));
+  const link = document.querySelector(`.tabs a[data-tab="${now}"]`);
+  if (!link) return;
+  void link.offsetWidth;
+  link.classList.add('play');
+  clearTimeout(tabPlay);
+  tabPlay = setTimeout(() => link.classList.remove('play'), 2600);
+}
+
 function render() {
   const view = VIEWS[tab];
   $('title').textContent = t(view.title);
@@ -6749,6 +6794,7 @@ function render() {
   $('fab').hidden = !view.fab || Boolean(view.noFab?.()) || Boolean($('view').querySelector('.empty .btn.add'));
   $('fab').classList.remove('away');
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
+  playTab(view.tab ?? tab);
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
   // У налаштуваннях — «Назад» туди, звідки прийшли
   $('back-btn').hidden = tab !== 'settings';
