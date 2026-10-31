@@ -6450,6 +6450,29 @@ function newer(a, b) {
   return false;
 }
 
+// Святкові мініатюри при запуску: день (ММ-ДД) → сценка; ?scene=<назва> — показати будь-коли
+const SCENE_DAYS = { '01-01': 'newyear', '10-31': 'halloween', '12-31': 'snowman' };
+
+/** Раз на день у свято — коротка сценка поверх застосунку (js/scenes.js вантажиться лише тоді). */
+function holidayScene() {
+  const forced = new URLSearchParams(location.search).get('scene');
+  const today = M.today();
+  const name = forced || SCENE_DAYS[today.slice(5)];
+  if (!name || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!forced && recall('shooters-log:scene') === today) return;
+  remember('shooters-log:scene', today);
+  playScene(name);
+}
+
+const playScene = (name) => import('./scenes.js').then((m) => m.playScene(name)).catch(() => {});
+
+/** Тимчасово: усі святкові сценки під рукою, щоб переглянути без чекання дати. */
+function scenesPanel() {
+  const list = [['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
+  return h('section', { class: 'panel' }, h('h3', {}, t('Праздничные сценки')),
+    h('div', { class: 'btn-row' }, list.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name)))));
+}
+
 /** Після оновлення — один раз, що змінилося з версії, яку людина бачила; нова установка — без шторки. */
 function showNews() {
   const hasData = db.STORES.some((s) => state[s]?.length);
@@ -6690,7 +6713,8 @@ function renderSettings() {
           h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
             oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null),
       backdropPanel(),
-      usdPanel()], { fold: 'look' }),
+      usdPanel(),
+      scenesPanel()], { fold: 'look' }),
     settingsGroup(t('Напоминания и упражнения'), [
       calendarPanel(),
       hiddenExercisesPanel()], { fold: 'remind' }));
@@ -7099,6 +7123,7 @@ try {
   throw err;
 }
 route();
+holidayScene();
 showNews();
 // Після «Що нового»: шторка з ярлика має бути зверху
 runShortcut();
