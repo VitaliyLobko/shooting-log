@@ -154,9 +154,10 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
   const isSel = (kind, g, i) => selected && selected.kind === kind && selected.g === g && selected.i === i;
   // Підпис фігури тими самими одиницями, що вибрані в картці; mm — міліметрів у пікселі полотна.
   const tag = (text, x, y, color, align = 'center') => {
-    ctx.font = `700 ${Math.round(r * 1.6)}px system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(r * 2.2)}px system-ui, sans-serif`;
     ctx.textAlign = align;
-    ctx.lineWidth = r * 0.5;
+    ctx.lineWidth = r * 0.65;
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgb(0 0 0 / .8)';
     ctx.strokeText(text, x, y);
     ctx.fillStyle = color;
@@ -216,19 +217,19 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       ctx.save();
       ctx.globalAlpha *= 0.75;
       ctx.setLineDash([r * 0.7, r * 0.5]);
-      halo(() => { ctx.beginPath(); ctx.rect(bx0, by0, bx1 - bx0, by1 - by0); }, BOX, r * 0.1);
+      halo(() => { ctx.beginPath(); ctx.rect(bx0, by0, bx1 - bx0, by1 - by0); }, BOX, r * 0.18);
       ctx.setLineDash([]);
-      halo(() => { ctx.beginPath(); ctx.moveTo(...span[0]); ctx.lineTo(...span[1]); }, SPAN, r * 0.12);
+      halo(() => { ctx.beginPath(); ctx.moveTo(...span[0]); ctx.lineTo(...span[1]); }, SPAN, r * 0.22);
       halo(() => {
         ctx.beginPath();
         ctx.ellipse(cx, cy, meanR, meanR / aspect, 0, 0, Math.PI * 2);
-      }, RING, r * 0.12);
+      }, RING, r * 0.22);
       ctx.restore();
       if (mm && below) {
         // Під час розстановки — під рамкою групи: там немає пробоїн, які ще треба відмітити
         const x = (bx0 + bx1) / 2;
-        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 2, ang: 0, off: 0 });
-        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 3.8, ang: 0, off: 0 });
+        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 2.4, ang: 0, off: 0 });
+        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 4.8, ang: 0, off: 0 });
       } else if (mm) {
         // Розкид — над своєю лінією й уздовж неї (перевертаємо, щоб не читалося догори
         // дриґом), середній радіус — горизонтально над кільцем. Малюємо наприкінці,
@@ -236,9 +237,9 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
         const ang = Math.atan2(span[1][1] - span[0][1], span[1][0] - span[0][0]);
         labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha,
           x: (span[0][0] + span[1][0]) / 2, y: (span[0][1] + span[1][1]) / 2,
-          ang: Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang, off: -r * 0.9 });
+          ang: Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang, off: -r * 1.1 });
         labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha,
-          x: cx, y: cy - meanR / aspect - r * 0.6, ang: 0, off: 0 });
+          x: cx, y: cy - meanR / aspect - r * 0.8, ang: 0, off: 0 });
       }
     }
     group.holes.forEach((hole, i) => {
