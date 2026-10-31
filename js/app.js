@@ -6393,12 +6393,44 @@ const CUP_SVG = '<svg viewBox="0 0 16 20" aria-hidden="true">'
   + '<path d="M3 10h9v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill="#f4f1ea" stroke="#3a2a1c"/>'
   + '<path d="M12 11.5h1.2a2 2 0 0 1 0 4H12" fill="none" stroke="#3a2a1c"/><ellipse cx="7.5" cy="10.4" rx="4" ry=".9" fill="#6b3f1f"/></svg>';
 
+// Аватар автора кліпає: шар поверх фото (координати фото 233×233). Контур — білки очей, обведені з самого фото,
+// тож повіки не заходять на обведення. Верхня повіка з опуклою кромкою опускається, нижня трохи підіймається
+// назустріч; зімкнуті — на нижній третині ока, кромка лишається лінією вій. Праве око перше: ліве його перекриває.
+const AVATAR_EYES = [
+  { d: 'M114 63L114 65L117 71L117 78L121 78L122 77L126 77L127 76L132 76L135 79L137 79L139 77L140 72L141 71L141 68L140 67L140 64L135 59L131 57L122 57L118 59Z', box: [114, 57, 142, 80] },
+  { d: 'M99 60L98 61L94 61L87 67L85 71L85 79L87 83L90 86L94 88L102 89L110 86L115 79L115 69L109 62Z', box: [85, 60, 116, 90] },
+];
+const AVATAR_SVG = '<svg viewBox="0 0 233 233" aria-hidden="true"><defs>'
+  + AVATAR_EYES.map(({ d }, i) => `<clipPath id="av-eye${i}"><path d="${d}"/></clipPath>`).join('')
+  + '</defs>'
+  + AVATAR_EYES.map(({ box: [x0, y0, x1, y1] }, i) => {
+    const h = y1 - y0, e = y0 + h * 0.6, k = h * 0.26, cx = (x0 + x1) / 2, l = x0 - 3, r = x1 + 3;
+    const edge = `M${l} ${e}Q${cx} ${e + k} ${r} ${e}`;
+    return `<g clip-path="url(#av-eye${i})" fill="#fcd901">`
+      + `<path class="av-lid low" style="--o:${(y1 - e + 3).toFixed(1)}px" d="${edge}V${y1 + 3}H${l}Z"/>`
+      + `<g class="av-lid" style="--o:-${(e + k - y0 + 3).toFixed(1)}px"><path d="M${l} ${y0 - 3}H${r}V${e}Q${cx} ${e + k} ${l} ${e}Z"/>`
+      + `<path d="${edge}" fill="none" stroke="#1d1d1d" stroke-width="2.6" stroke-linecap="round"/></g></g>`;
+  }).join('')
+  + '</svg>';
+
+/** Тап по аватару — кліпнути одразу, не чекаючи свого часу. */
+function avatarHi(e) {
+  const el = e.currentTarget;
+  el.classList.remove('hi');
+  void el.offsetWidth;
+  el.classList.add('hi');
+  clearTimeout(el.hiTimer);
+  el.hiTimer = setTimeout(() => el.classList.remove('hi'), 600);
+}
+
 /** «Про застосунок»: що воно таке, де лежать дані й куди дивитися, якщо не довіряєш на слово. */
 function aboutPanel() {
   const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
   return h('section', { class: 'panel about' },
     h('div', { class: 'about-head' },
-      h('img', { class: 'about-avatar', src: './icons/author.jpg', alt: '', width: 64, height: 64, loading: 'lazy' }),
+      h('span', { class: 'about-avatar', onclick: avatarHi },
+        h('img', { src: './icons/author.jpg', alt: '', width: 64, height: 64, loading: 'lazy' }),
+        Object.assign(h('span', { class: 'av-live' }), { innerHTML: AVATAR_SVG })),
       h('div', {},
         h('h3', {}, 'Shooter’s Log'),
         h('p', { class: 'muted small' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
