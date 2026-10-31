@@ -11,6 +11,10 @@
   --accent: #ec7f2f;
   --accent-2: #f3a05c;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  /* заливка кнопок і вибраного — окремо від акцентного тексту; у темній це той самий помаранчевий */
+  --fill: var(--accent);
+  --fill-2: var(--accent-2);
+  --on-fill: var(--on-accent);
   --buy: #46a862;
   --shoot: #ea6f5c;
   --half: #b5b86a;
@@ -26,18 +30,23 @@
 
 /* Тему ставить data-theme на <html>: скрипт у index.html ще до малювання, потім app.js («Ще → Тема»). */
 :root[data-theme="light"] {
-  --bg: #f2f3ee;
-  --bg-glow: #e7eadf;
-  --surface: #ffffff;
-  --surface-2: #eef0ea;
+  /* без чисто білого й чисто чорного: текст ~14:1, як у темній, а не 16,6:1 — інакше ріже очі */
+  --bg: #f1f2ec;
+  --bg-glow: #e8eae1;
+  --surface: #fcfcf9;
+  --surface-2: #eceee6;
   --seg-on: #ffffff;
-  --line: #dadfd3;
-  --line-soft: #e6e9e1;
-  --text: #1b2019;
-  --muted: #5c6558;
-  --accent: #bd5912;
-  --accent-2: #9e4a0d;
+  --line: #dcdfd4;
+  --line-soft: #e7e9e1;
+  --text: #262b23;
+  --muted: #5f675a;
+  /* темний помаранчевий — лише для тексту; кнопки й вибране — яскравий, як у темній, з темним текстом */
+  --accent: #b4570f;
+  --accent-2: #9a490c;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --fill: #ec7f2f;
+  --fill-2: #f3a05c;
+  --on-fill: #1c1408;
   /* темніші за темну тему: на білому світлі відтінки ледь читались (жовтий — 2:1) */
   --buy: #26803f;
   --shoot: #a5321f;
@@ -139,6 +148,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gear svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
 .gear svg path { stroke-width: 2.6; }   /* зубці шестерні товсті — інакше в 21 px це «сонце» */
 .gear.active { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+/* Перейшли в налаштування — шестерня провертається на два зубці з доворотом, як механізм */
+#settings-btn.play svg { animation: gear-turn 1.4s cubic-bezier(.3, 0, .2, 1); }
+@keyframes gear-turn { 0% { transform: none; } 60% { transform: rotate(100deg); } 80% { transform: rotate(84deg); } 100% { transform: rotate(90deg); } }
+@media (prefers-reduced-motion: reduce) { #settings-btn.play svg { animation: none; } }
 .sync-chip.idle { color: var(--buy); }
 .sync-chip.auth { color: var(--accent-2); border-color: var(--accent); }
 .sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
@@ -161,7 +174,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--accent-soft);
   border: 1px solid var(--accent);
 }
-.update button { border: 0; border-radius: 10px; padding: 8px 14px; background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: pointer; }
+.update button { border: 0; border-radius: 10px; padding: 8px 14px; background: var(--fill); color: var(--on-fill); font-weight: 700; cursor: pointer; }
 
 .view { padding: 14px 16px; max-width: 720px; margin: 0 auto; }
 
@@ -223,7 +236,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Висота — як у підсумку «Компонентів»: число того ж розміру, праворуч лише картинка. */
 .ammo-hero { align-items: center; }
 .hero.ammo-hero .hero-value { font-size: clamp(28px, 9vw, 34px); white-space: nowrap; }
-.ammo-runway { margin: -6px 4px 10px; text-align: right; }
+/* Плашка, бо рядок лежить просто на фоні — на камуфляжі без неї не читається */
+.ammo-runway { width: fit-content; margin: -6px 4px 10px auto; padding: 3px 10px; text-align: right;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .ammo-runway::first-letter { text-transform: uppercase; }
 .ammo-hero .lv-art { width: 64px; height: 50px; }
 .rank-name { color: var(--accent-2); font-weight: 800; }
@@ -276,9 +291,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ammo-ico { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; overflow: hidden;
   background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 40% 28%), hsl(var(--h) 30% 12%) 75%);
   border: 1px solid hsl(var(--h) 35% 30%); }
+/* У світлій — насичена плитка, як монограми зброї: на пастельній золотий набій губився */
 :root[data-theme="light"] .ammo-ico {
-  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 55% 90%), hsl(var(--h) 40% 76%) 75%);
-  border-color: hsl(var(--h) 35% 70%); }
+  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 40% 63%), hsl(var(--h) 38% 46%) 80%);
+  border-color: hsl(var(--h) 32% 52%); }
+:root[data-theme="light"] .ammo-ico svg { filter: drop-shadow(1.5px 2.5px 1.5px rgb(0 0 0 / .32)); }
 .ammo-ico svg { width: auto; height: 40px; transform: rotate(-28deg); filter: drop-shadow(2px 3px 2px rgb(0 0 0 / .5)); }
 .ammo-ico svg.pistol { height: 31px; }
 .ammo-ico svg.rimfire { height: 26px; }
@@ -333,6 +350,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fold[open] > .fold-head .chevron { transform: rotate(90deg); }
 .fold-title { font-size: 17px; font-weight: 800; letter-spacing: .01em; }
 .fold-meta { color: var(--muted); font-size: 13px; }
+/* Групи на сторінці (Журнал, Компоненти, спорядження, хроно, цілі) лежать просто на фоні — заголовок карткою, щоб не губився на візерунку */
+#view .fold > .fold-head { padding: 6px 12px 6px 8px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow); }
 .fold-sum {
   margin-left: auto;
   padding: 3px 10px;
@@ -362,6 +382,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cal-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; list-style: none; cursor: pointer;
   user-select: none; -webkit-user-select: none;
   background: color-mix(in srgb, hsl(var(--h) 45% 45%) 14%, var(--surface)); }
+/* На світлому 14% давали цукеркову пастель — удвічі тихіше */
+:root[data-theme="light"] .cal-head { background: color-mix(in srgb, hsl(var(--h) 35% 45%) 7%, var(--surface)); }
 .cal-head::-webkit-details-marker { display: none; }
 .cal-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cal-group[open] > .cal-head { border-bottom: 1px solid var(--line-soft); }
@@ -438,6 +460,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .swipe-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 /* Поріг пройдено — іконка підростає разом із вібрацією: відпускай, спрацює */
 .card.armed .swipe-ico { transform: scale(1.25); }
+/* Свайп «відстріляти»: дійшов до спрацювання — у мішені спалахує пробоїна */
+.swipe-ico .hit { transform-box: fill-box; transform-origin: center; }
+.card.armed .swipe-ico .hit { animation: swipe-hit .35s ease-out; }
+@keyframes swipe-hit { 0% { transform: scale(.3); opacity: .3; } 60% { transform: scale(1.4); opacity: 1; } 100% { transform: none; } }
 .swipe-bg.right { background: var(--buy); justify-content: flex-start; }
 .swipe-bg.left { background: var(--shoot); justify-content: flex-end; }
 .card.dir-right .swipe-bg.right, .card.dir-left .swipe-bg.left { display: flex; opacity: .55; }
@@ -636,7 +662,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .log-filter .ico { display: grid; }
 .log-filter svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .log-badge { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
-  border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 12px; box-shadow: 0 0 0 2px var(--bg); }
+  border-radius: 10px; background: var(--fill); color: var(--on-fill); font-size: 12px; box-shadow: 0 0 0 2px var(--bg); }
 /* Вивантаження — рідко потрібне, тож не в ряду фільтрів, а скромною кнопкою під записами */
 .log-export { display: flex; justify-content: center; margin: 18px 0 6px; }
 .log-export button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--line);
@@ -653,7 +679,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .log-pick { margin: 0; }
 .log-pick button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
 .log-pick button[class*="kind-"] { padding-left: 7px; }
-.log-pick button.on .row-icon { color: var(--on-accent); background: rgb(255 255 255 / .22); }
+.log-pick button.on .row-icon { color: var(--on-fill); background: rgb(255 255 255 / .22); }
 
 /* Блок із заголовком на лінії рамки (fieldset + legend, як в 1С). */
 .box { min-width: 0; margin: 16px 0 12px; padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 12px; }
@@ -670,6 +696,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Згорнутий блок — лише заголовок на лінії, без рамки навколо порожнечі. */
 .box.closed { padding: 0; border-width: 1px 0 0; border-radius: 0; }
 .box.closed > legend { margin-left: 0; padding-left: 0; }
+/* Назва секції на сторінці — на плашці, бо під нею фон із візерунком (у шторках тло суцільне) */
+#view .box > legend { padding: 2px 10px 2px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .box.closed > .box-body { display: none; }
 /* Кнопка на рамці праворуч: кругла, зі своїм тлом — сидить на лінії, як заголовок ліворуч */
 .box { position: relative; }
@@ -692,6 +720,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* «Про застосунок»: фото автора ліворуч, текст поруч. */
 .about-head { display: flex; align-items: center; gap: 12px; }
 .about-head h3 { margin: 0 0 2px; }
+/* «На каву автору» — картка: котик Монобанку на білій плашці, підпис і стрілка; уся картка — посилання */
+.panel.about a.donate-card { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--text); text-decoration: none;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 20%, var(--surface)) 0%, var(--surface-2) 75%); box-shadow: var(--shadow);
+  transition: transform .15s ease, border-color .15s ease; }
+.panel.about a.donate-card:hover { border-color: var(--accent); }
+.panel.about a.donate-card:active { transform: scale(.98); }
+.donate-cat { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #fff; box-shadow: 0 2px 8px rgb(0 0 0 / .25); }
+.donate-cat img { display: block; width: 40px; height: 40px; transform-origin: 50% 85%; animation: cat-nod 6s ease-in-out 1s infinite; }
+.donate-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.donate-text b { font-size: 16px; }
+.donate-text small { color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.35; }
+.donate-go { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--fill); color: var(--on-fill); font-weight: 800; }
+/* Котик Монобанку раз на кілька секунд хитає головою, на дотик — підстрибує */
+.panel.about a.donate-card:active .donate-cat img { animation: cat-hop .35s ease-out; }
+@keyframes cat-nod { 0%, 82%, 100% { transform: none; } 86% { transform: rotate(-12deg); } 90% { transform: rotate(9deg); } 94% { transform: rotate(-4deg); } }
+@keyframes cat-hop { 0%, 100% { transform: none; } 45% { transform: translateY(-4px) scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .donate-cat img { animation: none !important; } .panel.about a.donate-card { transition: none; } }
+/* Посилання внизу — пігулки замість рядка через крапку */
+.about-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.panel.about .about-links a { padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--text);
+  font-size: 13px; font-weight: 600; text-decoration: none; }
 .about-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
   background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
 
@@ -854,7 +904,7 @@ button.gun-stat { cursor: pointer; }
 .invest-total > .nw { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .invest-bar { display: flex; gap: 3px; height: 8px; margin: 10px 0 6px; border-radius: 4px; overflow: hidden; }
 .invest-part { flex-basis: 0; min-width: 6px; }
-.invest-part.gun, .invest-key.gun::before, .invest-rows .row.gun::before { background: var(--accent); }
+.invest-part.gun, .invest-key.gun::before, .invest-rows .row.gun::before { background: var(--fill); }
 .invest-part.tune, .invest-key.tune::before, .invest-rows .row.tune::before { background: var(--buy); }
 .invest-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); }
 .invest-key { display: inline-flex; align-items: center; gap: 6px; }
@@ -977,7 +1027,7 @@ button.gun-stat { cursor: pointer; }
   color: #fff;
   cursor: pointer;
 }
-.editor-aspects button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.editor-aspects button.on { background: var(--fill); border-color: var(--fill); color: var(--on-fill); }
 .viewer-actions .btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); border-color: var(--accent); }
 /* «Вирівняти мішень»: полотно на всю сцену, кути тягнуться пальцем */
 .align-stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
@@ -1002,7 +1052,7 @@ button.gun-stat { cursor: pointer; }
   transition: transform .08s ease, filter .12s ease;
 }
 .btn:active { transform: scale(.98); }
-.btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary { background: linear-gradient(180deg, var(--fill-2), var(--fill)); border-color: var(--fill); color: var(--on-fill); }
 /* Кнопки в картках — обведення в колір, фон лише натяком; суцільний колір лишається підтвердженню у шторці (.primary). */
 .btn.buy { background: color-mix(in srgb, var(--buy) 12%, var(--surface-2)); border-color: color-mix(in srgb, var(--buy) 60%, var(--line)); color: color-mix(in srgb, var(--buy) 72%, var(--text)); }
 .btn.shoot { background: color-mix(in srgb, var(--shoot) 12%, var(--surface-2)); border-color: color-mix(in srgb, var(--shoot) 60%, var(--line)); color: color-mix(in srgb, var(--shoot) 72%, var(--text)); }
@@ -1041,7 +1091,7 @@ button.gun-stat { cursor: pointer; }
 .photo-src-ico .ico { display: grid; }
 .photo-src-ico svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
 .photo-src.main { border-color: var(--accent); background: var(--accent-soft); }
-.photo-src.main .photo-src-ico { background: var(--accent); color: var(--on-accent); }
+.photo-src.main .photo-src-ico { background: var(--fill); color: var(--on-fill); }
 .photo-src:active { transform: scale(.98); }
 
 .icon-btn {
@@ -1063,7 +1113,7 @@ button.gun-stat { cursor: pointer; }
   background: var(--surface);
   cursor: pointer;
 }
-.chips button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 650; }
+.chips button.on { background: var(--fill); border-color: var(--fill); color: var(--on-fill); font-weight: 650; }
 /* Підказки значень під полем (дистанція) — дрібніші за звичайні чипи, щоб не тягнули увагу з поля */
 .chips.chips-sm { gap: 5px; margin-top: 0; }
 .chips.chips-sm button { min-height: 30px; padding: 3px 11px; border-radius: 15px; font-size: 13px; }
@@ -1129,9 +1179,9 @@ button.gun-stat { cursor: pointer; }
 .tp-dial { position: relative; width: min(300px, 100%); aspect-ratio: 1; margin: 0 auto 4px; border-radius: 50%; background: var(--surface-2); touch-action: none; user-select: none; }
 .tp-num { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); font: inherit; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
 .tp-num.inner { width: 36px; height: 36px; margin: -18px 0 0 -18px; font-size: 14px; color: var(--muted); }
-.tp-num.on { background: var(--accent); color: var(--on-accent); }
-.tp-hand { position: absolute; left: 50%; bottom: 50%; width: 2px; margin-left: -1px; background: var(--accent); transform-origin: 50% 100%; }
-.tp-center { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--accent); }
+.tp-num.on { background: var(--fill); color: var(--on-fill); }
+.tp-hand { position: absolute; left: 50%; bottom: 50%; width: 2px; margin-left: -1px; background: var(--fill); transform-origin: 50% 100%; }
+.tp-center { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--fill); }
 
 .items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 
@@ -1213,13 +1263,13 @@ button.gun-stat { cursor: pointer; }
 .wind-pick .wp-text { fill: var(--muted); font-size: 5px; }
 .wp-me { fill: var(--text); }
 .wp-wind line { stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
-.wp-wind path { fill: var(--accent); }
+.wp-wind path { fill: var(--fill); }
 .wind-pick button { position: absolute; left: calc(50% + var(--x) * 46% - 17px); top: calc(50% + var(--y) * 46% - 17px);
   width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent;
   color: var(--text); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
 .wind-pick button.full { color: var(--shoot); }
 .wind-pick button.half { color: var(--half); }
-.wind-pick button.on { background: var(--accent); color: var(--on-accent); }
+.wind-pick button.on { background: var(--fill); color: var(--on-fill); }
 .wind-pick button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wp-note { margin: 2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .wp-speed .wp-face { transition: opacity .15s; }
@@ -1228,8 +1278,8 @@ button.gun-stat { cursor: pointer; }
 .wp-pad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .wp-scale { fill: none; stroke: var(--muted); stroke-opacity: .35; stroke-width: .5; stroke-dasharray: 1.5 2; }
 .wind-pick .wp-scale-text { font-size: 4px; }
-.wp-knob { fill: var(--accent); }
-.wind-pick .wp-knob-text { fill: var(--on-accent); font-size: 5.5px; font-weight: 800; }
+.wp-knob { fill: var(--fill); }
+.wind-pick .wp-knob-text { fill: var(--on-fill); font-size: 5.5px; font-weight: 800; }
 .wind-pick-wrap:has(.wp-speed) .wp-note { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: var(--text); }
 .wp-quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
 .wp-quick button { display: grid; justify-items: center; gap: 1px; min-height: 44px; padding: 4px 2px; border: 1px solid var(--line);
@@ -1331,10 +1381,12 @@ button.gun-stat { cursor: pointer; }
 .tabs a.active svg { background: var(--accent-soft); }
 /* Перейшли на розділ — його значок ~2,4 с грає своє: набої підстрибують хвилею, щит блищить, рядки журналу пишуться, мішень ловить влучання */
 .tabs svg :is(g, path, circle) { transform-box: fill-box; transform-origin: center; }
-.tabs a.play[data-tab="ammo"] g { animation: tab-hop .8s ease-in-out 3; }
-.tabs a.play[data-tab="ammo"] g:nth-child(2) { animation-delay: .12s; }
-.tabs a.play[data-tab="ammo"] g:nth-child(3) { animation-delay: .24s; }
-@keyframes tab-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
+/* Склад: кришка цинку відкидається на завісі зліва, з цинку визирає набій і ховається назад */
+.tabs a[data-tab="ammo"] .peek { opacity: 0; }
+.tabs a.play[data-tab="ammo"] .lid { transform-box: view-box; transform-origin: 3px 11px; animation: tab-lid 1.6s ease-in-out both; }
+.tabs a.play[data-tab="ammo"] .peek { animation: tab-peek 1.6s ease-in-out both; }
+@keyframes tab-lid { 0%, 100% { transform: none; } 25%, 70% { transform: rotate(-30deg); } }
+@keyframes tab-peek { 0%, 18%, 82%, 100% { opacity: 0; transform: translateY(3px); } 38%, 64% { opacity: 1; transform: translateY(-1.5px); } }
 /* Лише transform: «промальовування» через stroke-dashoffset перераховувало значок щокадру й гальмувало перехід */
 .tabs a.play[data-tab="guns"] .emb { animation: tab-emb 1.6s ease-out both; }
 .tabs a.play[data-tab="guns"] .emb:nth-child(2) { transform-origin: 50% 100%; }
@@ -1369,11 +1421,20 @@ button.gun-stat { cursor: pointer; }
 @keyframes seg-dash { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
 /* Розділи Складу й Арсеналу: патрон підстрибує, у компонентах куля підскакує й капсулі блимають, у колбі рідина хлюпає,
    гвинтівка тричі віддає, жилет «дихає» */
-.range-seg .play[data-seg="ammo"] svg { animation: seg-hop .8s ease-in-out 3; }
+.range-seg svg g { transform-box: fill-box; transform-origin: center; }
+/* Набої підстрибують по черзі, як у магазин */
+.range-seg .play[data-seg="ammo"] :is(.r1, .r2) { animation: seg-hop .8s ease-in-out 2; }
+.range-seg .play[data-seg="ammo"] .r2 { animation-delay: .22s; }
 @keyframes seg-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
-.range-seg .play[data-seg="components"] path:nth-child(5) { animation: seg-hop .8s ease-in-out 3; }
-.range-seg .play[data-seg="components"] circle { animation: seg-ring 1.2s ease-out 2; }
-.range-seg .play[data-seg="components"] circle:nth-child(4) { animation-delay: .12s; }
+/* Компоненти: банка нахиляється й сипле порох, куля підскакує, капсуль блимає */
+.range-seg .play[data-seg="components"] .jar { transform-box: view-box; transform-origin: 10px 21.5px; animation: seg-tilt 1.4s ease-in-out both; }
+.range-seg .play[data-seg="components"] .grains circle { animation: seg-grain 1.4s ease-in both; }
+.range-seg .play[data-seg="components"] .grains circle:nth-child(2) { animation-delay: .12s; }
+.range-seg .play[data-seg="components"] .grains circle:nth-child(3) { animation-delay: .24s; }
+.range-seg .play[data-seg="components"] .proj { animation: seg-hop .8s ease-in-out .3s 2; }
+.range-seg .play[data-seg="components"] .primer { animation: seg-ring 1.2s ease-out .5s; }
+@keyframes seg-tilt { 0%, 100% { transform: none; } 25%, 65% { transform: rotate(16deg); } }
+@keyframes seg-grain { 0%, 20% { transform: none; opacity: 1; } 70% { transform: translateY(6px); opacity: 0; } 71% { transform: translateY(-3px); opacity: 0; } 100% { transform: none; opacity: 1; } }
 .range-seg .play[data-seg="recipes"] path:nth-child(2) { animation: seg-slosh 1.2s ease-in-out 2; }
 @keyframes seg-slosh { 0%, 100% { transform: none; } 25% { transform: rotate(-12deg) translateY(-1px); } 75% { transform: rotate(12deg) translateY(-1px); } }
 .range-seg .play[data-seg="guns"] svg { animation: seg-recoil .8s ease-out 3; }
@@ -1402,8 +1463,8 @@ button.gun-stat { cursor: pointer; }
   height: 58px;
   border: 0;
   border-radius: 18px;
-  background: linear-gradient(160deg, var(--accent-2), var(--accent));
-  color: var(--on-accent);
+  background: linear-gradient(160deg, var(--fill-2), var(--fill));
+  color: var(--on-fill);
   font-size: 30px;
   line-height: 1;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 40%, rgb(0 0 0 / .4));
@@ -1667,9 +1728,9 @@ button.gun-stat { cursor: pointer; }
 .guide .mark-row[hidden] { display: none; }
 .guide .mark-seg { display: flex; gap: 4px; }
 .guide .mark-seg button { flex: 1; min-width: 0; min-height: 36px; padding: 4px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: 600 13px system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
-.guide .mark-seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.guide .mark-seg button[aria-pressed="true"] { border-color: var(--fill); background: var(--fill); color: var(--on-fill); }
 .guide .mark-acts button, .guide .mark-on { flex: 1 1 auto; min-height: 40px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
-.guide .mark-acts button.primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.guide .mark-acts button.primary { border-color: var(--fill); background: var(--fill); color: var(--on-fill); }
 .guide .mark-acts button:disabled { opacity: .45; cursor: default; }
 .guide .mark-text { width: 100%; box-sizing: border-box; min-height: 64px; font: 12px/1.4 var(--mono); }
 .guide .ret.photo .r-kz.o { fill: none; stroke: rgb(220 30 40 / .55); stroke-width: 1.5px; }
@@ -1714,7 +1775,7 @@ button.gun-stat { cursor: pointer; }
 .guide .ctl input[type=range] { width: 100%; accent-color: var(--accent); }
 .guide .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .guide .seg button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-2); font-size: 13px; cursor: pointer; }
-.guide .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 650; }
+.guide .seg button[aria-pressed="true"] { background: var(--fill); border-color: var(--fill); color: var(--on-fill); font-weight: 650; }
 /* Приціл великий, але на низьких телефонах лишає місце кнопкам і зведенню */
 @media (orientation: portrait) { .guide #sim-svg { max-width: min(420px, 44svh); } }
 /* Щільно, щоб під кнопками вміщалось на першому екрані: підпис і значення в одному рядку */
@@ -1849,14 +1910,14 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tg-tool:disabled { opacity: .35; cursor: default; }
 .tg-tool.tg-del { margin-left: 6px; color: #ff8a7a; }
 .tg-tool .ico { display: grid; }
-.tg-save { flex: none; min-height: 42px; padding: 0 14px; border-color: var(--accent); background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: var(--on-accent); }
+.tg-save { flex: none; min-height: 42px; padding: 0 14px; border-color: var(--fill); background: linear-gradient(180deg, var(--fill-2), var(--fill)); color: var(--on-fill); }
 .tg-panel { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 10px; }
 .tg-panel .range-seg { margin: 0; background: rgb(255 255 255 / .08); border-color: rgb(255 255 255 / .12); }
 .tg-panel .range-seg button { color: rgb(255 255 255 / .7); }
-.tg-panel .range-seg button.on { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.tg-panel .range-seg button.on { background: var(--fill); color: var(--on-fill); box-shadow: none; }
 .tg-panel .chips { justify-content: center; margin: 0; }
 .tg-panel .chips button { background: rgb(255 255 255 / .1); border-color: rgb(255 255 255 / .18); color: #fff; }
-.tg-panel .chips button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tg-panel .chips button.on { background: var(--fill); border-color: var(--fill); color: var(--on-fill); }
 .tg-bar { height: 42px; }
 .tg-dist { color: var(--text); font-weight: 700; }
 /* Низ зірки — на базовій лінії, верх — на висоті цифр: стоїть рівно поруч із текстом у будь-якому шрифті */
@@ -1873,7 +1934,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tg-scale label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .tg-preset-btn, .tg-poa-clear { flex: none; height: 36px; padding: 0 12px; border: 1px solid rgb(255 255 255 / .25); border-radius: 18px;
   background: rgb(255 255 255 / .1); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
-.tg-preset-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.tg-preset-btn[aria-expanded="true"] { border-color: var(--fill); background: var(--fill); color: var(--on-fill); }
 .tg-poa-clear:disabled { opacity: .35; cursor: default; }
 /* Готові розміри — меню над рядом масштабу, поверх фото */
 .tg-scale .tg-presets { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 2; flex-wrap: nowrap; gap: 6px; padding: 6px;
@@ -1958,7 +2019,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   border: 0; border-radius: 22px; background: transparent; color: var(--muted); font: inherit; font-weight: 650; cursor: pointer; transition: background .15s, color .15s; }
 .range-seg button:hover { color: var(--text); }
 /* Вибраний розділ — помаранчева заливка, значок і підпис кольором тексту на акценті */
-.range-seg button.on { flex: 1; background: var(--accent); color: var(--on-accent); font-weight: 650; }
+.range-seg button.on { flex: 1; background: var(--fill); color: var(--on-fill); font-weight: 650; }
 .range-seg button > span:not(.ico) { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .range-seg button.on > span:not(.ico) { display: inline; }
 .seg-swipe { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
@@ -2023,7 +2084,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tm-row input, .tm-row select { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; }
 .tm-level { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
 .tm-level-fill { height: 100%; width: 0; background: var(--buy); transition: width .05s linear; }
-.tm-level-fill.hit { background: var(--accent); }
+.tm-level-fill.hit { background: var(--fill); }
 .tm-level-mark { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--shoot); }
 .tm-sens { width: 100%; height: 44px; margin: 0; accent-color: var(--accent); }
 .tm-late { color: var(--shoot); }
@@ -2042,7 +2103,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ch-area { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: none; }
 .ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .ch-pt { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); pointer-events: none; }
-.ch-pt.best, .ch-pt.last { width: 12px; height: 12px; margin: -6px 0 0 -6px; background: var(--accent); border-color: var(--surface); box-shadow: 0 0 0 1.5px var(--accent); }
+.ch-pt.best, .ch-pt.last { width: 12px; height: 12px; margin: -6px 0 0 -6px; background: var(--fill); border-color: var(--surface); box-shadow: 0 0 0 1.5px var(--accent); }
 .ch-pt.hit { z-index: 1; width: 16px; height: 16px; margin: -8px 0 0 -8px; background: transparent; border: 2px solid var(--text); box-shadow: none; }
 .ch-lab, .ch-tip { --tx: -50%; --ty: calc(-100% - 9px); position: absolute; transform: translate(var(--tx), var(--ty)); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
 .ch-lab, .ch-ref-lab { text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface), 0 0 2px var(--surface); }
@@ -2065,7 +2126,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .bar-col { flex: 1 1 0; min-width: 0; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 2px; height: 100%; }
 .bar-val { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bar-fill { width: 100%; min-height: 2px; align-self: end; border-radius: 6px 6px 0 0; background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
-.bar-col.top .bar-fill { background: var(--accent); }
+.bar-col.top .bar-fill { background: var(--fill); }
 .bar-col.tap { cursor: pointer; border-radius: 6px; }
 /* Наведення: стовпчик змінює колір — видно, який рік відкриється тапом; у світлій темі він темний, число біле */
 @media (hover: hover) {
@@ -2162,7 +2223,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
   background: var(--surface-2); color: var(--text); font: inherit; font-size: 16px; cursor: pointer; }
 .rules-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .rules-tool.rules-look { margin-left: auto; font-size: 14px; }
-.rules-tool[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.rules-tool[aria-pressed="true"] { background: var(--fill); color: var(--on-fill); border-color: var(--fill); }
 .rules-preview { margin-top: 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
 .ex-scoring {
   display: grid;
@@ -2212,7 +2273,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-zones dd { font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .ex-points { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ex-points > li { position: relative; padding-left: 14px; }
-.ex-points > li::before { content: ''; position: absolute; left: 1px; top: .6em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.ex-points > li::before { content: ''; position: absolute; left: 1px; top: .6em; width: 6px; height: 6px; border-radius: 50%; background: var(--fill); }
 .ex-more { margin-top: 6px; border-top: 1px solid var(--line-soft); }
 .ex-more > summary { display: flex; align-items: center; min-height: 44px; padding: 4px 0; color: var(--accent-2); font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
 .ex-more > summary::-webkit-details-marker { display: none; }
@@ -2292,7 +2353,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Гліф «›» сидить нижче середини рядка — поруч із круглою мішенню це видно, тож піднятий до її центру */
 .guide .quiz-box.closed .box-chevron { position: relative; top: -.15em; }
 .guide .quiz-ico svg { width: 18px; height: 18px; max-width: none; margin: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; overflow: visible; animation: quiz-ico-kick 3.2s ease-out infinite; }
-.guide .quiz-ico .quiz-ico-hit { fill: var(--accent); stroke: none; transform-origin: 12px 12px; animation: quiz-ico-hit 3.2s ease-out infinite; }
+.guide .quiz-ico .quiz-ico-hit { fill: var(--fill); stroke: none; transform-origin: 12px 12px; animation: quiz-ico-hit 3.2s ease-out infinite; }
 .guide .quiz-ico .quiz-ico-ring { stroke: var(--accent-2); stroke-width: 1.2; opacity: 0; transform-origin: 12px 12px; animation: quiz-ico-ring 3.2s ease-out infinite; }
 @keyframes quiz-ico-hit { 0%, 62% { transform: scale(0); } 66% { transform: scale(1.5); } 74%, 92% { transform: scale(1); } 100% { transform: scale(0); } }
 @keyframes quiz-ico-ring { 0%, 64% { opacity: 0; transform: scale(.6); } 66% { opacity: 1; } 84%, 100% { opacity: 0; transform: scale(3.4); } }
@@ -2371,7 +2432,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .ql-bars i:nth-child(3) { height: 12px; }
 .guide .ql-bars i:nth-child(4) { height: 16px; }
 .guide .ql-bars i:nth-child(5) { height: 20px; }
-.guide .ql-bars i.on { background: var(--accent); }
+.guide .ql-bars i.on { background: var(--fill); }
 .guide .ql-mode { display: grid; place-items: center; width: 28px; height: 20px; color: var(--accent); }
 .guide .ql-mode svg { width: 22px; height: 22px; margin: 0; flex: none; }
 .guide .quiz-row { display: flex; gap: 8px; }
@@ -2379,7 +2440,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-opts { display: grid; grid-template-columns: repeat(4, 1fr); }
 .guide .quiz-opts button { font-size: 15px; font-weight: 650; padding: 10px 4px; }
 .guide .quiz-row input { flex: 1; min-width: 0; }
-.guide .quiz-go { padding: 9px 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 650; cursor: pointer; }
+.guide .quiz-go { padding: 9px 14px; border: 0; border-radius: 10px; background: var(--fill); color: var(--on-fill); font-weight: 650; cursor: pointer; }
 .guide .quiz-stop { justify-self: start; padding: 4px 0; border: 0; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
 .guide .quiz-res { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font: 13.5px/1.5 var(--mono); }
 .guide .quiz-res b { font: 650 16px system-ui, sans-serif; }
@@ -2431,7 +2492,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-facts.quiz-size b { font-size: 15px; }
 /* Рівень «На час»: смужка, що тане; останні 3 секунди — червона */
 .guide .quiz-timer { flex: 1 0 100%; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
-.guide .quiz-timer i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .1s linear; }
+.guide .quiz-timer i { display: block; height: 100%; border-radius: 3px; background: var(--fill); transition: width .1s linear; }
 .guide .quiz-timer.low i { background: var(--shoot); }
 /* «Повтори помилки» — на всю ширину під «Ще серія» */
 .guide .quiz-rep { margin: 0; }
@@ -2477,12 +2538,21 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .lg-txt { font-size: 16px; }
 .guide .lg-dots { display: flex; justify-content: center; gap: 2px; }
 .guide .lg-bar { width: 22px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
-.guide .lg-bar i { display: block; width: 60%; height: 100%; background: var(--accent); }
+.guide .lg-bar i { display: block; width: 60%; height: 100%; background: var(--fill); }
 .guide .lg-dots i { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--fg) 18%, transparent); }
 .guide .lg-dots i.good { background: var(--buy); }
 .guide .lg-dots i.bad { background: var(--shoot); }
 .guide .lg-dots i.cur { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
 .guide .sim-help p { margin: 0; }
+/* «За 30 секунд» угорі довідки: чотири кроки з номерами, тур і відео */
+.guide .sim-quick { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.guide .sim-quick h4 { margin: 0; color: var(--accent-2); }
+.guide .sim-quick ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: q; }
+.guide .sim-quick li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; margin: 0; line-height: 1.4; counter-increment: q; }
+.guide .sim-quick li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-2); font: 700 13px system-ui, sans-serif; }
+.guide .sim-tour-btn { justify-self: start; }
+.guide .sim-quick video { display: block; width: auto; max-width: 100%; max-height: 360px; margin: 0 auto; border-radius: 12px; background: #000; }
 .guide .sim-row { display: grid; gap: 10px; }
 @media (min-width: 640px) { .guide .sim-stick { margin: 0; border: 0; padding: 0; } }
 .guide .sim-zoom { flex: none; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 650 13px system-ui, sans-serif; cursor: pointer; }
@@ -2649,6 +2719,19 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-kind .quiz-ibtn[aria-pressed="true"] { flex: 1; width: auto; padding-inline: 12px; }
 .guide .quiz-kind .quiz-ibtn:not([aria-pressed="true"]) > span { display: none; }
 .guide .quiz-kind .quiz-ibtn svg { width: 22px; height: 22px; }
+/* Щойно вибрана вправа — значок грає своє: скоба дальноміра міряє бійця, перехрестя повертається й ловить влучання,
+   у «Пострілі» скоба міряє, а кільце прицілу пульсує, вітер дме поривами */
+.guide .quiz-kind svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.guide .quiz-kind .play[data-kind="range"] path:first-child,
+.guide .quiz-kind .play[data-kind="combo"] path:first-child { animation: kind-measure 1.2s ease-in-out 2; }
+@keyframes kind-measure { 0%, 100% { transform: none; } 35% { transform: scaleY(.78); } 65% { transform: scaleY(1.05); } }
+.guide .quiz-kind .play[data-kind="range"] :is(circle, path:last-child) { animation: seg-hop .8s ease-in-out 3; }
+.guide .quiz-kind .play[data-kind="hold"] path { animation: tab-ticks 1.2s ease-in-out 2; }
+.guide .quiz-kind .play[data-kind="hold"] circle:last-child { animation: tab-hit 1.2s ease-out 2; }
+.guide .quiz-kind .play[data-kind="combo"] circle { animation: seg-ring 1.2s ease-out 2 .2s; }
+.guide .quiz-kind .play[data-kind="wind"] path { transform-origin: 0% 50%; animation: kind-gust .8s ease-in-out 3; }
+@keyframes kind-gust { 0%, 100% { transform: none; } 30% { transform: translateX(2px) scaleX(1.12); } 60% { transform: translateX(-1px) scaleX(.95); } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-kind svg :is(path, circle) { animation: none !important; } }
 .guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
 .guide .quiz-facts > span { white-space: nowrap; }
 .guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
@@ -2656,7 +2739,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-hist-title { color: var(--fg); font-size: 13.5px; }
 .guide .quiz-bars { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 2px; border-bottom: 1px solid var(--line); }
 .guide .quiz-bars i { flex: 1; max-width: 30px; display: flex; justify-content: center; padding-top: 1px; font: 600 11px/14px system-ui, sans-serif; font-style: normal; color: var(--fg); border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--accent) 35%, transparent); }
-.guide .quiz-bars i.last { background: var(--accent); color: var(--on-accent, #14170f); }
+.guide .quiz-bars i.last { background: var(--fill); color: var(--on-fill, #14170f); }
 .guide .quiz-hist .spark { width: 100%; height: 28px; }
 .guide .r-mark { stroke: #4da3ff; fill: none; stroke-linecap: round; }
 .guide .sim-frame > svg { touch-action: pan-y; }
@@ -2803,3 +2886,79 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   .md-src { min-height: calc(100dvh - 260px); }
   .md-pane-view { max-height: calc(100dvh - 210px); overflow-y: auto; border-left: 1px solid var(--line-soft); padding-left: 16px; }
 }
+
+/* Тур по тренажеру: затемнення з «віконцем» навколо кнопки й картка з поясненням */
+.tour-shield { position: fixed; inset: 0; z-index: 1200; }
+.tour-hole { position: fixed; z-index: 1201; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax rgb(0 0 0 / .62); transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease; }
+.tour-card { position: fixed; z-index: 1202; width: min(320px, calc(100vw - 32px)); padding: 14px 16px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 12px 32px rgb(0 0 0 / .45); }
+.tour-card.in { animation: tour-in .22s ease-out; }
+@keyframes tour-in { from { opacity: 0; transform: translateY(6px); } }
+.tour-count { color: var(--accent-2); font: 700 12px system-ui, sans-serif; letter-spacing: .06em; }
+.tour-card h3 { margin: 4px 0 6px; font-size: 17px; }
+.tour-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+.tour-next { min-height: 38px; padding: 8px 18px; }
+@media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
+
+/* Фон під картками (⚙ → Вигляд → Фон): малюнок — у --paper на <html> і на плитках вибору; --bg — тон шапки й смуги браузера.
+   Темна: без малюнка, карта (горизонталі topo.svg), олива, карбон, койот. Світла: без малюнка, карта (topo-light.svg),
+   міліметрівка, пісок, хакі. У нічній data-bg немає — фон як був */
+[data-bg="plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #1b2119, #101310 60%), #101310; }
+[data-bg="map"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .16), transparent 70%), url(topo.svg) center / cover no-repeat,
+  linear-gradient(180deg, #1a2417 0%, #0d120c 100%); }
+[data-bg="olive"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .22), transparent 70%),
+  radial-gradient(130% 70% at 0% 0%, #34472b, transparent 70%), linear-gradient(180deg, #1a2417 0%, #0d120c 100%); }
+/* Карбон — плетіння з шести градієнтів по 20 px і віньєтка, щоб краї не рябіли */
+[data-bg="carbon"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .08), transparent 70%),
+  radial-gradient(120% 80% at 50% 40%, transparent 45%, rgb(0 0 0 / .5)),
+  linear-gradient(27deg, #121313 5px, transparent 5px) 0 5px / 20px 20px, linear-gradient(207deg, #121313 5px, transparent 5px) 10px 0 / 20px 20px,
+  linear-gradient(27deg, #1b1c1d 5px, transparent 5px) 0 10px / 20px 20px, linear-gradient(207deg, #1b1c1d 5px, transparent 5px) 10px 5px / 20px 20px,
+  linear-gradient(90deg, #161717 10px, transparent 10px) 0 0 / 20px 20px,
+  linear-gradient(#171818 25%, #151616 25%, #151616 50%, transparent 50%, transparent 75%, #1d1e1f 75%, #1d1e1f) 0 0 / 20px 20px, #141515; }
+[data-bg="coyote"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .18), transparent 70%),
+  radial-gradient(130% 70% at 0% 0%, #3b2f20, transparent 70%), linear-gradient(180deg, #221b13 0%, #100d09 100%); }
+/* Чорний камуфляж — свій узор у стилі чорного мультикаму (camo.webp): синювато-чорна основа, сланцеві поля, оливкові «язики»;
+   «з сотами» (camo-hex.webp, лише в темній) — плями, гілочки й шестигранники; у світлій — альпійський, сірий */
+[data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #17181d; }
+[data-bg="camo-hex"] { --paper: url(camo-hex.webp) center / cover no-repeat, #141614; }
+[data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
+[data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
+/* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
+:root[data-bg="l-sand"] { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
+  --text: #2b261d; --muted: #6a6151; --accent: #a65410; --accent-2: #8d460c; --shadow: 0 1px 2px rgb(60 45 20 / .07), 0 6px 16px rgb(60 45 20 / .07); }
+:root[data-bg="l-khaki"] { --bg: #e6e9d7; --bg-glow: #dce2d1; --surface: #f5f7f0; --surface-2: #e8ece0; --seg-on: #fbfcf7; --line: #d1d8c5; --line-soft: #dde3d3;
+  --text: #1f251c; --muted: #5a6454; --accent: #a9530f; --accent-2: #8f450b; --shadow: 0 1px 2px rgb(30 45 20 / .07), 0 6px 16px rgb(30 45 20 / .07); }
+[data-bg="l-map"] { --paper: url(topo-light.svg) center / cover no-repeat, linear-gradient(180deg, #f6f2e7 0%, #ebe3d0 100%); }
+/* Міліметрівка — як сітка на мішені: тонка лінія через 10 px, товща через 50 px */
+[data-bg="l-mm"] { --paper: repeating-linear-gradient(0deg, rgb(60 120 90 / .17) 0 1px, transparent 1px 50px),
+  repeating-linear-gradient(90deg, rgb(60 120 90 / .17) 0 1px, transparent 1px 50px),
+  repeating-linear-gradient(0deg, rgb(60 120 90 / .07) 0 1px, transparent 1px 10px),
+  repeating-linear-gradient(90deg, rgb(60 120 90 / .07) 0 1px, transparent 1px 10px), #f5f6ef; }
+[data-bg="l-sand"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .14), transparent 70%), linear-gradient(180deg, #f4ead8 0%, #e5d4b5 100%); }
+[data-bg="l-khaki"] { --paper: radial-gradient(130% 70% at 0% 0%, #e2e6cd, transparent 70%), linear-gradient(180deg, #e9ebdb 0%, #d6dac0 100%); }
+:root[data-bg="map"], :root[data-bg="olive"] { --bg: #131b11; }
+:root[data-bg="carbon"] { --bg: #131414; }
+:root[data-bg="coyote"] { --bg: #1b160f; }
+:root[data-bg="camo"] { --bg: #17181d; }
+:root[data-bg="camo-hex"] { --bg: #141614; }
+:root[data-bg="l-camo"] { --bg: #e9ebe6; }
+:root[data-bg="l-map"] { --bg: #f3eee2; }
+:root[data-bg="l-mm"] { --bg: #f5f6ef; }
+:root[data-bg] body { background: var(--paper); background-attachment: fixed; }
+
+/* Лента фонів — як стрічка цілей: вибраний посередині в рамці, сусіди видні й гаснуть до країв, «‹ ›» по боках */
+.bg-wheel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px; margin: 0 -8px; }
+.bg-nav { width: 28px; height: 56px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 26px system-ui, sans-serif; cursor: pointer; }
+.bg-picks { position: relative; display: flex; gap: 10px; padding-block: 4px 6px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; overscroll-behavior-x: contain; mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+.bg-picks::-webkit-scrollbar { display: none; }
+.bg-pick { flex: none; display: grid; gap: 6px; justify-items: center; width: 84px; padding: 0; border: 0; background: none; scroll-snap-align: center;
+  color: var(--muted); font: 600 12px system-ui, sans-serif; text-align: center; cursor: pointer; }
+/* Гасне лише плитка сусіда, підпис лишається читабельним */
+.bg-sw { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); opacity: .55; transition: opacity .2s; }
+.bg-pick.focus .bg-sw { opacity: 1; }
+.bg-pick[aria-checked="true"] { color: var(--accent-2); }
+.bg-pick[aria-checked="true"] .bg-sw { box-shadow: 0 0 0 2px var(--accent); }
