@@ -139,6 +139,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gear svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
 .gear svg path { stroke-width: 2.6; }   /* зубці шестерні товсті — інакше в 21 px це «сонце» */
 .gear.active { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+/* Перейшли в налаштування — шестерня провертається на два зубці з доворотом, як механізм */
+#settings-btn.play svg { animation: gear-turn 1.4s cubic-bezier(.3, 0, .2, 1); }
+@keyframes gear-turn { 0% { transform: none; } 60% { transform: rotate(100deg); } 80% { transform: rotate(84deg); } 100% { transform: rotate(90deg); } }
+@media (prefers-reduced-motion: reduce) { #settings-btn.play svg { animation: none; } }
 .sync-chip.idle { color: var(--buy); }
 .sync-chip.auth { color: var(--accent-2); border-color: var(--accent); }
 .sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
@@ -692,6 +696,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* «Про застосунок»: фото автора ліворуч, текст поруч. */
 .about-head { display: flex; align-items: center; gap: 12px; }
 .about-head h3 { margin: 0 0 2px; }
+.panel.about a.donate { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; text-decoration: none; }
+.panel.about a.donate img { border-radius: 6px; transform-origin: 50% 85%; animation: cat-nod 6s ease-in-out 1s infinite; }
+/* Котик Монобанку раз на кілька секунд хитає головою, на дотик — підстрибує */
+.panel.about a.donate:active img { animation: cat-hop .35s ease-out; }
+@keyframes cat-nod { 0%, 82%, 100% { transform: none; } 86% { transform: rotate(-12deg); } 90% { transform: rotate(9deg); } 94% { transform: rotate(-4deg); } }
+@keyframes cat-hop { 0%, 100% { transform: none; } 45% { transform: translateY(-4px) scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .panel.about a.donate img { animation: none !important; } }
 .about-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
   background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
 
@@ -2649,6 +2660,19 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-kind .quiz-ibtn[aria-pressed="true"] { flex: 1; width: auto; padding-inline: 12px; }
 .guide .quiz-kind .quiz-ibtn:not([aria-pressed="true"]) > span { display: none; }
 .guide .quiz-kind .quiz-ibtn svg { width: 22px; height: 22px; }
+/* Щойно вибрана вправа — значок грає своє: скоба дальноміра міряє бійця, перехрестя повертається й ловить влучання,
+   у «Пострілі» скоба міряє, а кільце прицілу пульсує, вітер дме поривами */
+.guide .quiz-kind svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.guide .quiz-kind .play[data-kind="range"] path:first-child,
+.guide .quiz-kind .play[data-kind="combo"] path:first-child { animation: kind-measure 1.2s ease-in-out 2; }
+@keyframes kind-measure { 0%, 100% { transform: none; } 35% { transform: scaleY(.78); } 65% { transform: scaleY(1.05); } }
+.guide .quiz-kind .play[data-kind="range"] :is(circle, path:last-child) { animation: seg-hop .8s ease-in-out 3; }
+.guide .quiz-kind .play[data-kind="hold"] path { animation: tab-ticks 1.2s ease-in-out 2; }
+.guide .quiz-kind .play[data-kind="hold"] circle:last-child { animation: tab-hit 1.2s ease-out 2; }
+.guide .quiz-kind .play[data-kind="combo"] circle { animation: seg-ring 1.2s ease-out 2 .2s; }
+.guide .quiz-kind .play[data-kind="wind"] path { transform-origin: 0% 50%; animation: kind-gust .8s ease-in-out 3; }
+@keyframes kind-gust { 0%, 100% { transform: none; } 30% { transform: translateX(2px) scaleX(1.12); } 60% { transform: translateX(-1px) scaleX(.95); } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-kind svg :is(path, circle) { animation: none !important; } }
 .guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
 .guide .quiz-facts > span { white-space: nowrap; }
 .guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
