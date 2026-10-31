@@ -1383,7 +1383,8 @@ button.gun-stat { cursor: pointer; }
 .tabs svg :is(g, path, circle) { transform-box: fill-box; transform-origin: center; }
 /* Склад: кришка цинку відкидається на завісі зліва, з цинку визирає набій і ховається назад */
 .tabs a[data-tab="ammo"] .peek { opacity: 0; }
-.tabs a.play[data-tab="ammo"] .lid { transform-box: view-box; transform-origin: 3px 11px; animation: tab-lid 1.6s ease-in-out both; }
+.tabs a[data-tab="ammo"] svg { overflow: visible; } /* відкинута кришка виходить за верх квадрата 24×24 */
+.tabs a.play[data-tab="ammo"] .lid { transform-box: view-box; transform-origin: 3.5px 10px; animation: tab-lid 1.6s ease-in-out both; }
 .tabs a.play[data-tab="ammo"] .peek { animation: tab-peek 1.6s ease-in-out both; }
 @keyframes tab-lid { 0%, 100% { transform: none; } 25%, 70% { transform: rotate(-30deg); } }
 @keyframes tab-peek { 0%, 18%, 82%, 100% { opacity: 0; transform: translateY(3px); } 38%, 64% { opacity: 1; transform: translateY(-1.5px); } }
