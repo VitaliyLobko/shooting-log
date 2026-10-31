@@ -10,7 +10,7 @@ const ASSETS = [
   './css/app.css',
   './css/topo.svg',
   './css/topo-light.svg',
-  './css/camo.svg',
+  './css/camo.webp',
   './css/viper.webp',
   './css/viper-light.webp',
   './js/app.js',

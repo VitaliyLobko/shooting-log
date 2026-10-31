@@ -455,6 +455,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .swipe-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 /* Поріг пройдено — іконка підростає разом із вібрацією: відпускай, спрацює */
 .card.armed .swipe-ico { transform: scale(1.25); }
+/* Свайп «відстріляти»: дійшов до спрацювання — у мішені спалахує пробоїна */
+.swipe-ico .hit { transform-box: fill-box; transform-origin: center; }
+.card.armed .swipe-ico .hit { animation: swipe-hit .35s ease-out; }
+@keyframes swipe-hit { 0% { transform: scale(.3); opacity: .3; } 60% { transform: scale(1.4); opacity: 1; } 100% { transform: none; } }
 .swipe-bg.right { background: var(--buy); justify-content: flex-start; }
 .swipe-bg.left { background: var(--shoot); justify-content: flex-end; }
 .card.dir-right .swipe-bg.right, .card.dir-left .swipe-bg.left { display: flex; opacity: .55; }
@@ -1370,10 +1374,12 @@ button.gun-stat { cursor: pointer; }
 .tabs a.active svg { background: var(--accent-soft); }
 /* Перейшли на розділ — його значок ~2,4 с грає своє: набої підстрибують хвилею, щит блищить, рядки журналу пишуться, мішень ловить влучання */
 .tabs svg :is(g, path, circle) { transform-box: fill-box; transform-origin: center; }
-.tabs a.play[data-tab="ammo"] g { animation: tab-hop .8s ease-in-out 3; }
-.tabs a.play[data-tab="ammo"] g:nth-child(2) { animation-delay: .12s; }
-.tabs a.play[data-tab="ammo"] g:nth-child(3) { animation-delay: .24s; }
-@keyframes tab-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
+/* Склад: кришка цинку відкидається на завісі зліва, з цинку визирає набій і ховається назад */
+.tabs a[data-tab="ammo"] .peek { opacity: 0; }
+.tabs a.play[data-tab="ammo"] .lid { transform-box: view-box; transform-origin: 3px 11px; animation: tab-lid 1.6s ease-in-out both; }
+.tabs a.play[data-tab="ammo"] .peek { animation: tab-peek 1.6s ease-in-out both; }
+@keyframes tab-lid { 0%, 100% { transform: none; } 25%, 70% { transform: rotate(-30deg); } }
+@keyframes tab-peek { 0%, 18%, 82%, 100% { opacity: 0; transform: translateY(3px); } 38%, 64% { opacity: 1; transform: translateY(-1.5px); } }
 /* Лише transform: «промальовування» через stroke-dashoffset перераховувало значок щокадру й гальмувало перехід */
 .tabs a.play[data-tab="guns"] .emb { animation: tab-emb 1.6s ease-out both; }
 .tabs a.play[data-tab="guns"] .emb:nth-child(2) { transform-origin: 50% 100%; }
@@ -1408,11 +1414,20 @@ button.gun-stat { cursor: pointer; }
 @keyframes seg-dash { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
 /* Розділи Складу й Арсеналу: патрон підстрибує, у компонентах куля підскакує й капсулі блимають, у колбі рідина хлюпає,
    гвинтівка тричі віддає, жилет «дихає» */
-.range-seg .play[data-seg="ammo"] svg { animation: seg-hop .8s ease-in-out 3; }
+.range-seg svg g { transform-box: fill-box; transform-origin: center; }
+/* Набої підстрибують по черзі, як у магазин */
+.range-seg .play[data-seg="ammo"] :is(.r1, .r2) { animation: seg-hop .8s ease-in-out 2; }
+.range-seg .play[data-seg="ammo"] .r2 { animation-delay: .22s; }
 @keyframes seg-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
-.range-seg .play[data-seg="components"] path:nth-child(5) { animation: seg-hop .8s ease-in-out 3; }
-.range-seg .play[data-seg="components"] circle { animation: seg-ring 1.2s ease-out 2; }
-.range-seg .play[data-seg="components"] circle:nth-child(4) { animation-delay: .12s; }
+/* Компоненти: банка нахиляється й сипле порох, куля підскакує, капсуль блимає */
+.range-seg .play[data-seg="components"] .jar { transform-box: view-box; transform-origin: 11.5px 21px; animation: seg-tilt 1.4s ease-in-out both; }
+.range-seg .play[data-seg="components"] .grains circle { animation: seg-grain 1.4s ease-in both; }
+.range-seg .play[data-seg="components"] .grains circle:nth-child(2) { animation-delay: .12s; }
+.range-seg .play[data-seg="components"] .grains circle:nth-child(3) { animation-delay: .24s; }
+.range-seg .play[data-seg="components"] .proj { animation: seg-hop .8s ease-in-out .3s 2; }
+.range-seg .play[data-seg="components"] .primer { animation: seg-ring 1.2s ease-out .5s; }
+@keyframes seg-tilt { 0%, 100% { transform: none; } 25%, 65% { transform: rotate(16deg); } }
+@keyframes seg-grain { 0%, 20% { transform: none; opacity: 1; } 70% { transform: translateY(6px); opacity: 0; } 71% { transform: translateY(-3px); opacity: 0; } 100% { transform: none; opacity: 1; } }
 .range-seg .play[data-seg="recipes"] path:nth-child(2) { animation: seg-slosh 1.2s ease-in-out 2; }
 @keyframes seg-slosh { 0%, 100% { transform: none; } 25% { transform: rotate(-12deg) translateY(-1px); } 75% { transform: rotate(12deg) translateY(-1px); } }
 .range-seg .play[data-seg="guns"] svg { animation: seg-recoil .8s ease-out 3; }
@@ -2898,17 +2913,16 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   linear-gradient(#171818 25%, #151616 25%, #151616 50%, transparent 50%, transparent 75%, #1d1e1f 75%, #1d1e1f) 0 0 / 20px 20px, #141515; }
 [data-bg="coyote"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .18), transparent 70%),
   radial-gradient(130% 70% at 0% 0%, #3b2f20, transparent 70%), linear-gradient(180deg, #221b13 0%, #100d09 100%); }
-[data-bg="camo"] { --paper: url(camo.svg) center / cover no-repeat, #141614; }
+/* Чорний камуфляж — свій узор у дусі чорного мультикаму (camo.webp): плями, гілочки, шестигранники */
+[data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #141614; }
 /* Гадюка — свій сірий узор у дусі Viper (viper*.webp): хмари, рвані плями, обведені «рідкі» розводи */
 [data-bg="viper"] { --paper: url(viper.webp) center / cover no-repeat, #151618; }
 [data-bg="l-viper"] { --paper: url(viper-light.webp) center / cover no-repeat, #dcdcdb; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
-/* «Блокнот» і «Олива» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло */
-[data-bg="l-note"] { --paper: radial-gradient(120% 60% at 50% -10%, #e3dbc9, #ece6d8 60%), #ece6d8; }
-:root[data-bg="l-note"] { --bg: #ece6d8; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
+/* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
+:root[data-bg="l-sand"] { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
   --text: #2b261d; --muted: #6a6151; --accent: #a65410; --accent-2: #8d460c; --shadow: 0 1px 2px rgb(60 45 20 / .07), 0 6px 16px rgb(60 45 20 / .07); }
-[data-bg="l-olive"] { --paper: radial-gradient(120% 60% at 50% -10%, #dce2d1, #e5e9de 60%), #e5e9de; }
-:root[data-bg="l-olive"] { --bg: #e5e9de; --bg-glow: #dce2d1; --surface: #f5f7f0; --surface-2: #e8ece0; --seg-on: #fbfcf7; --line: #d1d8c5; --line-soft: #dde3d3;
+:root[data-bg="l-khaki"] { --bg: #e6e9d7; --bg-glow: #dce2d1; --surface: #f5f7f0; --surface-2: #e8ece0; --seg-on: #fbfcf7; --line: #d1d8c5; --line-soft: #dde3d3;
   --text: #1f251c; --muted: #5a6454; --accent: #a9530f; --accent-2: #8f450b; --shadow: 0 1px 2px rgb(30 45 20 / .07), 0 6px 16px rgb(30 45 20 / .07); }
 [data-bg="l-map"] { --paper: url(topo-light.svg) center / cover no-repeat, linear-gradient(180deg, #f6f2e7 0%, #ebe3d0 100%); }
 /* Міліметрівка — як сітка на мішені: тонка лінія через 10 px, товща через 50 px */
@@ -2926,8 +2940,6 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="l-viper"] { --bg: #e4e4e3; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }
 :root[data-bg="l-mm"] { --bg: #f5f6ef; }
-:root[data-bg="l-sand"] { --bg: #f1e6d1; }
-:root[data-bg="l-khaki"] { --bg: #e6e9d7; }
 :root[data-bg] body { background: var(--paper); background-attachment: fixed; }
 
 /* Лента фонів — як стрічка цілей: вибраний посередині в рамці, сусіди видні й гаснуть до країв, «‹ ›» по боках */

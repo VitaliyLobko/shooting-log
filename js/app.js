@@ -760,7 +760,7 @@ function cartridgeCard(c) {
   const recipe = recipeOf(c);
   return swipeable(card, {
     rightLabel: recipe ? swipeLabel('reload', t('Снарядить')) : swipeLabel('buy', t('Купить')),
-    leftLabel: swipeLabel('shot', t('Списать'), 'left'),
+    leftLabel: swipeLabel('target', t('Отстрелять'), 'left'),
     onRight: () => (recipe ? reloadSheet(recipe) : buySheet(c)),
     onLeft: () => shootSheet({ cartridge: c }),
     onTap: () => cartridgeDetail(c),
@@ -875,7 +875,7 @@ function renderAmmo() {
   if (!active.length) {
     return h('div', {}, empty(t('Пока нет патронов'), t('Добавьте первый патрон, загрузите копию или посмотрите демо-данные.'), [addBtn(), importBtn(), btn(t('Демо-данные'), loadDemo)]), archived);
   }
-  $('subtitle').textContent = swipeTip('ammo', active.some(recipeOf) ? t('Свайп → купить или снарядить, ← списать') : t('Свайп → купить, ← списать'),
+  $('subtitle').textContent = swipeTip('ammo', active.some(recipeOf) ? t('Свайп → купить или снарядить, ← отстрелять') : t('Свайп → купить, ← отстрелять'),
     t('позиций: {n}', { n: active.length }));
   const groups = groupBy(active, (c) => c.caliber || t('Без калибра'))
     .map(([caliber, list]) => ({ caliber, list: list.sort(byName), sum: list.reduce((s, c) => s + M.cartridgeStock(state, c.id), 0) }));
@@ -1142,7 +1142,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
   const noteChips = chips(noteSuggestions(), '', (v) => { f.inputs.note.value = v; });
   noteChips.classList.add('chips-sm');
   const when = whereWhenBox(f, { lead: [f.inputs.note.closest('.field'), noteChips] });
-  const title = cartridge ? t('Списать: {name}', { name: cartridge.name }) : t('Настрел: {name}', { name: weapon.name });
+  const title = cartridge ? t('Стрельба: {name}', { name: cartridge.name }) : t('Настрел: {name}', { name: weapon.name });
   const info = cartridge ? h('p', { class: 'muted' }, t('В наличии: {n} шт', { n: fmt.num(M.cartridgeStock(state, cartridge.id)) })) : null;
   // Вартість стрільби одразу під кількістю: ціна набою × постріли.
   const costLine = h('div', { class: 'cost-line small' });
@@ -1175,7 +1175,7 @@ function shootSheet({ cartridge = null, weapon = null }) {
     f.inputs.foreignName ? foreignList() : null);
   body.addEventListener('click', () => setTimeout(updateAll));
   const close = sheet(title, body, {
-    actions: [btn(t('Отмена'), () => close()), btn(t('Списать'), save, 'primary shoot')],
+    actions: [btn(t('Отмена'), () => close()), btn(t('Записать'), save, 'primary shoot')],
   });
   async function save() {
     if (invalidField(f)) return;
@@ -1286,7 +1286,7 @@ function cartridgeBody(c, close) {
       recipe
         ? btn(t('Снарядить'), () => { close(); reloadSheet(recipe); }, 'primary')
         : btn(t('+ Купить'), () => { close(); buySheet(c); }, 'primary'),
-      btn(t('Списать −'), () => { close(); shootSheet({ cartridge: c }); }),
+      btn(t('Отстрелять −'), () => { close(); shootSheet({ cartridge: c }); }),
       btn(t('Пересчёт'), () => { close(); adjustSheet(c, 'cartridges'); })),
     cartridgePrecisionBox(c, close),
     box(t('История'), movementRows(moves, { skip: { cartridge: true } }), { fold: `hist:${c.id}`, count: moves.length }));
@@ -3286,6 +3286,8 @@ const KIND_ICON = {
   // Крапля мастила над лінією ствола: чистка — це догляд, а не прибирання.
   // Гільза й стрілка вниз: зібране повертається на склад.
   collect: '<path d="M6 21v-9l.8-1.6V8c0-1.3.5-2.5 1.2-3.2.7.7 1.2 1.9 1.2 3.2v2.4L10 12v9z"/><path d="M17 4v9M13.5 9.5 17 13l3.5-3.5M14 18h6"/>',
+  // Мішень із пробоїною й іскрою — свайп «відстріляти» на набої
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="2"/><g class="hit"><circle cx="15.6" cy="8.6" r="1.7" fill="currentColor" stroke="none"/><path d="M15.6 4.6v1.1M19.6 8.6h-1.1M18.5 5.7l-.8.8"/></g>',
   clean: '<path d="M4 17.5h16"/><path d="M12 4c2.2 2.8 3.4 4.8 3.4 6.4a3.4 3.4 0 0 1-6.8 0C8.6 8.8 9.8 6.8 12 4z"/>',
 };
 
@@ -3903,7 +3905,7 @@ function renderLog() {
     h('div', { class: 'log-controls' }, h('div', { class: 'log-bar' }, period, filterBtn), onRow),
     list.length
       ? logGroups(list)
-      : empty(t('Записей нет'), t('Свайпните патрон на «Складе», чтобы купить или списать.'), [btn(t('На склад'), () => { location.hash = '#ammo'; }, 'primary')]),
+      : empty(t('Записей нет'), t('Свайпните патрон на «Складе», чтобы купить или отстрелять.'), [btn(t('На склад'), () => { location.hash = '#ammo'; }, 'primary')]),
     csv);
 }
 
@@ -6343,14 +6345,15 @@ function themePref() {
 // Фон під картками — свій набір для темної й світлої теми; перший (без малюнка) — за замовчуванням, у нічній фону немає
 const BACKDROPS = {
   dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['viper', 'Гадюка']],
-  light: [['l-plain', 'Без рисунка'], ['l-note', 'Блокнот'], ['l-olive', 'Олива'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-viper', 'Гадюка']],
+  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-viper', 'Гадюка']],
 };
 const BG_KEY = { dark: 'shooters-log:bg', light: 'shooters-log:bg-light' };
 
 function backdropPref(theme) {
   const list = BACKDROPS[theme];
   if (!list) return null;
-  const v = recall(BG_KEY[theme]);
+  // «Блокнот» і «Олива» (лише 31.10) злиті з «Піском» і «Хакі»
+  const v = { 'l-note': 'l-sand', 'l-olive': 'l-khaki' }[recall(BG_KEY[theme])] ?? recall(BG_KEY[theme]);
   return list.some(([k]) => k === v) ? v : list[0][0];
 }
 

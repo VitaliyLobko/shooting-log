@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
   <title>Shooter’s Log — журнал стрілка</title>
   <meta name="description" content="Безкоштовний застосунок для стрілка: набої й склад, стволи й настріл, мішені по фото, вправи, хронограф, таймер, тренажер сітки й таблиці DOPE. Працює без інтернету, дані лишаються у вас.">
   <meta property="og:type" content="website">
@@ -64,6 +64,15 @@
       box-shadow: 0 12px 32px rgb(0 0 0 / .22);
     }
     .phone picture { display: block; }
+    .phone { cursor: zoom-in; }
+    .phone:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    /* Збільшений скрин: майже на всю висоту екрана */
+    dialog.zoom { padding: 0; border: 0; background: none; max-width: none; max-height: none; overflow: visible; }
+    dialog.zoom::backdrop { background: rgb(0 0 0 / .82); }
+    dialog.zoom img, dialog.zoom video { display: block; width: auto; height: min(92dvh, 1180px); max-width: 94vw; object-fit: contain;
+      border-radius: 26px; box-shadow: 0 0 0 6px #000, 0 20px 60px rgb(0 0 0 / .6); cursor: zoom-out; animation: zoom-in .22s ease-out; }
+    @keyframes zoom-in { from { opacity: 0; transform: scale(.94); } }
+    @media (prefers-reduced-motion: reduce) { dialog.zoom img, dialog.zoom video { animation: none; } }
     .phone img, .phone video { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); object-fit: cover; }
 
     section.feat { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; padding: 36px 0; border-top: 1px solid var(--line); }
@@ -259,5 +268,6 @@
       <p><a href="https://github.com/VitaliyLobko/shooting-log">GitHub</a> · <a href="https://github.com/VitaliyLobko/shooting-log/issues/new">Написати про помилку чи ідею</a> · <a href="https://send.monobank.ua/jar/XJKDMyVfW"><img src="../icons/monobank.png" alt="" width="20" height="20" style="vertical-align: -5px; border-radius: 5px"> На каву автору</a></p>
     </footer>
   </div>
+  <script src="zoom.js" type="module"></script>
 </body>
 </html>
