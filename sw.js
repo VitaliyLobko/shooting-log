@@ -95,6 +95,7 @@ const ASSETS = [
   './media/trener.mp4',
   './icons/author.jpg',
   './icons/monobank.png',
+  './icons/cat-portrait.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

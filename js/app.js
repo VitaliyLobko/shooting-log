@@ -6387,6 +6387,12 @@ function switchLang(code) {
 /** Довгий текст під розкриттям. */
 const more = (title, node) => h('details', { class: 'ex-more' }, h('summary', {}, title), node);
 
+// Кружка кави в куті портрета котика: пара — два завитки, що здіймаються й тануть
+const CUP_SVG = '<svg viewBox="0 0 16 20" aria-hidden="true">'
+  + '<path class="st" d="M6 8.5c-2-2 2-3 0-6"/><path class="st" d="M10 8.5c-2-2 2-3 0-6"/>'
+  + '<path d="M3 10h9v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill="#f4f1ea" stroke="#3a2a1c"/>'
+  + '<path d="M12 11.5h1.2a2 2 0 0 1 0 4H12" fill="none" stroke="#3a2a1c"/><ellipse cx="7.5" cy="10.4" rx="4" ry=".9" fill="#6b3f1f"/></svg>';
+
 /** «Про застосунок»: що воно таке, де лежать дані й куди дивитися, якщо не довіряєш на слово. */
 function aboutPanel() {
   const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
@@ -6398,7 +6404,8 @@ function aboutPanel() {
         h('p', { class: 'muted small' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
     // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
     h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
-      h('span', { class: 'donate-cat' }, h('img', { src: './icons/monobank.png', alt: '', width: 40, height: 40 })),
+      h('span', { class: 'donate-cat' }, h('img', { src: './icons/cat-portrait.png', alt: '', width: 50, height: 50 }),
+        Object.assign(h('span', { class: 'donate-cup' }), { innerHTML: CUP_SVG })),
       h('span', { class: 'donate-text' }, h('b', {}, t('На кофе автору')), h('small', {}, t('Бесплатно и без рекламы — держится на вашей поддержке'))),
       h('span', { class: 'donate-go', 'aria-hidden': 'true' }, '→')),
     more(t('Установка на телефон'), h('div', { class: 'muted small' },
