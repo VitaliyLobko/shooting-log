@@ -456,7 +456,10 @@ function zonesOf(key, fig = null, big = false) {
   // Груди людини — плита з центром у точці прицілювання (з кадру чи типова для силуету); гонг, IPSC, пікапи — своя зона з KZ
   if (!m.c && KZ[key]?.[0] !== 'p') return { head, body: { ax: T.ax ?? 0, ap: T.ap, kz: KZ[key] } };
   const [x, y] = m.c ?? [T.ax ?? 0, T.ap]; const [w, h] = (big ? BODY_BIG : BODY).map((v) => (v * s) / fh);
-  return { head, body: { ax: x, ap: y, kz: ['p', x - w / 2, y - h / 2, w, h] } };
+  // Весь торс — від тієї ж лінії плечей, що й плита грудей, донизу до пояса: по центру грудей він заходив би на підборіддя
+  const top = y - (BODY[1] * s) / fh / 2;
+  // Нижче низу бійця (підвіконня, бруствер, земля) плита не йде
+  return { head, body: { ax: x, ap: y, kz: ['p', x - w / 2, top, w, Math.min(h, 1 - top)] } };
 }
 
 /** Контур бронеплити SAPI: верхні кути зрізано до 28 % висоти, низ трохи заокруглений. */
@@ -469,7 +472,10 @@ function plateD([, x, y, w, h]) {
 const kzReach = (key, fig, zone) => {
   const { kz } = aimOf(key, fig, zone);
   if (!kz) return 0;
-  return kz[0] === 'c' ? kz[3] : Math.hypot(kz[3], kz[4]) / 2;
+  if (kz[0] === 'c') return kz[3];
+  // Плита торсу не по центру точки прицілювання — найдальший кут рахуємо від неї
+  const { ax, ap } = aimOf(key, fig, zone);
+  return Math.max(...[kz[1], kz[1] + kz[3]].flatMap((x) => [kz[2], kz[2] + kz[4]].map((y) => Math.hypot(x - ax, y - ap))));
 };
 
 let hitCtx = null;
@@ -500,12 +506,14 @@ function hitBand(key, ex, ey, H, flip, fig = null, zone = null) {
   // У координати силуету: частки висоти, x від центру; дзеркальна ціль — x навпаки
   const x = ax + ((flip ? -1 : 1) * ex) / H; const y = ap + ey / H;
   hitCtx ??= document.createElement('canvas').getContext('2d');
-  if (kz && (kz[0] === 'p' ? hitCtx.isPointInPath(new Path2D(plateD(kz)), x, y)
-    : kz[0] === 'r' ? x >= kz[1] && x <= kz[1] + kz[3] && y >= kz[2] && y <= kz[2] + kz[4]
-    : Math.hypot(x - kz[1], y - kz[2]) <= kz[3])) return 'zone';
   // Боєць на фото — за його власною маскою з кадру (рука, нога, зброя — «у ціль», порожнє місце поруч — мимо)
   const mask = fig && maskOf(fig.id);
-  if (mask) return mask(x, y) ? 'body' : 'miss';
+  // Зона, що виходить за силует (стіна під вікном, бруствер, трава), — не влучання: у зону лише по бійцю
+  const onFig = !mask || mask(x, y);
+  if (kz && onFig && (kz[0] === 'p' ? hitCtx.isPointInPath(new Path2D(plateD(kz)), x, y)
+    : kz[0] === 'r' ? x >= kz[1] && x <= kz[1] + kz[3] && y >= kz[2] && y <= kz[2] + kz[4]
+    : Math.hypot(x - kz[1], y - kz[2]) <= kz[3])) return 'zone';
+  if (mask) return onFig ? 'body' : 'miss';
   if ((T.parts ?? []).some(([cx, cy, r]) => Math.hypot(x - cx, y - cy) <= r)) return 'body';
   const inPath = (d) => d && hitCtx.isPointInPath(new Path2D(d), x, y);
   return inPath(T.path) || inPath(T.dark) ? 'body' : 'miss';
@@ -562,13 +570,13 @@ const SCENES = {
     figs: [['man', 1629, 1998, 3733, null, { c: [-0.002, 0.267], hd: [0, 0.09] }], ['man', 1636, 1999, 4173, null, { c: [0.004, 0.27], hd: [0, 0.09] }], ['kneel', 1737, 1994, 4648, null, { c: [-0.026, 0.374], hd: [0.006, 0.115], h: 1.3 }]] },
   // Окоп: позиція на полі — бліндаж із кулеметником у бійниці й окоп, з якого двоє визирають з-за бруствера;
   // грудна ціль 0,5 м — за шоломами (≈0,27 м), масштаб у всіх однаковий; 5-й елемент — земля під бійцем;
-  // у кулеметника видно плечі — є й груди, у двох за бруствером — лише голова
+  // у кулеметника видно плечі — є й груди (плита під головою, за кулеметом), у двох за бруствером — лише голова
   trench: { name: 'Окоп', px: [3168, 648], bg: FIELD,
-    figs: [['chest', 271, 435, 1078, 540, { c: [-0.17, 0.8], hd: [0.037, 0.345] }], ['chest', 179, 343, 2059, 531, { only: true, hd: [0.042, 0.353] }], ['chest', 177, 341, 2432, 531, { only: true, hd: [0.054, 0.336] }]] },
+    figs: [['chest', 271, 435, 1078, 540, { c: [0.03, 0.78], hd: [0.037, 0.345] }], ['chest', 179, 343, 2059, 531, { only: true, hd: [0.042, 0.353] }], ['chest', 177, 341, 2432, 531, { only: true, hd: [0.054, 0.336] }]] },
   // Лежачи: боєць окремим спрайтом (px — його розмір) на тлі bg з постійним кутовим розміром, як у справжньому прицілі:
   // поле й ліс не змінюються з дистанцією, боєць меншає й підходить до горизонту (ноги на eye/d нижче нього)
   prone: { name: 'Лёжа', px: [1965, 1050], bg: FIELD,
-    figs: [['prone', 1, 935, 501, null, { c: [0.025, 0.669], hd: [0.003, 0.379] }]] },
+    figs: [['prone', 1, 935, 501, null, { c: [0.025, 0.81], hd: [0.003, 0.379] }]] },
   // Пікап збоку й у лоб: спрайти на тому ж полі, ціль — водій; збоку спрайт розтягнуто на 5 % до пропорцій УАЗа 1,85 × 5,2 м
   pickup: { name: 'Пикап сбоку', px: [3137, 1167], bg: FIELD,
     figs: [['pickup', 3, 1117, 1568]] },
@@ -1536,7 +1544,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       });
     });
     c.fillStyle = '#888'; c.font = '500 13px system-ui, sans-serif';
-    c.fillText(`Shooters Log · ${new Date().toLocaleDateString(locale())}`, 16, cv.height - 12);
+    c.fillText(`Shooter’s Log · ${new Date().toLocaleDateString(locale())}`, 16, cv.height - 12);
     return { cv, file: `dope-${name.replace(/[^\p{L}\p{N}]+/gu, '-')}.png` };
   };
   const dopeDlg = Object.assign(document.createElement('dialog'), { className: 'sim-dope' });
@@ -2306,7 +2314,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     ['<path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.8" fill="var(--accent)"/>', 'целился'],
     ['<path d="M3 3l10 10M3 13L13 3" stroke="#ff4d4d" stroke-width="2.2" stroke-linecap="round"/>', 'попал'],
     ['<circle cx="8" cy="8" r="5.5" fill="none" stroke="#4cc38a" stroke-width="2"/>', 'надо было целиться'],
-    ['<rect x="1" y="1" width="14" height="14" rx="3" fill="var(--tgt)"/><circle cx="8" cy="8" r="4.5" fill="color-mix(in srgb, var(--tgt) 30%, #14170f)"/>', 'зона попадания'],
+    // Зона — та сама червона плита, що на цілі (plateD у полі 16 × 16)
+    [`<path d="${plateD(['p', 3, 1, 10, 14])}" fill="rgb(255 20 35 / .55)"/>`, 'зона попадания'],
   ];
   const legend = () => {
     const box = el('span', { className: 'quiz-legend' });

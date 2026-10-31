@@ -81,6 +81,7 @@ const ASSETS = [
   './guide/img/real-field-gr.webp',
   './guide/img/zero-25m.png',
   './icons/author.jpg',
+  './icons/monobank.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
@@ -107,7 +108,7 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') self.skipWaiting();
 });
 
-// «Поділитися» → Shooters Log (share_target у manifest): картинку — у кеш, застосунок забере її за ?go=shared
+// «Поділитися» → Shooter’s Log (share_target у manifest): картинку — у кеш, застосунок забере її за ?go=shared
 async function receiveShare(request) {
   try {
     const file = (await request.formData()).get('image');
