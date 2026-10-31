@@ -2930,10 +2930,11 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 [data-bg="lines-acc"] { --paper: url(lines-acc.webp) center / cover no-repeat, #0e0f11; }
 [data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
-/* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
-:root[data-bg="l-sand"] { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
+/* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно);
+   варіанти «з акцентом» — та сама палітра, тло як у темних «Лініях з акцентом» (lines-sand.webp, lines-khaki.webp) */
+:root:is([data-bg="l-sand"], [data-bg="l-sand-acc"]) { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
   --text: #2b261d; --muted: #6a6151; --accent: #a65410; --accent-2: #8d460c; --shadow: 0 1px 2px rgb(60 45 20 / .07), 0 6px 16px rgb(60 45 20 / .07); }
-:root[data-bg="l-khaki"] { --bg: #e6e9d7; --bg-glow: #dce2d1; --surface: #f5f7f0; --surface-2: #e8ece0; --seg-on: #fbfcf7; --line: #d1d8c5; --line-soft: #dde3d3;
+:root:is([data-bg="l-khaki"], [data-bg="l-khaki-acc"]) { --bg: #e6e9d7; --bg-glow: #dce2d1; --surface: #f5f7f0; --surface-2: #e8ece0; --seg-on: #fbfcf7; --line: #d1d8c5; --line-soft: #dde3d3;
   --text: #1f251c; --muted: #5a6454; --accent: #a9530f; --accent-2: #8f450b; --shadow: 0 1px 2px rgb(30 45 20 / .07), 0 6px 16px rgb(30 45 20 / .07); }
 [data-bg="l-map"] { --paper: url(topo-light.svg) center / cover no-repeat, linear-gradient(180deg, #f6f2e7 0%, #ebe3d0 100%); }
 /* Міліметрівка — як сітка на мішені: тонка лінія через 10 px, товща через 50 px */
@@ -2943,6 +2944,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   repeating-linear-gradient(90deg, rgb(60 120 90 / .07) 0 1px, transparent 1px 10px), #f5f6ef; }
 [data-bg="l-sand"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .14), transparent 70%), linear-gradient(180deg, #f4ead8 0%, #e5d4b5 100%); }
 [data-bg="l-khaki"] { --paper: radial-gradient(130% 70% at 0% 0%, #e2e6cd, transparent 70%), linear-gradient(180deg, #e9ebdb 0%, #d6dac0 100%); }
+[data-bg="l-sand-acc"] { --paper: url(lines-sand.webp) center / cover no-repeat, #ecdfc6; }
+[data-bg="l-khaki-acc"] { --paper: url(lines-khaki.webp) center / cover no-repeat, #e0e3cf; }
 :root[data-bg="map"], :root[data-bg="olive"] { --bg: #131b11; }
 :root[data-bg="carbon"] { --bg: #131414; }
 :root[data-bg="coyote"] { --bg: #1b160f; }
@@ -2976,6 +2979,11 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene { position: fixed; inset: 0; z-index: 1300; background: #0b0c10; animation: sc-fade .3s ease-out both; }
 .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .scene.out { opacity: 0; transition: opacity .35s ease; }
+/* кнопки «Повторити» / «Закрити» — коли сценка відіграла */
+.scene-bar { position: absolute; left: 16px; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 12px;
+  opacity: 0; visibility: hidden; transform: translateY(8px); transition: opacity .3s ease, transform .3s ease, visibility 0s .3s; }
+.scene.done .scene-bar { opacity: 1; visibility: visible; transform: none; transition: opacity .3s ease, transform .3s ease; }
+.scene-bar .btn { min-width: 132px; }
 .scene-cap { position: absolute; left: 16px; right: 16px; bottom: calc(13% + env(safe-area-inset-bottom)); margin: 0; text-align: center; white-space: pre-line;
   font: 800 26px/1.2 system-ui, sans-serif; letter-spacing: .02em; color: #ffd56b; text-shadow: 0 2px 14px rgb(255 140 30 / .5);
   animation: sc-cap .6s ease-out 2.1s both; }
@@ -2995,15 +3003,22 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   100% { transform: translate(var(--ax), var(--ay)); opacity: 0; } }
 .scene .sc-flash { opacity: 0; animation: sc-flash .18s ease-out 1.25s both; }
 @keyframes sc-flash { 0% { opacity: 0; } 25% { opacity: .4; } 100% { opacity: 0; } }
-.scene .sc-hole { animation: sc-show .05s linear 1.27s both; }
-.scene-halloween .sc-pk { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-wob .7s ease-out 1.27s both; }
 @keyframes sc-wob { 30% { transform: rotate(-4deg); } 65% { transform: rotate(2.5deg); } }
-.scene-halloween :is(.sc-face, .sc-halo) { animation: sc-lit .7s ease-out 1.4s both; }
-@keyframes sc-lit { 0% { opacity: 0; } 35% { opacity: .7; } 50% { opacity: .35; } 100% { opacity: 1; } }
-.scene-halloween .sc-bat { opacity: 0; animation: 1.9s ease-in 1.6s both; }
+/* Геловін: від влучання гарбуз зникає, сяйво спалахує й гасне, шматки летять дугою й лягають на землю */
+.scene-halloween .sc-pk { animation: sc-hide .04s linear 1.27s both; }
+.scene-halloween .sc-halo { transform-box: fill-box; transform-origin: center; animation: sc-burst .7s ease-out 1.27s both; }
+@keyframes sc-burst { 25% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+/* forwards, не both: до пострілу шматків не видно (базове opacity 0), а не перший кадр анімації */
+.scene-halloween .sc-bits > g { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-chunk 1.2s 1.27s forwards; }
+@keyframes sc-chunk {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; animation-timing-function: cubic-bezier(.2, .6, .4, 1); }
+  42% { transform: translate(calc(var(--dx) * .5), var(--up)) rotate(calc(var(--r) * .45)); animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
+  100% { transform: translate(var(--dx), var(--land)) rotate(var(--r)); opacity: 1; } }
+.scene-halloween .sc-pulp > * { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-spark 1.1s cubic-bezier(.15, .7, .3, 1) both; }
+.scene-halloween .sc-bat { opacity: 0; animation: 1.9s ease-in 1.4s both; }
 .scene-halloween .sc-bat.b1 { animation-name: sc-bat1; }
-.scene-halloween .sc-bat.b2 { animation-name: sc-bat2; animation-delay: 1.75s; }
-.scene-halloween .sc-bat.b3 { animation-name: sc-bat3; animation-delay: 1.9s; }
+.scene-halloween .sc-bat.b2 { animation-name: sc-bat2; animation-delay: 1.5s; }
+.scene-halloween .sc-bat.b3 { animation-name: sc-bat3; animation-delay: 1.6s; }
 @keyframes sc-bat1 { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(96px, -185px) scale(1.9); opacity: 1; } }
 @keyframes sc-bat2 { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(-120px, -215px) scale(1.5); opacity: 1; } }
 @keyframes sc-bat3 { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(140px, -10px) scale(1.25); opacity: 1; } }

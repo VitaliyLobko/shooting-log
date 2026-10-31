@@ -6343,7 +6343,7 @@ function themePref() {
 // Фон під картками — свій набір для темної й світлої теми; перший (без малюнка) — за замовчуванням, у нічній фону немає
 const BACKDROPS = {
   dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['camo-hex', 'Камуфляж с сотами'], ['lines', 'Линии'], ['lines-acc', 'Линии с акцентом']],
-  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-camo', 'Камуфляж']],
+  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-sand-acc', 'Песок с акцентом'], ['l-khaki', 'Хаки'], ['l-khaki-acc', 'Хаки с акцентом'], ['l-camo', 'Камуфляж']],
 };
 const BG_KEY = { dark: 'shooters-log:bg', light: 'shooters-log:bg-light' };
 
@@ -6466,13 +6466,15 @@ function holidayScene() {
 
 const playScene = (name) => import('./scenes.js').then((m) => m.playScene(name)).catch(() => {});
 
-// Панель сценок — лише для автора: вмикається на пристрої 7 тапами по рядку з версією (як режим розробника в Android)
+// Панель сценок — лише для автора: вмикається на пристрої 7 тапами по «Перевірити оновлення» (як режим розробника в Android)
 const SCENES_PANEL_KEY = 'shooters-log:scenes-panel';
 let versionTaps = [];
 
-function versionTap() {
+/** Тап по «Перевірити оновлення»: перший у серії перевіряє, сьомий за 3 с перемикає панель сценок. */
+function updateTap() {
   const now = Date.now();
   versionTaps = [...versionTaps.filter((x) => now - x < 3000), now];
+  if (versionTaps.length === 1) checkUpdate();
   if (versionTaps.length < 7) return;
   versionTaps = [];
   const on = recall(SCENES_PANEL_KEY) !== '1';
@@ -6689,8 +6691,8 @@ function renderSettings() {
     settingsGroup(t('О приложении'), [
       aboutPanel(),
       h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
-        h('p', { class: 'muted small', onclick: versionTap }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
-        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => allChanges().then(changesSheet))))], { fold: 'about' }),
+        h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
+        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), updateTap, 'primary'), btn(t('Что нового'), () => allChanges().then(changesSheet))))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
       lockPanel(),

@@ -8,13 +8,45 @@ const RETICLE = `<g class="sc-ret" fill="none" stroke="#e9ece6" stroke-width="2"
   </g>
   ${FLASH}`;
 
-// Геловін: гарбуз на мішенній стійці, приціл, постріл — гарбуз усміхається й світиться, вилітають кажани
+// Геловін: світний гарбуз на мішенній стійці, приціл, постріл у лоб — гарбуз розлітається на шматки, вилітають кажани
 // Кажан анфас: крила з «пальцями» й фестонами махають від плечей, тіло з вухами нерухоме, очі світяться
 const WING = 'M3-4Q11-17 31-15Q27-7 26 1Q21-5 18 4Q13-1 10 6Q6 2 3 3Z';
 const BAT = `<path class="sc-wing r" d="${WING}"/><g transform="scale(-1 1)"><path class="sc-wing l" d="${WING}"/></g>
     <path d="M0-6L-2.4-11-3.4-4.5Q-4.2 1.5-1.8 6.5Q0 9 1.8 6.5Q4.2 1.5 3.4-4.5L2.4-11Z"/>
     <g fill="#ffb347" stroke="none"><circle cx="-1.3" cy="-4.2" r=".75"/><circle cx="1.3" cy="-4.2" r=".75"/></g>`;
-const HALLOWEEN = `
+const PK = [180, 338]; // центр гарбуза
+const PK_FILL = ['#b9520f', '#d8681a', '#ec7f2f'];
+
+/** Шматки гарбуза: рвані уламки по всьому гарбузу, частина — зі світним клаптем вирізаної пики; летять дугою й падають на землю. */
+function pumpkinBits(rnd) {
+  let bits = '', pulp = '';
+  for (let j = 0; j < 16; j++) {
+    const a = rnd() * 2 * Math.PI, d = Math.sqrt(rnd());
+    const px = PK[0] + Math.cos(a) * d * 62, py = PK[1] + Math.sin(a) * d * 42, s = 9 + rnd() * 9;
+    let shard = '';
+    for (let k = 0; k < 6; k++) {
+      const b = (k / 6) * 2 * Math.PI + rnd() * 0.5, l = s * (0.55 + rnd() * 0.45);
+      shard += `${k ? 'L' : 'M'}${(px + l * Math.cos(b)).toFixed(1)} ${(py + l * Math.sin(b)).toFixed(1)}`;
+    }
+    const lit = j % 5 === 0 ? `<path d="M${px - s * 0.3} ${py + s * 0.2}l${s * 0.3} ${-s * 0.45} ${s * 0.3} ${s * 0.45}z" fill="#ffd56b"/>` : '';
+    bits += `<g style="--dx:${((px - PK[0]) * 2.4 + (rnd() - 0.5) * 60).toFixed(0)}px;--up:-${(50 + rnd() * 110).toFixed(0)}px;`
+      + `--land:${(482 + rnd() * 16 - py).toFixed(0)}px;--r:${(rnd() * 900 - 450).toFixed(0)}deg;animation-duration:${(1 + rnd() * 0.35).toFixed(2)}s">`
+      + `<path d="${shard}Z" fill="${PK_FILL[j % 3]}" stroke="#8a3c0b" stroke-width="1.5" stroke-linejoin="round"/>${lit}</g>`;
+  }
+  // мʼякоть і насіння бризкають навсібіч і тануть
+  for (let j = 0; j < 26; j++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 5, r = 50 + rnd() * 110;
+    pulp += j % 3
+      ? `<circle cx="${PK[0]}" cy="${PK[1] - 20}" r="${(1.8 + rnd() * 2.6).toFixed(1)}" fill="${j % 2 ? '#f0a03c' : '#ffcf5a'}" `
+      : `<ellipse cx="${PK[0]}" cy="${PK[1] - 20}" rx="2.6" ry="1.5" fill="#f4ead2" `;
+    pulp += `style="--dx:${(Math.cos(a) * r).toFixed(1)}px;--dy:${(Math.sin(a) * r).toFixed(1)}px;animation-delay:${(1.27 + rnd() * 0.08).toFixed(2)}s"/>`;
+  }
+  return { bits, pulp };
+}
+
+function halloween() {
+  const { bits, pulp } = pumpkinBits(seeded(1031));
+  return `
 <svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
   <defs>
     <radialGradient id="sc-moon"><stop offset="0" stop-color="#f6ecc8" stop-opacity=".45"/><stop offset="1" stop-color="#f6ecc8" stop-opacity="0"/></radialGradient>
@@ -43,10 +75,14 @@ const HALLOWEEN = `
       <path d="M174 344l6-9 6 9z"/>
       <path d="M140 352q40 26 80 0l-6 12-8-6-8 9-8-7-8 9-8-9-8 7-8-9-8 6z"/>
     </g>
-    <circle class="sc-hole" cx="180" cy="302" r="3" fill="#2a1406"/>
   </g>
+  <g class="sc-bits">${bits}
+    <g style="--dx:46px;--up:-190px;--land:186px;--r:620deg;animation-duration:1.4s"><path d="M178 290c0-10 4-17 12-21l4 6c-6 3-8 8-8 15z" fill="#56722e"/></g>
+  </g>
+  <g class="sc-pulp">${pulp}</g>
   ${RETICLE}
 </svg>`;
+}
 
 // Новий рік: цинк відкривається, трасери креслять у небі рік і розсипаються салютом.
 // Цифри — один штрих у клітинці 36×60; рік складається з них, тож щороку нічого не перемальовуємо
@@ -137,9 +173,15 @@ function newYear() {
 </svg>`;
 }
 
-// 31.12: злий сніговик-ватник — постріл у груди: діра з ватою, конфеті замість крові, вушанка злітає, сам розсипається в замет
+// 31.12: злий сніговик-ватник з автоматом — постріл у груди: діра з ватою, конфеті замість крові, вушанка злітає, сам розсипається в замет
 const CONFETTI = ['#ffd56b', '#ff9a3c', '#9fd3ff', '#fff4dc', '#7bd88f', '#ff7aa8'];
-const VATNIK = 'M144 352Q180 334 216 352L222 414Q180 426 138 414Z';
+// плечі ватника йдуть по контуру середньої грудки (r 40 від 180, 378) з запасом — сніг зверху не визирає
+const VATNIK = 'M138 372Q140 340 180 334Q220 340 222 372L222 414Q180 426 138 414Z';
+// Автомат збоку, ствол праворуч, (0, 0) — середина ствольної коробки: приклад, коробка, руків'я, ріжок, цівка, газова трубка, ствол
+const RIFLE = `<path d="M-58 3L-26-4V4L-56 12Z" fill="#6b3f1f"/>
+    <g fill="#2a2d30"><path d="M-27-5H15V4H-27Z"/><path d="M-17 4l-5 12h5l4-12Z"/><path d="M2 4q2 10 8 18l7-3q-5-7-6-15Z"/>
+      <path d="M14-8H42V-5H14Z"/><path d="M38-1.6H62V1.6H38Z"/><path d="M53-1.6v-5h2v5Z"/></g>
+    <path d="M15-4.5H38V3.5H15Z" fill="#7a4a24"/>`;
 
 /** П'ятикутна зірка з центром cx, cy. */
 function star(cx, cy, R, r) {
@@ -189,20 +231,19 @@ function snowman() {
   <ellipse cx="180" cy="500" rx="62" ry="7" fill="#0b1020" opacity=".55"/>
   <g class="sc-man">
     <circle cx="180" cy="452" r="50" fill="url(#sc-ball)"/>
-    <g stroke-linecap="round">
-      <path d="M152 360L126 386 144 404M208 360L234 386 216 404" stroke="#3d4436" stroke-width="15" stroke-linejoin="round" fill="none"/>
-      <path d="M144 404l9 4M148 406l1 8M216 404l-9 4M212 406l-1 8" stroke="#5a3d24" stroke-width="3" fill="none"/>
-    </g>
     <circle cx="180" cy="378" r="40" fill="url(#sc-ball)"/>
     <path d="${VATNIK}" fill="#3d4436"/>
     <g clip-path="url(#sc-vat)" fill="none">
-      <path d="M130 365h100M130 378h100M130 391h100M130 404h100" stroke="#2b3027" stroke-width="1.6"/>
-      <path d="M130 366.6h100M130 379.6h100M130 392.6h100M130 405.6h100" stroke="#4b5343" stroke-width=".8"/>
+      <path d="M130 352h100M130 365h100M130 378h100M130 391h100M130 404h100" stroke="#2b3027" stroke-width="1.6"/>
+      <path d="M130 353.6h100M130 366.6h100M130 379.6h100M130 392.6h100M130 405.6h100" stroke="#4b5343" stroke-width=".8"/>
       <path d="M180 340V424" stroke="#262a22" stroke-width="2"/>
     </g>
     <path d="M162 346Q180 356 198 346L194 340Q180 348 166 340Z" fill="#4b5343"/>
     <rect x="199" y="393" width="12" height="10" fill="#565d4b" transform="rotate(8 205 398)"/>
     <g class="sc-gap">${wad}<path d="${gap}" fill="#0c1425"/></g>
+    <path d="M148 364L126 398 160 430M212 364L238 396 204 414" stroke="#3d4436" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <g transform="translate(182 420) rotate(-12)">${RIFLE}</g>
+    <path d="M160 430l7 1M160 433l6 4M204 414l7-3M205 417l7-1" stroke="#5a3d24" stroke-width="3" stroke-linecap="round" fill="none"/>
     <circle cx="180" cy="300" r="30" fill="url(#sc-ball)"/>
     <circle class="sc-eye" cx="170" cy="296" r="2.8" fill="#1b1b1b"/><circle class="sc-eye" cx="191" cy="296" r="2.8" fill="#1b1b1b"/>
     <path class="sc-brow" d="M162 286L177 292M199 286L184 292" stroke="#1b1b1b" stroke-width="3.2" stroke-linecap="round"/>
@@ -210,6 +251,7 @@ function snowman() {
     <path class="sc-nose" d="M181 301L210 307 181 311Z" fill="#e8742a"/>
   </g>
   <g class="sc-pile">
+    <g transform="translate(210 452) rotate(-58) scale(.85)">${RIFLE}</g>
     <path d="M112 502Q118 474 144 470Q158 452 182 457Q206 449 222 467Q246 470 250 502Z" fill="url(#sc-ball)"/>
     <path d="M232 474L250 450M246 456l7-1" stroke="#5a3d24" stroke-width="3" stroke-linecap="round" fill="none"/>
     <path d="M196 460L216 434 205 464Z" fill="#e8742a"/>
@@ -311,10 +353,10 @@ function independence() {
 }
 
 const SCENES = {
-  independence: { svg: independence, text: () => t('С Днём Независимости!\nСлава Украине!'), ms: 7300 },
-  halloween: { svg: () => HALLOWEEN, text: () => t('Счастливого Хэллоуина!'), ms: 4300 },
-  snowman: { svg: snowman, text: () => t('Встречаем {year}!\nВыстоим!', { year: comingYear() }), ms: 5900 },
-  newyear: { svg: newYear, text: () => (isNewYearDay() ? t('С Новым годом!') : t('Встречаем {year}!', { year: comingYear() })), ms: 5000 },
+  independence: { svg: independence, text: () => t('С Днём Независимости!\nСлава Украине!') },
+  halloween: { svg: halloween, text: () => t('Счастливого Хэллоуина!') },
+  snowman: { svg: snowman, text: () => t('Встречаем {year}!\nВыстоим!', { year: comingYear() }) },
+  newyear: { svg: newYear, text: () => (isNewYearDay() ? t('С Новым годом!') : t('Встречаем {year}!', { year: comingYear() })) },
 };
 
 /** Програти сценку name; повертає false, якщо такої нема. */
@@ -323,21 +365,43 @@ export function playScene(name) {
   if (!s) return false;
   const el = document.createElement('div');
   el.className = `scene scene-${name}`;
-  el.innerHTML = s.svg();
-  const cap = document.createElement('p');
-  cap.className = 'scene-cap';
-  // кожен рядок — окремий span, щоб сценка могла показати наступний рядок пізніше
-  cap.append(...s.text().split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
-  el.append(cap);
-  let gone = false;
+  const stage = document.createElement('div');
+  const button = (label, kind, onclick) => Object.assign(document.createElement('button'), { type: 'button', className: `btn ${kind}`, textContent: label, onclick });
+  const bar = document.createElement('div');
+  bar.className = 'scene-bar';
+  bar.append(button(t('Повторить'), '', () => play()), button(t('Закрыть'), 'primary', () => close()));
+  el.append(stage, bar);
+  // скінченні анімації кадру; нескінченні (сніг, крила) лишаються жити й на останньому кадрі
+  const finite = () => el.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+  let run = 0;
+  const end = () => {
+    el.classList.add('done');
+    bar.querySelector('.primary').focus({ preventScroll: true });
+  };
+  // Нові вузли — нові CSS-анімації: сценка йде з початку; кнопки — коли все відіграло
+  const play = () => {
+    const id = ++run;
+    el.classList.remove('done');
+    stage.innerHTML = s.svg();
+    const cap = document.createElement('p');
+    cap.className = 'scene-cap';
+    // кожен рядок — окремий span, щоб сценка могла показати наступний рядок пізніше
+    cap.append(...s.text().split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
+    stage.append(cap);
+    Promise.all(finite().map((a) => a.finished)).then(() => id === run && end(), () => {});
+  };
+  // Сама не закривається: тап по сцені — одразу останній кадр, далі лише «Закрити»
+  stage.addEventListener('pointerdown', () => finite().forEach((a) => a.finish()));
   const close = () => {
-    if (gone) return;
-    gone = true;
+    if (el.classList.contains('out')) return;
+    run++;
     el.classList.add('out');
+    document.removeEventListener('keydown', onKey);
     setTimeout(() => el.remove(), 400);
   };
-  el.addEventListener('pointerdown', close);
-  setTimeout(close, s.ms);
+  const onKey = (e) => e.key === 'Escape' && close();
+  document.addEventListener('keydown', onKey);
   document.body.append(el);
+  play();
   return true;
 }

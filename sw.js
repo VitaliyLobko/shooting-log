@@ -15,6 +15,8 @@ const ASSETS = [
   './css/camo-light.webp',
   './css/lines.webp',
   './css/lines-acc.webp',
+  './css/lines-sand.webp',
+  './css/lines-khaki.webp',
   './js/app.js',
   './js/config.js',
   './js/db.js',
