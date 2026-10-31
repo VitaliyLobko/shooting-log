@@ -6436,8 +6436,11 @@ function aboutPanel() {
         h('p', { class: 'muted small' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
     // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
     h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
-      h('span', { class: 'donate-cat' }, h('img', { src: './icons/cat-portrait.png', alt: '', width: 50, height: 50 }),
-        Object.assign(h('span', { class: 'donate-cup' }), { innerHTML: CUP_SVG })),
+      h('span', { class: 'donate-art' },
+        h('span', { class: 'donate-cat' }, h('img', { src: './icons/cat-portrait.png', alt: '', width: 50, height: 50 }),
+          Object.assign(h('span', { class: 'donate-cup' }), { innerHTML: CUP_SVG })),
+        // табличка під рамою, як підпис під картиною: чий це котик — банка monobank
+        h('span', { class: 'donate-plate', 'aria-hidden': 'true' }, 'mono')),
       h('span', { class: 'donate-text' }, h('b', {}, t('На кофе автору')), h('small', {}, t('Бесплатно и без рекламы — держится на вашей поддержке'))),
       h('span', { class: 'donate-go', 'aria-hidden': 'true' }, '→')),
     more(t('Установка на телефон'), h('div', { class: 'muted small' },
