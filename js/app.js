@@ -5,6 +5,7 @@ import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from '.
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
 import { alignTarget, squareToQuad, quadToSquare } from './align.js';
 import { loadGuide, parseGuide, initGuide } from './guide.js';
+import { simIntro } from './sim-tour.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue, componentIcon } from './ammo.js';
@@ -959,6 +960,8 @@ function cartridgeForm(c = null) {
     const obj = { ...(c ?? { id: db.uid(), created: Date.now() }), name: v.name, caliber: v.caliber, bulletWeight: v.bulletWeight, weightUnit: v.weightUnit,
       bc: v.bc > 0 ? v.bc : null, dragModel: v.dragModel, mv: v.mv > 0 ? v.mv : null, note: v.note };
     if (f.inputs.recipeId) obj.recipeId = v.recipeId || null;
+    // Новий набій — у розгорнутій групі калібру, інакше картку для свайпу ще треба знайти
+    if (!c) setUnfolded(`ammo:${obj.caliber}`, true);
     close();
     if (!c && v.initial > 0) {
       // Із сумою це покупка (йде в середню ціну й у «куплено»), без суми — просто початковий залишок.
@@ -2614,7 +2617,7 @@ function weaponReport(w, [from, to]) {
         precision.map((r) => [findCartridge(r.cartridgeId)?.name ?? t('(удалено)'), fmt.num(r.groups), fmt.num(r.shots), len(r.meanRadius), len(r.best)]),
         { numeric: [1, 2, 3, 4] })) : null,
     box(t('Стрельбы и чистки'), moves.length ? reportMoves(moves) : h('p', { class: 'muted small' }, t('За период записей нет'))),
-    h('p', { class: 'muted small report-foot' }, t('Создано в Shooters Log {date}', { date: fmt.date(M.today()) })));
+    h('p', { class: 'muted small report-foot' }, t('Создано в Shooter’s Log {date}', { date: fmt.date(M.today()) })));
 }
 
 /** Чи є в зброї історія: журнал, мішені, швидкості, результати вправ чи свої таблиці DOPE. */
@@ -6228,7 +6231,7 @@ function importParsed(parsed, { demo = false } = {}) {
     const data = parsed?.data;
     // Старі копії підписані колишнім ім'ям — приймаємо обидва.
     if (!['shooters-log', 'scouts-log', 'shooting-log'].includes(parsed?.app) || !data || !db.STORES.every((s) => !data[s] || Array.isArray(data[s]))) {
-      toast(t('Это не резервная копия Shooters Log'));
+      toast(t('Это не резервная копия Shooter’s Log'));
       return;
     }
     const count = db.STORES.reduce((s, k) => s + (data[k]?.length ?? 0), 0);
@@ -6338,6 +6341,14 @@ function themePref() {
 }
 
 /** Яскравість червоного в нічній темі, 20–100 %. */
+// Фон темної теми: малюнок під картками (карта з горизонталями тощо); за замовчуванням — карта, у світлій і нічній — без малюнка
+const BACKDROPS = [['map', 'Карта'], ['grid', 'Карта с сеткой'], ['dusk', 'Сумерки'], ['olive', 'Олива'], ['plain', 'Без рисунка']];
+
+function backdropPref() {
+  const v = recall('shooters-log:bg');
+  return BACKDROPS.some(([k]) => k === v) ? v : 'map';
+}
+
 function nightLevel() {
   const v = Number(recall('shooters-log:night-level'));
   return v >= 20 && v <= 100 ? v : 80;
@@ -6347,10 +6358,11 @@ function applyTheme() {
   const pref = themePref();
   const theme = pref === 'auto' ? (lightScheme.matches ? 'light' : 'dark') : pref;
   document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.bg = backdropPref();
   const k = nightLevel() / 100;
   document.querySelector('#night-red feColorMatrix')?.setAttribute('values',
     `${(0.5 * k).toFixed(3)} ${(0.6 * k).toFixed(3)} ${(0.1 * k).toFixed(3)} 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0`);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : '#101310');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : backdropPref() === 'plain' ? '#101310' : '#131b11');
 }
 
 lightScheme.addEventListener('change', applyTheme);
@@ -6373,23 +6385,31 @@ function aboutPanel() {
     h('div', { class: 'about-head' },
       h('img', { class: 'about-avatar', src: './icons/author.jpg', alt: '', width: 64, height: 64, loading: 'lazy' }),
       h('div', {},
-        h('p', { class: 'muted small' }, t('Shooters Log — учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
+        h('h3', {}, 'Shooter’s Log'),
+        h('p', { class: 'muted small' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
+    // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
+    h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
+      h('span', { class: 'donate-cat' }, h('img', { src: './icons/monobank.png', alt: '', width: 40, height: 40 })),
+      h('span', { class: 'donate-text' }, h('b', {}, t('На кофе автору')), h('small', {}, t('Бесплатно и без рекламы — держится на вашей поддержке'))),
+      h('span', { class: 'donate-go', 'aria-hidden': 'true' }, '→')),
+    more(t('Установка на телефон'), h('div', { class: 'muted small' },
+      h('p', {}, t('Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.')),
+      h('p', {}, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.')))),
     more(t('Где мои данные'), h('div', { class: 'muted small' },
       h('p', {}, t('Записи и фото лежат в браузере на этом устройстве. Сервера у приложения нет, автор не получает ни данных, ни статистики.')),
       h('p', {}, t('Google Диск подключается по желанию: копия ложится в ваш Диск, приложение видит только свои файлы. Браузеру запрещено отправлять данные куда-либо ещё — это прописано в коде страницы (Content Security Policy).')),
       h('p', {}, t('Резервная копия — ⚙ → «Поделиться копией». Она же переносит данные на другое устройство через «Импорт».')))),
     more(t('С чего начать'), h('ol', { class: 'ex-rules' },
-      h('li', {}, t('Установите приложение: Android — Chrome → ⋮ → «Установить приложение»; iPhone — Safari → «Поделиться» → «На экран „Домой“».')),
       h('li', {}, t('Заведите ствол на вкладке «Арсенал» и патрон на вкладке «Склад».')),
       h('li', {}, t('Свайп по карточке патрона: вправо — покупка, влево — списание на стрельбу.')),
       h('li', {}, t('После стрельбы сфотографируйте мишень: «Полигон» → «Мишени» → «+». Отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправки в щелчках.')),
       h('li', {}, t('Хотите сначала посмотреть — ⚙ → «Загрузить демо-данные», там готовый учёт с 2022 года. Перед своими записями удалите демо: ⚙ → «Удалить данные с устройства».')),
       h('li', {}, t('Без Google Диска данные лежат только на этом устройстве — подключите его в ⚙ или время от времени сохраняйте копию.')))),
-    h('p', { class: 'muted small' },
-      link('./about/', t('Показать друзьям')), ' · ',
-      link('https://github.com/VitaliyLobko/shooting-log/issues/new', t('Сообщить об ошибке')), ' · ',
-      link('https://github.com/VitaliyLobko/shooting-log', t('Исходный код')), ' · ',
-      link('https://github.com/VitaliyLobko/shooting-log/blob/main/PRIVACY.md', t('Приватность')), ' · ',
+    h('nav', { class: 'about-links' },
+      link('./about/', t('Показать друзьям')),
+      link('https://github.com/VitaliyLobko/shooting-log/issues/new', t('Сообщить об ошибке')),
+      link('https://github.com/VitaliyLobko/shooting-log', t('Исходный код')),
+      link('https://github.com/VitaliyLobko/shooting-log/blob/main/PRIVACY.md', t('Приватность')),
       link('https://github.com/VitaliyLobko/shooting-log/blob/main/LICENSE', t('Лицензия MIT'))));
 }
 
@@ -6427,7 +6447,7 @@ function calendarEvents() {
   for (const w of state.weapons.filter((x) => !x.archived)) {
     const end = w.permit?.expires;
     if (end) {
-      const note = `${t('действует до {date}', { date: fmt.date(end) })} · Shooters Log`;
+      const note = `${t('действует до {date}', { date: fmt.date(end) })} · Shooter’s Log`;
       for (const [days, title] of [
         [90, 'Разрешение на «{name}» — осталось 3 месяца'], [30, 'Разрешение на «{name}» — остался месяц'],
         [7, 'Разрешение на «{name}» — осталась неделя'], [0, 'Разрешение на «{name}» — последний день']]) {
@@ -6439,7 +6459,7 @@ function calendarEvents() {
     const clean = M.cleaningStatus(state, w);
     if (clean.dueDate && clean.dueDate >= today) {
       out.push({ uid: `clean-${w.id}@shooters-log`, date: clean.dueDate, title: t('Почистить «{name}»', { name: w.name }),
-        note: t('Напоминание о чистке из Shooters Log. Почистили раньше — удалите событие.') });
+        note: t('Напоминание о чистке из Shooter’s Log. Почистили раньше — удалите событие.') });
     }
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));
@@ -6461,7 +6481,7 @@ function calendarPanel() {
       toolBtn('calendar', t('Добавить в Google Календарь'), () => window.open(googleCalendarLink(e), '_blank', 'noopener'), 'small')))),
     events.length > near.length ? h('p', { class: 'muted small' }, t('и ещё {n} — в файле .ics', { n: events.length - near.length })) : null,
     h('div', { class: 'btn-row' }, btn(t('Все в календарь (.ics)'),
-      () => offerFile('shooters-log.ics', icsCalendar(events, { name: 'Shooters Log' }), 'text/calendar'), 'primary')));
+      () => offerFile('shooters-log.ics', icsCalendar(events, { name: 'Shooter’s Log' }), 'text/calendar'), 'primary')));
 }
 
 /** Видалені вбудовані вправи — лише сховані: повернути всі разом, якщо прибрали зайве. */
@@ -6511,6 +6531,19 @@ function lockPanel() {
 }
 
 /** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
+/** Фон темної теми — плитки з самим фоном, щоб видно було до вибору. */
+function backdropPanel() {
+  const now = backdropPref();
+  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, BACKDROPS.map(([k, label]) => h('button', {
+    type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(k === now),
+    onclick: () => { remember('shooters-log:bg', k); applyTheme(); render(); },
+  }, h('span', { class: 'bg-sw', dataset: { bg: k } }), h('span', {}, t(label)))));
+  // Вибраний — у полі зору стрічки, навіть якщо він у кінці; сторінку при цьому не гортаємо
+  requestAnimationFrame(() => { const on = strip.querySelector('[aria-checked="true"]'); if (on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - 16; });
+  return h('section', { class: 'panel' }, h('h3', {}, t('Фон')), strip,
+    document.documentElement.dataset.theme === 'dark' ? null : h('p', { class: 'muted small' }, t('Фон виден в тёмной теме.')));
+}
+
 function usdPanel() {
   const row = chips([['off', t('Только гривны')], ['on', t('Гривны и $')]], usdOn() ? 'on' : 'off', (v) => {
     remember('shooters-log:usd', v);
@@ -6568,11 +6601,7 @@ function renderSettings() {
       aboutPanel(),
       h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
         h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
-        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => changesSheet(CHANGES)))),
-      h('section', { class: 'panel' },
-        h('h3', {}, t('Установка на телефон')),
-        h('p', { class: 'muted small' }, t('Chrome → меню ⋮ → «Добавить на главный экран» / «Установить приложение». После установки работает без интернета.')),
-        h('p', { class: 'muted small' }, t('iPhone: Safari → «Поделиться» → «На экран „Домой“». Открывайте приложение с этой иконки, а не из вкладки Safari — иначе Safari может стереть данные сайта, если неделю не заходить.')))], { fold: 'about' }),
+        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => changesSheet(CHANGES))))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
       lockPanel(),
@@ -6610,6 +6639,7 @@ function renderSettings() {
         themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
           h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
             oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null),
+      backdropPanel(),
       usdPanel()], { fold: 'look' }),
     settingsGroup(t('Напоминания и упражнения'), [
       calendarPanel(),
@@ -6658,6 +6688,7 @@ function renderSim() {
     const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
     initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    simIntro(box, { auto: true });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -6717,6 +6748,7 @@ function renderGuide() {
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
     initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    simIntro(list);
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
   });
@@ -6738,6 +6770,8 @@ function renderGuide() {
 /** «+» на вкладці БК: купити вже заведений набій або завести новий. */
 function ammoAddMenu() {
   const list = state.cartridges.filter((c) => !c.archived).sort((a, b) => collate(a.caliber, b.caliber) || collate(a.name, b.name));
+  // Купувати ще нічого — меню з однієї кнопки зайве
+  if (!list.length) { cartridgeForm(); return; }
   const close = sheet(t('Добавить'), h('div', {},
     h('div', { class: 'btn-col' }, btn(t('Новый патрон'), () => { close(); cartridgeForm(); }, 'primary')),
     list.length ? box(t('Купить уже заведённый'), groupBy(list, (c) => c.caliber || t('Без калибра')).map(([caliber, items]) =>
@@ -6773,9 +6807,10 @@ function playTab(now) {
   const was = shownTab;
   shownTab = now;
   if (!was || was === now) return;
-  const links = document.querySelectorAll('.tabs a');
+  const links = document.querySelectorAll('.tabs a, #settings-btn');
   links.forEach((a) => a.classList.remove('play'));
-  const link = document.querySelector(`.tabs a[data-tab="${now}"]`);
+  // Налаштування — не в нижньому меню: грає шестерня вгорі
+  const link = now === 'settings' ? $('settings-btn') : document.querySelector(`.tabs a[data-tab="${now}"]`);
   if (!link) return;
   void link.offsetWidth;
   link.classList.add('play');
@@ -6945,7 +6980,7 @@ function registerWorker() {
 
 applyStatic();
 applyTheme();
-initLock({ key: 'shooters-log:lock', name: 'Shooters Log', icon: 'icons/icon-192.png', text: () => ({
+initLock({ key: 'shooters-log:lock', name: 'Shooter’s Log', icon: 'icons/icon-192.png', text: () => ({
   locked: t('Приложение заблокировано'), unlock: t('Разблокировать'), denied: t('Не подтверждено. Попробуйте ещё раз.'),
   failed: t('Ошибка: {msg}'), reset: t('Не получается? Создать ключ заново') }) });
 $('fab').addEventListener('click', () => VIEWS[tab].fab?.());
