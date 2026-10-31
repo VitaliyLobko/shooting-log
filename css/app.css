@@ -350,8 +350,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fold[open] > .fold-head .chevron { transform: rotate(90deg); }
 .fold-title { font-size: 17px; font-weight: 800; letter-spacing: .01em; }
 .fold-meta { color: var(--muted); font-size: 13px; }
-/* Групи журналу лежать просто на фоні — заголовок картою, щоб не губився на візерунку */
-.fold[data-key^="log:"] > .fold-head { padding: 6px 12px 6px 8px; background: var(--surface); border: 1px solid var(--line);
+/* Групи на сторінці (Журнал, Компоненти, спорядження, хроно, цілі) лежать просто на фоні — заголовок карткою, щоб не губився на візерунку */
+#view .fold > .fold-head { padding: 6px 12px 6px 8px; background: var(--surface); border: 1px solid var(--line);
   border-radius: 14px; box-shadow: var(--shadow); }
 .fold-sum {
   margin-left: auto;
@@ -2920,11 +2920,11 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   linear-gradient(#171818 25%, #151616 25%, #151616 50%, transparent 50%, transparent 75%, #1d1e1f 75%, #1d1e1f) 0 0 / 20px 20px, #141515; }
 [data-bg="coyote"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .18), transparent 70%),
   radial-gradient(130% 70% at 0% 0%, #3b2f20, transparent 70%), linear-gradient(180deg, #221b13 0%, #100d09 100%); }
-/* Камуфляж — свій узор (camo*.webp): плями, гілочки; «з сотами» — ще й шестигранники; у світлій — альпійський, сірий */
-[data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #141614; }
+/* Чорний камуфляж — свій узор у стилі чорного мультикаму (camo.webp): синювато-чорна основа, сланцеві поля, оливкові «язики»;
+   «з сотами» (camo-hex.webp, лише в темній) — плями, гілочки й шестигранники; у світлій — альпійський, сірий */
+[data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #17181d; }
 [data-bg="camo-hex"] { --paper: url(camo-hex.webp) center / cover no-repeat, #141614; }
 [data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
-[data-bg="l-camo-hex"] { --paper: url(camo-hex-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
 :root[data-bg="l-sand"] { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
@@ -2942,8 +2942,9 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="map"], :root[data-bg="olive"] { --bg: #131b11; }
 :root[data-bg="carbon"] { --bg: #131414; }
 :root[data-bg="coyote"] { --bg: #1b160f; }
-:root:is([data-bg="camo"], [data-bg="camo-hex"]) { --bg: #141614; }
-:root:is([data-bg="l-camo"], [data-bg="l-camo-hex"]) { --bg: #e9ebe6; }
+:root[data-bg="camo"] { --bg: #17181d; }
+:root[data-bg="camo-hex"] { --bg: #141614; }
+:root[data-bg="l-camo"] { --bg: #e9ebe6; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }
 :root[data-bg="l-mm"] { --bg: #f5f6ef; }
 :root[data-bg] body { background: var(--paper); background-attachment: fixed; }

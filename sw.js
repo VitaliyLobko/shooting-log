@@ -13,7 +13,6 @@ const ASSETS = [
   './css/camo.webp',
   './css/camo-hex.webp',
   './css/camo-light.webp',
-  './css/camo-hex-light.webp',
   './js/app.js',
   './js/config.js',
   './js/db.js',

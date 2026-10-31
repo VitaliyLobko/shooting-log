@@ -6345,15 +6345,15 @@ function themePref() {
 // Фон під картками — свій набір для темної й світлої теми; перший (без малюнка) — за замовчуванням, у нічній фону немає
 const BACKDROPS = {
   dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['camo-hex', 'Камуфляж с сотами']],
-  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-camo', 'Камуфляж'], ['l-camo-hex', 'Камуфляж с сотами']],
+  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-camo', 'Камуфляж']],
 };
 const BG_KEY = { dark: 'shooters-log:bg', light: 'shooters-log:bg-light' };
 
 function backdropPref(theme) {
   const list = BACKDROPS[theme];
   if (!list) return null;
-  // «Блокнот» і «Олива» (лише 31.10) злиті з «Піском» і «Хакі», «Гадюку» замінив камуфляж
-  const v = { 'l-note': 'l-sand', 'l-olive': 'l-khaki', viper: 'camo', 'l-viper': 'l-camo' }[recall(BG_KEY[theme])] ?? recall(BG_KEY[theme]);
+  // «Блокнот» і «Олива» (лише 31.10) злиті з «Піском» і «Хакі», «Гадюку» замінив камуфляж, світлі соти прибрано
+  const v = { 'l-note': 'l-sand', 'l-olive': 'l-khaki', viper: 'camo', 'l-viper': 'l-camo', 'l-camo-hex': 'l-camo' }[recall(BG_KEY[theme])] ?? recall(BG_KEY[theme]);
   return list.some(([k]) => k === v) ? v : list[0][0];
 }
 
