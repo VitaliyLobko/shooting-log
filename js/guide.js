@@ -2971,13 +2971,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     qBox.append(stopBtn());
   };
 
-  const renderStart = (kindNow = 'range') => {
+  const renderStart = (kindNow = 'range', play = false) => {
     clearTick();
     const kind = el('div', { className: 'seg quiz-kind' });
     KINDS.forEach(([v, label]) => {
-      const b = iconBtn('', v, t(label));
+      // Щойно вибрана вправа — її значок ~2 с грає своє (як розділи Полігону)
+      const b = iconBtn(play && v === kindNow ? 'play' : '', v, t(label));
+      b.dataset.kind = v;
       b.setAttribute('aria-pressed', String(v === kindNow));
-      b.addEventListener('click', () => renderStart(v));
+      b.addEventListener('click', () => { if (v !== kindNow) renderStart(v, true); });
       kind.append(b);
     });
     // Складність — випадним списком: згорнуто видно лише вибране, розгорнуто — усі рівні з поясненням; вибір пам'ятається для кожної вправи
