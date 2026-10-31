@@ -2867,3 +2867,32 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
 .tour-next { min-height: 38px; padding: 8px 18px; }
 @media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
+
+/* Фон темної теми (⚙ → Вид → Фон): малюнок — у --paper; плитки вибору беруть ту саму змінну.
+   Карта — горизонталі рельєфу (topo.svg), сітка — «кілометрова» через 80 px, сутінки — тепла заграва над меню */
+[data-bg] {
+  --paper-base: linear-gradient(180deg, #1a2417 0%, #0d120c 100%);
+  --paper-sun: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .16), transparent 70%);
+  --paper-topo: url(topo.svg) center / cover no-repeat;
+}
+[data-bg="map"] { --paper: var(--paper-sun), var(--paper-topo), var(--paper-base); }
+[data-bg="grid"] { --paper: var(--paper-sun), var(--paper-topo),
+  repeating-linear-gradient(90deg, transparent 0 79px, rgb(200 225 170 / .05) 79px 80px),
+  repeating-linear-gradient(0deg, transparent 0 79px, rgb(200 225 170 / .05) 79px 80px), var(--paper-base); }
+[data-bg="dusk"] { --paper: radial-gradient(140% 50% at 50% 112%, rgb(236 127 47 / .28), transparent 70%), var(--paper-topo),
+  radial-gradient(130% 60% at 50% -10%, #2f4128, transparent 70%), linear-gradient(180deg, #182116 0%, #11150e 55%, #22180e 100%); }
+[data-bg="olive"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .22), transparent 70%),
+  radial-gradient(130% 70% at 0% 0%, #34472b, transparent 70%), var(--paper-base); }
+[data-bg="plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #1b2119, #101310 60%), #101310; }
+:root[data-theme="dark"]:not([data-bg="plain"]) { --bg: #131b11; }
+:root[data-theme="dark"][data-bg] body { background: var(--paper); background-attachment: fixed; }
+
+/* Лента фонів: гортається вбік, плитка стає на місце; поля — щоб рамка вибраної не обрізалась */
+.bg-picks { display: flex; gap: 10px; margin: 0 -16px; padding: 4px 16px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
+  scrollbar-width: none; overscroll-behavior-x: contain; }
+.bg-picks::-webkit-scrollbar { display: none; }
+.bg-pick { flex: none; display: grid; gap: 6px; justify-items: center; width: 92px; padding: 0; border: 0; background: none; scroll-snap-align: start;
+  color: var(--muted); font: 600 12px system-ui, sans-serif; text-align: center; cursor: pointer; }
+.bg-sw { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.bg-pick[aria-checked="true"] { color: var(--accent-2); }
+.bg-pick[aria-checked="true"] .bg-sw { box-shadow: 0 0 0 2px var(--accent); }

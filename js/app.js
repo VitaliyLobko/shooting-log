@@ -6341,6 +6341,14 @@ function themePref() {
 }
 
 /** Яскравість червоного в нічній темі, 20–100 %. */
+// Фон темної теми: малюнок під картками (карта з горизонталями тощо); за замовчуванням — карта, у світлій і нічній — без малюнка
+const BACKDROPS = [['map', 'Карта'], ['grid', 'Карта с сеткой'], ['dusk', 'Сумерки'], ['olive', 'Олива'], ['plain', 'Без рисунка']];
+
+function backdropPref() {
+  const v = recall('shooters-log:bg');
+  return BACKDROPS.some(([k]) => k === v) ? v : 'map';
+}
+
 function nightLevel() {
   const v = Number(recall('shooters-log:night-level'));
   return v >= 20 && v <= 100 ? v : 80;
@@ -6350,10 +6358,11 @@ function applyTheme() {
   const pref = themePref();
   const theme = pref === 'auto' ? (lightScheme.matches ? 'light' : 'dark') : pref;
   document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.bg = backdropPref();
   const k = nightLevel() / 100;
   document.querySelector('#night-red feColorMatrix')?.setAttribute('values',
     `${(0.5 * k).toFixed(3)} ${(0.6 * k).toFixed(3)} ${(0.1 * k).toFixed(3)} 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0`);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : '#101310');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : backdropPref() === 'plain' ? '#101310' : '#131b11');
 }
 
 lightScheme.addEventListener('change', applyTheme);
@@ -6522,6 +6531,19 @@ function lockPanel() {
 }
 
 /** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
+/** Фон темної теми — плитки з самим фоном, щоб видно було до вибору. */
+function backdropPanel() {
+  const now = backdropPref();
+  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, BACKDROPS.map(([k, label]) => h('button', {
+    type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(k === now),
+    onclick: () => { remember('shooters-log:bg', k); applyTheme(); render(); },
+  }, h('span', { class: 'bg-sw', dataset: { bg: k } }), h('span', {}, t(label)))));
+  // Вибраний — у полі зору стрічки, навіть якщо він у кінці; сторінку при цьому не гортаємо
+  requestAnimationFrame(() => { const on = strip.querySelector('[aria-checked="true"]'); if (on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - 16; });
+  return h('section', { class: 'panel' }, h('h3', {}, t('Фон')), strip,
+    document.documentElement.dataset.theme === 'dark' ? null : h('p', { class: 'muted small' }, t('Фон виден в тёмной теме.')));
+}
+
 function usdPanel() {
   const row = chips([['off', t('Только гривны')], ['on', t('Гривны и $')]], usdOn() ? 'on' : 'off', (v) => {
     remember('shooters-log:usd', v);
@@ -6617,6 +6639,7 @@ function renderSettings() {
         themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
           h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
             oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null),
+      backdropPanel(),
       usdPanel()], { fold: 'look' }),
     settingsGroup(t('Напоминания и упражнения'), [
       calendarPanel(),
