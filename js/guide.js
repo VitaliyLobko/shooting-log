@@ -2577,6 +2577,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     };
     const kitNow = $('s-kit').value; const tbNow = atmTab(kitNow, LOADS[kitNow].def, +$('s-temp').value, +$('s-alt').value);
     const B = (x) => el('b', {}, x); const dg = moa ? 1 : 2;
+    // Стовпці таблички пам'ятки: сусідні сотні й посередині дистанція цілі — її число збігається з рядком над пам'яткою
+    const around = (d) => {
+      const lo = Math.floor(d / 100) * 100; const hi = Math.ceil(d / 100) * 100;
+      return lo === hi ? (d > 100 ? [d - 100, d, d + 100] : [d, d + 100, d + 200]) : [Math.max(100, lo), d, hi];
+    };
     // «Навчання»: поправка по вертикалі — скільки й звідки: падіння кулі в см за таблицею набою → кутові одиниці
     if (quiz.level === 'learn') {
       const z = L.zero ?? +$('s-zero').value;
@@ -2588,7 +2593,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         if (C.marks) line.append(` · ${markShort(q.hy, C)}`);
       }
       qBox.append(line);
-      const cm = f(Math.abs(toCm(q.hy, q.dist)), 0);
+      // Сантиметри — з точністю, за якої «см → кут» дає ту саму поправку, що й рядок вище
+      const cmDg = f(Math.round(Math.abs(toCm(q.hy, q.dist))) / toCm(1, q.dist), dg) === f(Math.abs(q.hy), dg) ? 0 : 1;
+      const cm = f(Math.abs(toCm(q.hy, q.dist)), cmDg);
       const steps = Math.abs(q.hy) < 0.05 ? [t('На дистанции пристрелки пуля приходит в точку прицеливания — поправка не нужна')] : [
         t('По таблице патрона при пристрелке {z} м пуля на {d} м приходит на {cm} см {dir} точки прицеливания', { z, d: q.dist, cm, dir: t(q.hy > 0 ? 'ниже' : 'выше') }),
         moa ? t('В MOA: {cm} см ÷ 2,91 × 100 ÷ {d} м = {v} MOA', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) })
@@ -2610,15 +2617,19 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         ' = ', B(`${f(Math.abs(wx), dg)} ${C.u}`), ` · ${t(wx > 0 ? 'держи левее' : 'держи правее')}`);
       qBox.append(line);
       // Правило: «сотні − 1 = десяті мілу» (MRAD) чи «сотні × 0,3» (MOA), якщо для набору воно в межах 20 %; інакше — свій множник за 500 м
-      const ds = [300, 400, 500]; const ws = ds.map((d) => at(tbNow.W, d));
+      const rd = [300, 400, 500]; const rw = rd.map((d) => at(tbNow.W, d));
       let rule = moa ? (d) => d / 100 * 0.3 : (d) => (d / 100 - 1) * 0.1;
       let ruleTxt = t(moa ? 'сотни метров × 0,3' : 'сотни метров минус один — в десятых мила');
-      if (!ds.every((d, n) => Math.abs(rule(d) - ws[n]) <= ws[n] * 0.2)) {
-        const k = Math.round(ws[2] / 5 * 100) / 100; rule = (d) => d / 100 * k; ruleTxt = t('сотни метров × {k}', { k: f(k, 2) });
+      if (!rd.every((d, n) => Math.abs(rule(d) - rw[n]) <= rw[n] * 0.2)) {
+        const k = Math.round(rw[2] / 5 * 100) / 100; rule = (d) => d / 100 * k; ruleTxt = t('сотни метров × {k}', { k: f(k, 2) });
       }
-      const v1 = rule(q.dist);
+      // Рахунок іде від табличного зносу (як у рядку вище), правило — лише прикидка в голові
+      const v1 = q.w1; const est = rule(q.dist);
+      const ds = around(q.dist); const ws = ds.map((d) => at(tbNow.W, d));
       const steps = [
-        t('Снос на 1 м/с: {r}. На {d} м ≈ {v} {u}', { r: ruleTxt, d: q.dist, v: f(v1, dg), u: C.u }),
+        t('Снос на 1 м/с на {d} м — {v} {u} по таблице патрона', { d: q.dist, v: f(v1, dg + 1), u: C.u })
+          + '. ' + t('В уме: {r} ≈ {e} {u}', { r: ruleTxt, e: f(est, dg), u: C.u })
+          + (Math.abs(est - v1) > v1 * 0.1 ? ` — ${t(est < v1 ? 'здесь правило занижает, бери по таблице' : 'здесь правило завышает, бери по таблице')}` : ''),
         t('× сила ветра {w} м/с ≈ {v} {u}', { w: fm(q.wind), v: f(v1 * q.wind, dg), u: C.u }),
         ...(quiz.level !== 'wind1' ? [t('× доля по часам: 3 и 9 ч — весь, 2 и 10 — почти весь, 1 и 11 — половина, 12 и 6 — ноль. С {h} ч — {p} % ≈ {v} {u}', { h: q.hour, p: Math.round(share * 100), v: f(v1 * q.wind * share, dg), u: C.u })] : []),
         t('Выноси в ту сторону, откуда дует ветер'),
@@ -2634,9 +2645,12 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       line.append(B(`${fm(q.vt)} ${t('м/с')}`), ' × ', B(`${f(q.tof, 2)} ${t('с')}`), ` ${t('полёта')} = `, B(`${f(leadM, 2)} ${t('м')}`), ` ${t('впереди')} = `, B(`${f(Math.abs(lx), dg)} ${C.u}`), ` · ${t(lx > 0 ? 'держи левее' : 'держи правее')}`);
       qBox.append(line);
       // Кут упередження майже сталий: час польоту росте разом із дистанцією — запам'ятати два числа (за 300 м)
-      const ds = [200, 300, 400]; const lead = (v, d) => ang(v * at(tbNow.T, d), d);
+      const ds = around(q.dist); const lead = (v, d) => ang(v * at(tbNow.T, d), d);
+      // Правило — кут за 300 м; якщо на дистанції цілі він помітно інший, кажемо прямо, яке число брати
+      const est = lead(q.vt, 300);
       const steps = [
-        t('Упреждение почти одинаковое на любой дистанции: шаг ≈ {a}, бег ≈ {b} {u}', { a: f(lead(1.4, 300), 1), b: f(lead(3.5, 300), 1), u: C.u }),
+        t('Упреждение почти одинаковое на любой дистанции: шаг ≈ {a}, бег ≈ {b} {u}', { a: f(lead(1.4, 300), 1), b: f(lead(3.5, 300), 1), u: C.u })
+          + (Math.abs(est - Math.abs(lx)) > Math.abs(lx) * 0.1 ? `. ${t('На {d} м точнее {v} {u} — бери по таблице', { d: q.dist, v: f(Math.abs(lx), dg), u: C.u })}` : ''),
         t('Держи впереди цели — в ту сторону, куда она идёт'),
         ...(MOVE_NOTE[L.ret] ? [t(MOVE_NOTE[L.ret])] : []),
       ];
