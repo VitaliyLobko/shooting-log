@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
   <title>Shooter’s Log — журнал стрілка</title>
   <meta name="description" content="Безкоштовний застосунок для стрілка: набої й склад, стволи й настріл, мішені по фото, вправи, хронограф, таймер, тренажер сітки й таблиці DOPE. Працює без інтернету, дані лишаються у вас.">
   <meta property="og:type" content="website">
@@ -64,7 +64,7 @@
       box-shadow: 0 12px 32px rgb(0 0 0 / .22);
     }
     .phone picture { display: block; }
-    .phone img { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); }
+    .phone img, .phone video { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); object-fit: cover; }
 
     section.feat { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; padding: 36px 0; border-top: 1px solid var(--line); }
     .feat .text h2 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 30px); line-height: 1.15; letter-spacing: -.01em; }
@@ -205,7 +205,7 @@
         </ul>
       </div>
       <div class="shots">
-        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/sim.jpg"><img src="img/sim.jpg" alt="Тренажер прицільної сітки" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><video src="../media/trener.mp4" poster="../media/trener.jpg" width="412" height="839" muted loop autoplay playsinline preload="none" aria-label="Тренажер прицільної сітки: відео"></video></div>
       </div>
     </section>
 

@@ -3542,6 +3542,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       showView(st.real ? 'photo' : 'scheme');
       if (['black', 'white'].includes(saved.ink)) st.ink = saved.ink;
       paintInk();
+    } else {
+      // Перший вхід — фото-сцена з бійцями, а не схема: тренажер і тур одразу як справжній приціл
+      st.real = 'assault'; st.tgt = sceneTgt('assault'); tgtSel.value = st.tgt; paintTgt();
+      showView('photo'); paintInk();
     }
   } catch { /* зіпсовані дані — лишаємо типові */ }
   restoring = false;
