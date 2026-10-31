@@ -236,7 +236,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Висота — як у підсумку «Компонентів»: число того ж розміру, праворуч лише картинка. */
 .ammo-hero { align-items: center; }
 .hero.ammo-hero .hero-value { font-size: clamp(28px, 9vw, 34px); white-space: nowrap; }
-.ammo-runway { margin: -6px 4px 10px; text-align: right; }
+/* Плашка, бо рядок лежить просто на фоні — на камуфляжі без неї не читається */
+.ammo-runway { width: fit-content; margin: -6px 4px 10px auto; padding: 3px 10px; text-align: right;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .ammo-runway::first-letter { text-transform: uppercase; }
 .ammo-hero .lv-art { width: 64px; height: 50px; }
 .rank-name { color: var(--accent-2); font-weight: 800; }
@@ -291,9 +293,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid hsl(var(--h) 35% 30%); }
 /* У світлій — насичена плитка, як монограми зброї: на пастельній золотий набій губився */
 :root[data-theme="light"] .ammo-ico {
-  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 42% 50%), hsl(var(--h) 44% 30%) 80%);
-  border-color: hsl(var(--h) 35% 34%); }
-:root[data-theme="light"] .ammo-ico svg { filter: drop-shadow(1.5px 2.5px 1.5px rgb(0 0 0 / .35)); }
+  background: radial-gradient(120% 100% at 25% 15%, hsl(var(--h) 40% 63%), hsl(var(--h) 38% 46%) 80%);
+  border-color: hsl(var(--h) 32% 52%); }
+:root[data-theme="light"] .ammo-ico svg { filter: drop-shadow(1.5px 2.5px 1.5px rgb(0 0 0 / .32)); }
 .ammo-ico svg { width: auto; height: 40px; transform: rotate(-28deg); filter: drop-shadow(2px 3px 2px rgb(0 0 0 / .5)); }
 .ammo-ico svg.pistol { height: 31px; }
 .ammo-ico svg.rimfire { height: 26px; }
@@ -348,6 +350,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fold[open] > .fold-head .chevron { transform: rotate(90deg); }
 .fold-title { font-size: 17px; font-weight: 800; letter-spacing: .01em; }
 .fold-meta { color: var(--muted); font-size: 13px; }
+/* Групи журналу лежать просто на фоні — заголовок картою, щоб не губився на візерунку */
+.fold[data-key^="log:"] > .fold-head { padding: 6px 12px 6px 8px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow); }
 .fold-sum {
   margin-left: auto;
   padding: 3px 10px;
@@ -691,6 +696,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Згорнутий блок — лише заголовок на лінії, без рамки навколо порожнечі. */
 .box.closed { padding: 0; border-width: 1px 0 0; border-radius: 0; }
 .box.closed > legend { margin-left: 0; padding-left: 0; }
+/* Назва секції на сторінці — на плашці, бо під нею фон із візерунком (у шторках тло суцільне) */
+#view .box > legend { padding: 2px 10px 2px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
 .box.closed > .box-body { display: none; }
 /* Кнопка на рамці праворуч: кругла, зі своїм тлом — сидить на лінії, як заголовок ліворуч */
 .box { position: relative; }
@@ -1420,7 +1427,7 @@ button.gun-stat { cursor: pointer; }
 .range-seg .play[data-seg="ammo"] .r2 { animation-delay: .22s; }
 @keyframes seg-hop { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-3px); } }
 /* Компоненти: банка нахиляється й сипле порох, куля підскакує, капсуль блимає */
-.range-seg .play[data-seg="components"] .jar { transform-box: view-box; transform-origin: 11.5px 21px; animation: seg-tilt 1.4s ease-in-out both; }
+.range-seg .play[data-seg="components"] .jar { transform-box: view-box; transform-origin: 10px 21.5px; animation: seg-tilt 1.4s ease-in-out both; }
 .range-seg .play[data-seg="components"] .grains circle { animation: seg-grain 1.4s ease-in both; }
 .range-seg .play[data-seg="components"] .grains circle:nth-child(2) { animation-delay: .12s; }
 .range-seg .play[data-seg="components"] .grains circle:nth-child(3) { animation-delay: .24s; }
@@ -2913,11 +2920,11 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   linear-gradient(#171818 25%, #151616 25%, #151616 50%, transparent 50%, transparent 75%, #1d1e1f 75%, #1d1e1f) 0 0 / 20px 20px, #141515; }
 [data-bg="coyote"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .18), transparent 70%),
   radial-gradient(130% 70% at 0% 0%, #3b2f20, transparent 70%), linear-gradient(180deg, #221b13 0%, #100d09 100%); }
-/* Чорний камуфляж — свій узор у дусі чорного мультикаму (camo.webp): плями, гілочки, шестигранники */
+/* Камуфляж — свій узор (camo*.webp): плями, гілочки; «з сотами» — ще й шестигранники; у світлій — альпійський, сірий */
 [data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #141614; }
-/* Гадюка — свій сірий узор у дусі Viper (viper*.webp): хмари, рвані плями, обведені «рідкі» розводи */
-[data-bg="viper"] { --paper: url(viper.webp) center / cover no-repeat, #151618; }
-[data-bg="l-viper"] { --paper: url(viper-light.webp) center / cover no-repeat, #dcdcdb; }
+[data-bg="camo-hex"] { --paper: url(camo-hex.webp) center / cover no-repeat, #141614; }
+[data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
+[data-bg="l-camo-hex"] { --paper: url(camo-hex-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
 :root[data-bg="l-sand"] { --bg: #f1e6d1; --bg-glow: #e3dbc9; --surface: #f8f4eb; --surface-2: #efe8da; --seg-on: #fcf9f2; --line: #ddd3bf; --line-soft: #e7dfcf;
@@ -2935,9 +2942,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="map"], :root[data-bg="olive"] { --bg: #131b11; }
 :root[data-bg="carbon"] { --bg: #131414; }
 :root[data-bg="coyote"] { --bg: #1b160f; }
-:root[data-bg="camo"] { --bg: #141614; }
-:root[data-bg="viper"] { --bg: #151618; }
-:root[data-bg="l-viper"] { --bg: #e4e4e3; }
+:root:is([data-bg="camo"], [data-bg="camo-hex"]) { --bg: #141614; }
+:root:is([data-bg="l-camo"], [data-bg="l-camo-hex"]) { --bg: #e9ebe6; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }
 :root[data-bg="l-mm"] { --bg: #f5f6ef; }
 :root[data-bg] body { background: var(--paper); background-attachment: fixed; }
