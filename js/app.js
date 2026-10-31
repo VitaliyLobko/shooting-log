@@ -4,7 +4,6 @@ import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
 import { alignTarget, squareToQuad, quadToSquare } from './align.js';
-import { loadGuide, parseGuide, initGuide, wheelStrip } from './guide.js';
 import { simIntro } from './sim-tour.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
@@ -14,14 +13,13 @@ import { toUsd, rateOn, refreshRates, rateSeries } from './usd.js';
 import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
 import { timerPanel, stopTimerPanel } from './timer.js';
 import { exercisesPanel, exerciseName, newExercise, openScore, asExercise, scoreOf, EXERCISES } from './exercises.js';
-import { CHANGES, newer } from './changelog.js';
 import { initLock, lockOn, lockDelay, lockAvailable, enableLock, disableLock, setLockDelay, LOCK_DELAYS } from './lock.js';
 import { solve } from './ballistics.js';
 import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, toolIcon, goTab, reveal,
-  confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate,
+  confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate, wheelStrip,
 } from './ui.js';
 
 /** Плавне прокручування — якщо в системі не просили менше руху. */
@@ -6344,7 +6342,7 @@ function themePref() {
 
 // Фон під картками — свій набір для темної й світлої теми; перший (без малюнка) — за замовчуванням, у нічній фону немає
 const BACKDROPS = {
-  dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['camo-hex', 'Камуфляж с сотами']],
+  dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['camo-hex', 'Камуфляж с сотами'], ['lines', 'Линии'], ['lines-acc', 'Линии с акцентом']],
   light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-camo', 'Камуфляж']],
 };
 const BG_KEY = { dark: 'shooters-log:bg', light: 'shooters-log:bg-light' };
@@ -6437,6 +6435,21 @@ function changesSheet(list) {
   { actions: [btn(t('Понятно'), () => close(), 'primary')] });
 }
 
+// Курс і тренажер (guide.js) та журнал змін (changelog.js) — сотні КБ; вантажимо, лише коли відкривають, не на старті
+const guide = () => import('./guide.js').then((g) => g.loadGuide().then((html) => ({ g, html })));
+const allChanges = () => import('./changelog.js').then((m) => m.CHANGES);
+
+const verParts = (v) => String(v).split('.').map(Number);
+
+/** a новіша за b (версії виду 0.7.0). */
+function newer(a, b) {
+  const [x, y] = [verParts(a), verParts(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  }
+  return false;
+}
+
 /** Після оновлення — один раз, що змінилося з версії, яку людина бачила; нова установка — без шторки. */
 function showNews() {
   const hasData = db.STORES.some((s) => state[s]?.length);
@@ -6444,8 +6457,11 @@ function showNews() {
   // Нумерацію перезапускали (0.7.36 → 0.7.0): «бачена» новіша за поточну — рахуємо від поточної
   if (seen && newer(seen, self.APP_VERSION)) seen = self.APP_VERSION;
   remember(SEEN_KEY, self.APP_VERSION);
-  const list = seen ? CHANGES.filter((c) => newer(c.v, seen)) : [];
-  if (list.length) changesSheet(list);
+  if (!seen || !newer(self.APP_VERSION, seen)) return;
+  allChanges().then((all) => {
+    const list = all.filter((c) => newer(c.v, seen));
+    if (list.length) changesSheet(list);
+  }).catch(() => {});
 }
 
 /**
@@ -6635,7 +6651,7 @@ function renderSettings() {
       aboutPanel(),
       h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
         h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
-        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => changesSheet(CHANGES))))], { fold: 'about' }),
+        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => allChanges().then(changesSheet))))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
       lockPanel(),
@@ -6718,10 +6734,10 @@ function guideLink() {
 /** «Полігон → Тренажер»: розділ «sim» курсу окремо, розмітка одна з довідником. */
 function renderSim() {
   const box = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
-  loadGuide().then((html) => {
-    const sim = parseGuide(html).sections.find((s) => s.id === 'sim');
+  guide().then(({ g, html }) => {
+    const sim = g.parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    g.initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
     simIntro(box, { auto: true });
   }).catch(() => {
     box.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));
@@ -6732,8 +6748,8 @@ function renderSim() {
 /** Розділи курсу згорнуті; пошук розкриває збіги й ховає решту. */
 function renderGuide() {
   const list = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
-  loadGuide().then((html) => {
-    const { sections, foot } = parseGuide(html);
+  guide().then(({ g, html }) => {
+    const { sections, foot } = g.parseGuide(html);
     if (tab === 'guide') $('subtitle').textContent = t('Курс марксмана · тем: {n}', { n: sections.length });
     // Тренажер живе в «Полігоні»; розмітка розділу лишається в статті як його джерело, тут — лише посилання
     const simLink = () => h('div', { class: 'guide-sec' },
@@ -6781,7 +6797,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
-    initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    g.initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
     simIntro(list);
   }).catch(() => {
     list.replaceChildren(empty(t('Справочник недоступен'), t('Откройте приложение с интернетом хотя бы раз, чтобы он сохранился для офлайна.')));

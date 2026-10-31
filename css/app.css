@@ -2924,6 +2924,9 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
    «з сотами» (camo-hex.webp, лише в темній) — плями, гілочки й шестигранники; у світлій — альпійський, сірий */
 [data-bg="camo"] { --paper: url(camo.webp) center / cover no-repeat, #17181d; }
 [data-bg="camo-hex"] { --paper: url(camo-hex.webp) center / cover no-repeat, #141614; }
+/* Лінії — чорне тло з кривими, пучками й дугами, що проявляються й тануть на різній відстані від кінців; «з акцентом» — кілька помаранчевих */
+[data-bg="lines"] { --paper: url(lines.webp) center / cover no-repeat, #0e0f11; }
+[data-bg="lines-acc"] { --paper: url(lines-acc.webp) center / cover no-repeat, #0e0f11; }
 [data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно) */
@@ -2944,10 +2947,15 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="coyote"] { --bg: #1b160f; }
 :root[data-bg="camo"] { --bg: #17181d; }
 :root[data-bg="camo-hex"] { --bg: #141614; }
+:root:is([data-bg="lines"], [data-bg="lines-acc"]) { --bg: #0e0f11; }
 :root[data-bg="l-camo"] { --bg: #e9ebe6; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }
 :root[data-bg="l-mm"] { --bg: #f5f6ef; }
-:root[data-bg] body { background: var(--paper); background-attachment: fixed; }
+:root[data-bg] body { background: var(--bg); }
+/* Фон — окремий нерухомий шар під сторінкою: background-attachment: fixed на телефоні перемальовує тло на кожному кадрі прокрутки,
+   а шар position: fixed браузер лише зсуває. Висота — велике вікно (lvh), щоб під час ховання адресного рядка не було щілини */
+:root[data-bg] body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100lvh; z-index: -1;
+  background: var(--paper); pointer-events: none; }
 
 /* Лента фонів — як стрічка цілей: вибраний посередині в рамці, сусіди видні й гаснуть до країв, «‹ ›» по боках */
 .bg-wheel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px; margin: 0 -8px; }
