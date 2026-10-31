@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-  <title>Shooters Log — журнал стрілка</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Shooter’s Log — журнал стрілка</title>
   <meta name="description" content="Безкоштовний застосунок для стрілка: набої й склад, стволи й настріл, мішені по фото, вправи, хронограф, таймер, тренажер сітки й таблиці DOPE. Працює без інтернету, дані лишаються у вас.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Shooters Log — журнал стрілка в телефоні">
+  <meta property="og:title" content="Shooter’s Log — журнал стрілка в телефоні">
   <meta property="og:description" content="Набої, стволи, настріл, мішені по фото, вправи, тренажер сітки й DOPE. Безкоштовно, без реклами й реєстрації.">
   <meta property="og:url" content="https://vitaliylobko.github.io/shooting-log/about/">
   <meta property="og:image" content="https://vitaliylobko.github.io/shooting-log/about/img/og.jpg">
@@ -64,7 +64,7 @@
       box-shadow: 0 12px 32px rgb(0 0 0 / .22);
     }
     .phone picture { display: block; }
-    .phone img { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); }
+    .phone img, .phone video { display: block; width: 100%; height: auto; border-radius: 20px; aspect-ratio: 412 / 839; background: var(--surface-2); object-fit: cover; }
 
     section.feat { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; padding: 36px 0; border-top: 1px solid var(--line); }
     .feat .text h2 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 30px); line-height: 1.15; letter-spacing: -.01em; }
@@ -101,7 +101,7 @@
   <div class="wrap">
     <header class="hero">
       <img class="icon" src="../icons/icon-192.png" alt="" width="88" height="88">
-      <h1>Shooters Log</h1>
+      <h1>Shooter’s Log</h1>
       <p class="lead">Журнал стрілка в телефоні: скільки набоїв лишилось і почім постріл, що з кожним стволом, як ти стріляєш і чи стаєш кращим.</p>
       <div class="cta">
         <a class="btn primary" href="../">Відкрити застосунок</a>
@@ -125,6 +125,7 @@
         <ul>
           <li>Скільки ще на скільки виїздів вистачить.</li>
           <li>Релоадінг: компоненти, рецепти, собівартість патрона, спорядження партіями зі списанням пороху, куль і капсулів.</li>
+          <li>Статті — свої нотатки зі спорядження з картинками й таблицями.</li>
         </ul>
       </div>
       <div class="shots">
@@ -137,7 +138,7 @@
       <div class="text">
         <span class="kicker">Арсенал</span>
         <h2>Кожен ствол — як на долоні</h2>
-        <p>Настріл, ресурс ствола, коли чистив і коли знову пора, приціли з пристрілкою, дозвіл з нагадуванням до кінця строку.</p>
+        <p>Картка з фото ствола: настріл і ресурс, коли чистив і коли знову пора, купчастість, приціли з пристрілкою, габарити й вага, дозвіл з нагадуванням до кінця строку.</p>
         <ul>
           <li>Кнопки «Записати стрільбу» й «Почистив» — одним дотиком.</li>
           <li>Звіт по стволу: усі стрільби, покупка й тюнінг, витрати.</li>
@@ -154,7 +155,7 @@
       <div class="text">
         <span class="kicker">Гроші</span>
         <h2>Скільки насправді вкладено</h2>
-        <p>Покупка ствола, тюнінг, екіпірування, продажі — і що вийшло чисто. Витрати за роками на графіку.</p>
+        <p>Покупка ствола, тюнінг, екіпірування, набої й релоад, продажі — і що вийшло чисто. Витрати за роками на графіку, з розбором по категоріях і вивантаженням у Excel.</p>
         <p>За бажанням — приблизно в доларах за курсом НБУ на день покупки: видно, що 5 000 грн у 2022-му й зараз — різні гроші.</p>
       </div>
       <div class="shots">
@@ -169,6 +170,7 @@
         <p>Познач масштаб і пробоїни на фото — застосунок порахує розкид, середній радіус і СТВ у см, MOA чи MRAD, а ще поправку в клацаннях.</p>
         <ul>
           <li>Рейтинг набоїв за купчастістю для кожного ствола.</li>
+          <li>Фото з телефона вирівнюється по кутах листа — нахил і перспектива не псують розмір групи.</li>
           <li>Дистанція, приціл, погода — все поруч з мішенню.</li>
         </ul>
       </div>
@@ -195,11 +197,15 @@
       <div class="text">
         <span class="kicker">Тренажер</span>
         <h2>Тренуй сітку прицілу вдома</h2>
-        <p>Визначити дальність по сітці, винести на вітер і рух цілі, взяти поправку з таблиці — як задачки з відповіддю. Свайп по прицілу міняє дистанцію й кратність.</p>
-        <p>Дистанції від 25 м, різні сітки, свої таблиці DOPE, статистика тренувань.</p>
+        <p>Сітки справжніх прицілів — Delta Stryker, Trijicon ACOG, Burris Scout, Vortex, Primary Arms, Leupold — і фото-сцени з бійцями: ланцюг у степу, колона взимку, узлісся, околиця села, сутінки, окоп, пікап. Визнач дальність по сітці, винеси на дистанцію, вітер і рух — і подивись, куди лягла куля: у бронеплиту, у ціль чи мимо.</p>
+        <ul>
+          <li>«Перевір себе»: серії по 10 цілей — від «Навчання» з пам’ятками «як рахувати» до «На час» і «Пошуку»; у кінці — куди систематично помиляєшся.</li>
+          <li>Своя зброя з Арсеналу: поправки, вітер і упередження — за балістикою свого набою.</li>
+          <li>Таблиця поправок картинкою — щоб наклеїти на приклад.</li>
+        </ul>
       </div>
       <div class="shots">
-        <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/sim.jpg"><img src="img/sim.jpg" alt="Тренажер прицільної сітки" width="412" height="839" loading="lazy"></picture></div>
+        <div class="phone"><video src="../media/trener.mp4" poster="../media/trener.jpg" width="412" height="839" muted loop autoplay playsinline preload="none" aria-label="Тренажер прицільної сітки: відео"></video></div>
       </div>
     </section>
 
@@ -207,7 +213,7 @@
       <div class="text">
         <span class="kicker">Балістика</span>
         <h2>DOPE і швидкості під рукою</h2>
-        <p>Таблиця поправок для кожного прицілу й набою: клацання барабана, винос по сітці, вітер. Можна імпортувати з «Стрільця».</p>
+        <p>Таблиця поправок для кожного прицілу й набою: клацання барабана, винос по сітці, вітер. Можна імпортувати з «Стрільця» або розрахувати самому — за балістичним коефіцієнтом і швидкістю з хронографа.</p>
         <p>Хронограф: серії швидкостей, середня, SD і ES — щоб знати свій набій, а не вірити коробці.</p>
       </div>
       <div class="shots">
@@ -220,7 +226,7 @@
       <div class="text">
         <span class="kicker">Журнал</span>
         <h2>Уся історія в одному місці</h2>
-        <p>Стрільби, покупки, спорядження, чистки — з фільтрами й графіком настрілу по днях, тижнях, роках. Стрільбу можна додати в календар телефону.</p>
+        <p>Стрільби, покупки, спорядження, чистки — з фільтрами й графіком настрілу по днях, тижнях, роках. Кінець дозволу й чистку — нагадуванням у календар телефону.</p>
       </div>
       <div class="shots">
         <div class="phone"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dark/log.jpg"><img src="img/log.jpg" alt="Журнал з настрілом за роками" width="412" height="839" loading="lazy"></picture></div>
@@ -233,6 +239,7 @@
         <div class="card"><h3>Без сервера</h3><p>Усе зберігається в телефоні. Автор не бачить ні записів, ні статистики — збирати їх просто нікуди.</p></div>
         <div class="card"><h3>Синхронізація через ваш Google Диск</h3><p>За бажанням: копія лягає у ваш Диск, і телефон з комп’ютером бачать те саме. Застосунок має доступ лише до свого файлу.</p></div>
         <div class="card"><h3>Працює офлайн</h3><p>На стрільбищі без зв’язку все записується, а синхронізується, щойно з’явиться мережа.</p></div>
+        <div class="card"><h3>Вхід за відбитком</h3><p>За бажанням застосунок відкривається відбитком, обличчям чи PIN-кодом телефона — ключ лишається на пристрої.</p></div>
         <div class="card"><h3>Резервна копія</h3><p>Один файл — у Telegram «Збережене» чи куди зручно. Ним же можна перенести все на інший телефон.</p></div>
       </div>
     </section>
@@ -247,9 +254,9 @@
     </section>
 
     <footer>
-      <div class="cta"><a class="btn primary" href="../">Відкрити Shooters Log</a></div>
-      <p>Українською й російською · світла й темна тема · відкритий код (MIT)</p>
-      <p><a href="https://github.com/VitaliyLobko/shooting-log">GitHub</a> · <a href="https://github.com/VitaliyLobko/shooting-log/issues/new">Написати про помилку чи ідею</a></p>
+      <div class="cta"><a class="btn primary" href="../">Відкрити Shooter’s Log</a></div>
+      <p>Українською й російською · світла, темна й нічна тема · відкритий код (MIT)</p>
+      <p><a href="https://github.com/VitaliyLobko/shooting-log">GitHub</a> · <a href="https://github.com/VitaliyLobko/shooting-log/issues/new">Написати про помилку чи ідею</a> · <a href="https://send.monobank.ua/jar/XJKDMyVfW"><img src="../icons/monobank.png" alt="" width="20" height="20" style="vertical-align: -5px; border-radius: 5px"> На каву автору</a></p>
     </footer>
   </div>
 </body>
