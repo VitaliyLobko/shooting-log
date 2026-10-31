@@ -4,7 +4,7 @@ import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
 import { alignTarget, squareToQuad, quadToSquare } from './align.js';
-import { loadGuide, parseGuide, initGuide } from './guide.js';
+import { loadGuide, parseGuide, initGuide, wheelStrip } from './guide.js';
 import { simIntro } from './sim-tour.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
@@ -6340,15 +6340,21 @@ function themePref() {
   return THEMES.some(([k]) => k === v) ? v : 'auto';
 }
 
-/** Яскравість червоного в нічній темі, 20–100 %. */
-// Фон темної теми: малюнок під картками (карта з горизонталями тощо); за замовчуванням — карта, у світлій і нічній — без малюнка
-const BACKDROPS = [['map', 'Карта'], ['grid', 'Карта с сеткой'], ['dusk', 'Сумерки'], ['olive', 'Олива'], ['plain', 'Без рисунка']];
+// Фон під картками — свій набір для темної й світлої теми; перший (без малюнка) — за замовчуванням, у нічній фону немає
+const BACKDROPS = {
+  dark: [['plain', 'Без рисунка'], ['map', 'Карта'], ['olive', 'Олива'], ['carbon', 'Карбон'], ['coyote', 'Койот'], ['camo', 'Чёрный камуфляж'], ['viper', 'Гадюка']],
+  light: [['l-plain', 'Без рисунка'], ['l-map', 'Карта'], ['l-mm', 'Миллиметровка'], ['l-sand', 'Песок'], ['l-khaki', 'Хаки'], ['l-viper', 'Гадюка']],
+};
+const BG_KEY = { dark: 'shooters-log:bg', light: 'shooters-log:bg-light' };
 
-function backdropPref() {
-  const v = recall('shooters-log:bg');
-  return BACKDROPS.some(([k]) => k === v) ? v : 'map';
+function backdropPref(theme) {
+  const list = BACKDROPS[theme];
+  if (!list) return null;
+  const v = recall(BG_KEY[theme]);
+  return list.some(([k]) => k === v) ? v : list[0][0];
 }
 
+/** Яскравість червоного в нічній темі, 20–100 %. */
 function nightLevel() {
   const v = Number(recall('shooters-log:night-level'));
   return v >= 20 && v <= 100 ? v : 80;
@@ -6358,11 +6364,13 @@ function applyTheme() {
   const pref = themePref();
   const theme = pref === 'auto' ? (lightScheme.matches ? 'light' : 'dark') : pref;
   document.documentElement.dataset.theme = theme;
-  document.documentElement.dataset.bg = backdropPref();
+  const bg = backdropPref(theme);
+  if (bg) document.documentElement.dataset.bg = bg; else delete document.documentElement.dataset.bg;
   const k = nightLevel() / 100;
   document.querySelector('#night-red feColorMatrix')?.setAttribute('values',
     `${(0.5 * k).toFixed(3)} ${(0.6 * k).toFixed(3)} ${(0.1 * k).toFixed(3)} 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0`);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f2f3ee' : theme === 'night' ? '#000000' : backdropPref() === 'plain' ? '#101310' : '#131b11');
+  // Колір смуги браузера — тло вибраного фону (--bg у CSS)
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#101310');
 }
 
 lightScheme.addEventListener('change', applyTheme);
@@ -6531,17 +6539,40 @@ function lockPanel() {
 }
 
 /** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
-/** Фон темної теми — плитки з самим фоном, щоб видно було до вибору. */
+/** Фон під картками — плитки з самим фоном, щоб видно було до вибору; набір — для поточної теми, у нічній панелі немає. */
 function backdropPanel() {
-  const now = backdropPref();
-  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, BACKDROPS.map(([k, label]) => h('button', {
-    type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(k === now),
-    onclick: () => { remember('shooters-log:bg', k); applyTheme(); render(); },
+  const theme = document.documentElement.dataset.theme;
+  const list = BACKDROPS[theme];
+  if (!list) return null;
+  let now = backdropPref(theme);
+  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, list.map(([k, label]) => h('button', {
+    type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(k === now), dataset: { bg: k },
+    onclick: (e) => wheel.centerOn(e.currentTarget),
   }, h('span', { class: 'bg-sw', dataset: { bg: k } }), h('span', {}, t(label)))));
-  // Вибраний — у полі зору стрічки, навіть якщо він у кінці; сторінку при цьому не гортаємо
-  requestAnimationFrame(() => { const on = strip.querySelector('[aria-checked="true"]'); if (on) strip.scrollLeft = on.offsetLeft - strip.offsetLeft - 16; });
-  return h('section', { class: 'panel' }, h('h3', {}, t('Фон')), strip,
-    document.documentElement.dataset.theme === 'dark' ? null : h('p', { class: 'muted small' }, t('Фон виден в тёмной теме.')));
+  // Як стрічка цілей: фон посередині — вибраний і одразу під картками, гортаєш — бачиш наживо
+  const wheel = wheelStrip(strip, (b) => {
+    if (b.dataset.bg === now) return;
+    now = b.dataset.bg;
+    remember(BG_KEY[theme], now);
+    strip.querySelectorAll('.bg-pick').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+    applyTheme();
+  }, '.bg-pick');
+  // «‹ ›» по краях — видно, що стрічку гортають
+  const step = (dir) => {
+    const on = strip.querySelector('[aria-checked="true"]');
+    const to = dir < 0 ? on?.previousElementSibling : on?.nextElementSibling;
+    if (to) wheel.centerOn(to);
+  };
+  const nav = (dir, label, text) => h('button', { type: 'button', class: 'bg-nav', 'aria-label': t(label), onclick: () => step(dir) }, text);
+  // Поля й вибраний посередині рахуються від ширини стрічки: у згорнутій групі «Вид» її ще немає — досчитуємо, щойно з'явиться
+  let width = 0;
+  new ResizeObserver(() => {
+    if (!strip.clientWidth || strip.clientWidth === width) return;
+    width = strip.clientWidth;
+    wheel.settle(strip.querySelector('[aria-checked="true"]'));
+  }).observe(strip);
+  return h('section', { class: 'panel' }, h('h3', {}, t('Фон')),
+    h('div', { class: 'bg-wheel' }, nav(-1, 'Предыдущий', '‹'), strip, nav(1, 'Следующий', '›')));
 }
 
 function usdPanel() {

@@ -2868,31 +2868,57 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .tour-next { min-height: 38px; padding: 8px 18px; }
 @media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
 
-/* Фон темної теми (⚙ → Вид → Фон): малюнок — у --paper; плитки вибору беруть ту саму змінну.
-   Карта — горизонталі рельєфу (topo.svg), сітка — «кілометрова» через 80 px, сутінки — тепла заграва над меню */
-[data-bg] {
-  --paper-base: linear-gradient(180deg, #1a2417 0%, #0d120c 100%);
-  --paper-sun: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .16), transparent 70%);
-  --paper-topo: url(topo.svg) center / cover no-repeat;
-}
-[data-bg="map"] { --paper: var(--paper-sun), var(--paper-topo), var(--paper-base); }
-[data-bg="grid"] { --paper: var(--paper-sun), var(--paper-topo),
-  repeating-linear-gradient(90deg, transparent 0 79px, rgb(200 225 170 / .05) 79px 80px),
-  repeating-linear-gradient(0deg, transparent 0 79px, rgb(200 225 170 / .05) 79px 80px), var(--paper-base); }
-[data-bg="dusk"] { --paper: radial-gradient(140% 50% at 50% 112%, rgb(236 127 47 / .28), transparent 70%), var(--paper-topo),
-  radial-gradient(130% 60% at 50% -10%, #2f4128, transparent 70%), linear-gradient(180deg, #182116 0%, #11150e 55%, #22180e 100%); }
-[data-bg="olive"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .22), transparent 70%),
-  radial-gradient(130% 70% at 0% 0%, #34472b, transparent 70%), var(--paper-base); }
+/* Фон під картками (⚙ → Вигляд → Фон): малюнок — у --paper на <html> і на плитках вибору; --bg — тон шапки й смуги браузера.
+   Темна: без малюнка, карта (горизонталі topo.svg), олива, карбон, койот. Світла: без малюнка, карта (topo-light.svg),
+   міліметрівка, пісок, хакі. У нічній data-bg немає — фон як був */
 [data-bg="plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #1b2119, #101310 60%), #101310; }
-:root[data-theme="dark"]:not([data-bg="plain"]) { --bg: #131b11; }
-:root[data-theme="dark"][data-bg] body { background: var(--paper); background-attachment: fixed; }
+[data-bg="map"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .16), transparent 70%), url(topo.svg) center / cover no-repeat,
+  linear-gradient(180deg, #1a2417 0%, #0d120c 100%); }
+[data-bg="olive"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .22), transparent 70%),
+  radial-gradient(130% 70% at 0% 0%, #34472b, transparent 70%), linear-gradient(180deg, #1a2417 0%, #0d120c 100%); }
+/* Карбон — плетіння з шести градієнтів по 20 px і віньєтка, щоб краї не рябіли */
+[data-bg="carbon"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .08), transparent 70%),
+  radial-gradient(120% 80% at 50% 40%, transparent 45%, rgb(0 0 0 / .5)),
+  linear-gradient(27deg, #121313 5px, transparent 5px) 0 5px / 20px 20px, linear-gradient(207deg, #121313 5px, transparent 5px) 10px 0 / 20px 20px,
+  linear-gradient(27deg, #1b1c1d 5px, transparent 5px) 0 10px / 20px 20px, linear-gradient(207deg, #1b1c1d 5px, transparent 5px) 10px 5px / 20px 20px,
+  linear-gradient(90deg, #161717 10px, transparent 10px) 0 0 / 20px 20px,
+  linear-gradient(#171818 25%, #151616 25%, #151616 50%, transparent 50%, transparent 75%, #1d1e1f 75%, #1d1e1f) 0 0 / 20px 20px, #141515; }
+[data-bg="coyote"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .18), transparent 70%),
+  radial-gradient(130% 70% at 0% 0%, #3b2f20, transparent 70%), linear-gradient(180deg, #221b13 0%, #100d09 100%); }
+[data-bg="camo"] { --paper: url(camo.svg) center / cover no-repeat, #141614; }
+/* Гадюка — свій сірий узор у дусі Viper (viper*.webp): хмари, рвані плями, обведені «рідкі» розводи */
+[data-bg="viper"] { --paper: url(viper.webp) center / cover no-repeat, #151618; }
+[data-bg="l-viper"] { --paper: url(viper-light.webp) center / cover no-repeat, #dcdcdb; }
+[data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e7eadf, #f2f3ee 60%), #f2f3ee; }
+[data-bg="l-map"] { --paper: url(topo-light.svg) center / cover no-repeat, linear-gradient(180deg, #f6f2e7 0%, #ebe3d0 100%); }
+/* Міліметрівка — як сітка на мішені: тонка лінія через 10 px, товща через 50 px */
+[data-bg="l-mm"] { --paper: repeating-linear-gradient(0deg, rgb(60 120 90 / .17) 0 1px, transparent 1px 50px),
+  repeating-linear-gradient(90deg, rgb(60 120 90 / .17) 0 1px, transparent 1px 50px),
+  repeating-linear-gradient(0deg, rgb(60 120 90 / .07) 0 1px, transparent 1px 10px),
+  repeating-linear-gradient(90deg, rgb(60 120 90 / .07) 0 1px, transparent 1px 10px), #f5f6ef; }
+[data-bg="l-sand"] { --paper: radial-gradient(70% 40% at 100% 0%, rgb(236 127 47 / .14), transparent 70%), linear-gradient(180deg, #f4ead8 0%, #e5d4b5 100%); }
+[data-bg="l-khaki"] { --paper: radial-gradient(130% 70% at 0% 0%, #e2e6cd, transparent 70%), linear-gradient(180deg, #e9ebdb 0%, #d6dac0 100%); }
+:root[data-bg="map"], :root[data-bg="olive"] { --bg: #131b11; }
+:root[data-bg="carbon"] { --bg: #131414; }
+:root[data-bg="coyote"] { --bg: #1b160f; }
+:root[data-bg="camo"] { --bg: #141614; }
+:root[data-bg="viper"] { --bg: #151618; }
+:root[data-bg="l-viper"] { --bg: #e4e4e3; }
+:root[data-bg="l-map"] { --bg: #f3eee2; }
+:root[data-bg="l-mm"] { --bg: #f5f6ef; }
+:root[data-bg="l-sand"] { --bg: #f1e6d1; }
+:root[data-bg="l-khaki"] { --bg: #e6e9d7; }
+:root[data-bg] body { background: var(--paper); background-attachment: fixed; }
 
-/* Лента фонів: гортається вбік, плитка стає на місце; поля — щоб рамка вибраної не обрізалась */
-.bg-picks { display: flex; gap: 10px; margin: 0 -16px; padding: 4px 16px 6px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
-  scrollbar-width: none; overscroll-behavior-x: contain; }
+/* Лента фонів — як стрічка цілей: вибраний посередині в рамці, сусіди видні й гаснуть до країв, «‹ ›» по боках */
+.bg-wheel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px; margin: 0 -8px; }
+.bg-nav { width: 28px; height: 56px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 26px system-ui, sans-serif; cursor: pointer; }
+.bg-picks { position: relative; display: flex; gap: 10px; padding-block: 4px 6px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; overscroll-behavior-x: contain; mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
 .bg-picks::-webkit-scrollbar { display: none; }
-.bg-pick { flex: none; display: grid; gap: 6px; justify-items: center; width: 92px; padding: 0; border: 0; background: none; scroll-snap-align: start;
-  color: var(--muted); font: 600 12px system-ui, sans-serif; text-align: center; cursor: pointer; }
+.bg-pick { flex: none; display: grid; gap: 6px; justify-items: center; width: 84px; padding: 0; border: 0; background: none; scroll-snap-align: center;
+  color: var(--muted); font: 600 12px system-ui, sans-serif; text-align: center; cursor: pointer; opacity: .55; transition: opacity .2s; }
 .bg-sw { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.bg-pick.focus { opacity: 1; }
 .bg-pick[aria-checked="true"] { color: var(--accent-2); }
 .bg-pick[aria-checked="true"] .bg-sw { box-shadow: 0 0 0 2px var(--accent); }
