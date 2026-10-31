@@ -1,6 +1,6 @@
 {
-  "name": "Shooters Log — облік БК і настрілу",
-  "short_name": "Shooters Log",
+  "name": "Shooter’s Log — облік БК і настрілу",
+  "short_name": "Shooter’s Log",
   "description": "Облік боєприпасів, настрілу по стволах і рецептів спорядження",
   "lang": "uk",
   "start_url": "./",
