@@ -139,6 +139,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gear svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
 .gear svg path { stroke-width: 2.6; }   /* зубці шестерні товсті — інакше в 21 px це «сонце» */
 .gear.active { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+/* Перейшли в налаштування — шестерня провертається на два зубці з доворотом, як механізм */
+#settings-btn.play svg { animation: gear-turn 1.4s cubic-bezier(.3, 0, .2, 1); }
+@keyframes gear-turn { 0% { transform: none; } 60% { transform: rotate(100deg); } 80% { transform: rotate(84deg); } 100% { transform: rotate(90deg); } }
+@media (prefers-reduced-motion: reduce) { #settings-btn.play svg { animation: none; } }
 .sync-chip.idle { color: var(--buy); }
 .sync-chip.auth { color: var(--accent-2); border-color: var(--accent); }
 .sync-chip.error { color: var(--shoot); border-color: var(--shoot); }
@@ -692,6 +696,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* «Про застосунок»: фото автора ліворуч, текст поруч. */
 .about-head { display: flex; align-items: center; gap: 12px; }
 .about-head h3 { margin: 0 0 2px; }
+/* «На каву автору» — картка: котик Монобанку на білій плашці, підпис і стрілка; уся картка — посилання */
+.panel.about a.donate-card { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--text); text-decoration: none;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 20%, var(--surface)) 0%, var(--surface-2) 75%); box-shadow: var(--shadow);
+  transition: transform .15s ease, border-color .15s ease; }
+.panel.about a.donate-card:hover { border-color: var(--accent); }
+.panel.about a.donate-card:active { transform: scale(.98); }
+.donate-cat { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #fff; box-shadow: 0 2px 8px rgb(0 0 0 / .25); }
+.donate-cat img { display: block; width: 40px; height: 40px; transform-origin: 50% 85%; animation: cat-nod 6s ease-in-out 1s infinite; }
+.donate-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.donate-text b { font-size: 16px; }
+.donate-text small { color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.35; }
+.donate-go { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; }
+/* Котик Монобанку раз на кілька секунд хитає головою, на дотик — підстрибує */
+.panel.about a.donate-card:active .donate-cat img { animation: cat-hop .35s ease-out; }
+@keyframes cat-nod { 0%, 82%, 100% { transform: none; } 86% { transform: rotate(-12deg); } 90% { transform: rotate(9deg); } 94% { transform: rotate(-4deg); } }
+@keyframes cat-hop { 0%, 100% { transform: none; } 45% { transform: translateY(-4px) scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .donate-cat img { animation: none !important; } .panel.about a.donate-card { transition: none; } }
+/* Посилання внизу — пігулки замість рядка через крапку */
+.about-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.panel.about .about-links a { padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--text);
+  font-size: 13px; font-weight: 600; text-decoration: none; }
 .about-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
   background: var(--surface-2); box-shadow: 0 0 0 1px var(--line); }
 
@@ -2483,6 +2509,15 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .lg-dots i.bad { background: var(--shoot); }
 .guide .lg-dots i.cur { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
 .guide .sim-help p { margin: 0; }
+/* «За 30 секунд» угорі довідки: чотири кроки з номерами, тур і відео */
+.guide .sim-quick { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.guide .sim-quick h4 { margin: 0; color: var(--accent-2); }
+.guide .sim-quick ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: q; }
+.guide .sim-quick li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; margin: 0; line-height: 1.4; counter-increment: q; }
+.guide .sim-quick li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-2); font: 700 13px system-ui, sans-serif; }
+.guide .sim-tour-btn { justify-self: start; }
+.guide .sim-quick video { display: block; width: auto; max-width: 100%; max-height: 360px; margin: 0 auto; border-radius: 12px; background: #000; }
 .guide .sim-row { display: grid; gap: 10px; }
 @media (min-width: 640px) { .guide .sim-stick { margin: 0; border: 0; padding: 0; } }
 .guide .sim-zoom { flex: none; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 650 13px system-ui, sans-serif; cursor: pointer; }
@@ -2649,6 +2684,19 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-kind .quiz-ibtn[aria-pressed="true"] { flex: 1; width: auto; padding-inline: 12px; }
 .guide .quiz-kind .quiz-ibtn:not([aria-pressed="true"]) > span { display: none; }
 .guide .quiz-kind .quiz-ibtn svg { width: 22px; height: 22px; }
+/* Щойно вибрана вправа — значок грає своє: скоба дальноміра міряє бійця, перехрестя повертається й ловить влучання,
+   у «Пострілі» скоба міряє, а кільце прицілу пульсує, вітер дме поривами */
+.guide .quiz-kind svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.guide .quiz-kind .play[data-kind="range"] path:first-child,
+.guide .quiz-kind .play[data-kind="combo"] path:first-child { animation: kind-measure 1.2s ease-in-out 2; }
+@keyframes kind-measure { 0%, 100% { transform: none; } 35% { transform: scaleY(.78); } 65% { transform: scaleY(1.05); } }
+.guide .quiz-kind .play[data-kind="range"] :is(circle, path:last-child) { animation: seg-hop .8s ease-in-out 3; }
+.guide .quiz-kind .play[data-kind="hold"] path { animation: tab-ticks 1.2s ease-in-out 2; }
+.guide .quiz-kind .play[data-kind="hold"] circle:last-child { animation: tab-hit 1.2s ease-out 2; }
+.guide .quiz-kind .play[data-kind="combo"] circle { animation: seg-ring 1.2s ease-out 2 .2s; }
+.guide .quiz-kind .play[data-kind="wind"] path { transform-origin: 0% 50%; animation: kind-gust .8s ease-in-out 3; }
+@keyframes kind-gust { 0%, 100% { transform: none; } 30% { transform: translateX(2px) scaleX(1.12); } 60% { transform: translateX(-1px) scaleX(.95); } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-kind svg :is(path, circle) { animation: none !important; } }
 .guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
 .guide .quiz-facts > span { white-space: nowrap; }
 .guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
@@ -2803,3 +2851,19 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   .md-src { min-height: calc(100dvh - 260px); }
   .md-pane-view { max-height: calc(100dvh - 210px); overflow-y: auto; border-left: 1px solid var(--line-soft); padding-left: 16px; }
 }
+
+/* Тур по тренажеру: затемнення з «віконцем» навколо кнопки й картка з поясненням */
+.tour-shield { position: fixed; inset: 0; z-index: 1200; }
+.tour-hole { position: fixed; z-index: 1201; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax rgb(0 0 0 / .62); transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease; }
+.tour-card { position: fixed; z-index: 1202; width: min(320px, calc(100vw - 32px)); padding: 14px 16px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 12px 32px rgb(0 0 0 / .45); }
+.tour-card.in { animation: tour-in .22s ease-out; }
+@keyframes tour-in { from { opacity: 0; transform: translateY(6px); } }
+.tour-count { color: var(--accent-2); font: 700 12px system-ui, sans-serif; letter-spacing: .06em; }
+.tour-card h3 { margin: 4px 0 6px; font-size: 17px; }
+.tour-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+.tour-next { min-height: 38px; padding: 8px 18px; }
+@media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
