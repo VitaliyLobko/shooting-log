@@ -201,7 +201,7 @@ async function upload(fileId, data) {
   const boundary = `sl${Date.now()}`;
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
-    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooters Log' }),
+    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooter’s Log' }),
     `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`,
   ].join('\r\n');
   const created = await (await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, {

@@ -701,13 +701,16 @@ const TOOL_ICON = {
   // сітка прицілу з мілрадіанними точками
   // Тренажер: приціл із фігуркою — щоб не плутати з MRAD (mil) і прицілюванням
   sim: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="10" r="1.6"/><path d="M9.6 16.2v-1.4a2.4 2.4 0 0 1 4.8 0v1.4"/>',
-  // Компоненти: банка пороху, капсюль і куля
-  parts: '<path d="M3.5 9h8v11a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1z"/><path d="M5 9V6.5h5V9M3.5 14h8"/><circle cx="17.5" cy="17" r="3.5"/><circle cx="17.5" cy="17" r="1.2"/><path d="M16 3h3l.5 2.5v5h-4v-5z"/>',
+  // Компоненти: банка пороху з крупинками над горлом, куля й капсуль
+  parts: '<g class="jar"><path d="M1.5 10h8.5v10.5a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1z"/><path d="M3 10V7h5.5v3"/><path d="M4 16h3.5"/></g>'
+    + '<g class="grains" fill="currentColor" stroke="none"><circle cx="4.2" cy="4.4" r=".75"/><circle cx="6.1" cy="2.9" r=".7"/><circle cx="7.8" cy="4.6" r=".65"/></g>'
+    + '<path class="proj" d="M15.5 11V6.5c0-1.9 1-3.5 2.6-4.5 1.6 1 2.6 2.6 2.6 4.5V11z"/><g class="primer"><circle cx="18.1" cy="17.8" r="3.3"/><circle cx="18.1" cy="17.8" r="1.2"/></g>',
   mil: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/><circle cx="12" cy="7.5" r=".9"/><circle cx="12" cy="16.5" r=".9"/><circle cx="7.5" cy="12" r=".9"/><circle cx="16.5" cy="12" r=".9"/>',
   // колба з рівнем пороху — рецепт спорядження
   recipe: '<path d="M9 3h6M10 3v6L5 18.2A2 2 0 0 0 6.8 21h10.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.4 15h9.2"/>',
-  // набій
-  ammo: '<path d="M9 21V11l1-2V6.5C10 4.6 10.8 3 12 2c1.2 1 2 2.6 2 4.5V9l1 2v10z"/><path d="M9 15h6"/>',
+  // два набої: куля над гільзою, проточка внизу
+  ammo: '<g class="r1"><path d="M3.5 21.5v-9l1-1.9V8c0-2.1 1-3.9 2.5-5 1.5 1.1 2.5 2.9 2.5 5v2.6l1 1.9v9z"/><path d="M4.5 10.6h5M3.5 18.8h7"/></g>'
+    + '<g class="r2"><path d="M13.5 21.5v-8l1-1.9V9.4c0-1.9 1-3.5 2.5-4.5 1.5 1 2.5 2.6 2.5 4.5v2.2l1 1.9v8z"/><path d="M14.5 11.6h5M13.5 18.8h7"/></g>',
   view: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-7a1.5 1.5 0 0 1 3 0v7"/><path d="M14 11.5V6a1.5 1.5 0 0 1 3 0v7.5"/><path d="M17 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.5 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14"/>',
   align: '<path d="M5 6.5L19 4v16l-14-2.5z"/><path d="M9.7 5.7v12.6M14.3 4.9v14.2"/>',
   // Гвинтівка й плитоноска — розділи вкладки «Зброя».
@@ -753,4 +756,71 @@ export function confirmSheet(title, text, okLabel, onOk) {
       h('button', { type: 'button', class: 'btn danger', onclick: () => { close(); onOk(); } }, okLabel),
     ],
   });
+}
+
+/**
+ * Стрічка-колесо з плиток item (за замовчуванням .tgt-opt): плитка посередині — в рамці, onFocus(плитка) пише її опис; вибирає тап.
+ * Мишею: коліщатко — на плитку вперед/назад, тачпад гортає плавно; стрічку можна тягнути, клік після перетягування не вибирає.
+ */
+export function wheelStrip(strip, onFocus, item = '.tgt-opt') {
+  // Клацання під пальцем, коли посередину стає інша плитка — лише від руки, не від програмного прокручування
+  let last = null; let touched = false;
+  strip.addEventListener('pointerdown', () => { touched = true; });
+  strip.addEventListener('wheel', () => { touched = true; }, { passive: true });
+  const focusMid = () => {
+    const mid = strip.scrollLeft + strip.clientWidth / 2; let best = null; let gap = Infinity;
+    strip.querySelectorAll(item).forEach((b) => {
+      const d = Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid);
+      if (d < gap) { gap = d; best = b; }
+    });
+    strip.querySelectorAll(`${item}.focus`).forEach((b) => b !== best && b.classList.remove('focus'));
+    best?.classList.add('focus');
+    if (best && best !== last) { if (touched && last) navigator.vibrate?.(6); last = best; }
+    if (best) onFocus(best);
+  };
+  let raf = 0;
+  strip.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(focusMid); }, { passive: true });
+  let wheelTo = null;
+  const centerOn = (b) => strip.scrollTo({ left: b.offsetLeft + b.offsetWidth / 2 - strip.clientWidth / 2,
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  strip.addEventListener('wheel', (e) => {
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!d) return;
+    e.preventDefault();
+    if (e.deltaMode === 0 && Math.abs(d) < 40) { strip.scrollLeft += d; return; }
+    const from = wheelTo ?? strip.querySelector(`${item}.focus`);
+    const to = d > 0 ? from?.nextElementSibling : from?.previousElementSibling;
+    if (to) { wheelTo = to; centerOn(to); }
+  }, { passive: false });
+  strip.addEventListener('scrollend', () => { wheelTo = null; touched = false; });
+  let drag = null;
+  strip.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button === 0) drag = { x: e.clientX, left: strip.scrollLeft, moved: false };
+  });
+  strip.addEventListener('pointermove', (e) => {
+    if (!drag || !(e.buttons & 1)) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.x) > 4) { drag.moved = true; strip.style.scrollSnapType = 'none'; strip.setPointerCapture(e.pointerId); }
+    if (drag.moved) strip.scrollLeft = drag.left - (e.clientX - drag.x);
+  });
+  const dragEnd = () => {
+    if (!drag) return;
+    if (drag.moved) {
+      strip.style.scrollSnapType = '';
+      const b = strip.querySelector(`${item}.focus`); if (b) centerOn(b);
+      setTimeout(() => { drag = null; }, 0);
+    } else drag = null;
+  };
+  strip.addEventListener('click', (e) => { if (drag?.moved) { e.stopPropagation(); e.preventDefault(); } }, true);
+  strip.addEventListener('pointerup', dragEnd);
+  strip.addEventListener('pointercancel', dragEnd);
+  return {
+    centerOn,
+    // Відступи по краях — щоб і крайня плитка ставала в рамку посередині; вибрана — одразу в рамці, сторінка не гортається
+    settle: (on) => {
+      if (!strip.clientWidth) return;
+      strip.style.paddingInline = `${Math.max(0, strip.clientWidth / 2 - 22)}px`;
+      strip.scrollLeft = on ? on.offsetLeft + on.offsetWidth / 2 - strip.clientWidth / 2 : 0;
+      focusMid();
+    },
+  };
 }
