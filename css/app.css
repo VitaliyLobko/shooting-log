@@ -2649,6 +2649,19 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-kind .quiz-ibtn[aria-pressed="true"] { flex: 1; width: auto; padding-inline: 12px; }
 .guide .quiz-kind .quiz-ibtn:not([aria-pressed="true"]) > span { display: none; }
 .guide .quiz-kind .quiz-ibtn svg { width: 22px; height: 22px; }
+/* Щойно вибрана вправа — значок грає своє: скоба дальноміра міряє бійця, перехрестя повертається й ловить влучання,
+   у «Пострілі» скоба міряє, а кільце прицілу пульсує, вітер дме поривами */
+.guide .quiz-kind svg :is(path, circle) { transform-box: fill-box; transform-origin: center; }
+.guide .quiz-kind .play[data-kind="range"] path:first-child,
+.guide .quiz-kind .play[data-kind="combo"] path:first-child { animation: kind-measure 1.2s ease-in-out 2; }
+@keyframes kind-measure { 0%, 100% { transform: none; } 35% { transform: scaleY(.78); } 65% { transform: scaleY(1.05); } }
+.guide .quiz-kind .play[data-kind="range"] :is(circle, path:last-child) { animation: seg-hop .8s ease-in-out 3; }
+.guide .quiz-kind .play[data-kind="hold"] path { animation: tab-ticks 1.2s ease-in-out 2; }
+.guide .quiz-kind .play[data-kind="hold"] circle:last-child { animation: tab-hit 1.2s ease-out 2; }
+.guide .quiz-kind .play[data-kind="combo"] circle { animation: seg-ring 1.2s ease-out 2 .2s; }
+.guide .quiz-kind .play[data-kind="wind"] path { transform-origin: 0% 50%; animation: kind-gust .8s ease-in-out 3; }
+@keyframes kind-gust { 0%, 100% { transform: none; } 30% { transform: translateX(2px) scaleX(1.12); } 60% { transform: translateX(-1px) scaleX(.95); } }
+@media (prefers-reduced-motion: reduce) { .guide .quiz-kind svg :is(path, circle) { animation: none !important; } }
 .guide .quiz-facts { font: 600 14px var(--mono); color: var(--text); }
 .guide .quiz-facts > span { white-space: nowrap; }
 .guide .quiz-facts b { font-size: 17px; font-weight: 800; color: var(--accent); }
