@@ -1,11 +1,12 @@
 // Святкові мініатюри при запуску: ~4 с поверх готового застосунку, тап — пропустити
 import { t } from './i18n.js';
 
-// Приціл, що наводиться на --ax/--ay, і спалах пострілу — спільні для сценок з пострілом
+// Спалах пострілу чи вибуху й приціл, що наводиться на --ax/--ay, — спільні для сценок з пострілом
+const FLASH = '<rect class="sc-flash" x="-2000" y="-2000" width="4360" height="4640" fill="#fff4dc"/>';
 const RETICLE = `<g class="sc-ret" fill="none" stroke="#e9ece6" stroke-width="2">
     <circle r="38"/><path d="M-50 0h36M14 0h36M0-50v36M0 14v36"/><circle r="2.5" fill="#e23a2a" stroke="none"/>
   </g>
-  <rect class="sc-flash" x="-2000" y="-2000" width="4360" height="4640" fill="#fff4dc"/>`;
+  ${FLASH}`;
 
 // Геловін: гарбуз на мішенній стійці, приціл, постріл — гарбуз усміхається й світиться, вилітають кажани
 // Кажан анфас: крила з «пальцями» й фестонами махають від плечей, тіло з вухами нерухоме, очі світяться
@@ -228,7 +229,89 @@ function snowman() {
 </svg>`;
 }
 
+// 24.08: світанок; зверху небо з кремлем на обрії, знизу пшеничне поле. Наша ракета — спалах, ядерний гриб,
+// кремль стирається з лиця землі; а в нас просто сходить сонце й у полі проявляється Малий Державний Герб
+// Контури герба — з офіційного SVG (Wikimedia Commons, Lesser_Coat_of_Arms_of_Ukraine.svg, viewBox -82.5 0 165 230.5);
+// бічна частина тризуба — права, ліва — її дзеркало
+const COA_SHIELD = 'M-81.25 1.25h162.5v172.5a31.25 31.25 0 0 1-18.578029 28.565428L0 228.867475l-62.671971-27.802047A31.25 31.25 0 0 1-81.25 172.5z';
+const COA_MID = 'M5.985561 78.82382a104.079383 104.079383 0 0 0 14.053598 56.017033 55 55 0 0 1-13.218774 70.637179A20 20 0 0 0 0 212.5a20 20 0 0 0-6.820384-7.021968 55 55 0 0 1-13.218774-70.637179A104.079383 104.079383 0 0 0-5.98556 78.82382l-1.599642-45.260519A30.103986 30.103986 0 0 1 0 12.5a30.103986 30.103986 0 0 1 7.585202 21.063301zM5 193.624749a45 45 0 0 0 6.395675-53.75496A114.079383 114.079383 0 0 1 0 112.734179a114.079383 114.079383 0 0 1-11.395675 27.13561A45 45 0 0 0-5 193.624749V162.5H5z';
+const COA_SIDE = 'M27.779818 75.17546A62.64982 62.64982 0 0 1 60 27.5v145H0l-5-10a22.5 22.5 0 0 1 17.560976-21.95122l14.634147-3.292683a10 10 0 1 0-4.427443-19.503751zm5.998315 34.353887a20 20 0 0 1-4.387889 37.482848l-14.634146 3.292683A12.5 12.5 0 0 0 5 162.5h45V48.265462a52.64982 52.64982 0 0 0-12.283879 28.037802zM42 122.5h10v10H42z';
+// Обрій HZ — посередині екрана. Кремль малюємо в координатах (основа 74, 482) і збільшуємо KREMLIN разів,
+// переносячи основу в (KX, HZ + 3) — трохи нижче лінії поля, щоб стояв на обрії, а не висів над ним
+const HZ = 320, KREMLIN = 1.5, KX = 84;
+const kremlinAt = (x, y) => [KX + (x - 74) * KREMLIN, HZ + 3 + (y - 482) * KREMLIN];
+const STRIKE = { at: [72, 428], from: [300, -520], go: 0.35 }; // ціль у координатах кремля, звідки летить, старт; падіння — через 0,9 с
+
+/** Ядерний гриб з основою в (0, 0): пилова хвиля, стовп, кільце конденсації, широка клубчаста шапка з вогняним ядром. */
+function mushroom() {
+  return '<path d="M-92 0C-90-16-62-26-40-18-24-30 24-30 40-18 62-26 90-16 92 0Z" fill="#8a6a58"/>'
+    + '<path d="M-11-10C-8-50-10-95-19-128H19C10-95 8-50 11-10Z" fill="url(#sc-mstem)"/>'
+    + '<ellipse class="sc-mglow" cx="0" cy="-40" rx="16" ry="34" fill="url(#sc-mcore)"/>'
+    + '<ellipse cx="0" cy="-72" rx="32" ry="7" fill="none" stroke="#efe0cc" stroke-width="3" opacity=".55"/>'
+    + '<path d="M-64-152C-70-178-42-198-21-194-10-213 12-213 23-196 46-200 72-180 64-152 72-138 56-121 38-126 24-115-24-115-38-126-57-121-72-138-64-152Z" fill="url(#sc-mcap)"/>'
+    + '<ellipse cx="0" cy="-124" rx="44" ry="8" fill="#4a2e2a" opacity=".55"/>'
+    + '<ellipse class="sc-mglow" cx="0" cy="-158" rx="48" ry="28" fill="url(#sc-mcore)"/>';
+}
+
+function independence() {
+  const rnd = seeded(824);
+  let wheat = '', wall = 'M14 482V468';
+  for (let j = 0; j < 150; j++) {
+    const x = rnd() * 1160 - 400, y = HZ + 4 + rnd() * 310, l = 6 + rnd() * 10;
+    wheat += `M${x.toFixed(0)} ${y.toFixed(0)}l${(rnd() * 4 - 2).toFixed(1)} -${l.toFixed(0)}`;
+  }
+  for (let x = 14; x < 134; x += 8) wall += `H${x + 2}v-5h4v5`;
+  wall += 'H134V482Z';
+  const { at, from, go } = STRIKE;
+  const [hx, hy] = kremlinAt(...at);
+  const ang = (Math.atan2(-from[1], -from[0]) * 180) / Math.PI;
+  const [mx] = kremlinAt(at[0], 482);
+  return `
+<svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <defs>
+    <linearGradient id="sc-dawn" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${HZ}">
+      <stop offset="0" stop-color="#0f2a5c"/><stop offset=".55" stop-color="#2d5fa8"/><stop offset=".85" stop-color="#9fb6c9"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="sc-sun"><stop offset=".35" stop-color="#fff1b8"/><stop offset=".5" stop-color="#ffd34d" stop-opacity=".6"/><stop offset="1" stop-color="#ffb02e" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-fireglow"><stop offset="0" stop-color="#ff7a1a" stop-opacity=".7"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-boom"><stop offset=".2" stop-color="#fffbe0"/><stop offset=".5" stop-color="#ffc23a" stop-opacity=".9"/><stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-mcore"><stop offset="0" stop-color="#fff1b8"/><stop offset=".45" stop-color="#ff9a2e" stop-opacity=".9"/><stop offset="1" stop-color="#d2461a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sc-mcap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eab98a"/><stop offset=".55" stop-color="#b4583a"/><stop offset="1" stop-color="#6a3d33"/></linearGradient>
+    <linearGradient id="sc-mstem" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffcf6a"/><stop offset=".5" stop-color="#c9703f"/><stop offset="1" stop-color="#8a4f3c"/></linearGradient>
+    <linearGradient id="sc-trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffd27a" stop-opacity="0"/><stop offset=".8" stop-color="#ffb347" stop-opacity=".8"/><stop offset="1" stop-color="#fff6d8"/></linearGradient>
+    <linearGradient id="sc-field" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6b437"/><stop offset=".3" stop-color="#b9861f"/><stop offset="1" stop-color="#6e4f14"/></linearGradient>
+  </defs>
+  <rect x="-2000" y="-2000" width="4360" height="${2000 + HZ}" fill="url(#sc-dawn)"/>
+  <circle class="sc-sun" cx="250" cy="${HZ + 18}" r="80" fill="url(#sc-sun)"/>
+  <g transform="translate(${KX} ${HZ + 3}) scale(${KREMLIN}) translate(-74 -482)">
+    <ellipse class="sc-kglow" cx="74" cy="470" rx="120" ry="44" fill="url(#sc-fireglow)"/>
+    <g class="sc-kremlin" fill="#2b2033">
+      <path d="${wall}"/>
+      <rect x="64" y="424" width="16" height="46"/><rect x="66" y="410" width="12" height="14"/><rect x="68" y="402" width="8" height="8"/>
+      <path d="M68 402L72 380 76 402Z"/>
+      <rect x="108" y="440" width="10" height="30"/><path d="M107 440L113 424 119 440Z"/>
+      <rect x="32" y="447" width="10" height="23"/><path d="M30 447C30 440 37 437 37 430C37 437 44 440 44 447Z"/>
+      <path d="${star(72, 376, 4.2, 1.8)}" fill="#d23a2a"/>
+    </g>
+    <circle class="sc-boom" cx="${at[0]}" cy="${at[1]}" r="40" fill="url(#sc-boom)"/>
+  </g>
+  <g transform="translate(${mx.toFixed(1)} ${HZ}) scale(1.15)"><g class="sc-mush">${mushroom()}</g></g>
+  <g transform="translate(${hx.toFixed(1)} ${hy.toFixed(1)})"><g class="sc-bm" style="--fx:${from[0]}px;--fy:${from[1]}px;animation-delay:${go}s">
+    <g transform="rotate(${ang.toFixed(1)})"><path d="M-150-2.2H-6V2.2H-150Z" fill="url(#sc-trail)"/>
+      <path d="M-22-3.2H-4L3 0-4 3.2H-22Z" fill="#e8ecef"/><path d="M-22-3.2L-27-7.5H-18ZM-22 3.2L-27 7.5H-18Z" fill="#9aa3ab"/></g>
+  </g></g>
+  <path d="M-2000 ${HZ}H0q90-8 180-2t180-4H2360V2000H-2000z" fill="url(#sc-field)"/>
+  <path d="${wheat}" stroke="#f3cf62" stroke-width="1.4" stroke-linecap="round" opacity=".55"/>
+  <g class="sc-shield"><g transform="translate(180 ${HZ + 28}) scale(.56)">
+    <path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="2.5"/>
+    <g class="sc-coa" fill="#ffd500"><path d="${COA_MID}"/><path d="${COA_SIDE}"/><path d="${COA_SIDE}" transform="scale(-1 1)"/></g>
+  </g></g>
+  ${FLASH}
+</svg>`;
+}
+
 const SCENES = {
+  independence: { svg: independence, text: () => t('С Днём Независимости!\nСлава Украине!'), ms: 7300 },
   halloween: { svg: () => HALLOWEEN, text: () => t('Счастливого Хэллоуина!'), ms: 4300 },
   snowman: { svg: snowman, text: () => t('Встречаем {year}!\nВыстоим!', { year: comingYear() }), ms: 5900 },
   newyear: { svg: newYear, text: () => (isNewYearDay() ? t('С Новым годом!') : t('Встречаем {year}!', { year: comingYear() })), ms: 5000 },
@@ -243,7 +326,8 @@ export function playScene(name) {
   el.innerHTML = s.svg();
   const cap = document.createElement('p');
   cap.className = 'scene-cap';
-  cap.textContent = s.text();
+  // кожен рядок — окремий span, щоб сценка могла показати наступний рядок пізніше
+  cap.append(...s.text().split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
   el.append(cap);
   let gone = false;
   const close = () => {

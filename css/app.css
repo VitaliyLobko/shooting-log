@@ -2981,6 +2981,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   animation: sc-cap .6s ease-out 2.1s both; }
 @keyframes sc-fade { from { opacity: 0; } }
 @keyframes sc-cap { from { opacity: 0; transform: translateY(10px); } }
+.scene-cap span { display: block; }
 @keyframes sc-show { from { opacity: 0; } to { opacity: 1; } }
 /* Постріл (Геловін, сніговик): приціл заходить і зупиняється на --ax/--ay, спалах, віддача, пробоїна */
 .scene .sc-ret { animation: sc-aim 2.1s cubic-bezier(.3, .7, .3, 1) .15s both; }
@@ -3052,3 +3053,24 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   30% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--r) * .3)); }
   85% { opacity: 1; }
   100% { transform: translate(calc(var(--dx) * 1.5), calc(var(--dy) + 300px)) rotate(var(--r)); opacity: 0; } }
+/* 24.08: наша ракета — спалах, ядерний гриб, кремль стирається; у нас сходить сонце й проявляється герб */
+.scene-independence .scene-cap span + span { margin-top: 6px; font-size: 30px; animation: sc-cap .6s ease-out 4.8s both; }
+.scene-independence { background: #0f2a5c; }
+.scene-independence .scene-cap { animation-delay: 3.9s; color: #12306a; text-shadow: 0 1px 8px rgb(255 236 170 / .7); }
+.scene-independence .sc-sun { animation: sc-rise 5s cubic-bezier(.3, .6, .4, 1) both; }
+@keyframes sc-rise { from { transform: translateY(50px); } to { transform: translateY(-34px); } }
+.scene-independence .sc-flash { animation: sc-flash .6s ease-out 1.25s both; }
+.scene-independence .sc-bm { opacity: 0; animation: sc-bm .9s cubic-bezier(.55, 0, .9, .6) both; }
+@keyframes sc-bm { 0% { transform: translate(var(--fx), var(--fy)); opacity: 1; } 99% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+.scene-independence .sc-boom { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-boom .8s ease-out 1.25s both; }
+@keyframes sc-boom { 0% { transform: scale(.2); opacity: 0; } 15% { opacity: 1; } 100% { transform: scale(3.4); opacity: 0; } }
+.scene-independence .sc-kremlin { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-erase .6s ease-in 1.35s forwards; }
+@keyframes sc-erase { to { transform: scale(1.15, 0); opacity: 0; } }
+.scene-independence .sc-kglow { opacity: 0; animation: sc-show .6s ease-out 1.3s both; }
+.scene-independence .sc-mush { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; animation: sc-mush 2s cubic-bezier(.2, .7, .3, 1) 1.3s both; }
+@keyframes sc-mush { 0% { transform: scale(.25, .05); opacity: 0; } 6% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+.scene-independence .sc-mglow { animation: sc-cool 3.2s ease-out 1.3s both; }
+@keyframes sc-cool { from { opacity: 1; } to { opacity: .25; } }
+/* спершу з прозорості проявляється щит, потім на ньому проступає тризуб */
+.scene-independence .sc-shield { animation: sc-show .7s ease-out 2.2s both; }
+.scene-independence .sc-coa { animation: sc-show 1s ease-in-out 2.9s both; }

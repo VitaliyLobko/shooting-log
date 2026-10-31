@@ -6451,7 +6451,7 @@ function newer(a, b) {
 }
 
 // Святкові мініатюри при запуску: день (ММ-ДД) → сценка; ?scene=<назва> — показати будь-коли
-const SCENE_DAYS = { '01-01': 'newyear', '10-31': 'halloween', '12-31': 'snowman' };
+const SCENE_DAYS = { '01-01': 'newyear', '08-24': 'independence', '10-31': 'halloween', '12-31': 'snowman' };
 
 /** Раз на день у свято — коротка сценка поверх застосунку (js/scenes.js вантажиться лише тоді). */
 function holidayScene() {
@@ -6466,9 +6466,25 @@ function holidayScene() {
 
 const playScene = (name) => import('./scenes.js').then((m) => m.playScene(name)).catch(() => {});
 
-/** Тимчасово: усі святкові сценки під рукою, щоб переглянути без чекання дати. */
+// Панель сценок — лише для автора: вмикається на пристрої 7 тапами по рядку з версією (як режим розробника в Android)
+const SCENES_PANEL_KEY = 'shooters-log:scenes-panel';
+let versionTaps = [];
+
+function versionTap() {
+  const now = Date.now();
+  versionTaps = [...versionTaps.filter((x) => now - x < 3000), now];
+  if (versionTaps.length < 7) return;
+  versionTaps = [];
+  const on = recall(SCENES_PANEL_KEY) !== '1';
+  remember(SCENES_PANEL_KEY, on ? '1' : '');
+  toast(on ? t('Праздничные сценки показаны в «Вид»') : t('Праздничные сценки скрыты'));
+  render();
+}
+
+/** Усі святкові сценки під рукою, щоб переглянути без чекання дати. */
 function scenesPanel() {
-  const list = [['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
+  if (recall(SCENES_PANEL_KEY) !== '1') return null;
+  const list = [['independence', t('День Независимости'), '24.08'], ['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
   return h('section', { class: 'panel' }, h('h3', {}, t('Праздничные сценки')),
     h('div', { class: 'btn-row' }, list.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name)))));
 }
@@ -6673,7 +6689,7 @@ function renderSettings() {
     settingsGroup(t('О приложении'), [
       aboutPanel(),
       h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
-        h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
+        h('p', { class: 'muted small', onclick: versionTap }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
         h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), checkUpdate, 'primary'), btn(t('Что нового'), () => allChanges().then(changesSheet))))], { fold: 'about' }),
     settingsGroup(t('Данные'), [
       syncPanel(),
