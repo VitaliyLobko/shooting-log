@@ -2,7 +2,7 @@
 import { t, lang, locale } from './i18n.js';
 import { solve, airRatio } from './ballistics.js';
 import { MASKS, MASK_CELL } from './masks.js';
-import { wheelStrip } from './ui.js';
+import { wheelStrip, chips } from './ui.js';
 
 const cached = new Map();
 
@@ -1975,9 +1975,12 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       ['search', 'Поиск', 'цель появляется на 5 с в случайном месте · найди и поставь на метку'],
       ['searchMove', 'Поиск в движении', 'как «Поиск», но цель бывает и идёт или бежит'],
     ],
+    // Сходинка — як у «Виносі»: ті самі назви означають ті самі умови
     combo: [
+      ['easy', 'Легко', 'выбранная цель · только дистанция'],
       ['normal', 'Нормально', 'выбранная цель · и ветер'],
-      ['varied', 'Трудно', 'разные цели · ветер и движение'],
+      ['hard', 'Трудно', 'выбранная цель · ветер и движение'],
+      ['varied', 'Очень трудно', 'разные цели · ветер и движение'],
       ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
       ['timed', 'На время', 'разные цели · ветер и движение · 25 с на цель'],
     ],
@@ -1989,24 +1992,32 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     ],
   };
   LEVELS.range.push(['timed', 'На время', 'разные цели · размер помнишь сам · 10 с на ответ']);
-  // Куди треба влучити на кожному рівні. near — як вибрано кнопкою «Прицілювання»; mix — голова до 300 м, якщо ціль стоїть, далі груди.
+  // «Своя дистанція» замінена рядком «Дистанції від–до», що діє на будь-якому рівні; у LEVELS лишилась для назв у статистиці старих серій
+  const RETIRED = ['near'];
+  // Куди треба влучити на кожному рівні. mix — голова до 300 м, якщо ціль стоїть, далі груди.
   // Груди там, де голова була б лотереєю: оцінка вітру ступенями, свій замір дальності, рух на час
   const ZONE_BY = {
-    hold: { learn: 'torso', wind1: 'torso', wind2: 'torso', move1: 'torso', windmove: 'torso', easy: 'torso', normal: 'chest', hard: 'chest', varied: 'mix', head: 'head', signs: 'chest', near: 'near', timed: 'chest', search: 'chest', searchMove: 'chest' },
-    combo: { normal: 'chest', varied: 'chest', near: 'near', timed: 'chest' },
+    hold: { learn: 'torso', wind1: 'torso', wind2: 'torso', move1: 'torso', windmove: 'torso', easy: 'torso', normal: 'chest', hard: 'chest', varied: 'mix', head: 'head', signs: 'chest', timed: 'chest', search: 'chest', searchMove: 'chest' },
+    combo: { easy: 'torso', normal: 'chest', hard: 'chest', varied: 'chest', timed: 'chest' },
   };
-  const ZONE_NOTE = { torso: 'зона: весь торс', chest: 'зона: грудь', head: 'зона: голова', mix: 'зона: голова до 300 м, если цель стоит, дальше грудь', near: 'зона: как выбрано в «Прицеливании»' };
+  const ZONE_NOTE = { torso: 'зона: весь торс', chest: 'зона: грудь', head: 'зона: голова', mix: 'зона: голова до 300 м, если цель стоит, дальше грудь' };
   // Рівні, де голова чи весь торс мають сенс лише ближче: до 400 м
   const NEAR_MAX = { learn: 400, wind1: 500, wind2: 500, move1: 400, windmove: 500, easy: 400, head: 400 };
   // Навчальні рівні «Виносу»: підказка на сітці; вітрові — ще й розрахунок вітру під умовою
   const LEARN = ['learn', 'wind1', 'wind2', 'move1', 'windmove'];
+  // Режими — окремі вправи, а не сходинка складності: підказка «спробуй важче/легше» їх не пропонує
+  const LEVEL_MODES = ['timed', 'head', 'signs', 'search', 'searchMove', 'bracket'];
+  // «Винос» — 15 рівнів трьома групами, у стрічці лише група вибраного: [ключ, назва, рівні, рівень при виборі групи]
+  const LEVEL_GROUPS = {
+    hold: [['learn', 'Обучение', LEARN, 'learn'], ['ladder', 'Сложность', ['easy', 'normal', 'hard', 'varied'], 'normal'],
+      ['modes', 'Режимы', ['head', 'signs', 'timed', 'search', 'searchMove'], 'head']],
+  };
   const windLearn = () => ['wind1', 'wind2', 'windmove'].includes(quiz.level);
   const moveLearn = () => quiz.level === 'move1' || quiz.level === 'windmove';
   // Значок рівня: сходинки — «сигнал мережі» на 5 поділок за назвою (у вправах різні ключі, назви ті самі);
   // режими — свій значок: «Своя дистанція» — як на кнопці «дист.», «На час» — секундомір
   const LEVEL_BARS = { 'Совсем легко': 1, 'Легко': 2, 'Нормально': 3, 'Трудно': 4, 'Очень трудно': 5 };
   const MODE_ICON = {
-    near: '<path d="M3 12h18M6.5 8.5 3 12l3.5 3.5M17.5 8.5 21 12l-3.5 3.5"/>',
     timed: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M12 2.5V6M18.5 6.5l1.5-1.5"/>',
     // ознаки на місцевості — дерево, а не значок вітру, як у самої вправи
     signs: '<path d="M12 3 6.5 10.5h3L5 17h14l-4.5-6.5h3z"/><path d="M12 17v4"/>',
@@ -2034,15 +2045,29 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const okAt = (i) => (quiz.kind === 'range' ? quiz.errs[i] <= 10 : quiz.kind === 'wind' ? quiz.errs[i] === 0 : quiz.hits[i] === 'zone');
   // Жовтий кружечок: майже — у ціль, але повз зону ураження (рука, нога…), чи дальність у межах 20 %
   const nearAt = (i) => (quiz.kind === 'range' ? quiz.errs[i] <= 20 : quiz.kind === 'wind' ? false : quiz.hits[i] === 'body');
-  // center — дистанція «дист.» на старті серії: на рівні «Своя дистанція» цілі лише в межах ±100 м від неї
-  const newQuiz = (kind, level, queue = null, center = +$('s-dist').value) => ({ kind, level, center, errs: [], hits: [], shots: [], done: [], queue, total: queue?.length ?? SERIES });
-  const NEAR = 100;
-  // Межі дистанцій вправи, звужені до «дист.» ± 100 м на рівні «Своя дистанція»; крок — щоб межі лягли на сітку дистанцій
-  const nearBounds = (d0, d1, step) => {
-    if (quiz.level !== 'near') return [d0, d1];
-    const lo = Math.min(d1, Math.max(d0, Math.ceil((quiz.center - NEAR - d0) / step) * step + d0));
-    return [lo, Math.max(lo, Math.min(d1, lo + Math.floor((quiz.center + NEAR - lo) / step) * step))];
+  // «Дистанції від–до» — одні на всі вправи, на цьому пристрої; 100–800 — усі, як до появи вибору (тоді dr = null)
+  const DIST_KEY = 'shooters-log:sim-dist';
+  const DIST_ALL = [100, 800];
+  const distPref = () => {
+    try { const v = JSON.parse(localStorage.getItem(DIST_KEY)); if (Array.isArray(v) && v[0] <= v[1]) return v; } catch { /* приватний режим */ }
+    return DIST_ALL;
   };
+  const distRange = () => { const [a, b] = distPref(); return a <= DIST_ALL[0] && b >= DIST_ALL[1] ? null : [a, b]; };
+  const saveDist = (v) => { try { localStorage.setItem(DIST_KEY, JSON.stringify(v)); } catch { /* приватний режим */ } };
+  const distLabel = ([a, b]) => `${a === b ? a : `${a}–${b}`} ${t('м')}`;
+  // dr — дистанції серії, з якими вона почалась: «Ще серія» й «Повтори помилки» беруть ті самі
+  const newQuiz = (kind, level, queue = null, dr = distRange()) => ({ kind, level, dr, errs: [], hits: [], shots: [], done: [], queue, total: queue?.length ?? SERIES });
+  // Межі дистанцій вправи, звужені до вибраних «від–до»; крок — щоб межі лягли на сітку дистанцій.
+  // Не перетинаються (свій набій, навчання вітру від 200 м) — межі вправи як є
+  const distBounds = (d0, d1, step) => {
+    if (!quiz.dr) return [d0, d1];
+    const lo = d0 + Math.ceil((Math.max(quiz.dr[0], d0) - d0) / step) * step;
+    const hi = d0 + Math.floor((Math.min(quiz.dr[1], d1) - d0) / step) * step;
+    return lo <= hi ? [lo, hi] : [d0, d1];
+  };
+  // Найдальше для «Виносу»: свій набій — до кінця його таблиці, вбудований — до краю повзунка «дист.» (до нього пораховано балістику).
+  // Без вибору дистанцій — до 600 м, як було
+  const holdTop = (L) => (L.my ? L.dmax : quiz?.dr === null ? 600 : +$('s-dist').max);
   // Повтор цілі з помилкою — та сама умова, без відповіді й таймера
   const replay = ({ answer, pending, show, band, opts, ret, guess, guessErr, deadline, timeout, pick, pts, at, appear, vanish, seen, tm, sp, ...q }) => ({ ...q, ...(q.kind === 'combo' ? { phase: 'range' } : {}) });
   // Відгук на відповідь: коротка вібрація — лише коли помилився
@@ -2059,7 +2084,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const WIND_MID = [0.5, 1.5, 3, 5, 7];
   // Вилка сходинок a…b одним підписом: «1–2» і «2–4» → «1–4»
   const bracketLabel = (a, b) => `${WIND_Q[a][0].split('–')[0]}–${WIND_Q[b][0].split('–')[1]}`;
-  const DIST_BANDS = [[0, 300, 'до 300 м'], [301, 500, '300–500 м'], [501, 1e4, 'дальше 500 м']];
+  // Четверте — ті самі смуги для «Дистанції від–до» (кнопка «Потренувати» під слабким місцем)
+  const DIST_BANDS = [[0, 300, 'до 300 м', [100, 300]], [301, 500, '300–500 м', [300, 500]], [501, 1e4, 'дальше 500 м', [500, 800]]];
   // Історія серій — лише на цьому пристрої (localStorage). ponytail: перенести в базу, якщо захочеться бачити й на іншому
   const HIST = 'shooters-log:sim-history';
   const history = () => { try { return JSON.parse(localStorage.getItem(HIST)) ?? []; } catch { return []; } };
@@ -2122,8 +2148,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // «Винос»: дистанція, (вітер), (рух) — тапнути точку сітки, яку наводиш на ціль
   const nextHold = () => {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret];
-    const [d0, dTop] = nearBounds(...(L.my ? [L.dmin, L.dmax] : [windLearn() ? 200 : 100, 600]), 25);
-    const d1 = Math.max(d0, Math.min(dTop, NEAR_MAX[quiz.level] ?? Infinity));
+    // «Голова» далі 400 м — лотерея: межа діє й з вибраними дистанціями
+    const top = Math.min(holdTop(L), quiz.level === 'head' ? NEAR_MAX.head : Infinity);
+    const [d0, dTop] = distBounds(L.my ? L.dmin : windLearn() ? 200 : 100, top, 25);
+    // Стеля рівня (торс, голова — до 400 м) — лише без свого вибору дистанцій: вибране важливіше
+    const d1 = Math.max(d0, Math.min(dTop, quiz.dr ? Infinity : NEAR_MAX[quiz.level] ?? Infinity));
     const dist = d0 + 25 * Math.floor(Math.random() * ((d1 - d0) / 25 + 1));
     // «Вітер за ознаками»: сила — сходинка таблиці, у розрахунку — її середина; ознаки замість цифри
     const bucket = quiz.level === 'signs' && !(L.my && !L.windy) ? Math.floor(Math.random() * WIND_Q.length) : null;
@@ -2142,7 +2171,6 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const goRight = Math.random() < 0.5;
     // Зона — у самому питанні: розбір і «Повтори помилки» показують ту саму
     let zone = ZONE_BY[quiz.kind]?.[quiz.level] ?? 'chest';
-    if (zone === 'near') zone = st.head ? 'head' : 'chest';
     if (zone === 'mix') zone = dist <= 300 && !vt ? 'head' : 'chest';
     const q = { kind: 'hold', tgt, dist, wind, hour, vt, goRight, zone, mag: C.cal, ...(bucket !== null ? { bucket, ...windSigns(bucket, false) } : {}) };
     return Object.assign(q, holdSolve(q));
@@ -2202,10 +2230,13 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const C = RET[LOADS[$('s-kit').value].ret];
     // «Дальність + винос»: умова виносу, але ціль спершу треба виміряти — тож її має бути видно хоча б на поділку
     if (quiz.kind === 'combo') {
-      for (;;) {
+      const dr = quiz.dr;
+      for (let tries = 0; ; tries++) {
+        // На вибраних дистанціях ціль так і не видно хоч на поділку (дрібна ціль далеко) — ця ціль без вибору, щоб не зависнути
+        if (tries === 200) quiz.dr = null;
         const q = nextHold();
         const H = C.size(TGT[q.tgt].h, q.dist);
-        if (H >= 1 && H * Math.max(1, TGT[q.tgt].w) < C.R * 1.5) return { ...q, kind: 'combo', phase: 'range' };
+        if (H >= 1 && H * Math.max(1, TGT[q.tgt].w) < C.R * 1.5) { quiz.dr = dr; return { ...q, kind: 'combo', phase: 'range' }; }
       }
     }
     const mags = [];
@@ -2214,7 +2245,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Вибрана ціль, що не влазить у жодну дистанцію (гонг на дрібній сітці), за 200 спроб поступається випадковій
     for (let tries = 0; ; tries++) {
       const tgt = variedTargets() || tries > 200 ? randomTarget() : st.tgt;
-      const [d0, d1] = nearBounds(100, 800, 10);
+      const [d0, d1] = distBounds(...DIST_ALL, 10);
       const dist = d0 + 10 * Math.floor(Math.random() * ((d1 - d0) / 10 + 1));
       const mag = quiz.level === 'hard' && Math.random() < 0.6 ? mags[Math.floor(Math.random() * mags.length)] : C.cal;
       const H = C.size(TGT[tgt].h, dist) * kOf(C, mag);
@@ -2243,7 +2274,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const tms = quiz.done.map((q) => q.tm).filter((x) => x != null);
     const tm = tms.length ? Math.round(tms.reduce((s, x) => s + x, 0) / tms.length * 10) / 10 : null;
     remember({ ...(tm != null ? { tm } : {}), at: Date.now(), kind: quiz.kind, level: quiz.level, kit, u, avg, good, ...(hold ? { body } : {}), ...(ra != null ? { ra } : {}),
-      ...(pts != null ? { pts } : {}), ...(quiz.queue ? { rep: true } : {}), n: quiz.errs.length, sh });
+      ...(pts != null ? { pts } : {}), ...(quiz.queue ? { rep: true } : {}), ...(quiz.dr ? { dr: quiz.dr } : {}), n: quiz.errs.length, sh });
     return { avg, good, body, u, ra, pts };
   };
 
@@ -2360,7 +2391,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     }
     const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ещё серия') : t('Дальше'));
     next.addEventListener('click', () => {
-      if (done) quiz = newQuiz(quiz.kind, quiz.level, null, quiz.center);
+      if (done) quiz = newQuiz(quiz.kind, quiz.level, null, quiz.dr);
       quiz.cur = nextTarget(); drawQuiz(); reveal();
     });
     if (!done) return [next];
@@ -2368,7 +2399,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     if (!missed.length) return [next];
     const again = iconBtn('quiz-show quiz-rep', 'repeat', t('Повтори ошибки ({n})', { n: missed.length }));
     again.addEventListener('click', () => {
-      quiz = newQuiz(quiz.kind, quiz.level, missed.map(replay), quiz.center);
+      quiz = newQuiz(quiz.kind, quiz.level, missed.map(replay), quiz.dr);
       quiz.cur = nextTarget(); drawQuiz(); reveal();
     });
     return [next, again];
@@ -2930,8 +2961,26 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       kind.append(b);
     });
     // Складність — випадним списком: згорнуто видно лише вибране, розгорнуто — усі рівні з поясненням; вибір пам'ятається для кожної вправи
-    const levels = LEVELS[kindNow];
-    let picked = levels.some(([v]) => v === localStorage.getItem(LEVEL_KEY(kindNow))) ? localStorage.getItem(LEVEL_KEY(kindNow)) : 'normal';
+    const all = LEVELS[kindNow].filter(([v]) => !RETIRED.includes(v));
+    const stored = localStorage.getItem(LEVEL_KEY(kindNow));
+    // Хто тренувався на «Своїй дистанції» — «Нормально» з тими ж дистанціями: «дист.» ± 100 м
+    if (stored === 'near' && !localStorage.getItem(DIST_KEY)) {
+      const c = +$('s-dist').value;
+      saveDist([Math.max(DIST_ALL[0], Math.round((c - 100) / 50) * 50), Math.min(DIST_ALL[1], Math.round((c + 100) / 50) * 50)]);
+    }
+    let picked = all.some(([v]) => v === stored) ? stored : 'normal';
+    // У «Виносі» стрічка — лише група вибраного рівня; над нею — перемикач груп
+    const groups = LEVEL_GROUPS[kindNow];
+    const group = groups?.find(([, , ks]) => ks.includes(picked));
+    const levels = group ? all.filter(([v]) => group[2].includes(v)) : all;
+    let groupChips = null;
+    if (groups) {
+      groupChips = chips(groups.map(([k, name]) => [k, t(name)]), group[0], (k) => {
+        try { localStorage.setItem(LEVEL_KEY(kindNow), groups.find(([g]) => g === k)[3]); } catch { /* приватний режим */ }
+        renderStart(kindNow);
+      });
+      groupChips.classList.add('segmented', 'quiz-groups');
+    }
     const levelBody = (i) => {
       const [v, name, what] = levels[i];
       let mark;
@@ -2983,18 +3032,60 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     easier.addEventListener('click', () => step(-1)); harder.addEventListener('click', () => step(1));
     const level = el('div', { className: 'quiz-levels' });
     level.append(easier, strip, harder, note);
+    let paintNote = null;
     const paintLevels = () => {
       strip.querySelectorAll('.quiz-level').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.level === picked)));
       const cur = strip.querySelector('[aria-pressed="true"]');
       easier.disabled = !cur?.previousElementSibling; harder.disabled = !cur?.nextElementSibling;
-      // Згорнутий блок підказує, що всередині: вправа й рівень
-      $('sim-quiz-sum').textContent = `${t(KINDS.find(([v]) => v === kindNow)[1])} · ${t(levels.find(([v]) => v === picked)?.[1] ?? '')}`;
+      // Згорнутий блок підказує, що всередині: вправа, рівень і вибрані дистанції
+      const dr = kindNow === 'wind' ? null : distRange();
+      $('sim-quiz-sum').textContent = `${t(KINDS.find(([v]) => v === kindNow)[1])} · ${t(levels.find(([v]) => v === picked)?.[1] ?? '')}${dr ? ` · ${distLabel(dr)}` : ''}`;
+      paintNote?.();
     };
     paintLevels();
+    // «Дистанції від–до» (крок 50 м) — з будь-яким рівнем; одні на всі вправи, крім «Вітру», де дистанції немає
+    const distBox = kindNow === 'wind' ? null : el('div', { className: 'quiz-dist' });
+    const aboutEl = el('p', { className: 'quiz-n' });
+    if (distBox) {
+      const marks = Array.from({ length: (DIST_ALL[1] - DIST_ALL[0]) / 50 + 1 }, (_, i) => DIST_ALL[0] + i * 50);
+      const select = (v, label) => {
+        const s = el('select');
+        s.append(...marks.map((d) => el('option', { value: String(d), selected: d === v }, String(d))));
+        s.setAttribute('aria-label', label);
+        return s;
+      };
+      const [a, b] = distPref();
+      const from = select(a, t('Дистанции от')); const to = select(b, t('Дистанции до'));
+      const note = el('small', { className: 'quiz-dist-note' });
+      // Набій не дістає до вибраного: свій — лише в межах таблиці, вбудований — до краю повзунка «дист.»; «Голова» — до 400 м
+      paintNote = () => {
+        const L = LOADS[$('s-kit').value]; const dr = distRange();
+        const lo = L.my ? L.dmin : DIST_ALL[0]; const table = L.my ? L.dmax : +$('s-dist').max;
+        const head = kindNow === 'hold' && picked === 'head' && NEAR_MAX.head < table;
+        const top = head ? NEAR_MAX.head : table;
+        note.textContent = !dr || kindNow === 'range' ? ''
+          : dr[0] > top || dr[1] < lo ? (head ? t('«Голова» — до {d} м: цели будут на {a}–{d} м', { a: lo, d: top })
+            : t('У этого набора таблица {a}–{b} м — цели будут на всех её дистанциях', { a: lo, b: top }))
+            : dr[1] > top ? (head ? t('«Голова» — до {d} м: дальше это лотерея', { d: top })
+              : t('Вынос — до {d} м: дальше у набора нет таблицы', { d: top })) : '';
+        note.hidden = !note.textContent;
+      };
+      const change = (e) => {
+        let lo = +from.value; let hi = +to.value;
+        // «від» більше за «до» — друге підтягується до щойно вибраного
+        if (lo > hi) { if (e.target === from) { hi = lo; to.value = String(hi); } else { lo = hi; from.value = String(lo); } }
+        saveDist([lo, hi]);
+        paintLevels(); paintAbout(); paintProg();
+      };
+      from.addEventListener('change', change); to.addEventListener('change', change);
+      distBox.append(el('span', { className: 'quiz-dist-label' }, t('Дистанции')), el('span', {}, t('от')), from, el('span', {}, t('до')), to,
+        el('span', {}, t('м')), note);
+      paintNote();
+    }
     requestAnimationFrame(() => wheel.settle(strip.querySelector('[aria-pressed="true"]')));
     const go = iconBtn('quiz-go', 'start', t('Начать серию из {n}', { n: SERIES }));
     go.addEventListener('click', () => {
-      quiz = newQuiz(kindNow, picked);
+      quiz = newQuiz(kindNow, picked, null, kindNow === 'wind' ? null : distRange());
       quiz.cur = nextTarget();
       // Під час серії блок відкритий — питання не ховаються
       quizFold(true, false);
@@ -3003,19 +3094,25 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       reveal();
     });
     const u = RET[LOADS[$('s-kit').value].ret].u;
-    const about = {
-      hold: t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u }),
-      combo: t('Как в бою: сначала определи дальность по сетке, потом вынеси прицел по своей оценке. Ошибка в дальности сама превращается в промах — настоящую дальность покажу после выстрела.'),
-      wind: t('Приметы на местности и мираж — назови силу ветра. Шкала — как в таблице раздела «Ветер».'),
-    }[kindNow] ?? t('Цель на 100–800 м: прочитай её размер по сетке и назови дальность. Серия из {n} целей.', { n: SERIES });
+    const paintAbout = () => {
+      const [a, b] = distRange() ?? DIST_ALL;
+      aboutEl.textContent = {
+        hold: t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u }),
+        combo: t('Как в бою: сначала определи дальность по сетке, потом вынеси прицел по своей оценке. Ошибка в дальности сама превращается в промах — настоящую дальность покажу после выстрела.'),
+        wind: t('Приметы на местности и мираж — назови силу ветра. Шкала — как в таблице раздела «Ветер».'),
+      }[kindNow] ?? t('Цель на {a}–{b} м: прочитай её размер по сетке и назови дальность. Серия из {n} целей.', { a, b, n: SERIES });
+    };
+    paintAbout();
     // Прогрес на вибраному рівні: стовпчик — серія, вище — більше влучних; повтори помилок не рахуємо — там лише важкі цілі
     const own = history().filter((h) => h.kind === kindNow && !h.rep);
     const prog = el('div', { className: 'quiz-hist' });
     const paintProg = () => {
-      const mine = own.filter((h) => h.level === picked);
+      // Прогрес — на цьому рівні й на тих самих дистанціях: на 600–800 м і на всіх — різні тренування
+      const dr = kindNow === 'wind' ? null : distRange();
+      const mine = own.filter((h) => h.level === picked && String(h.dr ?? '') === String(dr ?? ''));
       const past = mine.slice(-10);
       const name = t(levels.find(([v]) => v === picked)[1]);
-      const parts = [el('b', { className: 'quiz-hist-title' }, t('Твой прогресс · {l}', { l: name }))];
+      const parts = [el('b', { className: 'quiz-hist-title' }, t('Твой прогресс · {l}', { l: dr ? `${name} · ${distLabel(dr)}` : name }))];
       if (!past.length) {
         parts.push(el('span', {}, own.length ? t('На этом уровне серий ещё нет.') : t('Пройди первую серию — здесь появится прогресс.')));
       } else {
@@ -3032,6 +3129,19 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         const best = past.reduce((a, b) => (b.good / b.n > a.good / a.n ? b : a));
         parts.push(bars, el('small', {}, t('попаданий в каждой серии из {n}, яркий — последняя', { n: last.n })),
           el('span', {}, t('Последняя: {g} из {n} {crit} · лучшая {b} из {bn} · серий {s}', { g: last.good, n: last.n, crit, b: best.good, bn: best.n, s: mine.length })));
+        // Сусідній рівень на сходинці: дві серії поспіль від 80 % — важче, остання нижче 40 % — легше
+        const rate = (h) => h.good / h.n;
+        const ladder = (b) => (b && !LEVEL_MODES.includes(b.dataset.level) ? b : null);
+        const cur = ladder(strip.querySelector(`[data-level="${picked}"]`));
+        const up = mine.length >= 2 && mine.slice(-2).every((h) => rate(h) >= 0.8) && ladder(cur?.nextElementSibling);
+        const down = !up && rate(last) < 0.4 && ladder(cur?.previousElementSibling);
+        const to = up || down;
+        if (to) {
+          const b = el('button', { type: 'button', className: 'quiz-stop quiz-step' },
+            `${t(up ? 'Попробуй сложнее: {l}' : 'Попробуй полегче: {l}', { l: to.textContent })} →`);
+          b.addEventListener('click', () => to.click());
+          parts.push(b);
+        }
         // Похибка словами й куди йде: середнє трьох останніх серій проти трьох попередніх
         if (kindNow !== 'wind') {
           const same = mine.filter((h) => h.u === last.u);
@@ -3050,7 +3160,16 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         }
       }
       const weak = weakSpot(kindNow, own);
-      if (weak) parts.push(el('span', { className: 'quiz-weak' }, weak));
+      if (weak) {
+        const w = el('span', { className: 'quiz-weak' }, weak.text);
+        // Слабке місце — дистанції: кнопка сама виставляє їх у «Дистанції від–до»
+        if (weak.band && String(weak.band) !== String(dr)) {
+          const train = el('button', { type: 'button', className: 'quiz-stop quiz-weak-go' }, `${t('Потренировать: {d}', { d: distLabel(weak.band) })} →`);
+          train.addEventListener('click', () => { saveDist(weak.band); renderStart(kindNow); });
+          w.append(' ', train);
+        }
+        parts.push(w);
+      }
       if (kindNow === 'wind') { const jw = journalWind(); if (jw) parts.push(jw); }
       if (history().length) {
         const more = el('button', { type: 'button', className: 'quiz-stop' }, `${t('Вся статистика')} →`);
@@ -3060,7 +3179,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       prog.replaceChildren(...parts);
     };
     paintProg();
-    qBox.replaceChildren(kind, level, go, el('p', { className: 'quiz-n' }, about), prog);
+    qBox.replaceChildren(...[kind, groupChips, level, distBox, go, aboutEl, prog].filter(Boolean));
   };
 
   // Ціль зарахована за покроковим записом серії: дальність — у межах 10 %, вітер — точно, винос — у зону
@@ -3076,13 +3195,13 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const all = miss(shots);
     const groups = kind === 'wind'
       ? WIND_Q.map(([label], i) => [t('ветер {w} м/с', { w: label }), shots.filter((s) => s[0] === i)])
-      : [...DIST_BANDS.map(([a, b, label]) => [t(label), shots.filter((s) => s[0] >= a && s[0] <= b)]),
+      : [...DIST_BANDS.map(([a, b, label, band]) => [t(label), shots.filter((s) => s[0] >= a && s[0] <= b), band]),
         ...Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])];
-    const worst = groups.filter(([, xs]) => xs.length >= 8).map(([what, xs]) => [what, miss(xs)])
+    const worst = groups.filter(([, xs]) => xs.length >= 8).map(([what, xs, band]) => [what, miss(xs), band])
       .filter(([, m]) => m >= all * 1.5 && m - all >= 0.15).sort((a, b) => b[1] - a[1])[0];
     if (!worst) return null;
-    const [what, m] = worst;
-    return t('Слабое место — {what}: верно {p} %, а в среднем {p0} %. Потренируй это отдельно.', { what, p: Math.round((1 - m) * 100), p0: Math.round((1 - all) * 100) });
+    const [what, m, band] = worst;
+    return { band, text: t('Слабое место — {what}: верно {p} %, а в среднем {p0} %. Потренируй это отдельно.', { what, p: Math.round((1 - m) * 100), p0: Math.round((1 - all) * 100) }) };
   };
 
   // Статистика тренувань: окремо від журналу справжніх стрільб, лише з цього пристрою
@@ -3131,7 +3250,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const shots = list.flatMap((h) => h.sh ?? []);
       parts.push(el('p', { className: 'quiz-facts' }, t('Серий {s} · целей {n} · за 30 дней {m}', { s: list.length, n: sum(list, 'n'), m: list.filter((h) => h.at >= month).length })));
       const weak = weakSpot(kindNow, list);
-      if (weak) parts.push(el('p', { className: 'quiz-weak' }, weak));
+      if (weak) parts.push(el('p', { className: 'quiz-weak' }, weak.text));
       const raTxt = (arr) => { const v = mean(arr, 'ra'); return v == null ? '—' : `${f(v, 0)} %`; };
       const combo = kindNow === 'combo';
       const head = wind ? [t('Верно')] : hold ? [t('В зону'), t('В цель'), t('Ошибка'), ...(combo ? [t('Дальность')] : [])] : [t('В пределах 10 %'), t('Ошибка')];
@@ -3211,7 +3330,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     inkBtn.setAttribute('aria-label', `${t('Цвет сетки')}: ${t({ black: 'чёрная', white: 'белая', auto: 'как у темы' }[ink])}`);
   };
   inkBtn?.addEventListener('click', () => {
-    const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || document.documentElement.dataset.theme === 'dark' ? 'white' : 'black');
+    const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || ['dark', 'phosphor', 'amber', 'white'].includes(document.documentElement.dataset.theme) ? 'white' : 'black');
     st.ink = cur === 'black' ? 'white' : 'black';
     paintInk(); draw();
   });
