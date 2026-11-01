@@ -2968,7 +2968,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Лінії — чорне тло з кривими, пучками й дугами, що проявляються й тануть на різній відстані від кінців; «з акцентом» — кілька помаранчевих */
 [data-bg="lines"] { --paper: url(lines.webp) center / cover no-repeat, #0e0f11; }
 [data-bg="lines-acc"] { --paper: url(lines-acc.webp) center / cover no-repeat, #0e0f11; }
-[data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
+/* Світлий камуфляж — найконтрастніший малюнок; вуаль кольору фону на 45% глушить рябизну, візерунок лишається */
+[data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно);
    варіанти «з акцентом» — та сама палітра, тло як у темних «Лініях з акцентом» (lines-sand.webp, lines-khaki.webp) */
@@ -3008,7 +3009,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   [data-bg="camo-hex"] { --paper: url(camo-hex-wide.webp) center / cover no-repeat, #141614; }
   [data-bg="lines"] { --paper: url(lines-wide.webp) center / cover no-repeat, #0e0f11; }
   [data-bg="lines-acc"] { --paper: url(lines-acc-wide.webp) center / cover no-repeat, #0e0f11; }
-  [data-bg="l-camo"] { --paper: url(camo-light-wide.webp) center / cover no-repeat, #eceee9; }
+  [data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light-wide.webp) center / cover no-repeat, #eceee9; }
   [data-bg="l-sand-acc"] { --paper: url(lines-sand-wide.webp) center / cover no-repeat, #ecdfc6; }
   [data-bg="l-khaki-acc"] { --paper: url(lines-khaki-wide.webp) center / cover no-repeat, #e0e3cf; }
 }

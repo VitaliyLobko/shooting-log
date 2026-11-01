@@ -7069,6 +7069,14 @@ async function checkUpdate() {
   // Без мережі reg.update() не падає, а тихо завершується — інакше вийшло б «у вас найновіша версія»
   if (!navigator.onLine) { toast(t('Нет связи с сервером')); return; }
   toast(t('Проверяю обновление…'));
+  // Wi-Fi без інтернету браузер теж вважає «онлайн» — питаємо сам сервер; HEAD іде повз service worker (той ловить лише GET)
+  try {
+    const res = await fetch('./version.js', { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(String(res.status));
+  } catch {
+    toast(t('Нет связи с сервером'));
+    return;
+  }
   try {
     await reg.update();
   } catch {
