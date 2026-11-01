@@ -2,6 +2,7 @@
 // Модулі розбираються й зв'язуються без виконання — ловить синтаксис і імпорт імені, якого немає.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
+import { mediaJs } from './media.mjs';
 
 const errors = [];
 const read = (path) => readFileSync(path, 'utf8');
@@ -24,7 +25,7 @@ for (const file of readdirSync('js').filter((f) => f.endsWith('.js')).sort()) {
 }
 
 // звичайні скрипти service worker'а
-for (const path of ['sw.js', 'version.js']) {
+for (const path of ['sw.js', 'version.js', 'media.js']) {
   try { new vm.Script(read(path), { filename: path }); } catch (e) { errors.push(`${path}: ${e.message}`); }
 }
 
@@ -36,6 +37,13 @@ for (const file of readdirSync('js').filter((f) => f.endsWith('.js'))) {
 // і навпаки: файл з ASSETS, якого нема, валить установку кешу цілком (addAll — все або нічого)
 for (const [, path] of assets.matchAll(/'\.\/([^']+)'/g)) {
   if (!existsSync(path)) errors.push(`sw.js: ${path} є в ASSETS, але файлу немає — офлайн-копія не встановиться`);
+}
+
+// картинки качаються заново лише за зміненим відбитком: застарілий media.js — і нова картинка не дійде до тих, хто оновився
+try {
+  if (read('media.js').replace(/\r\n/g, '\n') !== mediaJs()) errors.push('media.js застарів (змінились картинки в ASSETS) — запусти node .github/media.mjs');
+} catch (e) {
+  errors.push(`media.js: ${e.message}`);
 }
 
 for (const path of ['demo.json', 'manifest.webmanifest']) {
