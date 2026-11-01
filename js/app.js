@@ -3,8 +3,6 @@ import * as M from './model.js';
 import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
-import { alignTarget, squareToQuad, quadToSquare } from './align.js';
-import { simIntro } from './sim-tour.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue, componentIcon } from './ammo.js';
@@ -15,12 +13,17 @@ import { timerPanel, stopTimerPanel } from './timer.js';
 import { exercisesPanel, exerciseName, newExercise, openScore, asExercise, scoreOf, EXERCISES } from './exercises.js';
 import { initLock, lockOn, lockDelay, lockAvailable, enableLock, disableLock, setLockDelay, LOCK_DELAYS } from './lock.js';
 import { solve } from './ballistics.js';
-import { pdfRuns, pdfTable, runsToLines } from './pdf.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, toolIcon, goTab, reveal,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate, wheelStrip,
 } from './ui.js';
+
+// Рідкісне — розбір PDF «Стрільця», вирівнювання фото мішені, тур тренажера — підвантажується при першому використанні:
+// запуск не розбирає код, який більшість днів не знадобиться (файли однаково лежать у кеші, офлайн теж працює)
+const alignMod = () => import('./align.js');
+const pdfMod = () => import('./pdf.js');
+const simIntro = (...args) => import('./sim-tour.js').then((m) => m.simIntro(...args));
 
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
@@ -2847,6 +2850,7 @@ function dopePaste(onRows) {
   });
   async function importStrilets(file) {
     let runs;
+    const { pdfRuns, pdfTable, runsToLines } = await pdfMod();
     try { runs = await pdfRuns(await file.arrayBuffer()); } catch { runs = []; }
     if (!runs.length) { fieldError(text, t('В PDF не нашёл текста — это скан или картинка?')); return; }
     const dope = M.striletsDope(pdfTable(runs));
@@ -4586,7 +4590,7 @@ function pickTargetPhoto(prefill, camera) {
     if (!file) return;
     let photo;
     try {
-      photo = await alignTarget(file, { max: TARGET_PHOTO });
+      photo = await (await alignMod()).alignTarget(file, { max: TARGET_PHOTO });
     } catch (err) {
       toast(err.message);
       return;
@@ -4778,7 +4782,7 @@ async function realignTarget(tg) {
   const origBlob = tg.orig ? await db.getBlob(tg.orig.photoId) : null;
   let res;
   try {
-    res = await alignTarget(blob, { max: TARGET_PHOTO, again: true, original: Boolean(origBlob) });
+    res = await (await alignMod()).alignTarget(blob, { max: TARGET_PHOTO, again: true, original: Boolean(origBlob) });
   } catch (err) {
     toast(err.message);
   }
@@ -4837,6 +4841,7 @@ async function realignTarget(tg) {
  * теперішнього фото). Що випало за оригінал — прибираємо; лінії масштабу теж повертаються.
  */
 async function restoreOriginal(tg, photo, origBlob) {
+  const { quadToSquare, squareToQuad } = await alignMod();
   const back = quadToSquare(squareToQuad(tg.orig.quad));
   const inside = (p) => p && p[0] >= 0 && p[0] <= 1 && p[1] >= 0 && p[1] <= 1;
   const move = (p) => (p ? back(p) : null);

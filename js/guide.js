@@ -1194,6 +1194,11 @@ function bplexWhere(v, M, beyond = 'ниже кончика столба — к�
 }
 
 /** Тренажер: вид у приціл з ціллю, виносом і вітром. */
+// Відкладене збереження тренажера — дописати, якщо сторінку закривають чи згортають
+let flushSim = null;
+addEventListener('pagehide', () => flushSim?.());
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSim?.(); });
+
 export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPicker, myLoads, myGuns, windGuesses } = {}) {
   const $ = (id) => root.querySelector(`#${id}`);
   const svg = $('sim-svg');
@@ -1685,19 +1690,24 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     measBox.hidden = true;
     // Стрічка над прицілом — усі варіанти з картинкою; відкриває її кнопка «Далекомір»
     const measIco = (name) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MEAS_ICON[name] ?? MEAS_ICON['высота']}</svg>`;
-    measPop.replaceChildren(...MS.map(([name, size], i) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'aim-opt';
-      b.innerHTML = measIco(name);
-      b.append(Object.assign(document.createElement('span'), { textContent: `${t(name)} ${mFmt(size)} ${t('м')}` }));
-      b.setAttribute('aria-pressed', String(st.meas === i + 1));
-      // Ще раз по вибраній — скоба зникає з прицілу (0 — нічого не підсвічено)
-      b.addEventListener('click', () => {
-        navigator.vibrate?.(8); st.meas = st.meas === i + 1 ? 0 : i + 1; st.measName = st.meas ? name : null;
-        measPop.hidden = true; $('m-range').setAttribute('aria-expanded', 'false'); draw();
-      });
-      return b;
-    }));
+    // Стрічка «чим міряти» — заново лише коли змінились варіанти, вибраний чи мова, а не на кожен крок повзунка
+    const measKey = JSON.stringify([MS, st.meas, lang()]);
+    if (measPop.dataset.key !== measKey) {
+      measPop.dataset.key = measKey;
+      measPop.replaceChildren(...MS.map(([name, size], i) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'aim-opt';
+        b.innerHTML = measIco(name);
+        b.append(Object.assign(document.createElement('span'), { textContent: `${t(name)} ${mFmt(size)} ${t('м')}` }));
+        b.setAttribute('aria-pressed', String(st.meas === i + 1));
+        // Ще раз по вибраній — скоба зникає з прицілу (0 — нічого не підсвічено)
+        b.addEventListener('click', () => {
+          navigator.vibrate?.(8); st.meas = st.meas === i + 1 ? 0 : i + 1; st.measName = st.meas ? name : null;
+          measPop.hidden = true; $('m-range').setAttribute('aria-expanded', 'false'); draw();
+        });
+        return b;
+      }));
+    }
     if (!ranging && !measPop.hidden) { measPop.hidden = true; $('m-range').setAttribute('aria-expanded', 'false'); }
     // Значки режимів показують вибране: куди цілимось (точка на грудях чи голові) і чим міряємо; нема вибору — звичайний значок
     setIco($('m-aim'), aimChoice() ? aimIcon(st.head) : MODE_ICO.aim);
@@ -1811,10 +1821,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const SAVE = 'shooters-log:sim';
   const FIELDS = ['s-kit', 's-barrel', 's-zero', 's-temp', 's-alt', 's-dist', 's-mag', 's-wind', 's-wdir', 's-mv', 's-mvdir', 's-disp', 's-cmp'];
   let restoring = true;
-  const save = () => {
-    if (restoring) return;
+  let saveT = 0;
+  const saveNow = () => {
+    clearTimeout(saveT); saveT = 0;
     try { localStorage.setItem(SAVE, JSON.stringify({ ...Object.fromEntries(FIELDS.map((id) => [id, $(id).value])), mode: st.mode, tgt: st.tgt, zoom: st.zoom, real: st.real, ink: st.ink, head: st.head })); } catch { /* приватний режим */ }
   };
+  // Пишемо, коли рука зупинилась (0,4 с), а не на кожен крок повзунка; закриття сторінки чи згортання — одразу
+  const save = () => { if (restoring) return; clearTimeout(saveT); saveT = setTimeout(saveNow, 400); };
+  // drawFrame — повзунок щойно рушили, а кадр ще не намальовано: значення вже в полі, зберігаємо й його
+  flushSim = () => { if (saveT || drawFrame) saveNow(); };
   const seg = (a, b, key, val) => [a, b].forEach((id) => $(id).addEventListener('click', () => {
     st[key] = val[id];
     $(a).setAttribute('aria-pressed', st[key] === val[a]);
@@ -1981,7 +1996,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       b.setAttribute('aria-pressed', String(pressed));
       if (pressed) on = b;
     });
-    tgtWheel?.settle(on);
+    // Стрічку вирівнюємо, лише коли вона відкрита: вимір прихованої — марний перерахунок розкладки всієї сторінки
+    // (при вході в тренажер paintTgt кличуть кілька разів). Відкриття стрічки саме кличе paintTgt
+    if (!$('pop-tgt').hidden) tgtWheel?.settle(on);
   };
   const tgtWheel = grid ? wheelStrip(grid, (b) => { if ($('tgt-note')) $('tgt-note').textContent = chipNote(b); }) : null;
   tgtSel.addEventListener('change', paintTgt);
@@ -3351,7 +3368,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   };
   renderStart();
 
-  ['s-dist', 's-mag', 's-wind'].forEach((i) => $(i).addEventListener('input', draw));
+  // Повзунок і свайп по прицілу дають input частіше за кадри — малюємо раз на кадр, останнім значенням
+  let drawFrame = 0;
+  const drawSoon = () => { drawFrame ||= requestAnimationFrame(() => { drawFrame = 0; draw(); }); };
+  ['s-dist', 's-mag', 's-wind'].forEach((i) => $(i).addEventListener('input', drawSoon));
   ['s-barrel', 's-zero', 's-wdir', 's-mv', 's-mvdir', 's-temp', 's-alt', 's-disp', 's-cmp'].forEach((i) => $(i).addEventListener('change', draw));
   $('s-dope').addEventListener('click', openDope);
   $('s-kit').addEventListener('change', () => { setupKit(); st.ret = [0, 0]; st.focus = null; if (quiz) { clearTick(); quiz.view = null; quiz.live = null; quiz.cur = nextTarget(); } draw(); });
