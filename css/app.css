@@ -2478,6 +2478,12 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 }
 .guide .quiz-acts > button { flex: 1 1 0; min-width: 0; margin: 0; }
 /* Складність — свій випадний список: згорнуто — вибраний рівень зі стрілкою, розгорнуто — усі рівні під ним */
+.guide .quiz-groups { margin: 0 0 8px; }
+.guide .quiz-dist { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; color: var(--muted); font-size: 14px; }
+.guide .quiz-dist-label { margin-right: auto; }
+.guide .quiz-dist select { width: auto; flex: none; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 650; }
+.guide .quiz-dist-note { flex-basis: 100%; font-size: 12.5px; }
+.guide .quiz-weak-go { display: inline; margin: 4px 0 0; }
 .guide .quiz-levels { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .guide .quiz-level-nav { width: 28px; height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 24px system-ui, sans-serif; cursor: pointer; }
 .guide .quiz-level-nav:disabled { opacity: .25; cursor: default; }
