@@ -6333,6 +6333,7 @@ function onSyncChip() {
 
 // Тема: auto — як у системі. Першу розстановку до малювання робить скрипт в index.html.
 const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Светлая'], ['night', 'Ночная'], ['phosphor', 'Фосфор'], ['amber', 'Янтарь'], ['white', 'Белый фосфор']];
+const SPECIAL_THEMES = ['night', 'phosphor', 'amber', 'white'];
 const lightScheme = matchMedia('(prefers-color-scheme: light)');
 
 function themePref() {
@@ -6727,8 +6728,13 @@ function renderSettings() {
     .catch(() => { persisted.textContent = t('неизвестно'); });
   const langChips = chips(Object.entries(LANGS), lang(), switchLang);
   langChips.classList.add('segmented');
-  const themeChips = chips(THEMES.map(([k, label]) => [k, t(label)]), themePref(), (v) => { remember('shooters-log:theme', v); applyTheme(); render(); });
-  themeChips.classList.add('segmented');
+  // Дві групи: щоденні теми й «Спецрежими» (нічна й монітори-кінескопи); вибрана підсвічується у своїй групі
+  const themeChips = (special) => {
+    const c = chips(THEMES.filter(([k]) => SPECIAL_THEMES.includes(k) === special).map(([k, label]) => [k, t(label)]), themePref(),
+      (v) => { remember('shooters-log:theme', v); applyTheme(); render(); });
+    c.classList.add('segmented');
+    return c;
+  };
   return h('div', {},
     settingsGroup(t('О приложении'), [
       aboutPanel(),
@@ -6767,7 +6773,8 @@ function renderSettings() {
         }), 'danger'))], { fold: 'data' }),
     settingsGroup(t('Вид'), [
       h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
-      h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips,
+      h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips(false),
+        h('div', { class: 'field-label theme-group' }, t('Спецрежимы')), themeChips(true),
         // Ніч буває різна: тягнеш — сторінка одразу темнішає чи світлішає
         themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
           h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),

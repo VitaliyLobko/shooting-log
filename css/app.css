@@ -77,6 +77,9 @@
   background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 1px, transparent 1px 3px),
     radial-gradient(ellipse 85% 75% at 50% 50%, transparent 55%, rgb(0 0 0 / .55)); }
 .night-level { margin-top: 12px; }
+.theme-group { margin: 12px 0 6px; }
+/* «Білий фосфор» не влазить у чверть рядка — переноситься на два рядки, а не обрізається трьома крапками */
+.theme-group + .chips.segmented button { white-space: normal; line-height: 1.15; }
 .night-level input { width: 100%; accent-color: var(--accent); }
 
 * { box-sizing: border-box; }
