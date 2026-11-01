@@ -142,7 +142,13 @@ self.addEventListener('fetch', (event) => {
     const cached = await caches.match(request, { ignoreSearch: true });
     if (cached) return cached;
     try {
-      return await fetch(request);
+      const res = await fetch(request);
+      // широкі фони для комп'ютера не в ASSETS (телефону не потрібні) — кладемо в кеш при першому показі, щоб були й офлайн
+      if (res.ok && /-wide\.webp$/.test(new URL(request.url).pathname)) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(request, copy));
+      }
+      return res;
     } catch (err) {
       if (request.mode === 'navigate') return caches.match('./index.html');
       throw err;
