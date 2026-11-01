@@ -833,6 +833,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .empty { text-align: center; padding: 48px 12px; }
 .empty .btn-row { justify-content: center; max-width: 360px; margin: 18px auto 0; }
 .empty .btn-row .btn.primary { flex-basis: 100%; }
+/* На фоні-малюнку сірий текст губиться (світлий камуфляж — 2.8:1) — порожній екран кладемо на картку */
+:root[data-bg] #view .empty { margin-top: 12px; padding: 32px 16px 20px; border-radius: 18px; border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / .10); }
 
 .archive { margin-top: 12px; color: var(--muted); }
 .archive summary { cursor: pointer; padding: 6px 2px; }
