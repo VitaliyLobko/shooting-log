@@ -60,6 +60,16 @@
 
 /* Нічна: темна тема, уся сторінка (з фото й прицілом) — яскравістю в червоний канал, щоб не збивати нічний зір */
 :root[data-theme="night"] { --bg: #000; --bg-glow: #000; filter: url(#night-red); }
+/* Фосфор: зелений монітор-кінескоп — як нічна, уся сторінка яскравістю в зелений канал; свічення, рядки розгортки,
+   заголовки, великі числа, кнопки й вкладки — моноширинним (назви й описи лишаються звичайним, щоб не переносились) */
+:root[data-theme="phosphor"] { --bg: #0b0d0b; --bg-glow: #141914; filter: url(#phosphor); }
+:root[data-theme="phosphor"] body { text-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+:root[data-theme="phosphor"] :is(.topbar h1, h2, h3, .hero-label, .hero-value, .cal-total, .big, .thumb, .box-toggle, .ex-scoring-title,
+  .ex-ring-name, .stat-value, .btn, .chips button, .tabs span) { font-family: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace; }
+:root[data-theme="phosphor"] :is(.topbar h1, h3) { text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="phosphor"] body::after { content: ""; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 85% 75% at 50% 50%, transparent 55%, rgb(0 0 0 / .55)); }
 .night-level { margin-top: 12px; }
 .night-level input { width: 100%; accent-color: var(--accent); }
 
