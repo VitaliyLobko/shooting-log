@@ -3211,7 +3211,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     inkBtn.setAttribute('aria-label', `${t('Цвет сетки')}: ${t({ black: 'чёрная', white: 'белая', auto: 'как у темы' }[ink])}`);
   };
   inkBtn?.addEventListener('click', () => {
-    const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || ['dark', 'phosphor'].includes(document.documentElement.dataset.theme) ? 'white' : 'black');
+    const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || ['dark', 'phosphor', 'amber', 'white'].includes(document.documentElement.dataset.theme) ? 'white' : 'black');
     st.ink = cur === 'black' ? 'white' : 'black';
     paintInk(); draw();
   });
