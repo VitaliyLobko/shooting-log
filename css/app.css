@@ -60,7 +60,26 @@
 
 /* Нічна: темна тема, уся сторінка (з фото й прицілом) — яскравістю в червоний канал, щоб не збивати нічний зір */
 :root[data-theme="night"] { --bg: #000; --bg-glow: #000; filter: url(#night-red); }
+/* Монітори-кінескопи (Фосфор — зелений, Бурштин — янтарний, Білий фосфор): як нічна, уся сторінка яскравістю в один колір;
+   свічення, рядки розгортки, заголовки, великі числа, кнопки й вкладки — моноширинним (назви й описи — звичайним, щоб не переносились) */
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) { --bg: #0b0d0b; --bg-glow: #141914; }
+:root[data-theme="phosphor"] { filter: url(#phosphor); }
+:root[data-theme="amber"] { filter: url(#amber); }
+:root[data-theme="white"] { filter: url(#white); }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body {
+  text-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h2, h3, .hero-label, .hero-value, .cal-total,
+  .big, .thumb, .box-toggle, .settings-group > legend, .ex-scoring-title, .ex-ring-name, .stat-value, .btn, .chips button, .tabs span) {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace; }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h3) { text-transform: uppercase; letter-spacing: .06em; }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body::after { content: ""; position: fixed; inset: 0;
+  z-index: 2147483647; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 85% 75% at 50% 50%, transparent 55%, rgb(0 0 0 / .55)); }
 .night-level { margin-top: 12px; }
+.theme-group { margin: 12px 0 6px; }
+/* «Білий фосфор» не влазить у чверть рядка — переноситься на два рядки, а не обрізається трьома крапками */
+.theme-group + .chips.segmented button { white-space: normal; line-height: 1.15; }
 .night-level input { width: 100%; accent-color: var(--accent); }
 
 * { box-sizing: border-box; }
@@ -833,6 +852,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .empty { text-align: center; padding: 48px 12px; }
 .empty .btn-row { justify-content: center; max-width: 360px; margin: 18px auto 0; }
 .empty .btn-row .btn.primary { flex-basis: 100%; }
+/* На фоні-малюнку сірий текст губиться (світлий камуфляж — 2.8:1) — порожній екран кладемо на картку */
+:root[data-bg] #view .empty { margin-top: 12px; padding: 32px 16px 20px; border-radius: 18px; border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / .10); }
 
 .archive { margin-top: 12px; color: var(--muted); }
 .archive summary { cursor: pointer; padding: 6px 2px; }
@@ -2456,6 +2478,12 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 }
 .guide .quiz-acts > button { flex: 1 1 0; min-width: 0; margin: 0; }
 /* Складність — свій випадний список: згорнуто — вибраний рівень зі стрілкою, розгорнуто — усі рівні під ним */
+.guide .quiz-groups { margin: 0 0 8px; }
+.guide .quiz-dist { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; color: var(--muted); font-size: 14px; }
+.guide .quiz-dist-label { margin-right: auto; }
+.guide .quiz-dist select { width: auto; flex: none; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 650; }
+.guide .quiz-dist-note { flex-basis: 100%; font-size: 12.5px; }
+.guide .quiz-weak-go { display: inline; margin: 4px 0 0; }
 .guide .quiz-levels { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .guide .quiz-level-nav { width: 28px; height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font: 600 24px system-ui, sans-serif; cursor: pointer; }
 .guide .quiz-level-nav:disabled { opacity: .25; cursor: default; }
@@ -2590,7 +2618,6 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-quick li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent-soft); color: var(--accent-2); font: 700 13px system-ui, sans-serif; }
 .guide .sim-tour-btn { justify-self: start; }
-.guide .sim-quick video { display: block; width: auto; max-width: 100%; max-height: 360px; margin: 0 auto; border-radius: 12px; background: #000; }
 .guide .sim-row { display: grid; gap: 10px; }
 @media (min-width: 640px) { .guide .sim-stick { margin: 0; border: 0; padding: 0; } }
 .guide .sim-zoom { flex: none; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 650 13px system-ui, sans-serif; cursor: pointer; }
@@ -2848,12 +2875,33 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* ⚙ Налаштування групами: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток */
 .settings-group { margin: 22px 0 14px; padding: 2px 16px 4px; background: var(--surface); box-shadow: var(--shadow); border-radius: var(--radius); }
 .settings-group > legend { padding: 0 8px; margin-left: -6px; border-radius: 6px; background: var(--surface); color: var(--accent-2); }
-.settings-group > .panel, .settings-group > .box-body > .panel { margin: 0; padding: 14px 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
-.settings-group > .panel + .panel, .settings-group > .box-body > .panel + .panel { border-top: 1px solid var(--line-soft); }
-/* Згорнута група — як згорнутий блок: лише назва на лінії, без картки навколо порожнечі */
-.settings-group.closed { margin: 26px 0; padding: 0; border-width: 1px 0 0; border-radius: 0; background: none; box-shadow: none; }
-.settings-group.closed > legend { margin-left: 0; padding-left: 0; background: none; }
-.settings-group.danger { border-color: color-mix(in srgb, var(--shoot) 45%, var(--line)); }
+.settings-group > .panel { margin: 0; padding: 14px 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.about-desc { margin: 10px 0; }
+/* рядок налаштувань: іконка · назва · значення › — що де стоїть, видно без розгортання */
+.set-row + .set-row { border-top: 1px solid var(--line-soft); }
+.set-head { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 0; border: 0; background: none;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.set-head .tool-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-2); }
+.set-head .tool-ico svg { width: 19px; height: 19px; }
+.set-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.set-val { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.set-val:empty { display: none; }
+.set-val.ok::before, .set-val.bad::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--buy); }
+.set-val.bad { color: var(--shoot); }
+.set-val.bad::before { background: var(--shoot); }
+.set-chev { flex: none; width: 14px; color: var(--muted); font-size: 20px; line-height: 1; text-align: center; transition: transform .2s ease; }
+.set-row.open .set-chev { transform: rotate(90deg); }
+.set-row.danger .set-head .tool-ico { background: color-mix(in srgb, var(--shoot) 14%, transparent); color: var(--shoot); }
+.set-row.danger .set-title { color: var(--shoot); font-weight: 500; }
+/* розгортання — висотою сітки 0fr → 1fr: плавно й без підрахунку висоти в JS */
+.set-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+.set-row.open .set-body { grid-template-rows: 1fr; }
+.set-inner { min-height: 0; overflow: hidden; }
+.set-pane, .set-sub { display: flex; flex-direction: column; gap: 10px; }
+.set-pane { padding: 0 0 16px; }
+.set-pane p, .set-sub p { margin: 0; }
+.set-pane .btn-row, .set-pane .chips.segmented, .set-pane .kv { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .set-body, .set-chev { transition: none; } }
 .settings-group.danger > legend { color: var(--shoot); }
 
 /* Зона дотику ≥ 44 px для дрібних кнопок: вигляд той самий, палець ловить ширше.
@@ -2939,7 +2987,38 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
 .tour-next { min-height: 38px; padding: 8px 18px; }
-@media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
+/* Палець у турі: свайпи по прицілу (swipe) чи ведення прицілу (drag — за пальцем іде перехрестя); рух лише transform/opacity */
+.tour-finger { position: fixed; z-index: 1201; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
+  opacity: 0; background: rgb(255 255 255 / .28); border: 2px solid rgb(255 255 255 / .9);
+  box-shadow: 0 0 0 6px rgb(255 255 255 / .12), 0 4px 12px rgb(0 0 0 / .4); }
+.tour-finger.drag::before, .tour-finger.drag::after { content: ""; position: absolute; left: 50%; top: 50%; background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .35); }
+.tour-finger.drag::before { width: 92px; height: 2px; margin: -1px 0 0 -46px; }
+.tour-finger.drag::after { width: 2px; height: 92px; margin: -46px 0 0 -1px; }
+.tour-finger.swipe { animation: tour-swipe 4.8s ease-in-out infinite; }
+.tour-finger.drag { animation: tour-drag 4s ease-in-out infinite; }
+@keyframes tour-swipe {
+  0%, 6% { opacity: 0; transform: translate(0, 34px); }
+  10% { opacity: 1; transform: translate(0, 34px) scale(.9); }
+  26% { opacity: 1; transform: translate(0, -44px) scale(.9); }
+  32%, 46% { opacity: 0; transform: translate(0, -44px); }
+  50% { opacity: 0; transform: translate(-44px, 0); }
+  54% { opacity: 1; transform: translate(-44px, 0) scale(.9); }
+  70% { opacity: 1; transform: translate(48px, 0) scale(.9); }
+  76%, 100% { opacity: 0; transform: translate(48px, 0); }
+}
+@keyframes tour-drag {
+  0% { opacity: 0; transform: translate(0, 0); }
+  8% { opacity: 1; transform: translate(0, 0) scale(.9); }
+  30% { transform: translate(40px, -22px) scale(.9); }
+  56% { transform: translate(-34px, 16px) scale(.9); }
+  80% { opacity: 1; transform: translate(12px, 30px) scale(.9); }
+  92%, 100% { opacity: 0; transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole { transition: none; } .tour-card.in { animation: none; }
+  .tour-finger:is(.swipe, .drag) { animation: none; opacity: 1; }
+}
 
 /* Фон під картками (⚙ → Вигляд → Фон): малюнок — у --paper на <html> і на плитках вибору; --bg — тон шапки й смуги браузера.
    Темна: без малюнка, карта (горизонталі topo.svg), олива, карбон, койот. Світла: без малюнка, карта (topo-light.svg),
@@ -2965,7 +3044,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Лінії — чорне тло з кривими, пучками й дугами, що проявляються й тануть на різній відстані від кінців; «з акцентом» — кілька помаранчевих */
 [data-bg="lines"] { --paper: url(lines.webp) center / cover no-repeat, #0e0f11; }
 [data-bg="lines-acc"] { --paper: url(lines-acc.webp) center / cover no-repeat, #0e0f11; }
-[data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
+/* Світлий камуфляж — найконтрастніший малюнок; вуаль кольору фону на 45% глушить рябизну, візерунок лишається */
+[data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно);
    варіанти «з акцентом» — та сама палітра, тло як у темних «Лініях з акцентом» (lines-sand.webp, lines-khaki.webp) */
@@ -2988,6 +3068,27 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="coyote"] { --bg: #1b160f; }
 :root[data-bg="camo"] { --bg: #17181d; }
 :root[data-bg="camo-hex"] { --bg: #141614; }
+/* Палітри темних фонів — як «Пісок» і «Хакі» у світлій: картки, лінії й сірий текст у тон підкладки, а не зеленуваті скрізь.
+   Приглушені відтінки; текст ~14:1, сірий 5,7–6,7:1 на картці й на другій поверхні. «Карта» й «Камуфляж із сотами» — на базовій */
+:root[data-bg="olive"] { --bg-glow: #1f2819; --surface: #1b2216; --surface-2: #263020; --seg-on: #37442d; --line: #36422b; --line-soft: #2c3624;
+  --text: #ebefdf; --muted: #a0aa8e; }
+:root[data-bg="coyote"] { --bg-glow: #2a2219; --surface: #221c15; --surface-2: #2e261c; --seg-on: #403427; --line: #3e3326; --line-soft: #322a1f;
+  --text: #f2ebdf; --muted: #b0a18a; }
+:root:is([data-bg="carbon"], [data-bg="lines"], [data-bg="lines-acc"]) { --bg-glow: #222326; --surface: #1b1c1e; --surface-2: #252629; --seg-on: #36383c;
+  --line: #323438; --line-soft: #2a2b2e; --text: #ecedef; --muted: #9da0a6; }
+:root[data-bg="camo"] { --bg-glow: #20232a; --surface: #1a1c22; --surface-2: #24272f; --seg-on: #353a45; --line: #323640; --line-soft: #292c34;
+  --text: #eceef3; --muted: #9ba0ad; }
+/* Картинки-фони — вертикальні 1080×2160 під телефон; на широкому екрані комп'ютера cover розтягував їх ×2 і милив —
+   там горизонтальні 2560×1440 (*-wide.webp, той самий генератор і розмір плям). Телефон їх не завантажує */
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  [data-bg="camo"] { --paper: url(camo-wide.webp) center / cover no-repeat, #17181d; }
+  [data-bg="camo-hex"] { --paper: url(camo-hex-wide.webp) center / cover no-repeat, #141614; }
+  [data-bg="lines"] { --paper: url(lines-wide.webp) center / cover no-repeat, #0e0f11; }
+  [data-bg="lines-acc"] { --paper: url(lines-acc-wide.webp) center / cover no-repeat, #0e0f11; }
+  [data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light-wide.webp) center / cover no-repeat, #eceee9; }
+  [data-bg="l-sand-acc"] { --paper: url(lines-sand-wide.webp) center / cover no-repeat, #ecdfc6; }
+  [data-bg="l-khaki-acc"] { --paper: url(lines-khaki-wide.webp) center / cover no-repeat, #e0e3cf; }
+}
 :root:is([data-bg="lines"], [data-bg="lines-acc"]) { --bg: #0e0f11; }
 :root[data-bg="l-camo"] { --bg: #e9ebe6; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }

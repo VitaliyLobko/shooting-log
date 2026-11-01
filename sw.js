@@ -1,6 +1,10 @@
-importScripts('./version.js');
+importScripts('./version.js', './media.js');
 
 const CACHE = `shooters-log-${self.APP_VERSION}-${self.APP_BUILD}`;
+// Картинки — в окремому кеші без версії: 8 МБ фото тренажера змінюються рідко, а качались би з кожним релізом.
+// Ключ — шлях із відбитком (?v=…), тож змінена картинка — новий запис; зайві прибирає activate
+const MEDIA_CACHE = 'shooters-log-media';
+const mediaKey = (path) => `./${path}?v=${self.MEDIA[path]}`;
 const ASSETS = [
   './',
   './index.html',
@@ -91,8 +95,6 @@ const ASSETS = [
   './guide/img/real-field-bg.webp',
   './guide/img/real-field-gr.webp',
   './guide/img/zero-25m.png',
-  './media/trener.jpg',
-  './media/trener.mp4',
   './icons/author.jpg',
   './icons/monobank.png',
   './icons/cat-portrait.png',
@@ -105,7 +107,20 @@ const ASSETS = [
 // Файли — повз HTTP-кеш браузера: GitHub Pages віддає max-age=600, і без reload
 // оновлення 10 хвилин після релізу ставило б старі файли.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })))));
+  event.waitUntil((async () => {
+    const media = ASSETS.filter((url) => self.MEDIA[url.slice(2)]);
+    const cache = await caches.open(CACHE);
+    await cache.addAll(ASSETS.filter((url) => !media.includes(url)).map((url) => new Request(url, { cache: 'reload' })));
+    // Картинка з тим самим відбитком уже є — не качаємо; будь-яка невдача валить установку, як і addAll
+    const mc = await caches.open(MEDIA_CACHE);
+    await Promise.all(media.map(async (url) => {
+      const key = mediaKey(url.slice(2));
+      if (await mc.match(key)) return;
+      const res = await fetch(new Request(url, { cache: 'reload' }));
+      if (!res.ok) throw new Error(`${url}: ${res.status}`);
+      await mc.put(key, res);
+    }));
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -113,7 +128,11 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     // Лише свої старі версії (і під попередніми назвами): на vitaliylobko.github.io поруч живе weight-log зі своїм кешем
     const mine = (k) => ['shooters-log-', 'scouts-log-', 'shooting-log-'].some((p) => k.startsWith(p));
-    await Promise.all(keys.filter((k) => mine(k) && k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => mine(k) && k !== CACHE && k !== MEDIA_CACHE).map((k) => caches.delete(k)));
+    // Картинки, яких у цій версії вже немає (чи з іншим відбитком)
+    const mc = await caches.open(MEDIA_CACHE);
+    const keep = new Set(Object.keys(self.MEDIA).map((path) => new URL(mediaKey(path), self.location).href));
+    await Promise.all((await mc.keys()).filter((r) => !keep.has(r.url)).map((r) => mc.delete(r)));
     await self.clients.claim();
   })());
 });
@@ -139,10 +158,22 @@ self.addEventListener('fetch', (event) => {
   }
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
+    // Картинка з ASSETS — точно під відбиток цієї версії
+    const path = request.url.split(/[?#]/)[0].slice(self.registration.scope.length);
+    if (self.MEDIA[path]) {
+      const hit = await (await caches.open(MEDIA_CACHE)).match(mediaKey(path));
+      if (hit) return hit;
+    }
     const cached = await caches.match(request, { ignoreSearch: true });
     if (cached) return cached;
     try {
-      return await fetch(request);
+      const res = await fetch(request);
+      // широкі фони для комп'ютера не в ASSETS (телефону не потрібні) — кладемо в кеш при першому показі, щоб були й офлайн
+      if (res.ok && /-wide\.webp$/.test(new URL(request.url).pathname)) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(request, copy));
+      }
+      return res;
     } catch (err) {
       if (request.mode === 'navigate') return caches.match('./index.html');
       throw err;
