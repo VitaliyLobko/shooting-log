@@ -2612,7 +2612,6 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-quick li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent-soft); color: var(--accent-2); font: 700 13px system-ui, sans-serif; }
 .guide .sim-tour-btn { justify-self: start; }
-.guide .sim-quick video { display: block; width: auto; max-width: 100%; max-height: 360px; margin: 0 auto; border-radius: 12px; background: #000; }
 .guide .sim-row { display: grid; gap: 10px; }
 @media (min-width: 640px) { .guide .sim-stick { margin: 0; border: 0; padding: 0; } }
 .guide .sim-zoom { flex: none; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 650 13px system-ui, sans-serif; cursor: pointer; }
@@ -2982,7 +2981,38 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
 .tour-next { min-height: 38px; padding: 8px 18px; }
-@media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } .tour-card.in { animation: none; } }
+/* Палець у турі: свайпи по прицілу (swipe) чи ведення прицілу (drag — за пальцем іде перехрестя); рух лише transform/opacity */
+.tour-finger { position: fixed; z-index: 1201; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
+  opacity: 0; background: rgb(255 255 255 / .28); border: 2px solid rgb(255 255 255 / .9);
+  box-shadow: 0 0 0 6px rgb(255 255 255 / .12), 0 4px 12px rgb(0 0 0 / .4); }
+.tour-finger.drag::before, .tour-finger.drag::after { content: ""; position: absolute; left: 50%; top: 50%; background: var(--accent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .35); }
+.tour-finger.drag::before { width: 92px; height: 2px; margin: -1px 0 0 -46px; }
+.tour-finger.drag::after { width: 2px; height: 92px; margin: -46px 0 0 -1px; }
+.tour-finger.swipe { animation: tour-swipe 4.8s ease-in-out infinite; }
+.tour-finger.drag { animation: tour-drag 4s ease-in-out infinite; }
+@keyframes tour-swipe {
+  0%, 6% { opacity: 0; transform: translate(0, 34px); }
+  10% { opacity: 1; transform: translate(0, 34px) scale(.9); }
+  26% { opacity: 1; transform: translate(0, -44px) scale(.9); }
+  32%, 46% { opacity: 0; transform: translate(0, -44px); }
+  50% { opacity: 0; transform: translate(-44px, 0); }
+  54% { opacity: 1; transform: translate(-44px, 0) scale(.9); }
+  70% { opacity: 1; transform: translate(48px, 0) scale(.9); }
+  76%, 100% { opacity: 0; transform: translate(48px, 0); }
+}
+@keyframes tour-drag {
+  0% { opacity: 0; transform: translate(0, 0); }
+  8% { opacity: 1; transform: translate(0, 0) scale(.9); }
+  30% { transform: translate(40px, -22px) scale(.9); }
+  56% { transform: translate(-34px, 16px) scale(.9); }
+  80% { opacity: 1; transform: translate(12px, 30px) scale(.9); }
+  92%, 100% { opacity: 0; transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole { transition: none; } .tour-card.in { animation: none; }
+  .tour-finger:is(.swipe, .drag) { animation: none; opacity: 1; }
+}
 
 /* Фон під картками (⚙ → Вигляд → Фон): малюнок — у --paper на <html> і на плитках вибору; --bg — тон шапки й смуги браузера.
    Темна: без малюнка, карта (горизонталі topo.svg), олива, карбон, койот. Світла: без малюнка, карта (topo-light.svg),

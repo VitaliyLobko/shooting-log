@@ -91,8 +91,6 @@ const ASSETS = [
   './guide/img/real-field-bg.webp',
   './guide/img/real-field-gr.webp',
   './guide/img/zero-25m.png',
-  './media/trener.jpg',
-  './media/trener.mp4',
   './icons/author.jpg',
   './icons/monobank.png',
   './icons/cat-portrait.png',
