@@ -6332,7 +6332,7 @@ function onSyncChip() {
 }
 
 // Тема: auto — як у системі. Першу розстановку до малювання робить скрипт в index.html.
-const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Светлая'], ['night', 'Ночная']];
+const THEMES = [['auto', 'Авто'], ['dark', 'Тёмная'], ['light', 'Светлая'], ['night', 'Ночная'], ['phosphor', 'Фосфор'], ['amber', 'Янтарь'], ['white', 'Белый фосфор']];
 const lightScheme = matchMedia('(prefers-color-scheme: light)');
 
 function themePref() {
@@ -7066,7 +7066,17 @@ async function checkUpdate() {
   if (!('serviceWorker' in navigator)) { toast(t('Обновления работают только по https')); return; }
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) { toast(t('Приложение ещё не установлено как офлайн-копия')); return; }
+  // Без мережі reg.update() не падає, а тихо завершується — інакше вийшло б «у вас найновіша версія»
+  if (!navigator.onLine) { toast(t('Нет связи с сервером')); return; }
   toast(t('Проверяю обновление…'));
+  // Wi-Fi без інтернету браузер теж вважає «онлайн» — питаємо сам сервер; HEAD іде повз service worker (той ловить лише GET)
+  try {
+    const res = await fetch('./version.js', { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(String(res.status));
+  } catch {
+    toast(t('Нет связи с сервером'));
+    return;
+  }
   try {
     await reg.update();
   } catch {
