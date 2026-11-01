@@ -1975,9 +1975,12 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       ['search', 'Поиск', 'цель появляется на 5 с в случайном месте · найди и поставь на метку'],
       ['searchMove', 'Поиск в движении', 'как «Поиск», но цель бывает и идёт или бежит'],
     ],
+    // Сходинка — як у «Виносі»: ті самі назви означають ті самі умови
     combo: [
+      ['easy', 'Легко', 'выбранная цель · только дистанция'],
       ['normal', 'Нормально', 'выбранная цель · и ветер'],
-      ['varied', 'Трудно', 'разные цели · ветер и движение'],
+      ['hard', 'Трудно', 'выбранная цель · ветер и движение'],
+      ['varied', 'Очень трудно', 'разные цели · ветер и движение'],
       ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
       ['timed', 'На время', 'разные цели · ветер и движение · 25 с на цель'],
     ],
@@ -1995,13 +1998,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // Груди там, де голова була б лотереєю: оцінка вітру ступенями, свій замір дальності, рух на час
   const ZONE_BY = {
     hold: { learn: 'torso', wind1: 'torso', wind2: 'torso', move1: 'torso', windmove: 'torso', easy: 'torso', normal: 'chest', hard: 'chest', varied: 'mix', head: 'head', signs: 'chest', timed: 'chest', search: 'chest', searchMove: 'chest' },
-    combo: { normal: 'chest', varied: 'chest', timed: 'chest' },
+    combo: { easy: 'torso', normal: 'chest', hard: 'chest', varied: 'chest', timed: 'chest' },
   };
   const ZONE_NOTE = { torso: 'зона: весь торс', chest: 'зона: грудь', head: 'зона: голова', mix: 'зона: голова до 300 м, если цель стоит, дальше грудь' };
   // Рівні, де голова чи весь торс мають сенс лише ближче: до 400 м
   const NEAR_MAX = { learn: 400, wind1: 500, wind2: 500, move1: 400, windmove: 500, easy: 400, head: 400 };
   // Навчальні рівні «Виносу»: підказка на сітці; вітрові — ще й розрахунок вітру під умовою
   const LEARN = ['learn', 'wind1', 'wind2', 'move1', 'windmove'];
+  // Режими — окремі вправи, а не сходинка складності: підказка «спробуй важче/легше» їх не пропонує
+  const LEVEL_MODES = ['timed', 'head', 'signs', 'search', 'searchMove', 'bracket'];
   // «Винос» — 15 рівнів трьома групами, у стрічці лише група вибраного: [ключ, назва, рівні, рівень при виборі групи]
   const LEVEL_GROUPS = {
     hold: [['learn', 'Обучение', LEARN, 'learn'], ['ladder', 'Сложность', ['easy', 'normal', 'hard', 'varied'], 'normal'],
@@ -2143,7 +2148,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // «Винос»: дистанція, (вітер), (рух) — тапнути точку сітки, яку наводиш на ціль
   const nextHold = () => {
     const L = LOADS[$('s-kit').value]; const C = RET[L.ret];
-    const [d0, dTop] = distBounds(L.my ? L.dmin : windLearn() ? 200 : 100, holdTop(L), 25);
+    // «Голова» далі 400 м — лотерея: межа діє й з вибраними дистанціями
+    const top = Math.min(holdTop(L), quiz.level === 'head' ? NEAR_MAX.head : Infinity);
+    const [d0, dTop] = distBounds(L.my ? L.dmin : windLearn() ? 200 : 100, top, 25);
     // Стеля рівня (торс, голова — до 400 м) — лише без свого вибору дистанцій: вибране важливіше
     const d1 = Math.max(d0, Math.min(dTop, quiz.dr ? Infinity : NEAR_MAX[quiz.level] ?? Infinity));
     const dist = d0 + 25 * Math.floor(Math.random() * ((d1 - d0) / 25 + 1));
@@ -3025,6 +3032,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     easier.addEventListener('click', () => step(-1)); harder.addEventListener('click', () => step(1));
     const level = el('div', { className: 'quiz-levels' });
     level.append(easier, strip, harder, note);
+    let paintNote = null;
     const paintLevels = () => {
       strip.querySelectorAll('.quiz-level').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.level === picked)));
       const cur = strip.querySelector('[aria-pressed="true"]');
@@ -3032,6 +3040,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       // Згорнутий блок підказує, що всередині: вправа, рівень і вибрані дистанції
       const dr = kindNow === 'wind' ? null : distRange();
       $('sim-quiz-sum').textContent = `${t(KINDS.find(([v]) => v === kindNow)[1])} · ${t(levels.find(([v]) => v === picked)?.[1] ?? '')}${dr ? ` · ${distLabel(dr)}` : ''}`;
+      paintNote?.();
     };
     paintLevels();
     // «Дистанції від–до» (крок 50 м) — з будь-яким рівнем; одні на всі вправи, крім «Вітру», де дистанції немає
@@ -3048,13 +3057,17 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const [a, b] = distPref();
       const from = select(a, t('Дистанции от')); const to = select(b, t('Дистанции до'));
       const note = el('small', { className: 'quiz-dist-note' });
-      // Набій не дістає до вибраного: свій — лише в межах таблиці, вбудований — до краю повзунка «дист.»
-      const paintNote = () => {
+      // Набій не дістає до вибраного: свій — лише в межах таблиці, вбудований — до краю повзунка «дист.»; «Голова» — до 400 м
+      paintNote = () => {
         const L = LOADS[$('s-kit').value]; const dr = distRange();
-        const lo = L.my ? L.dmin : DIST_ALL[0]; const top = L.my ? L.dmax : +$('s-dist').max;
+        const lo = L.my ? L.dmin : DIST_ALL[0]; const table = L.my ? L.dmax : +$('s-dist').max;
+        const head = kindNow === 'hold' && picked === 'head' && NEAR_MAX.head < table;
+        const top = head ? NEAR_MAX.head : table;
         note.textContent = !dr || kindNow === 'range' ? ''
-          : dr[0] > top || dr[1] < lo ? t('У этого набора таблица {a}–{b} м — цели будут на всех её дистанциях', { a: lo, b: top })
-            : dr[1] > top ? t('Вынос — до {d} м: дальше у набора нет таблицы', { d: top }) : '';
+          : dr[0] > top || dr[1] < lo ? (head ? t('«Голова» — до {d} м: цели будут на {a}–{d} м', { a: lo, d: top })
+            : t('У этого набора таблица {a}–{b} м — цели будут на всех её дистанциях', { a: lo, b: top }))
+            : dr[1] > top ? (head ? t('«Голова» — до {d} м: дальше это лотерея', { d: top })
+              : t('Вынос — до {d} м: дальше у набора нет таблицы', { d: top })) : '';
         note.hidden = !note.textContent;
       };
       const change = (e) => {
@@ -3062,7 +3075,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         // «від» більше за «до» — друге підтягується до щойно вибраного
         if (lo > hi) { if (e.target === from) { hi = lo; to.value = String(hi); } else { lo = hi; from.value = String(lo); } }
         saveDist([lo, hi]);
-        paintLevels(); paintNote(); paintAbout(); paintProg();
+        paintLevels(); paintAbout(); paintProg();
       };
       from.addEventListener('change', change); to.addEventListener('change', change);
       distBox.append(el('span', { className: 'quiz-dist-label' }, t('Дистанции')), el('span', {}, t('от')), from, el('span', {}, t('до')), to,
@@ -3116,6 +3129,19 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         const best = past.reduce((a, b) => (b.good / b.n > a.good / a.n ? b : a));
         parts.push(bars, el('small', {}, t('попаданий в каждой серии из {n}, яркий — последняя', { n: last.n })),
           el('span', {}, t('Последняя: {g} из {n} {crit} · лучшая {b} из {bn} · серий {s}', { g: last.good, n: last.n, crit, b: best.good, bn: best.n, s: mine.length })));
+        // Сусідній рівень на сходинці: дві серії поспіль від 80 % — важче, остання нижче 40 % — легше
+        const rate = (h) => h.good / h.n;
+        const ladder = (b) => (b && !LEVEL_MODES.includes(b.dataset.level) ? b : null);
+        const cur = ladder(strip.querySelector(`[data-level="${picked}"]`));
+        const up = mine.length >= 2 && mine.slice(-2).every((h) => rate(h) >= 0.8) && ladder(cur?.nextElementSibling);
+        const down = !up && rate(last) < 0.4 && ladder(cur?.previousElementSibling);
+        const to = up || down;
+        if (to) {
+          const b = el('button', { type: 'button', className: 'quiz-stop quiz-step' },
+            `${t(up ? 'Попробуй сложнее: {l}' : 'Попробуй полегче: {l}', { l: to.textContent })} →`);
+          b.addEventListener('click', () => to.click());
+          parts.push(b);
+        }
         // Похибка словами й куди йде: середнє трьох останніх серій проти трьох попередніх
         if (kindNow !== 'wind') {
           const same = mine.filter((h) => h.u === last.u);
