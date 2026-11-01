@@ -69,7 +69,7 @@
 :root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body {
   text-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
 :root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h2, h3, .hero-label, .hero-value, .cal-total,
-  .big, .thumb, .box-toggle, .ex-scoring-title, .ex-ring-name, .stat-value, .btn, .chips button, .tabs span) {
+  .big, .thumb, .box-toggle, .settings-group > legend, .ex-scoring-title, .ex-ring-name, .stat-value, .btn, .chips button, .tabs span) {
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace; }
 :root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h3) { text-transform: uppercase; letter-spacing: .06em; }
 :root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body::after { content: ""; position: fixed; inset: 0;
@@ -2870,12 +2870,33 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* ⚙ Налаштування групами: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток */
 .settings-group { margin: 22px 0 14px; padding: 2px 16px 4px; background: var(--surface); box-shadow: var(--shadow); border-radius: var(--radius); }
 .settings-group > legend { padding: 0 8px; margin-left: -6px; border-radius: 6px; background: var(--surface); color: var(--accent-2); }
-.settings-group > .panel, .settings-group > .box-body > .panel { margin: 0; padding: 14px 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
-.settings-group > .panel + .panel, .settings-group > .box-body > .panel + .panel { border-top: 1px solid var(--line-soft); }
-/* Згорнута група — як згорнутий блок: лише назва на лінії, без картки навколо порожнечі */
-.settings-group.closed { margin: 26px 0; padding: 0; border-width: 1px 0 0; border-radius: 0; background: none; box-shadow: none; }
-.settings-group.closed > legend { margin-left: 0; padding-left: 0; background: none; }
-.settings-group.danger { border-color: color-mix(in srgb, var(--shoot) 45%, var(--line)); }
+.settings-group > .panel { margin: 0; padding: 14px 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.about-desc { margin: 10px 0; }
+/* рядок налаштувань: іконка · назва · значення › — що де стоїть, видно без розгортання */
+.set-row + .set-row { border-top: 1px solid var(--line-soft); }
+.set-head { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 0; border: 0; background: none;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.set-head .tool-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-2); }
+.set-head .tool-ico svg { width: 19px; height: 19px; }
+.set-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.set-val { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.set-val:empty { display: none; }
+.set-val.ok::before, .set-val.bad::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 6px 1px 0; border-radius: 50%; background: var(--buy); }
+.set-val.bad { color: var(--shoot); }
+.set-val.bad::before { background: var(--shoot); }
+.set-chev { flex: none; width: 14px; color: var(--muted); font-size: 20px; line-height: 1; text-align: center; transition: transform .2s ease; }
+.set-row.open .set-chev { transform: rotate(90deg); }
+.set-row.danger .set-head .tool-ico { background: color-mix(in srgb, var(--shoot) 14%, transparent); color: var(--shoot); }
+.set-row.danger .set-title { color: var(--shoot); font-weight: 500; }
+/* розгортання — висотою сітки 0fr → 1fr: плавно й без підрахунку висоти в JS */
+.set-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+.set-row.open .set-body { grid-template-rows: 1fr; }
+.set-inner { min-height: 0; overflow: hidden; }
+.set-pane, .set-sub { display: flex; flex-direction: column; gap: 10px; }
+.set-pane { padding: 0 0 16px; }
+.set-pane p, .set-sub p { margin: 0; }
+.set-pane .btn-row, .set-pane .chips.segmented, .set-pane .kv { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .set-body, .set-chev { transition: none; } }
 .settings-group.danger > legend { color: var(--shoot); }
 
 /* Зона дотику ≥ 44 px для дрібних кнопок: вигляд той самий, палець ловить ширше.

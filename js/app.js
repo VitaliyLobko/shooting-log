@@ -6276,9 +6276,10 @@ function connectGoogle() {
   sync.connect().then(() => toast(t('Google Диск подключён'))).catch((err) => toast(err.message));
 }
 
-function syncPanel() {
+/** Вміст рядка «Google Диск»: не налаштовано, не підключено або акаунт, остання синхронізація й кнопки. */
+function syncBody() {
   const s = sync.status;
-  const panel = h('section', { class: 'panel' }, h('h3', {}, t('Синхронизация · Google Диск')));
+  const panel = h('div', { class: 'set-sub' });
   if (!sync.configured()) {
     panel.append(h('p', { class: 'muted small' }, t('Не настроена: в js/config.js не указан Google Client ID.')));
   } else if (!sync.enabled()) {
@@ -6384,7 +6385,6 @@ function switchLang(code) {
   render();
 }
 
-/** «Своя иконка»: картинка лише на цьому пристрої, файл для ярлика на робочому столі. */
 /** Довгий текст під розкриттям. */
 const more = (title, node) => h('details', { class: 'ex-more' }, h('summary', {}, title), node);
 
@@ -6434,7 +6434,10 @@ function aboutPanel() {
         Object.assign(h('span', { class: 'av-live' }), { innerHTML: AVATAR_SVG })),
       h('div', {},
         h('h3', {}, 'Shooter’s Log'),
-        h('p', { class: 'muted small' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')))),
+        h('p', { class: 'muted small' }, t('Версия {v} · сборка {b}', { v: self.APP_VERSION, b: self.APP_BUILD ?? '—' })))),
+    h('p', { class: 'muted small about-desc' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')),
+    // Сім тапів по «Перевірити оновлення» — панель святкових сценок (updateTap)
+    h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), updateTap), btn(t('Что нового'), () => allChanges().then(changesSheet))),
     // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
     h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
       h('span', { class: 'donate-art' },
@@ -6527,10 +6530,10 @@ function updateTap() {
 }
 
 /** Усі святкові сценки під рукою, щоб переглянути без чекання дати. */
-function scenesPanel() {
+function scenesRow() {
   if (recall(SCENES_PANEL_KEY) !== '1') return null;
   const list = [['independence', t('День Независимости'), '24.08'], ['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
-  return h('section', { class: 'panel' }, h('h3', {}, t('Праздничные сценки')),
+  return setRow('scenes', 'sparkle', t('Праздничные сценки'), '',
     h('div', { class: 'btn-row' }, list.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name)))));
 }
 
@@ -6577,26 +6580,26 @@ function calendarEvents() {
 }
 
 /** Нагадування в календарі телефону: усі строки одним файлом .ics, найближчі — і по одній у Google Календар. */
-function calendarPanel() {
+function calendarRow() {
   const events = calendarEvents();
-  const head = h('h3', {}, t('Напоминания в календаре'));
+  const title = t('Календарь');
   if (!events.length) {
-    return h('section', { class: 'panel' }, head,
+    return setRow('calendar', 'calendar', title, t('Нет событий'),
       h('p', { class: 'muted small' }, t('Пока нечего добавить: укажите в форме оружия, до какого числа действует разрешение, или отсрочку напоминания о чистке.')));
   }
   const near = events.slice(0, 6);
-  return h('section', { class: 'panel' }, head,
+  return setRow('calendar', 'calendar', title, fmt.num(events.length), [
     h('p', { class: 'muted small' }, t('Сроки разрешений — за 3 месяца, месяц, неделю и в последний день — и отложенная чистка событиями в календаре телефона: он напомнит, даже когда приложение закрыто. Даты изменились — выгрузите ещё раз.')),
     h('div', { class: 'rows' }, near.map((e) => h('div', { class: 'row' },
       h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, e.title), h('span', { class: 'muted small' }, fmt.date(e.date))),
       toolBtn('calendar', t('Добавить в Google Календарь'), () => window.open(googleCalendarLink(e), '_blank', 'noopener'), 'small')))),
     events.length > near.length ? h('p', { class: 'muted small' }, t('и ещё {n} — в файле .ics', { n: events.length - near.length })) : null,
     h('div', { class: 'btn-row' }, btn(t('Все в календарь (.ics)'),
-      () => offerFile('shooters-log.ics', icsCalendar(events, { name: 'Shooter’s Log' }), 'text/calendar'), 'primary')));
+      () => offerFile('shooters-log.ics', icsCalendar(events, { name: 'Shooter’s Log' }), 'text/calendar'), 'primary'))]);
 }
 
 /** Видалені вбудовані вправи — лише сховані: повернути всі разом, якщо прибрали зайве. */
-function hiddenExercisesPanel() {
+function hiddenExercisesRow() {
   const hidden = state.exercises.filter((r) => r.hidden);
   if (!hidden.length) return null;
   const restore = async () => {
@@ -6608,14 +6611,14 @@ function hiddenExercisesPanel() {
     await refresh();
     toast(t('Упражнения вернулись в список: {n}', { n: hidden.length }));
   };
-  return h('section', { class: 'panel' }, h('h3', {}, t('Упражнения')),
+  return setRow('exercises', 'drill', t('Упражнения'), fmt.num(hidden.length), [
     h('p', { class: 'muted small' }, t('Удалённые встроенные упражнения: {list}.', { list: hidden.map((r) => exerciseName(r.id) ?? r.id).join(', ') })),
-    h('div', { class: 'btn-row' }, btn(t('Вернуть встроенные упражнения ({n})', { n: hidden.length }), restore)));
+    h('div', { class: 'btn-row' }, btn(t('Вернуть встроенные упражнения ({n})', { n: hidden.length }), restore))]);
 }
 
-/** ⚙ «Вход по отпечатку»: увімкнути, через скільки блокувати у фоні, вимкнути з підтвердженням. */
-function lockPanel() {
-  const body = h('div', {});
+/** ⚙ «Вход по отпечатку»: увімкнути, через скільки блокувати у фоні, вимкнути. */
+function lockRow() {
+  const body = h('div', { class: 'set-sub' });
   const act = (fn, done) => async () => {
     try {
       await fn();
@@ -6626,7 +6629,7 @@ function lockPanel() {
     render();
   };
   if (lockOn()) {
-    const delay = chips(LOCK_DELAYS.map((m) => [String(m), m ? t('{n} мин', { n: m }) : t('Сразу')]), String(lockDelay()), (v) => setLockDelay(Number(v)));
+    const delay = chips(LOCK_DELAYS.map((m) => [String(m), m ? t('{n} мин', { n: m }) : t('Сразу')]), String(lockDelay()), (v) => { setLockDelay(Number(v)); render(); });
     delay.classList.add('segmented');
     body.append(
       h('p', { class: 'muted small' }, t('Блокировать после сворачивания:')), delay,
@@ -6636,22 +6639,23 @@ function lockPanel() {
       ? h('div', { class: 'btn-row' }, btn(t('Включить'), act(enableLock, t('Вход по отпечатку включён')), 'primary'))
       : h('p', { class: 'muted small' }, t('На этом устройстве нет отпечатка, лица или PIN-кода, которые браузер может проверить.'))));
   }
-  return h('section', { class: 'panel' }, h('h3', {}, t('Вход по отпечатку')),
+  const value = !lockOn() ? t('Выключено') : lockDelay() ? t('Через {n} мин', { n: lockDelay() }) : t('Сразу');
+  return setRow('lock', 'lock', t('Вход по отпечатку'), value, [
     h('p', { class: 'muted small' }, t('Приложение открывается отпечатком, лицом или PIN-кодом телефона — только на этом устройстве. Это защита от чужих глаз, данные не шифруются.')),
-    body);
+    body]);
 }
 
-/** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
 /** Фон під картками — плитки з самим фоном, щоб видно було до вибору; набір — для поточної теми, у нічній панелі немає. */
-function backdropPanel() {
+function backdropRow() {
   const theme = document.documentElement.dataset.theme;
   const list = BACKDROPS[theme];
   if (!list) return null;
   let now = backdropPref(theme);
-  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, list.map(([k, label]) => h('button', {
+  const label = (k) => t(list.find(([x]) => x === k)[1]);
+  const strip = h('div', { class: 'bg-picks', role: 'radiogroup', 'aria-label': t('Фон') }, list.map(([k, name]) => h('button', {
     type: 'button', class: 'bg-pick', role: 'radio', 'aria-checked': String(k === now), dataset: { bg: k },
     onclick: (e) => wheel.centerOn(e.currentTarget),
-  }, h('span', { class: 'bg-sw', dataset: { bg: k } }), h('span', {}, t(label)))));
+  }, h('span', { class: 'bg-sw', dataset: { bg: k } }), h('span', {}, t(name)))));
   // Як стрічка цілей: фон посередині — вибраний і одразу під картками, гортаєш — бачиш наживо
   const wheel = wheelStrip(strip, (b) => {
     if (b.dataset.bg === now) return;
@@ -6659,6 +6663,8 @@ function backdropPanel() {
     remember(BG_KEY[theme], now);
     strip.querySelectorAll('.bg-pick').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     applyTheme();
+    // Без перемальовування — інакше стрічка злетіла б посеред гортання; назву в рядку міняємо на місці
+    row.querySelector('.set-val').textContent = label(now);
   }, '.bg-pick');
   // «‹ ›» по краях — видно, що стрічку гортають
   const step = (dir) => {
@@ -6666,19 +6672,21 @@ function backdropPanel() {
     const to = dir < 0 ? on?.previousElementSibling : on?.nextElementSibling;
     if (to) wheel.centerOn(to);
   };
-  const nav = (dir, label, text) => h('button', { type: 'button', class: 'bg-nav', 'aria-label': t(label), onclick: () => step(dir) }, text);
-  // Поля й вибраний посередині рахуються від ширини стрічки: у згорнутій групі «Вид» її ще немає — досчитуємо, щойно з'явиться
+  const nav = (dir, text, name) => h('button', { type: 'button', class: 'bg-nav', 'aria-label': t(text), onclick: () => step(dir) }, name);
+  // Поля й вибраний посередині рахуються від ширини стрічки: поки її не видно, досчитуємо, щойно з'явиться
   let width = 0;
   new ResizeObserver(() => {
     if (!strip.clientWidth || strip.clientWidth === width) return;
     width = strip.clientWidth;
     wheel.settle(strip.querySelector('[aria-checked="true"]'));
   }).observe(strip);
-  return h('section', { class: 'panel' }, h('h3', {}, t('Фон')),
+  const row = setRow('backdrop', 'gallery', t('Фон'), label(now),
     h('div', { class: 'bg-wheel' }, nav(-1, 'Предыдущий', '‹'), strip, nav(1, 'Следующий', '›')));
+  return row;
 }
 
-function usdPanel() {
+/** ⚙ «Курс НБУ»: долари поруч із гривнями і графік курсу. */
+function usdRow() {
   const row = chips([['off', t('Только гривны')], ['on', t('Гривны и $')]], usdOn() ? 'on' : 'off', (v) => {
     remember('shooters-log:usd', v);
     if (v === 'on') pullRates();
@@ -6686,10 +6694,10 @@ function usdPanel() {
   });
   row.classList.add('segmented');
   const now = rateOn(M.today());
-  return h('section', { class: 'panel' }, h('h3', {}, t('Курс НБУ')),
+  return setRow('usd', 'dollar', t('Курс НБУ'), usdOn() ? t('Гривны и $') : t('Только гривны'), [
     h('p', { class: 'muted small' }, t('Рядом с ценами — примерно в долларах по курсу НБУ на день покупки.')),
     row,
-    h('div', { class: 'btn-row' }, btn(t('График курса · сегодня {r} грн', { r: fmt.num(Math.round(now * 100) / 100) }), rateSheet)));
+    h('div', { class: 'btn-row' }, btn(t('График курса · сегодня {r} грн', { r: fmt.num(Math.round(now * 100) / 100) }), rateSheet))]);
 }
 
 /** Графік курсу долара НБУ: рік, 5 років або з 2014. */
@@ -6722,12 +6730,119 @@ async function pullRates() {
 
 function renderSettings() {
   $('subtitle').textContent = t('версия {v}', { v: self.APP_VERSION });
+  // «Про застосунок» — згори, як і було; далі від того, що чіпають найчастіше, до разового
+  return h('div', { class: 'settings' },
+    settingsGroup(t('О приложении'), [aboutPanel()]),
+    settingsGroup(t('Данные'), [syncRow(), lockRow(), backupRow(), storageRow(), demoRow(), wipeRow()]),
+    settingsGroup(t('Вид'), [langRow(), themeRow(), backdropRow(), usdRow(), scenesRow()]),
+    settingsGroup(t('Напоминания и упражнения'), [calendarRow(), hiddenExercisesRow()]));
+}
+
+/** Група налаштувань: рамка з назвою на лінії (як в 1С), всередині — рядки через лінію. Порожня — не показується. */
+function settingsGroup(title, items) {
+  const list = items.filter(Boolean);
+  return list.length ? h('fieldset', { class: 'box settings-group' }, h('legend', {}, title), list) : null;
+}
+
+const SET_OPEN_KEY = 'shooters-log:set-open';
+
+/**
+ * Рядок налаштувань: іконка, назва й поточне значення — видно, що де стоїть, нічого не відкриваючи.
+ * Тап розгортає керування під рядком; відкритий завжди один, і його пам'ятаємо між перемальовуваннями.
+ */
+function setRow(key, ico, title, value, body, { tone = '', danger = false } = {}) {
+  const open = recall(SET_OPEN_KEY) === key;
+  const row = h('div', { class: `set-row${open ? ' open' : ''}${danger ? ' danger' : ''}` });
+  const head = h('button', {
+    type: 'button', class: 'set-head', 'aria-expanded': String(open), onclick: () => {
+      const opening = !row.classList.contains('open');
+      document.querySelectorAll('.set-row.open').forEach((r) => setOpen(r, false));
+      setOpen(row, opening);
+      remember(SET_OPEN_KEY, opening ? key : '');
+    },
+  }, toolIcon(ico), h('span', { class: 'set-title' }, title),
+  h('span', { class: `set-val${tone ? ` ${tone}` : ''}` }, value), h('span', { class: 'set-chev', 'aria-hidden': 'true' }, '›'));
+  row.append(head, h('div', { class: 'set-body', inert: !open }, h('div', { class: 'set-inner' }, h('div', { class: 'set-pane' }, body))));
+  return row;
+}
+
+function setOpen(row, open) {
+  row.classList.toggle('open', open);
+  row.querySelector('.set-head').setAttribute('aria-expanded', String(open));
+  row.querySelector('.set-body').inert = !open;
+}
+
+/** Час для рядка: сьогодні — година, раніше — дата. */
+function shortWhen(ms) {
+  const d = new Date(ms);
+  return d.toDateString() === new Date().toDateString() ? fmt.time(ms)
+    : fmt.date(new Date(ms - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
+}
+
+function syncRow() {
+  const s = sync.status;
+  const on = sync.configured() && sync.enabled();
+  const bad = on && (s.state === 'auth' || s.state === 'error');
+  const value = !sync.configured() ? t('Не настроено') : !on ? t('Выключено')
+    : s.state === 'auth' ? t('Войти') : s.state === 'error' ? t('Ошибка') : s.state === 'offline' ? t('Офлайн')
+      : s.lastSync ? shortWhen(s.lastSync) : t('Ещё не было');
+  return setRow('sync', 'cloud', t('Google Диск'), value, syncBody(), { tone: bad ? 'bad' : on ? 'ok' : '' });
+}
+
+function backupRow() {
   const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: (e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; } });
-  const persisted = h('span', { class: 'muted' }, '…');
-  navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? t('защищено от автоочистки') : t('браузер может очистить при нехватке места'); })
-    .catch(() => { persisted.textContent = t('неизвестно'); });
-  const langChips = chips(Object.entries(LANGS), lang(), switchLang);
-  langChips.classList.add('segmented');
+  const last = recall(BACKUP_KEY);
+  return setRow('backup', 'save', t('Резервная копия'), last ? fmt.date(last) : t('Ещё не было'), [
+    h('p', { class: 'muted small' }, sync.enabled()
+      ? t('Основная копия — на Google Диске. Файл ниже — дополнительный снимок на всякий случай.')
+      : t('Без синхронизации данные хранятся только на этом устройстве. Делайте экспорт после каждой стрельбы — например, «Поделиться» → Google Диск или Telegram «Избранное».')),
+    h('p', { class: 'muted small' }, t('В файл копии попадают только миниатюры фото; сами фото хранятся на Google Диске.')),
+    h('div', { class: 'btn-row' },
+      btn(t('Поделиться копией'), () => exportData(true), 'primary'),
+      btn(t('Скачать файл'), () => exportData(false)),
+      btn(t('Импорт'), () => fileInput.click())),
+    fileInput]);
+}
+
+/** «Сховище»: чи захищені дані від автоочистки браузера й скільки чого лежить. */
+function storageRow() {
+  const value = h('span', {}, '…');
+  const persisted = h('span', {}, '…');
+  navigator.storage?.persisted?.().then((p) => {
+    value.textContent = p ? t('Защищено') : t('Может очиститься');
+    persisted.textContent = p ? t('защищено от автоочистки') : t('браузер может очистить при нехватке места');
+  }).catch(() => { value.textContent = ''; persisted.textContent = t('неизвестно'); });
+  return setRow('storage', 'database', t('Хранилище'), value, [
+    h('p', {}, persisted),
+    h('p', { class: 'muted small' }, t('Оружие: {w} · фото: {p} · патроны: {c} · компоненты: {k} · рецепты: {r} · движения: {m}', {
+      w: state.weapons.length, p: state.photos.length, c: state.cartridges.length, k: state.components.length, r: state.recipes.length, m: state.movements.length,
+    }))]);
+}
+
+function demoRow() {
+  return setRow('demo', 'play', t('Демо-данные'), '', [
+    h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
+    h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))]);
+}
+
+/** Видалення — останнім рядком «Даних» і згорнуте: небезпечна дія не має бути найпомітнішою на екрані. */
+function wipeRow() {
+  return setRow('wipe', 'delete', t('Удалить данные с устройства'), '',
+    h('div', { class: 'btn-row' }, btn(t('Удалить данные с устройства'), () => confirmSheet(t('Удалить данные с устройства?'), sync.enabled()
+      ? t('Данные будут удалены с этого устройства. Копия на Google Диске останется и вернётся при следующей синхронизации (кроме фото, которые ещё не успели выгрузиться) — чтобы этого не было, сначала отключите синхронизацию.')
+      : t('Оружие, БК, журнал, рецепты и фото будут удалены с этого устройства. Отменить нельзя.'), t('Удалить'), async () => {
+      await db.clearAll(); await refresh(); toast(t('Данные удалены'));
+    }), 'danger')),
+    { danger: true });
+}
+
+function langRow() {
+  const c = chips(Object.entries(LANGS), lang(), switchLang);
+  c.classList.add('segmented');
+  return setRow('lang', 'globe', 'Мова · Язык', LANGS[lang()], c);
+}
+
+function themeRow() {
   // Дві групи: щоденні теми й «Спецрежими» (нічна й монітори-кінескопи); вибрана підсвічується у своїй групі
   const themeChips = (special) => {
     const c = chips(THEMES.filter(([k]) => SPECIAL_THEMES.includes(k) === special).map(([k, label]) => [k, t(label)]), themePref(),
@@ -6735,68 +6850,13 @@ function renderSettings() {
     c.classList.add('segmented');
     return c;
   };
-  return h('div', {},
-    settingsGroup(t('О приложении'), [
-      aboutPanel(),
-      h('section', { class: 'panel' }, h('h3', {}, t('Версия и обновление')),
-        h('p', { class: 'muted small' }, t('Сейчас установлена версия {v}. Обновление приходит плашкой вверху — если её долго нет, проверьте вручную.', { v: self.APP_VERSION })),
-        h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), updateTap, 'primary'), btn(t('Что нового'), () => allChanges().then(changesSheet))))], { fold: 'about' }),
-    settingsGroup(t('Данные'), [
-      syncPanel(),
-      lockPanel(),
-      h('section', { class: 'panel' },
-        h('h3', {}, t('Резервная копия')),
-        h('p', { class: 'muted small' }, sync.enabled()
-          ? t('Основная копия — на Google Диске. Файл ниже — дополнительный снимок на всякий случай.')
-          : t('Без синхронизации данные хранятся только на этом устройстве. Делайте экспорт после каждой стрельбы — например, «Поделиться» → Google Диск или Telegram «Избранное».')),
-        h('p', { class: 'muted small' }, t('Последняя копия: {when}', { when: recall(BACKUP_KEY) ? fmt.date(recall(BACKUP_KEY)) : t('ещё не было') })),
-        h('p', { class: 'muted small' }, t('В файл копии попадают только миниатюры фото; сами фото хранятся на Google Диске.')),
-        h('div', { class: 'btn-row' },
-          btn(t('Поделиться копией'), () => exportData(true), 'primary'),
-          btn(t('Скачать файл'), () => exportData(false)),
-          btn(t('Импорт'), () => fileInput.click())),
-        fileInput),
-      h('section', { class: 'panel' },
-        h('h3', {}, t('Хранилище')),
-        h('p', {}, persisted),
-        h('p', { class: 'muted small' }, t('Оружие: {w} · фото: {p} · патроны: {c} · компоненты: {k} · рецепты: {r} · движения: {m}', {
-          w: state.weapons.length, p: state.photos.length, c: state.cartridges.length, k: state.components.length, r: state.recipes.length, m: state.movements.length,
-        }))),
-      h('section', { class: 'panel' }, h('h3', {}, t('Демо-данные')),
-        h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
-        h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))),
-      h('section', { class: 'panel' }, h('h3', {}, t('Опасная зона')),
-        btn(t('Удалить данные с устройства'), () => confirmSheet(t('Удалить данные с устройства?'), sync.enabled()
-          ? t('Данные будут удалены с этого устройства. Копия на Google Диске останется и вернётся при следующей синхронизации (кроме фото, которые ещё не успели выгрузиться) — чтобы этого не было, сначала отключите синхронизацию.')
-          : t('Оружие, БК, журнал, рецепты и фото будут удалены с этого устройства. Отменить нельзя.'), t('Удалить'), async () => {
-          await db.clearAll(); await refresh(); toast(t('Данные удалены'));
-        }), 'danger'))], { fold: 'data' }),
-    settingsGroup(t('Вид'), [
-      h('section', { class: 'panel' }, h('h3', {}, 'Мова · Язык'), langChips),
-      h('section', { class: 'panel' }, h('h3', {}, t('Тема')), themeChips(false),
-        h('div', { class: 'field-label theme-group' }, t('Спецрежимы')), themeChips(true),
-        // Ніч буває різна: тягнеш — сторінка одразу темнішає чи світлішає
-        themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
-          h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
-            oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null),
-      backdropPanel(),
-      usdPanel(),
-      scenesPanel()], { fold: 'look' }),
-    settingsGroup(t('Напоминания и упражнения'), [
-      calendarPanel(),
-      hiddenExercisesPanel()], { fold: 'remind' }));
-}
-
-/**
- * Група налаштувань: рамка з назвою на лінії, розділи всередині — через лінію, без окремих карток.
- * fold — ключ: група згортається тапом по назві й пам'ятає, чи розгорнута (як у Вазі й Марнотраті).
- */
-function settingsGroup(title, sections, { danger = false, fold = null } = {}) {
-  const el = fold ? box(title, sections.filter(Boolean), { fold: `settings-${fold}` })
-    : h('fieldset', { class: 'box' }, h('legend', {}, title), sections.filter(Boolean));
-  el.classList.add('settings-group');
-  if (danger) el.classList.add('danger');
-  return el;
+  return setRow('theme', 'palette', t('Тема'), t(THEMES.find(([k]) => k === themePref())[1]), [
+    themeChips(false),
+    h('div', { class: 'field-label theme-group' }, t('Спецрежимы')), themeChips(true),
+    // Ніч буває різна: тягнеш — сторінка одразу темнішає чи світлішає
+    themePref() === 'night' ? h('label', { class: 'field night-level' }, h('span', {}, t('Яркость красного')),
+      h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(nightLevel()),
+        oninput: (e) => { remember('shooters-log:night-level', e.target.value); applyTheme(); } })) : null]);
 }
 
 // ---------- довідник ----------
