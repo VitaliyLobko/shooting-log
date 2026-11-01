@@ -618,16 +618,18 @@ function scope(svg, o) {
   // Фото не дзеркалиться — інакше зона ураження з'їде з водія на інший бік машини
   // і на цілому кадрі-сцені: боєць на фото не дзеркалиться, тож і зони не можна (інакше в розмітці тягнеш праворуч — плита їде ліворуч)
   if (T.photo || (o.real && SCENES[o.real])) o = { ...o, flip: false };
-  // Перетягування міняє лише зсув прицілу (hx, hy у «Виносі», rx, ry у далекомірі): тоді кадр із ціллю не будуємо заново,
-  // а зсуваємо його групу — це в рази дешевше. Кільце й підпис виносу у вільному прицілюванні залежать від hx — там лише заново.
+  // Перетягування, вітер і рух міняють лише зсув прицілу (hx, hy у «Виносі», rx, ry у далекомірі): тоді кадр із ціллю не будуємо заново,
+  // а зсуваємо його групу — це в рази дешевше; позначки, що залежать від зсуву (кільце й підпис виносу, розкид), — заново лише вони.
   // Кадр ширший за коло (E), тож зсув до 0,4 R не відкриває країв; далі — знову повністю
   const key = JSON.stringify({ ...o, hx: 0, hy: 0, rx: 0, ry: 0 });
   const was = svg._sc;
-  if (was?.key === key && (o.mode === 'range' || o.noHold) && !(o.disp && !o.hit) && svg.lastChild === was.ring && svg.childNodes.length === was.n) {
+  if (was?.key === key && svg.lastChild === was.ring && svg.childNodes.length === was.n) {
     const at = was.pos(o); const dx = at.cx - was.cx; const dy = at.top - was.top;
     if (Math.abs(dx) <= R * 0.4 && Math.abs(dy) <= R * 0.4) {
       was.g.setAttribute('transform', `translate(${dx} ${dy})`);
       svg.setAttribute('viewBox', [at.vx - was.half, at.vy - was.half, 2 * was.half, 2 * was.half].join(' '));
+      was.ov.replaceChildren();
+      was.marks(o, at);
       return { figs: was.shown?.map(([x, a, b]) => [x + dx, a + dy, b + dy]) ?? null, place: o.mode === 'range' ? null : { cx: at.cx, top: at.top, H: was.H } };
     }
   }
@@ -803,64 +805,73 @@ function scope(svg, o) {
     mk('path', { d: `M${x0} ${ay}H${x1}M${x1 - o.move * hd * 1.6} ${ay - hd}L${x1} ${ay}L${x1 - o.move * hd * 1.6} ${ay + hd}`, class: 'r-move', 'stroke-width': (R * 0.012) / z }, g);
   }
   if (o.hide) mk('rect', { x: -E, y: top + H * (1 - o.hide), width: 2 * E, height: 2 * E, ...ground }, g);
-  C.draw(gc, R);
-  if (o.mode === 'aim' && !o.noHold && (Math.abs(o.hx) > 0.05 || Math.abs(o.hy) > 0.05)) {
-    // Кільце там, що ставиться на ціль, і підпис виносу поруч — щоб «де тримати» було видно на самій сітці
-    // Кільце обводить зону ураження з запасом — на дальній дистанції не закриває її, а обрамлює
-    const x = o.hx * k; const y = o.hy * k; const r = Math.max(R * 0.04 / z, kzReach(o.tgt, o.noTarget ? null : pick, o.zone) * H * 1.25);
-    mk('circle', { cx: x, cy: y, r, class: 'r-hold', 'stroke-width': R * 0.005 / z }, gc);
-    // Стрілки — куди виносити приціл (мітка ліворуч від центру = брати правіше), а не де стоїть мітка на сітці
-    const parts = [Math.abs(o.hy) > 0.05 ? `${o.hy > 0 ? '↑' : '↓'}${f(Math.abs(y), C.u === 'MOA' ? 1 : 2)}` : null,
-      Math.abs(o.hx) > 0.05 ? `${o.hx > 0 ? '←' : '→'}${f(Math.abs(x), C.u === 'MOA' ? 1 : 2)}` : null].filter(Boolean);
-    const right = x < (R / z) * 0.45;
-    // Підпис — за край цілі, щоб не закривав зону ураження; якщо ціль широка й край поза полем зору — біля кільця
-    const edge = right ? cx + (T.w * H) / 2 + r : cx - (T.w * H) / 2 - r;
-    const lx = right ? Math.max(x + r * 1.5, edge) : Math.min(x - r * 1.5, edge);
-    const fits = right ? lx < vx + half * 0.35 : lx > vx - half * 0.35;
-    const text = `${parts.join(' ')} ${C.u}`; const fs = (R * 0.095) / z;
-    let ax = fits ? lx : right ? x + r * 1.5 : x - r * 1.5; let ay = y + (R * 0.033) / z; let anchor = right ? 'start' : 'end';
-    // Збоку не влазить у коло (ціль ширша за поле, як людина на 25 м) — під кільцем, а внизу місця нема — над ним
-    const edgeX = Math.min(half, Math.sqrt(Math.max(0, R * R - y * y))) * 0.97; const w = text.length * fs * 0.58;
-    if (right ? ax + w > vx + edgeX : ax - w < vx - edgeX) {
-      ax = Math.max(vx - edgeX + w / 2, Math.min(vx + edgeX - w / 2, x)); anchor = 'middle';
-      ay = y + r + fs * 1.1 < vy + half * 0.9 ? y + r + fs * 1.1 : y - r - fs * 0.4;
+  // Сітка залежить лише від свого типу й R — будуємо раз і переставляємо ту саму групу в новий кадр
+  // (сотні рисок через setAttribute — найдорожча частина перебудови на кожен крок повзунка)
+  const rk = `${o.ret}|${R}`;
+  if (svg._ret?.key !== rk) { svg._ret = { key: rk, node: mk('g', {}) }; C.draw(svg._ret.node, R); }
+  gc.append(svg._ret.node);
+  // Позначки, що залежать від зсуву прицілу, — окремою групою: швидкий шлях перемальовує лише її
+  const ov = mk('g', {}, gc);
+  const marks = (p, at) => {
+    if (p.mode === 'aim' && !p.noHold && (Math.abs(p.hx) > 0.05 || Math.abs(p.hy) > 0.05)) {
+      // Кільце там, що ставиться на ціль, і підпис виносу поруч — щоб «де тримати» було видно на самій сітці
+      // Кільце обводить зону ураження з запасом — на дальній дистанції не закриває її, а обрамлює
+      const x = p.hx * k; const y = p.hy * k; const r = Math.max(R * 0.04 / z, kzReach(p.tgt, p.noTarget ? null : pick, p.zone) * H * 1.25);
+      mk('circle', { cx: x, cy: y, r, class: 'r-hold', 'stroke-width': R * 0.005 / z }, ov);
+      // Стрілки — куди виносити приціл (мітка ліворуч від центру = брати правіше), а не де стоїть мітка на сітці
+      const parts = [Math.abs(p.hy) > 0.05 ? `${p.hy > 0 ? '↑' : '↓'}${f(Math.abs(y), C.u === 'MOA' ? 1 : 2)}` : null,
+        Math.abs(p.hx) > 0.05 ? `${p.hx > 0 ? '←' : '→'}${f(Math.abs(x), C.u === 'MOA' ? 1 : 2)}` : null].filter(Boolean);
+      const right = x < (R / z) * 0.45;
+      // Підпис — за край цілі, щоб не закривав зону ураження; якщо ціль широка й край поза полем зору — біля кільця
+      const edge = right ? at.cx + (T.w * H) / 2 + r : at.cx - (T.w * H) / 2 - r;
+      const lx = right ? Math.max(x + r * 1.5, edge) : Math.min(x - r * 1.5, edge);
+      const fits = right ? lx < at.vx + half * 0.35 : lx > at.vx - half * 0.35;
+      const text = `${parts.join(' ')} ${C.u}`; const fs = (R * 0.095) / z;
+      let ax = fits ? lx : right ? x + r * 1.5 : x - r * 1.5; let ay = y + (R * 0.033) / z; let anchor = right ? 'start' : 'end';
+      // Збоку не влазить у коло (ціль ширша за поле, як людина на 25 м) — під кільцем, а внизу місця нема — над ним
+      const edgeX = Math.min(half, Math.sqrt(Math.max(0, R * R - y * y))) * 0.97; const w = text.length * fs * 0.58;
+      if (right ? ax + w > at.vx + edgeX : ax - w < at.vx - edgeX) {
+        ax = Math.max(at.vx - edgeX + w / 2, Math.min(at.vx + edgeX - w / 2, x)); anchor = 'middle';
+        ay = y + r + fs * 1.1 < at.vy + half * 0.9 ? y + r + fs * 1.1 : y - r - fs * 0.4;
+      }
+      const label = mk('text', {
+        x: ax, y: ay, 'text-anchor': anchor,
+        style: `font:700 ${fs}px system-ui,sans-serif;fill:var(--shoot);paint-order:stroke;stroke:var(--surface);stroke-width:${(R * 0.03) / z}px`,
+      }, ov);
+      label.textContent = text;
     }
-    const label = mk('text', {
-      x: ax, y: ay, 'text-anchor': anchor,
-      style: `font:700 ${fs}px system-ui,sans-serif;fill:var(--shoot);paint-order:stroke;stroke:var(--surface);stroke-width:${(R * 0.03) / z}px`,
-    }, gc);
-    label.textContent = text;
-  }
-  // Розкид гвинтівки: коло групи навколо точки, куди піде куля (o.disp — діаметр в одиницях сітки)
-  if (o.disp && o.mode === 'aim' && !o.noTarget) {
-    const [gx, gy] = o.hit ? o.hit : [o.hx, o.hy];
-    mk('circle', { cx: gx * k, cy: gy * k, r: (o.disp / 2) * k, class: 'r-disp', 'stroke-width': (R * 0.008) / z }, gc);
-  }
-  if (o.hit) {
-    // «Винос» після відповіді: ✕ — куди пішла куля (мітка виносу, плюс розкид), зелене кільце — куди мав дивитись центр (ціль мінус винос)
-    const [px, py] = o.hit.map((v, i) => (v + (o.sp?.[i] ?? 0)) * k); const a = (R * 0.02) / z;
-    mk('circle', { cx: (o.hx - o.hit[0]) * k, cy: (o.hy - o.hit[1]) * k, r: (R * 0.045) / z, class: 'r-ok', 'stroke-width': (R * 0.014) / z }, gc);
-    mk('path', { d: `M${px - a} ${py - a}L${px + a} ${py + a}M${px - a} ${py + a}L${px + a} ${py - a}`, class: 'r-hit', 'stroke-width': (R * 0.012) / z }, gc);
-  }
-  if (o.hint) {
-    // Навчальна підказка: відрізки від перехрестя до мітки виносу (у «Вітрі» — окремо вертикаль і вітер), біля кінця кожного — підпис
-    const fs = (R * 0.09) / z; const sw = (R * 0.01) / z;
-    for (const [i, h] of o.hint.entries()) {
-      const [x0, y0] = h.from.map((v) => v * k); const [x, y] = h.to.map((v) => v * k);
-      if (Math.hypot(x - x0, y - y0) > R * 0.03) mk('path', { d: `M${x0} ${y0}L${x} ${y}`, class: 'r-hint', 'stroke-width': sw }, gc);
-      if (i === o.hint.length - 1) mk('circle', { cx: x, cy: y, r: (R * 0.03) / z, class: 'r-hint', 'stroke-width': sw }, gc);
-      if (!h.text) continue;
-      // Вертикаль — підпис збоку (з того боку, куди не йде вітер); вітер — над стрілкою
-      const flat = Math.abs(y - y0) < Math.abs(x - x0);
-      const side = h.side ?? (x > R * 0.3 ? -1 : 1);
-      const lx = flat ? (x0 + x) / 2 : x + side * (R * 0.06) / z; const ly = flat ? (h.below ? y + fs * 1.15 : y - fs * 0.55) : y + fs * 0.35;
-      const label = mk('text', { x: lx, y: ly, 'text-anchor': flat ? 'middle' : side < 0 ? 'end' : 'start', class: 'r-hint-t',
-        style: `font:700 ${fs}px system-ui,sans-serif;stroke-width:${fs * 0.18}px` }, gc);
-      label.textContent = h.text;
+    // Розкид гвинтівки: коло групи навколо точки, куди піде куля (p.disp — діаметр в одиницях сітки)
+    if (p.disp && p.mode === 'aim' && !p.noTarget) {
+      const [gx, gy] = p.hit ? p.hit : [p.hx, p.hy];
+      mk('circle', { cx: gx * k, cy: gy * k, r: (p.disp / 2) * k, class: 'r-disp', 'stroke-width': (R * 0.008) / z }, ov);
     }
-  }
+    if (p.hit) {
+      // «Винос» після відповіді: ✕ — куди пішла куля (мітка виносу, плюс розкид), зелене кільце — куди мав дивитись центр (ціль мінус винос)
+      const [px, py] = p.hit.map((v, i) => (v + (p.sp?.[i] ?? 0)) * k); const a = (R * 0.02) / z;
+      mk('circle', { cx: (p.hx - p.hit[0]) * k, cy: (p.hy - p.hit[1]) * k, r: (R * 0.045) / z, class: 'r-ok', 'stroke-width': (R * 0.014) / z }, ov);
+      mk('path', { d: `M${px - a} ${py - a}L${px + a} ${py + a}M${px - a} ${py + a}L${px + a} ${py - a}`, class: 'r-hit', 'stroke-width': (R * 0.012) / z }, ov);
+    }
+    if (p.hint) {
+      // Навчальна підказка: відрізки від перехрестя до мітки виносу (у «Вітрі» — окремо вертикаль і вітер), біля кінця кожного — підпис
+      const fs = (R * 0.09) / z; const sw = (R * 0.01) / z;
+      for (const [i, h] of p.hint.entries()) {
+        const [x0, y0] = h.from.map((v) => v * k); const [x, y] = h.to.map((v) => v * k);
+        if (Math.hypot(x - x0, y - y0) > R * 0.03) mk('path', { d: `M${x0} ${y0}L${x} ${y}`, class: 'r-hint', 'stroke-width': sw }, ov);
+        if (i === p.hint.length - 1) mk('circle', { cx: x, cy: y, r: (R * 0.03) / z, class: 'r-hint', 'stroke-width': sw }, ov);
+        if (!h.text) continue;
+        // Вертикаль — підпис збоку (з того боку, куди не йде вітер); вітер — над стрілкою
+        const flat = Math.abs(y - y0) < Math.abs(x - x0);
+        const side = h.side ?? (x > R * 0.3 ? -1 : 1);
+        const lx = flat ? (x0 + x) / 2 : x + side * (R * 0.06) / z; const ly = flat ? (h.below ? y + fs * 1.15 : y - fs * 0.55) : y + fs * 0.35;
+        const label = mk('text', { x: lx, y: ly, 'text-anchor': flat ? 'middle' : side < 0 ? 'end' : 'start', class: 'r-hint-t',
+          style: `font:700 ${fs}px system-ui,sans-serif;stroke-width:${fs * 0.18}px` }, ov);
+        label.textContent = h.text;
+      }
+    }
+  };
+  marks(o, { cx, vx, vy });
   const ring = mk('circle', { cx: 0, cy: 0, r: R, class: 'r-l', 'stroke-width': R * 0.02 }, svg);
-  svg._sc = { key, pos, g, cx, top, half, H, shown, ring, n: svg.childNodes.length };
+  svg._sc = { key, pos, g, cx, top, half, H, shown, ring, ov, marks, n: svg.childNodes.length };
   return { figs: shown, place: o.mode === 'range' ? null : { cx, top, H } };
 }
 
@@ -1608,6 +1619,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   };
   // Умови останнього draw(): перетягування в далекомірі міняє лише зсув прицілу, решта сторінки від нього не залежить
   let lastFree = null;
+  // Що вже стоїть у подробицях під прицілом — однакове не розбираємо вдруге
+  let outHtml = '';
   const dragScope = () => {
     if (!lastFree) { draw(); return; }
     const shot = scope(svg, { ...lastFree.o, rx: st.ret[0], ry: st.ret[1] });
@@ -1811,10 +1824,13 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const groupOf = (r) => (r.match(/^<div[^>]*data-g="(\w+)"/) ?? [])[1] ?? 'shot';
     const cell = (r) => r.replace(/^<div([^>]*)><span class="k">([\s\S]*?)<\/span>([\s\S]*)<\/div>$/, '<div$1><span class="k">$2</span><span class="rv">$3</span></div>');
     const parts = { shot: [], calc: [], kit: [], fly: [] };
-    for (const r of rows) parts[groupOf(r)].push(cell(r));
+    // Згорнуте — без подробиць: їх однаково не видно, а розбір цілої картки на кожен крок повзунка коштує; розгортання малює заново
+    const out = $('sim-out'); const full = out.classList.contains('fx-on');
+    for (const r of rows) if (full || !r.startsWith('<div class="fx')) parts[groupOf(r)].push(cell(r));
     const HEAD = { shot: t('Выстрел'), calc: t('Как посчитано'), kit: t('Сетка и патрон'), fly: t('Полёт пули') };
-    $('sim-out').innerHTML = Object.entries(parts).filter(([, a]) => a.length)
+    const html = Object.entries(parts).filter(([, a]) => a.length)
       .map(([g, a]) => `<div class="ro-sec ro-${g}"><div class="ro-h">${HEAD[g]}</div>${a.join('')}</div>`).join('');
+    if (outHtml !== html) { outHtml = html; out.innerHTML = html; }
   };
 
   // Налаштування тренажера між заходами — лише зручність на цьому пристрої
@@ -2167,6 +2183,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     out.addEventListener('click', () => {
       const on = out.classList.toggle('fx-on');
       try { localStorage.setItem('shooters-log:sim-fx', on ? '1' : '0'); } catch { /* приватний режим */ }
+      // Згорнуте зведення подробиць не містить — дописуємо їх
+      if (on && !quiz) draw();
     });
   }
   const QUIZ_OPEN = 'shooters-log:sim-quiz-open';
