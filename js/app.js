@@ -7066,6 +7066,8 @@ async function checkUpdate() {
   if (!('serviceWorker' in navigator)) { toast(t('Обновления работают только по https')); return; }
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) { toast(t('Приложение ещё не установлено как офлайн-копия')); return; }
+  // Без мережі reg.update() не падає, а тихо завершується — інакше вийшло б «у вас найновіша версія»
+  if (!navigator.onLine) { toast(t('Нет связи с сервером')); return; }
   toast(t('Проверяю обновление…'));
   try {
     await reg.update();
