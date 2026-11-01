@@ -60,7 +60,26 @@
 
 /* Нічна: темна тема, уся сторінка (з фото й прицілом) — яскравістю в червоний канал, щоб не збивати нічний зір */
 :root[data-theme="night"] { --bg: #000; --bg-glow: #000; filter: url(#night-red); }
+/* Монітори-кінескопи (Фосфор — зелений, Бурштин — янтарний, Білий фосфор): як нічна, уся сторінка яскравістю в один колір;
+   свічення, рядки розгортки, заголовки, великі числа, кнопки й вкладки — моноширинним (назви й описи — звичайним, щоб не переносились) */
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) { --bg: #0b0d0b; --bg-glow: #141914; }
+:root[data-theme="phosphor"] { filter: url(#phosphor); }
+:root[data-theme="amber"] { filter: url(#amber); }
+:root[data-theme="white"] { filter: url(#white); }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body {
+  text-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h2, h3, .hero-label, .hero-value, .cal-total,
+  .big, .thumb, .box-toggle, .ex-scoring-title, .ex-ring-name, .stat-value, .btn, .chips button, .tabs span) {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Roboto Mono", monospace; }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) :is(.topbar h1, h3) { text-transform: uppercase; letter-spacing: .06em; }
+:root:is([data-theme="phosphor"], [data-theme="amber"], [data-theme="white"]) body::after { content: ""; position: fixed; inset: 0;
+  z-index: 2147483647; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / .22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 85% 75% at 50% 50%, transparent 55%, rgb(0 0 0 / .55)); }
 .night-level { margin-top: 12px; }
+.theme-group { margin: 12px 0 6px; }
+/* «Білий фосфор» не влазить у чверть рядка — переноситься на два рядки, а не обрізається трьома крапками */
+.theme-group + .chips.segmented button { white-space: normal; line-height: 1.15; }
 .night-level input { width: 100%; accent-color: var(--accent); }
 
 * { box-sizing: border-box; }
@@ -833,6 +852,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .empty { text-align: center; padding: 48px 12px; }
 .empty .btn-row { justify-content: center; max-width: 360px; margin: 18px auto 0; }
 .empty .btn-row .btn.primary { flex-basis: 100%; }
+/* На фоні-малюнку сірий текст губиться (світлий камуфляж — 2.8:1) — порожній екран кладемо на картку */
+:root[data-bg] #view .empty { margin-top: 12px; padding: 32px 16px 20px; border-radius: 18px; border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / .10); }
 
 .archive { margin-top: 12px; color: var(--muted); }
 .archive summary { cursor: pointer; padding: 6px 2px; }
@@ -2965,7 +2987,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 /* Лінії — чорне тло з кривими, пучками й дугами, що проявляються й тануть на різній відстані від кінців; «з акцентом» — кілька помаранчевих */
 [data-bg="lines"] { --paper: url(lines.webp) center / cover no-repeat, #0e0f11; }
 [data-bg="lines-acc"] { --paper: url(lines-acc.webp) center / cover no-repeat, #0e0f11; }
-[data-bg="l-camo"] { --paper: url(camo-light.webp) center / cover no-repeat, #eceee9; }
+/* Світлий камуфляж — найконтрастніший малюнок; вуаль кольору фону на 45% глушить рябизну, візерунок лишається */
+[data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light.webp) center / cover no-repeat, #eceee9; }
 [data-bg="l-plain"] { --paper: radial-gradient(120% 60% at 50% -10%, #e8eae1, #f1f2ec 60%), #f1f2ec; }
 /* «Пісок» і «Хакі» — палітри світлої теми: міняють і картки, лінії, сірий текст, не лише тло (тло саме під картками майже не видно);
    варіанти «з акцентом» — та сама палітра, тло як у темних «Лініях з акцентом» (lines-sand.webp, lines-khaki.webp) */
@@ -2988,6 +3011,27 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 :root[data-bg="coyote"] { --bg: #1b160f; }
 :root[data-bg="camo"] { --bg: #17181d; }
 :root[data-bg="camo-hex"] { --bg: #141614; }
+/* Палітри темних фонів — як «Пісок» і «Хакі» у світлій: картки, лінії й сірий текст у тон підкладки, а не зеленуваті скрізь.
+   Приглушені відтінки; текст ~14:1, сірий 5,7–6,7:1 на картці й на другій поверхні. «Карта» й «Камуфляж із сотами» — на базовій */
+:root[data-bg="olive"] { --bg-glow: #1f2819; --surface: #1b2216; --surface-2: #263020; --seg-on: #37442d; --line: #36422b; --line-soft: #2c3624;
+  --text: #ebefdf; --muted: #a0aa8e; }
+:root[data-bg="coyote"] { --bg-glow: #2a2219; --surface: #221c15; --surface-2: #2e261c; --seg-on: #403427; --line: #3e3326; --line-soft: #322a1f;
+  --text: #f2ebdf; --muted: #b0a18a; }
+:root:is([data-bg="carbon"], [data-bg="lines"], [data-bg="lines-acc"]) { --bg-glow: #222326; --surface: #1b1c1e; --surface-2: #252629; --seg-on: #36383c;
+  --line: #323438; --line-soft: #2a2b2e; --text: #ecedef; --muted: #9da0a6; }
+:root[data-bg="camo"] { --bg-glow: #20232a; --surface: #1a1c22; --surface-2: #24272f; --seg-on: #353a45; --line: #323640; --line-soft: #292c34;
+  --text: #eceef3; --muted: #9ba0ad; }
+/* Картинки-фони — вертикальні 1080×2160 під телефон; на широкому екрані комп'ютера cover розтягував їх ×2 і милив —
+   там горизонтальні 2560×1440 (*-wide.webp, той самий генератор і розмір плям). Телефон їх не завантажує */
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  [data-bg="camo"] { --paper: url(camo-wide.webp) center / cover no-repeat, #17181d; }
+  [data-bg="camo-hex"] { --paper: url(camo-hex-wide.webp) center / cover no-repeat, #141614; }
+  [data-bg="lines"] { --paper: url(lines-wide.webp) center / cover no-repeat, #0e0f11; }
+  [data-bg="lines-acc"] { --paper: url(lines-acc-wide.webp) center / cover no-repeat, #0e0f11; }
+  [data-bg="l-camo"] { --paper: linear-gradient(rgb(236 238 233 / .45) 0 0), url(camo-light-wide.webp) center / cover no-repeat, #eceee9; }
+  [data-bg="l-sand-acc"] { --paper: url(lines-sand-wide.webp) center / cover no-repeat, #ecdfc6; }
+  [data-bg="l-khaki-acc"] { --paper: url(lines-khaki-wide.webp) center / cover no-repeat, #e0e3cf; }
+}
 :root:is([data-bg="lines"], [data-bg="lines-acc"]) { --bg: #0e0f11; }
 :root[data-bg="l-camo"] { --bg: #e9ebe6; }
 :root[data-bg="l-map"] { --bg: #f3eee2; }
