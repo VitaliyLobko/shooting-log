@@ -431,6 +431,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :root[data-theme="light"] .cal-head .gear-ico svg { filter: none; }
 .cal-head .cal-edit { flex: none; width: 34px; height: 34px; margin: 0 -6px 0 0; }
 .cal-head .cal-edit svg { width: 17px; height: 17px; }
+.cal-group:not([open]) > .cal-head .cal-edit { display: none; }
 /* Порожні категорії й «+ Категорія» — чипами під картками */
 .kind-bar { display: grid; gap: 8px; margin: 2px 0 14px; }
 .kind-chips { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -903,11 +903,31 @@ function groupCard(key, { hue, icon, title, count, total = null, cls = '', onEdi
       h('div', { class: 'cal-name' }, h('div', { class: 'cal-title' }, title),
         h('div', { class: 'cal-meta' }, t('{n} поз.', { n: count }))),
       total,
-      // Олівець у шапці — змінити саму групу; тап по ньому не згортає картку
+      // Олівець — лише в розгорнутій групі (CSS), щоб згорнуті шапки лишались чистими; тап по ньому не згортає картку
       onEdit ? toolBtn('edit', t('Изменить'), (e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }, 'small cal-edit') : null),
     h('div', { class: 'cal-body' }, body));
   el.addEventListener('toggle', () => setUnfolded(key, el.open));
+  if (onEdit) holdToEdit(el.querySelector('.cal-head'), onEdit);
   return el;
+}
+
+/** Довге натискання на шапку — те саме, що олівець; клік після нього шапку не згортає. */
+function holdToEdit(head, onEdit) {
+  let timer = 0;
+  let start = null;
+  let fired = false;
+  const cancel = () => { clearTimeout(timer); timer = 0; };
+  head.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.cal-edit')) return;
+    fired = false;
+    start = [e.clientX, e.clientY];
+    timer = setTimeout(() => { timer = 0; fired = true; vibrate(12); onEdit(); }, 550);
+  });
+  // Палець поїхав — це прокрутка, а не натискання
+  head.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 10) cancel(); });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) head.addEventListener(type, cancel);
+  head.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
+  head.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 function restoreCartridge(c) {
