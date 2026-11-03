@@ -423,6 +423,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 :is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) > .card + .card .swipe-body { border-top: 1px solid var(--line-soft); }
 :is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) .big { font-size: 22px; }
+/* Екіпірування: та сама картка, що калібр у Складі; значок категорії — лінією в кольорі шапки, без нахилу набою */
+.cal-head .gear-ico svg { width: 20px; height: 20px; transform: none; filter: none; fill: none;
+  stroke: hsl(var(--h) 55% 74%); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+:root[data-theme="light"] .cal-head .gear-ico svg { stroke: #fff; filter: none; }
+.cal-total.money { font-size: 18px; line-height: 1.15; text-align: right; }
+.cal-body > .row { min-height: 54px; padding: 9px 14px; border: 0; border-radius: 0; background: var(--surface); }
+.cal-body > .row + .row { border-top: 1px solid var(--line-soft); }
+.cal-body > .row .row-qty { font-size: 15px; text-align: right; }
+.gear-group.sold .row-title { color: var(--muted); }
+/* Перегляд покупки: фото плиткою поруч із категорією, характеристики — як вставили, з переносами рядків */
+.purchase-head { display: flex; align-items: center; gap: 12px; }
+.purchase-photo { flex: none; width: 88px; height: 88px; border-radius: 14px; object-fit: cover; background: var(--surface-2); cursor: zoom-in; }
+.purchase-sub { color: var(--muted); }
+.purchase-specs { white-space: pre-line; overflow-wrap: anywhere; }
 .fold-cost { margin-left: 8px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
 .cost-line { grid-column: 1 / -1; margin-top: -4px; color: var(--accent-2); font-weight: 600; }
 .cost-line:empty { display: none; }

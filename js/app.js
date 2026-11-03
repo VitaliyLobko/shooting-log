@@ -887,15 +887,22 @@ function renderAmmo() {
     archived);
 }
 
-/** Калібр — картка: шапка в кольорі калібру з сумою, позиції рядками; тап по шапці згортає, стан запам'ятовується. */
+/** Калібр — картка: шапка в кольорі калібру з сумою, позиції рядками. */
 function calGroup(g, { prefix = 'ammo', card = cartridgeCard } = {}) {
-  const key = `${prefix}:${g.caliber}`;
-  const el = h('details', { class: 'cal-group', open: unfolded.has(key), style: `--h:${caliberHue(g.caliber)}` },
-    h('summary', { class: 'cal-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), cartridgeIcon(g.caliber),
-      h('div', { class: 'cal-name' }, h('div', { class: 'cal-title' }, g.caliber),
-        h('div', { class: 'cal-meta' }, t('{n} поз.', { n: g.list.length }))),
-      'sum' in g ? h('div', { class: `cal-total ${g.sum < 0 ? 'neg' : ''}` }, fmt.num(g.sum), h('small', {}, t('шт'))) : null),
-    h('div', { class: 'cal-body' }, g.list.map(card)));
+  return groupCard(`${prefix}:${g.caliber}`, {
+    hue: caliberHue(g.caliber), icon: cartridgeIcon(g.caliber), title: g.caliber, count: g.list.length,
+    total: 'sum' in g ? h('div', { class: `cal-total ${g.sum < 0 ? 'neg' : ''}` }, fmt.num(g.sum), h('small', {}, t('шт'))) : null,
+  }, g.list.map(card));
+}
+
+/** Група-картка: шапка в кольорі --h зі значком, назвою, «N поз.» і підсумком; тап по шапці згортає, стан запам'ятовується. */
+function groupCard(key, { hue, icon, title, count, total = null, cls = '' }, body) {
+  const el = h('details', { class: `cal-group ${cls}`, open: unfolded.has(key), style: `--h:${hue}` },
+    h('summary', { class: 'cal-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), icon,
+      h('div', { class: 'cal-name' }, h('div', { class: 'cal-title' }, title),
+        h('div', { class: 'cal-meta' }, t('{n} поз.', { n: count }))),
+      total),
+    h('div', { class: 'cal-body' }, body));
   el.addEventListener('toggle', () => setUnfolded(key, el.open));
   return el;
 }
@@ -1627,6 +1634,29 @@ const GEAR_KINDS = [['armor', 'Бронезащита'], ['carry', 'Разгру
 // Колишня категорія «Одяг і форма» злита з розвантаженням; невідома — в «Інше»
 const gearKind = (k) => (k === 'clothes' ? 'carry' : GEAR_KINDS.some(([x]) => x === k) ? k : 'other');
 
+// Категорія екіпірування — відтінок шапки картки й значок, як калібр у Складі
+const GEAR_LOOK = {
+  armor: [95, '<path d="M12 3l7 2.6V11c0 4.6-3 8.3-7 10-4-1.7-7-5.4-7-10V5.6z"/><path d="M8.5 9.5h7M8.5 13h7M10 16.5h4"/>'],
+  carry: [35, '<path d="M8.5 3.5L5 5.5V20h14V5.5l-3.5-2L14 7h-4z"/><path d="M8.5 12h7M8.5 16h7"/>'],
+  devices: [205, '<path d="M4.5 14.5V12a7.5 7.5 0 0 1 15 0v2.5"/><rect x="3" y="13.5" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="13.5" width="4.5" height="7" rx="1.6"/>'],
+  cleaning: [175, '<path d="M9.5 3h5M10.5 3v3.5h3V3"/><path d="M9 6.5h6l1 3.2V20a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9.7z"/><path d="M8 13h8"/>'],
+  cases: [265, '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4.5h6V7M3 12.5h18M10.8 11v3h2.4v-3"/>'],
+  reload: [15, '<path d="M9 3h6M10 3v6L5 18.2A2 2 0 0 0 6.8 21h10.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.4 15h9.2"/>'],
+  other: [60, '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>'],
+  sold: [140, '<path d="M3.5 12.5V4h8.5l8.5 8.5-8.5 8.5z"/><circle cx="8" cy="8.5" r="1.6"/>'],
+};
+
+function gearIcon(kind) {
+  const el = h('span', { class: 'ammo-ico gear-ico', 'aria-hidden': 'true' });
+  el.innerHTML = `<svg viewBox="0 0 24 24">${GEAR_LOOK[kind][1]}</svg>`;
+  return el;
+}
+
+/** Підсумок у шапці категорії: гривні великим, долари — дрібним рядком під ними. */
+function gearTotal(uah, usd = null) {
+  return h('div', { class: 'cal-total money' }, fmt.num(Math.round(uah)), h('small', {}, ' грн'), usdLine(usd));
+}
+
 const placeLine = (date, place) => [date && fmt.date(date), place].filter(Boolean).join(' · ');
 const priceOf = (x) => Number(x) || 0;
 const grn = (n) => `${fmt.num(Math.round(n))} грн`;
@@ -1751,9 +1781,9 @@ function spendingPeriodSheet(title, items, prev = null) {
     close();
     const kind = x.of ?? x.kind;
     if (kind === 'gun') weaponDetail(x.item);
-    else if (kind === 'mod') modForm(x.weapon, x.item);
+    else if (kind === 'mod') modDetail(x.weapon, x.item);
     else if (kind === 'ammo' || kind === 'reload') movementDetail(x.item);
-    else gearForm(x.item);
+    else gearDetail(x.item);
   };
   // Квадратик відтінку з графіка й категорія в підписі — видно, куди пішла покупка
   const row = (x) => {
@@ -1851,23 +1881,22 @@ function renderGear() {
   return h('div', {},
     hero(t('Вложено всего'), tileMoney(total, usdTotal), [split, net], 'accent'),
     spendingChart(spent),
-    groups.map(([kind, items]) => fold(`gear:${kind}`,
-      [h('span', { class: 'fold-title' }, t(GEAR_KINDS.find(([k]) => k === kind)[1])),
-        h('span', { class: 'fold-meta' }, t('{n} поз.', { n: items.length })),
-        h('span', { class: 'fold-sum' }, grn(items.reduce((s, g) => s + priceOf(g.price), 0)) + usdTail(items.map((g) => [g.price, g.date, g.usdRate])))],
-      h('div', { class: 'rows' }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearForm(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate))))),
-    sold.length ? fold('gear:sold',
-      [h('span', { class: 'fold-title' }, t('Продано')), h('span', { class: 'fold-meta' }, t('{n} поз.', { n: sold.length })),
-        h('span', { class: 'fold-sum' }, grn(back) + (usdBack === null ? '' : ` · ${usdFmt(usdBack)}`))],
-      h('div', { class: 'rows' }, sold.map(({ item, weapon, kind }) => {
+    groups.map(([kind, items]) => groupCard(`gear:${kind}`, {
+      hue: GEAR_LOOK[kind][0], icon: gearIcon(kind), title: t(GEAR_KINDS.find(([k]) => k === kind)[1]), count: items.length, cls: 'gear-group',
+      total: gearTotal(items.reduce((s, g) => s + priceOf(g.price), 0), usdSum(items.map((g) => [g.price, g.date, g.usdRate]))),
+    }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearDetail(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate)))),
+    sold.length ? groupCard('gear:sold', {
+      hue: GEAR_LOOK.sold[0], icon: gearIcon('sold'), title: t('Продано'), count: sold.length, cls: 'gear-group sold',
+      total: gearTotal(back, usdBack),
+    }, sold.map(({ item, weapon, kind }) => {
         const paid = priceOf(kind === 'gun' ? item.buyPrice : item.price);
         const got = priceOf(item.soldPrice);
         const paidOn = kind === 'gun' ? item.buyDate : item.date;
         const sub = [fmt.date(item.soldDate), weapon?.name, paid ? t('купил за {a} → продал за {b}', {
           a: grn(paid) + usdTail([[paid, paidOn, item.usdRate]]), b: grn(got) + usdTail([[got, item.soldDate, item.soldUsdRate]]) }) : null].filter(Boolean).join(' · ');
-        const open = kind === 'gun' ? () => weaponDetail(item) : kind === 'mod' ? () => modForm(weapon, item) : () => gearForm(item);
+        const open = kind === 'gun' ? () => weaponDetail(item) : kind === 'mod' ? () => modDetail(weapon, item) : () => gearDetail(item);
         return priceRow(item.name, sub, got, open, null, item.soldDate, item.soldUsdRate);
-      }))) : null);
+      })) : null);
 }
 
 /** Рядок покупки: назва, «дата · де», сума праворуч. */
@@ -1921,6 +1950,57 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
   });
 }
 
+/**
+ * Перегляд покупки (екіпірування чи тюнінг): фото, ціна, коли й де, характеристики, продаж.
+ * Правка — олівцем, як у набоїв і компонентів: тап по рядку нічого не зачепить.
+ */
+function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove }) {
+  const kv = (rows) => h('dl', { class: 'kv' }, rows.filter(Boolean).flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]));
+  const money = (n, iso, rate) => (n ? tileMoney(n, usdSum([[n, iso, rate]])) : t('без цены'));
+  const paid = priceOf(item.price);
+  const got = priceOf(item.soldPrice);
+  const close = sheet(item.name, h('div', { class: 'purchase-view' },
+    h('div', { class: 'purchase-head' },
+      photo ? h('img', { class: 'purchase-photo', src: photo.thumb, alt: t('Фото'), onclick: () => viewer([photo], 0) }) : null,
+      h('div', { class: 'purchase-sub' }, sub)),
+    h('div', { class: 'stats even' },
+      stat(t('заплатил'), money(paid, item.date, item.usdRate), 'accent'),
+      stat(t('Дата покупки'), item.date ? fmt.date(item.date) : '—')),
+    kv([item.place ? [t('Где купил'), item.place] : null, item.note ? [t('Примечание'), item.note] : null]),
+    isSold(item) ? box(t('Продажа'), [
+      h('div', { class: 'stats even' },
+        stat(t('продал за'), money(got, item.soldDate, item.soldUsdRate)),
+        stat(t('Дата продажи'), fmt.date(item.soldDate))),
+      kv([item.soldPlace ? [t('Кому / где продал'), item.soldPlace] : null])]) : null,
+    item.specs ? box(t('Характеристики'), h('div', { class: 'purchase-specs' }, item.specs)) : null), {
+    tools: [
+      toolBtn('edit', t('Изменить'), () => { close(); onEdit(); }),
+      toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }),
+      toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger'),
+    ],
+  });
+}
+
+/** Продаж і видалення екіпірування — спільні для перегляду й форми. */
+function gearActions(g) {
+  return {
+    onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
+    onRemove: async () => {
+      await db.write({ gear: { del: [g.id] } });
+      const p = gearPhoto(g.id);
+      if (p) await removePhotos([p]);
+      else await refresh();
+    },
+  };
+}
+
+function gearDetail(g) {
+  purchaseDetail(g, {
+    sub: t(GEAR_KINDS.find(([k]) => k === gearKind(g.kind))[1]),
+    photo: gearPhoto(g.id), onEdit: () => gearForm(g), ...gearActions(g),
+  });
+}
+
 function gearForm(g = null, { file = null, preset = null } = {}) {
   purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind) }, {
     kinds: GEAR_KINDS, placeholder: t('Плитоноска, шлем, подсумок…'),
@@ -1931,13 +2011,7 @@ function gearForm(g = null, { file = null, preset = null } = {}) {
       await saveEntity('gear', obj);
       await saveItemPhoto({ gearId: obj.id }, photo);
     },
-    onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
-    onRemove: async () => {
-      await db.write({ gear: { del: [g.id] } });
-      const p = gearPhoto(g.id);
-      if (p) await removePhotos([p]);
-      else await refresh();
-    },
+    ...(g ? gearActions(g) : {}),
   });
 }
 
@@ -2071,6 +2145,26 @@ async function saveItemPhoto(owner, change) {
   else await refresh();
 }
 
+/** Продаж і видалення тюнінгу — спільні для перегляду й форми. */
+function modActions(w, m) {
+  const others = () => (findWeapon(w.id)?.mods ?? []).filter((x) => x.id !== m.id);
+  return {
+    onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), { ...m, ...sale }] }),
+    onRemove: async () => {
+      await saveEntity('weapons', { ...findWeapon(w.id), mods: others() });
+      const p = modPhoto(m.id);
+      if (p) await removePhotos([p]);
+    },
+  };
+}
+
+function modDetail(w, m) {
+  purchaseDetail(m, {
+    sub: t('Тюнинг: {name}', { name: w.name }),
+    photo: modPhoto(m.id), onEdit: () => modForm(w, m), ...modActions(w, m),
+  });
+}
+
 /** Тюнінг живе в записі ствола, як і приціли; його фото — у сховищі фото з modId. */
 function modForm(w, m = null, { file = null, preset = null } = {}) {
   const others = () => (findWeapon(w.id)?.mods ?? []).filter((x) => x.id !== m?.id);
@@ -2084,12 +2178,7 @@ function modForm(w, m = null, { file = null, preset = null } = {}) {
       await saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), obj] });
       await saveItemPhoto({ modId: obj.id }, photo);
     },
-    onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: [...others(), { ...m, ...sale }] }),
-    onRemove: async () => {
-      await saveEntity('weapons', { ...findWeapon(w.id), mods: others() });
-      const p = modPhoto(m.id);
-      if (p) await removePhotos([p]);
-    },
+    ...(m ? modActions(w, m) : {}),
   });
 }
 
@@ -2121,7 +2210,7 @@ function buyBox(w, close) {
   const modRow = (m) => {
     const p = modPhoto(m.id);
     return priceRow(m.name, isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) }) : placeLine(m.date, m.place) || m.note,
-      m.price, () => modForm(w, m), photoThumb(p), modDay(w, m), m.usdRate, isSold(m) ? 'tune sold' : 'tune');
+      m.price, () => modDetail(w, m), photoThumb(p), modDay(w, m), m.usdRate, isSold(m) ? 'tune sold' : 'tune');
   };
   const el = box(t('Покупка и тюнинг'), [
     total ? investSummary(w, total) : null,
@@ -6842,6 +6931,7 @@ function wipeRow() {
 }
 
 function langRow() {
+  if (Object.keys(LANGS).length < 2) return null;
   const c = chips(Object.entries(LANGS), lang(), switchLang);
   c.classList.add('segmented');
   return setRow('lang', 'globe', 'Мова · Язык', LANGS[lang()], c);

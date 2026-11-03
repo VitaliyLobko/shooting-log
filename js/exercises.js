@@ -136,7 +136,7 @@ export const EXERCISES = [
         '- A5 (15×20 см) — для досвідчених',
         'Положення:',
         '- A4 і A5 — стоячи зі 100 м',
-        '- просунутий рівень — A5 з коліна з ременем з 200 м',
+        '- складніший рівень — A5 з коліна з ременем з 200 м',
         'Без упорів.',
         'Хід: один постріл → дійти до мішені → підписати пробоїну номером → повернутися.',
         'Тривалість: 10 пострілів ≈ 30 хв і 2 км.',
@@ -428,8 +428,40 @@ const bestOf = (ex, list) => list.reduce((b, s) => (!b || s.score > b.score
 // Свої вправи з бази: тримаємо тут, щоб exById і назва в журналі бачили їх як вбудовані.
 let CUSTOM = [];
 
+/**
+ * Правка вбудованої вправи, збережена іншою мовою: рядки, що збігаються з текстом вбудованої
+ * (назва, правила, зони, варіанти, звання), — поточною мовою; дописане самим стрільцем лишається як є.
+ */
+function fromBase(rec) {
+  const base = EXERCISES.find((e) => e.id === rec.id);
+  if (!base) return rec;
+  const map = new Map();
+  const add = (o) => {
+    if (!o || typeof o === 'string') return;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) v.forEach((line, i) => map.set(line.trim(), L(o)[i]));
+      else map.set(v.trim(), L(o));
+    }
+  };
+  add(base.name);
+  add(base.rules);
+  (base.zones ?? []).forEach(([, label]) => add(label));
+  (base.variants ?? []).forEach(([, label]) => add(label));
+  (base.ranks ?? []).forEach(([, name]) => add(name));
+  const tr = (s) => (typeof s === 'string' ? map.get(s.trim()) ?? s : s);
+  return {
+    ...rec,
+    name: tr(rec.name),
+    rules: String(rec.rules ?? '').split('\n').map(tr).join('\n'),
+    zones: rec.zones?.map((z) => ({ ...z, label: tr(z.label) })),
+    variants: rec.variants?.map((x) => ({ ...x, label: tr(x.label) })),
+    ranks: rec.ranks?.map(([min, name]) => [min, tr(name)]),
+  };
+}
+
 /** Запис своєї вправи → той самий вигляд, що й у вбудованих (зони, правила, підпис). */
-export function asExercise(rec) {
+export function asExercise(raw) {
+  const rec = fromBase(raw);
   const lines = String(rec.rules ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
   // Правка вбудованої вправи — запис із тим самим id: особливі механіки (прострочка Купера,
   // ціна влучання за часом) лишаються від неї, решту беремо з правки.
@@ -573,7 +605,7 @@ function exerciseSheet(ex, ctx) {
   const own = ctx.custom.find((r) => r.id === ex.id);
   const builtIn = EXERCISES.some((e) => e.id === ex.id);
   const tools = [infoButton(), ...(ctx.onSaveExercise ? [
-    toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ?? asRecord(ex), ctx); }),
+    toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ? fromBase(own) : asRecord(ex), ctx); }),
     own && builtIn ? toolBtn('reset', t('Вернуть встроенную'), () => ctx.onDeleteExercise?.(own, () => close())) : null,
     builtIn
       ? toolBtn('delete', t('Удалить'), () => ctx.onHideExercise?.(ex, () => close()), 'danger')
