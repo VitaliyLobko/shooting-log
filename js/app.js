@@ -5,7 +5,7 @@ import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from '.
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
-import { cartridgeIcon, caliberHue, componentIcon } from './ammo.js';
+import { cartridgeIcon, caliberHue, componentIcon, setCaliberHues } from './ammo.js';
 import { gearSvg, GEAR_ICON_GROUPS, GEAR_HUES } from './gear-icons.js';
 import { lineChart, barChart } from './chart.js';
 import { toUsd, rateOn, refreshRates, rateSeries } from './usd.js';
@@ -29,7 +29,7 @@ const simIntro = (...args) => import('./sim-tour.js').then((m) => m.simIntro(...
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [], gearKinds: [] };
+let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [], gearKinds: [], calibers: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -42,6 +42,7 @@ const LOW_ROUNDS = 50;
 
 async function refresh() {
   state = await db.loadAll();
+  setCaliberHues(state.calibers);
   render();
   refreshSheets();
 }
@@ -891,7 +892,7 @@ function renderAmmo() {
 /** Калібр — картка: шапка в кольорі калібру з сумою, позиції рядками. */
 function calGroup(g, { prefix = 'ammo', card = cartridgeCard } = {}) {
   return groupCard(`${prefix}:${g.caliber}`, {
-    hue: caliberHue(g.caliber), icon: cartridgeIcon(g.caliber), title: g.caliber, count: g.list.length,
+    hue: caliberHue(g.caliber), icon: cartridgeIcon(g.caliber), title: g.caliber, count: g.list.length, onEdit: () => caliberColorForm(g.caliber),
     total: 'sum' in g ? h('div', { class: `cal-total ${g.sum < 0 ? 'neg' : ''}` }, fmt.num(g.sum), h('small', {}, t('шт'))) : null,
   }, g.list.map(card));
 }
@@ -928,6 +929,38 @@ function holdToEdit(head, onEdit) {
   for (const type of ['pointerup', 'pointercancel', 'pointerleave']) head.addEventListener(type, cancel);
   head.addEventListener('click', (e) => { if (fired) { e.preventDefault(); fired = false; } });
   head.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+/**
+ * Колір калібру — олівцем у шапці калібру: той самий відтінок беруть набої, рецепти й стволи цього калібру.
+ * «Як було» прибирає свій колір — повертається той, що рахується з назви.
+ */
+function caliberColorForm(caliber) {
+  const id = String(caliber).trim();
+  const own = state.calibers.find((r) => r.id === id);
+  const d = { hue: caliberHue(id) };
+  const body = h('div', { class: 'kind-form' });
+  const hues = huePicker(d, () => paint());
+  const paint = () => { body.style.setProperty('--h', d.hue); hues.paint(); };
+  body.append(
+    h('div', { class: 'cal-group kind-preview' }, h('div', { class: 'cal-head' }, cartridgeIcon(id), h('div', { class: 'cal-name' }, h('div', { class: 'cal-title' }, id)))),
+    h('p', { class: 'muted small' }, t('Этот цвет возьмут патроны, рецепты и стволы этого калибра.')),
+    hues.el);
+  paint();
+  // Превʼю — та сама плитка патрона: її колір теж іде від --h
+  body.querySelector('.ammo-ico').style.removeProperty('--h');
+  const close = sheet(t('Цвет калибра'), body, {
+    tools: own ? [toolBtn('reset', t('Как было'), async () => {
+      close();
+      await db.write({ calibers: { del: [id] } });
+      await refresh();
+    })] : [],
+    actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), async () => {
+      close();
+      await db.write({ calibers: { put: [{ ...(own ?? { id, created: Date.now() }), hue: d.hue }] } });
+      await refresh();
+    }, 'primary')],
+  });
 }
 
 function restoreCartridge(c) {
@@ -7572,6 +7605,7 @@ registerWorker();
 navigator.storage?.persist?.().catch(() => {});
 try {
   state = await db.loadAll();
+  setCaliberHues(state.calibers);
 } catch (err) {
   // Приватний режим, скінчилось місце, збій браузера: без цього лишався б порожній екран без жодного слова
   window.removeEventListener('hashchange', route);
