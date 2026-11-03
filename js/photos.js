@@ -40,15 +40,86 @@ function jpeg(canvas, quality) {
   });
 }
 
-/** Файл з галереї чи камери → { blob, thumb, w, h }. max — довша сторона повного фото. */
-export async function prepare(file, { max = FULL } = {}) {
+// Вирізане фото (PNG без фону — iPhone «Скопіювати об'єкт», Google Фото «Вирізати», Samsung «Видобути об'єкт»)
+// кладемо на графітове тло з підсвіткою й тінню, як фото в демо: 1600 × 900, довгий предмет — по діагоналі
+const STUDIO = [1600, 900];
+const TILT = 28; // ° — нахил ствола в демо: приклад унизу, дуло вгорі
+
+/** Фото без фону: кути прозорі й прозорого щонайменше 8 % кадру. */
+function isCutout(src) {
+  const n = 64; const c = document.createElement('canvas'); c.width = n; c.height = n;
+  const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(src, 0, 0, n, n);
+  const a = ctx.getImageData(0, 0, n, n).data;
+  let clear = 0; for (let i = 3; i < a.length; i += 4) if (a[i] < 200) clear++;
+  const corner = [0, n - 1, n * (n - 1), n * n - 1].filter((i) => a[i * 4 + 3] < 40).length;
+  return corner >= 3 && clear / (n * n) >= 0.08;
+}
+
+/**
+ * Предмет на графітовому тлі. Вісь — за формою (головні компоненти маски): довгий предмет (ствол) лягає під TILT°,
+ * важчим кінцем (приклад — більше площі) донизу, у той бік, куди менше повертати; короткий (шолом, рюкзак) — як був.
+ */
+function studio(src) {
+  // Маска на зменшеній копії: точки непрозорих пікселів
+  const n = 200; const k0 = n / Math.max(src.width, src.height);
+  const mw = Math.max(1, Math.round(src.width * k0)); const mh = Math.max(1, Math.round(src.height * k0));
+  const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
+  const mctx = mc.getContext('2d', { willReadFrequently: true }); mctx.drawImage(src, 0, 0, mw, mh);
+  const a = mctx.getImageData(0, 0, mw, mh).data;
+  let sx = 0; let sy = 0; let cnt = 0;
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (a[(y * mw + x) * 4 + 3] > 128) { sx += x; sy += y; cnt++; }
+  let rot = 0;
+  if (cnt > 20) {
+    const cx = sx / cnt; const cy = sy / cnt; let xx = 0; let yy = 0; let xy = 0;
+    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (a[(y * mw + x) * 4 + 3] > 128) { const dx = x - cx; const dy = y - cy; xx += dx * dx; yy += dy * dy; xy += dx * dy; }
+    const th = 0.5 * Math.atan2(2 * xy, xx - yy); // кут осі (y донизу)
+    const tr = (xx + yy) / 2; const det = Math.sqrt(((xx - yy) / 2) ** 2 + xy * xy);
+    const ratio = (tr + det) / Math.max(1e-6, tr - det);
+    if (ratio > 6) {
+      // Важчий кінець — де більше площі вздовж осі
+      const ux = Math.cos(th); const uy = Math.sin(th); let pos = 0;
+      for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) if (a[(y * mw + x) * 4 + 3] > 128) pos += (x - cx) * ux + (y - cy) * uy > 0 ? 1 : -1;
+      const heavy = pos > 0 ? th : th + Math.PI; // напрям від центру до прикладу
+      const light = heavy + Math.PI; // від прикладу до дула — має дивитись угору: праворуч (−TILT) чи ліворуч (180 + TILT)
+      const goals = [-TILT, 180 + TILT].map((g) => (g * Math.PI) / 180);
+      const norm = (v) => Math.atan2(Math.sin(v), Math.cos(v));
+      rot = goals.map((g) => norm(g - light)).sort((p, q) => Math.abs(p) - Math.abs(q))[0];
+    }
+  }
+  // Розмір повернутого предмета — за рамкою непрозорого, щоб вписати з полями
+  const [W, H] = STUDIO; const cos = Math.cos(rot); const sin = Math.sin(rot);
+  let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+  for (let y = 0; y < mh; y += 2) for (let x = 0; x < mw; x += 2) {
+    if (a[(y * mw + x) * 4 + 3] <= 128) continue;
+    const dx = (x - mw / 2) / k0; const dy = (y - mh / 2) / k0;
+    const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
+    x0 = Math.min(x0, rx); x1 = Math.max(x1, rx); y0 = Math.min(y0, ry); y1 = Math.max(y1, ry);
+  }
+  if (!Number.isFinite(x0)) return null;
+  const k = Math.min((W * 0.86) / (x1 - x0), (H * 0.82) / (y1 - y0), 3);
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+  // Графіт: світліша пляма вгорі посередині, темні кути — як у демо
+  const g = ctx.createRadialGradient(W / 2, H * 0.32, 0, W / 2, H * 0.32, W * 0.72);
+  g.addColorStop(0, '#2a2d34'); g.addColorStop(1, '#16171c');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.translate(W / 2 - ((x0 + x1) / 2) * k, H / 2 - ((y0 + y1) / 2) * k);
+  ctx.rotate(rot); ctx.scale(k, k);
+  // М'яка тінь знизу-праворуч: предмет ніби лежить на тлі
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'; ctx.shadowBlur = 26; ctx.shadowOffsetX = 10; ctx.shadowOffsetY = 16;
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return canvas;
+}
+
+/** Файл з галереї чи камери → { blob, thumb, w, h }. max — довша сторона повного фото; studio — вирізане класти на графіт. */
+export async function prepare(file, { max = FULL, studio: lay = false } = {}) {
   let src;
   try {
     src = await decode(file);
   } catch {
     throw new Error(t('Формат фото не поддерживается'));
   }
-  const full = draw(src, max);
+  const full = (lay && isCutout(src) && studio(src)) || draw(src, max);
   src.close?.();
   return { blob: await jpeg(full, 0.82), thumb: draw(full, THUMB).toDataURL('image/jpeg', 0.7), w: full.width, h: full.height };
 }

@@ -58,6 +58,7 @@ const ASSETS = [
   './js/lock.js',
   './guide/marksman.html',
   './guide/marksman.uk.html',
+  './guide/reloading.uk.html',
   './guide/img/prone-bipod.jpg',
   './guide/img/prone-bags.jpg',
   './guide/img/sitting.jpg',

@@ -6,9 +6,12 @@ import { wheelStrip, chips } from './ui.js';
 
 const cached = new Map();
 
-/** Текст курсу мовою інтерфейсу; кешується на сесію (офлайн його віддає service worker). */
-export function loadGuide() {
-  const file = lang() === 'uk' ? './guide/marksman.uk.html' : './guide/marksman.html';
+// Курс релоадінгу поки лише українською — його показуємо й у російському інтерфейсі
+const UK_ONLY = new Set(['reloading']);
+
+/** Текст курсу (marksman, reloading) мовою інтерфейсу; кешується на сесію (офлайн його віддає service worker). */
+export function loadGuide(kind = 'marksman') {
+  const file = lang() === 'uk' || UK_ONLY.has(kind) ? `./guide/${kind}.uk.html` : `./guide/${kind}.html`;
   if (!cached.has(file)) {
     cached.set(file, fetch(file).then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -2596,23 +2599,43 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     paintRetReset(false);
     return { L, C, q, moa, search, hidden };
   };
+  // Годинник бокової частки вітру: ціль у центрі, від кожної години промінь завдовжки з частку, що зносить кулю вбік
+  // (3 і 9 — увесь, 12 і 6 — нуль); година цього вітру — кольором, стрілка дме до центру
+  const windClock = (hour, text) => {
+    const box = el('span', { className: 'memo-clock' });
+    const P = (h, r) => [Math.sin(h * Math.PI / 6) * r, -Math.cos(h * Math.PI / 6) * r];
+    let g = '<circle r="46" class="mc-face"/>';
+    for (let h = 1; h <= 12; h++) {
+      const sh = Math.abs(Math.sin(h * Math.PI / 6)); const [x0, y0] = P(h, 9); const [x1, y1] = P(h, 9 + 25 * sh);
+      const [tx, ty] = P(h, 39);
+      if (sh > 0.01) g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" class="mc-bar${h === hour ? ' on' : ''}"/>`;
+      g += `<text x="${tx}" y="${ty + 3.5}" class="mc-n${h === hour ? ' on' : ''}">${h}</text>`;
+    }
+    const [ax, ay] = P(hour, 31); const [bx, by] = P(hour, 12);
+    g += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" class="mc-arrow" marker-end="url(#mc-tip)"/><circle r="4" class="mc-tgt"/>`;
+    box.innerHTML = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><defs><marker id="mc-tip" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L6 3L0 6Z" class="mc-tipp"/></marker></defs>${g}</svg>`;
+    box.append(el('span', {}, text));
+    return box;
+  };
   const drawHold = () => {
     const { L, C, q, moa, search, hidden } = holdScope();
     qBox.replaceChildren();
     qBox.append(quizHead(q));
     // «Дальність + винос»: дистанція — та, яку назвав сам; справжню видно лише після пострілу
-    const facts = [t(TGT[q.tgt].short), q.phase ? t('Дистанция по твоей оценке {d} м', { d: q.guess ?? '?' }) : t('Дистанция {d} м', { d: q.dist }),
+    // Навчальні рівні: розмір цілі в сітці на цій дистанції — «у сітці 5,23 MRAD» («Навчання» показує його окремим рядком)
+    const fhNow = figH(q.tgt, qFig(q));
+    const sizePart = LEARN.includes(quiz.level) && quiz.level !== 'learn' && !q.phase
+      ? `${t('в сетке')} ${f(C.size(fhNow, q.dist), moa ? 1 : 2)} ${C.u}` : null;
+    const facts = [t(TGT[q.tgt].short), q.phase ? t('Дистанция по твоей оценке {d} м', { d: q.guess ?? '?' }) : t('Дистанция {d} м', { d: q.dist }) + (sizePart ? ` — ${sizePart}` : ''),
       q.signs ? t('ветер с {h} ч', { h: q.hour }) : q.wind ? t('ветер {w} м/с с {h} ч', { w: fm(q.wind), h: q.hour }) : null,
       q.vt ? t('цель идёт {v} м/с {dir}', { v: fm(q.vt), dir: q.goRight ? t('вправо') : t('влево') }) : null].filter(Boolean).join(' · ');
     // Числа умови — жирно й кольором, щоб дистанцію, вітер і швидкість видно було одразу (назву цілі не чіпаємо)
-    const factsEl = el('p', { className: 'quiz-facts' });
-    const [name, ...rest] = facts.split(' · ');
-    factsEl.append(name);
-    // Кожна частина умови — без розриву всередині: переноситься лише між «·»
-    for (const part of rest) {
-      const p = el('span', {});
+    // Кожна частина умови — плашкою (переноситься цілою), числа в ній крупно
+    const factsEl = el('p', { className: 'quiz-facts quiz-chips' });
+    for (const part of facts.split(' · ')) {
+      const p = el('span', { className: 'qc' });
       part.split(/(\d+(?:,\d+)?)/).forEach((x, i) => p.append(i % 2 ? el('b', {}, x) : x));
-      factsEl.append(' · ', p);
+      factsEl.append(p);
     }
     qBox.append(factsEl);
     // «Навчання»: під умовою — розмір цілі в метрах і як він виглядає в сітці на цій дистанції
@@ -2629,11 +2652,22 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const box = el('details', { className: 'quiz-memo', open: !!q.memo });
       box.addEventListener('toggle', () => { q.memo = box.open; });
       box.append(el('summary', {}, title));
-      const ol = el('ol'); steps.forEach((x) => ol.append(el('li', {}, x))); box.append(ol);
+      const ol = el('ol'); steps.forEach((x) => { const li = el('li'); li.append(x); ol.append(li); }); box.append(ol);
       const tab = el('div', { className: 'quiz-memo-tab' });
       [head, ...rows].forEach((r, n) => r.forEach((c, m) => tab.append(el('span', { className: n === 0 || m === 0 ? 'h' : '' }, c))));
       box.append(tab);
       if (foot) box.append(el('small', {}, foot));
+      return box;
+    };
+    const memos = [];
+    const eq = (factors, result, note) => {
+      const box = el('div', { className: 'quiz-eq' });
+      factors.forEach(([v, cap], i) => {
+        if (i) box.append(el('span', { className: 'eq-op' }, '×'));
+        const tile = el('span', { className: 'eq-f' }); tile.append(el('b', {}, v), el('small', {}, cap)); box.append(tile);
+      });
+      box.append(el('span', { className: 'eq-op' }, '='));
+      const res = el('span', { className: 'eq-f eq-r' }); res.append(el('b', {}, result), el('small', {}, note)); box.append(res);
       return box;
     };
     const kitNow = $('s-kit').value; const tbNow = atmTab(kitNow, LOADS[kitNow].def, +$('s-temp').value, +$('s-alt').value);
@@ -2666,17 +2700,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       // Табличка — три сусідні сотні навколо цієї дистанції: видно, як поправка росте
       const d0 = Math.max(100, Math.round(q.dist / 100) * 100 - 100); const ds = [d0, d0 + 100, d0 + 200];
       const hyAt = (d) => holdAt(tbNow.H, d) - (L.my ? 0 : zeroShift(tbNow.H, z));
-      qBox.append(memo(t('Как считать поправку'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
+      memos.push(memo(t('Как считать поправку'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
         [[`${t('падение')}, ${t('см')}`, ...ds.map((d) => f(toCm(hyAt(d), d), 0))], [`${t('поправка')}, ${C.u}`, ...ds.map((d) => f(hyAt(d), dg))]]));
     }
     // «Вітер»: розрахунок — знос на 1 м/с × сила (× частка бокового) = винос
     if (windLearn() && q.wind) {
       const share = Math.abs(Math.sin((q.hour * Math.PI) / 6));
       const wx = q.wx ?? q.hx;
-      const line = el('p', { className: 'quiz-facts quiz-size' });
-      line.append(B(`${fm(q.wind)} ${t('м/с')}`), ' × ', B(f(q.w1, dg + 1)), ` ${t('на каждый м/с')}`, ...(share < 0.97 ? [' × ', B(f(share, 2)), ` ${t('боковая доля')}`] : []),
-        ' = ', B(`${f(Math.abs(wx), dg)} ${C.u}`), ` · ${t(wx > 0 ? 'держи левее' : 'держи правее')}`);
-      qBox.append(line);
+      qBox.append(eq([[`${fm(q.wind)} ${t('м/с')}`, t('ветер')], [f(q.w1, dg + 1), t('на 1 м/с')], ...(share < 0.97 ? [[f(share, 2), t('доля')]] : [])],
+        `${wx > 0 ? '←' : '→'}${f(Math.abs(wx), dg)} ${C.u}`, t(wx > 0 ? 'левее' : 'правее')));
       // Правило: «сотні − 1 = десяті мілу» (MRAD) чи «сотні × 0,3» (MOA), якщо для набору воно в межах 20 %; інакше — свій множник за 500 м
       const rd = [300, 400, 500]; const rw = rd.map((d) => at(tbNow.W, d));
       let rule = moa ? (d) => d / 100 * 0.3 : (d) => (d / 100 - 1) * 0.1;
@@ -2692,19 +2724,18 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
           + '. ' + t('В уме: {r} ≈ {e} {u}', { r: ruleTxt, e: f(est, dg), u: C.u })
           + (Math.abs(est - v1) > v1 * 0.1 ? ` — ${t(est < v1 ? 'здесь правило занижает, бери по таблице' : 'здесь правило завышает, бери по таблице')}` : ''),
         t('× сила ветра {w} м/с ≈ {v} {u}', { w: fm(q.wind), v: f(v1 * q.wind, dg), u: C.u }),
-        ...(quiz.level !== 'wind1' ? [t('× доля по часам: 3 и 9 ч — весь, 2 и 10 — почти весь, 1 и 11 — половина, 12 и 6 — ноль. С {h} ч — {p} % ≈ {v} {u}', { h: q.hour, p: Math.round(share * 100), v: f(v1 * q.wind * share, dg), u: C.u })] : []),
+        ...(quiz.level !== 'wind1' ? [windClock(q.hour, t('× боковая доля: с {h} ч — {p} % ≈ {v} {u}', { h: q.hour, p: Math.round(share * 100), v: f(v1 * q.wind * share, dg), u: C.u }))] : []),
         t('Выноси в ту сторону, откуда дует ветер'),
       ];
       const foot = WIND_DOTS[L.ret] ? t('Точки ветра сетки — {m} миль/ч ({ms} м/с) полного бокового ветра на дистанции своей риски', { m: WIND_DOTS[L.ret].join(' / '), ms: WIND_DOTS[L.ret].map((v) => f(v * 0.447, 1)).join(' / ') }) : null;
-      if (quiz.level !== 'windmove') qBox.append(memo(t('Как считать ветер'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)], [[`${t('на 1 м/с')}, ${C.u}`, ...ws.map((w) => f(w, dg + 1))]], foot));
+      if (quiz.level !== 'windmove') memos.push(memo(t('Как считать ветер'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)], [[`${t('на 1 м/с')}, ${C.u}`, ...ws.map((w) => f(w, dg + 1))]], foot));
     }
     // «Рух»: упередження — швидкість × час польоту = метри попереду, у кутових одиницях на цій дистанції
     if (moveLearn() && q.vt) {
       const ang = (m, d) => (m / d) * (moa ? 3437.75 : 1000);
       const leadM = q.vt * q.tof; const lx = q.hx - (q.wx ?? 0);
-      const line = el('p', { className: 'quiz-facts quiz-size' });
-      line.append(B(`${fm(q.vt)} ${t('м/с')}`), ' × ', B(`${f(q.tof, 2)} ${t('с')}`), ` ${t('полёта')} = `, B(`${f(leadM, 2)} ${t('м')}`), ` ${t('впереди')} = `, B(`${f(Math.abs(lx), dg)} ${C.u}`), ` · ${t(lx > 0 ? 'держи левее' : 'держи правее')}`);
-      qBox.append(line);
+      qBox.append(eq([[`${fm(q.vt)} ${t('м/с')}`, t('скорость')], [`${f(q.tof, 2)} ${t('с')}`, t('полёт')]],
+        `${lx > 0 ? '←' : '→'}${f(Math.abs(lx), dg)} ${C.u}`, `${f(leadM, 2)} ${t('м')} ${t('впереди')} · ${t(lx > 0 ? 'держи левее' : 'держи правее')}`));
       // Кут упередження майже сталий: час польоту росте разом із дистанцією — запам'ятати два числа (за 300 м)
       const ds = around(q.dist); const lead = (v, d) => ang(v * at(tbNow.T, d), d);
       // Правило — кут за 300 м; якщо на дистанції цілі він помітно інший, кажемо прямо, яке число брати
@@ -2715,7 +2746,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         t('Держи впереди цели — в ту сторону, куда она идёт'),
         ...(MOVE_NOTE[L.ret] ? [t(MOVE_NOTE[L.ret])] : []),
       ];
-      if (quiz.level !== 'windmove') qBox.append(memo(t('Как считать движение'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
+      if (quiz.level !== 'windmove') memos.push(memo(t('Как считать движение'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
         [[`${t('шаг')}, ${C.u}`, ...ds.map((d) => f(lead(1.4, d), dg))], [`${t('бег')}, ${C.u}`, ...ds.map((d) => f(lead(3.5, d), dg))]]));
     }
     if (q.signs) {
@@ -2748,7 +2779,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         });
       });
       // «Перевірити» — над підказкою, щоб не гортати до неї
-      qBox.append(check, el('p', {}, search && Date.now() < q.appear ? t('Ищи цель — появится где-то в прицеле на 5 секунд.')
+      qBox.append(check, ...memos, el('p', {}, search && Date.now() < q.appear ? t('Ищи цель — появится где-то в прицеле на 5 секунд.')
         : t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой над прицелом. Потом «Проверить».')));
     } else {
       const [ax, ay] = q.answer; const e = Math.hypot(ax + q.hx, ay + q.hy);

@@ -2392,7 +2392,7 @@ async function saveItemPhoto(owner, change) {
   const old = state.photos.find((p) => Object.entries(owner).every(([k, v]) => p[k] === v)) ?? null;
   if (change.file) {
     try {
-      const { blob, thumb, w, h: height } = await preparePhoto(change.file);
+      const { blob, thumb, w, h: height } = await preparePhoto(change.file, { studio: true });
       const id = db.uid();
       await db.write({
         photos: { put: [{ id, ...owner, created: Date.now(), thumb, w, h: height, driveId: null }] },
@@ -2750,7 +2750,7 @@ async function addPhotos(weaponId, files) {
   let added = 0;
   for (const file of files) {
     try {
-      const { blob, thumb, w, h: height } = await preparePhoto(file);
+      const { blob, thumb, w, h: height } = await preparePhoto(file, { studio: true });
       const id = db.uid();
       await db.write({
         photos: { put: [{ id, weaponId, created: Date.now(), thumb, w, h: height, driveId: null }] },
@@ -5791,9 +5791,9 @@ function recipeCard(r) {
 
 function recipesPane() {
   $('subtitle').textContent = swipeTip('recipes', t('Свайп → снарядить'), t('рецептов: {n}', { n: state.recipes.length }));
-  if (!state.recipes.length) return h('div', {}, empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.')), articlesBox());
+  if (!state.recipes.length) return h('div', {}, reloadGuideLink(), empty(t('Рецептов нет'), t('Сначала добавьте компоненты на складе, затем рецепт.')), articlesBox());
   // Групи за калібром — такими ж картками, як набої; без суми: рецепти ділять компоненти
-  return h('div', {}, loadedHero(), groupBy(state.recipes, (r) => r.caliber || t('Без калибра'))
+  return h('div', {}, reloadGuideLink(), loadedHero(), groupBy(state.recipes, (r) => r.caliber || t('Без калибра'))
     .map(([caliber, list]) => calGroup({ caliber, list: list.sort(byName) }, { prefix: 'recipes', card: recipeCard })),
   articlesBox());
 }
@@ -6940,7 +6940,7 @@ function changesSheet(list) {
 }
 
 // Курс і тренажер (guide.js) та журнал змін (changelog.js) — сотні КБ; вантажимо, лише коли відкривають, не на старті
-const guide = () => import('./guide.js').then((g) => g.loadGuide().then((html) => ({ g, html })));
+const guide = (kind) => import('./guide.js').then((g) => g.loadGuide(kind).then((html) => ({ g, html })));
 const allChanges = () => import('./changelog.js').then((m) => m.CHANGES);
 
 const verParts = (v) => String(v).split('.').map(Number);
@@ -7330,16 +7330,33 @@ const GUIDE_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
   + '<circle cx="33" cy="16" r="1" fill="var(--accent)"/>'
   + '</svg>';
 
-/** Посилання на довідник у «Полігон → Вправи»: теорія поруч із тренуваннями. */
-function guideLink() {
+// Прес для спорядження: матриця й набій під нею, важіль, поруч — пляшковий набій
+const RELOAD_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
+  + '<path d="M3 29.5h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+  + '<path d="M19 21v8.5M7 29.5V6.5h12V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+  + '<rect x="10.5" y="1.5" width="5" height="9" rx="1" fill="var(--accent)"/>'
+  + '<path d="M9.5 4.5h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+  + '<path d="M13 11.2l1.1 2.2v1.3l.6.8v3.6h-3.4v-3.6l.6-.8v-1.3z" fill="var(--accent)"/>'
+  + '<rect x="11.4" y="20" width="3.2" height="9" rx=".6" fill="currentColor" opacity=".7"/>'
+  + '<path d="M14.6 23.5L19 23l10.2-13.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+  + '<circle cx="30.2" cy="8" r="2.2" fill="currentColor"/>'
+  + '<path d="M39 3c1.4 1.6 2 3.6 2 6v3l1.6 3v14.5h-7.2V15l1.6-3V9c0-2.4.6-4.4 2-6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
+  + '<path d="M39 3c1.4 1.6 2 3.6 2 6v1h-4V9c0-2.4.6-4.4 2-6z" fill="var(--accent)"/>'
+  + '<path d="M35.4 27h7.2" stroke="currentColor" stroke-width="1.1" opacity=".6"/>'
+  + '</svg>';
+
+/** Посилання на довідник: у «Полігон → Вправи» — курс марксмана, у «Склад → Релоадінг» — курс релоадінгу. */
+function guideLink(href = '#guide', title = 'Справочник стрелка', sub = 'Курс марксмана', svg = GUIDE_ICON) {
   const icon = h('span', { class: 'guide-link-ico' });
-  icon.innerHTML = GUIDE_ICON;
-  return h('a', { class: 'guide-link', href: '#guide' }, icon,
+  icon.innerHTML = svg;
+  return h('a', { class: 'guide-link', href }, icon,
     h('span', { class: 'guide-link-text' },
-      h('b', {}, t('Справочник стрелка')),
-      h('span', { class: 'muted small' }, t('Курс марксмана'))),
+      h('b', {}, t(title)),
+      h('span', { class: 'muted small' }, t(sub))),
     h('span', { class: 'guide-link-go', 'aria-hidden': 'true' }, '›'));
 }
+
+const reloadGuideLink = () => guideLink('#reloading-guide', 'Справочник релоадера', 'Курс релоадинга', RELOAD_ICON);
 
 /** «Полігон → Тренажер»: розділ «sim» курсу окремо, розмітка одна з довідником. */
 function renderSim() {
@@ -7355,12 +7372,16 @@ function renderSim() {
   return box;
 }
 
-/** Розділи курсу згорнуті; пошук розкриває збіги й ховає решту. */
-function renderGuide() {
+const renderGuide = () => guideDoc('marksman', 'guide', 'Курс марксмана · тем: {n}');
+const renderReloadGuide = () => guideDoc('reloading', 'reloading-guide', 'Курс релоадинга · тем: {n}');
+
+/** Розділи курсу згорнуті; пошук розкриває збіги й ховає решту. Калькулятор і тренажер — лише в курсі марксмана. */
+function guideDoc(kind, view, subtitle) {
+  const marksman = kind === 'marksman';
   const list = h('div', { class: 'guide' }, h('p', { class: 'muted' }, t('Загрузка…')));
-  guide().then(({ g, html }) => {
+  guide(kind).then(({ g, html }) => {
     const { sections, foot } = g.parseGuide(html);
-    if (tab === 'guide') $('subtitle').textContent = t('Курс марксмана · тем: {n}', { n: sections.length });
+    if (tab === view) $('subtitle').textContent = t(subtitle, { n: sections.length });
     // Тренажер живе в «Полігоні»; розмітка розділу лишається в статті як його джерело, тут — лише посилання
     const simLink = () => h('div', { class: 'guide-sec' },
       h('p', {}, t('Тренажёр сеток с целями, ветром, движением и упражнениями — во вкладке «Полигон».')),
@@ -7407,6 +7428,7 @@ function renderGuide() {
     list.replaceChildren(...[
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
+    if (!marksman) return;
     g.initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
     simIntro(list);
   }).catch(() => {
@@ -7456,6 +7478,7 @@ const VIEWS = {
   log: { title: 'Журнал', render: renderLog, fab: foreignShotSheet },
   settings: { title: 'Настройки', render: renderSettings },
   guide: { title: 'Справочник', render: renderGuide, tab: 'targets' },
+  'reloading-guide': { title: 'Справочник', render: renderReloadGuide, tab: 'ammo' },
   // «+» — у розділі, що відкритий: своя вправа або нова мішень; у таймера кнопки немає.
   targets: { title: 'Полигон', render: renderRange, fab: () => (rangeSeg === 'exercises' ? newExercise() : rangeSeg === 'chrono' ? chronoForm() : newTarget({ weaponId: targetWeapon || null })), noFab: () => rangeSeg === 'timer' || rangeSeg === 'sim' },
 };
@@ -7493,7 +7516,7 @@ function render() {
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
   // У налаштуваннях — «Назад» туди, звідки прийшли; підказки «?» — лише в розділах
   $('back-btn').hidden = tab !== 'settings';
-  $('tour-btn').hidden = tab === 'settings' || tab === 'guide';
+  $('tour-btn').hidden = tab === 'settings' || tab === 'guide' || tab === 'reloading-guide';
   $('back-btn').href = `#${backTab}`;
   document.querySelector('.tabs a[data-tab="guns"]').classList.toggle('alert',
     state.weapons.some(needsCleaning) || urgentPermits().length > 0);
