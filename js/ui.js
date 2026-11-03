@@ -193,12 +193,16 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
     if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
   };
   if (live) liveSheets.add(rebuild);
+  // Червоні дії (кошик) — завжди ліворуч від назви, подалі від ✕: поряд із ним легко схибити
+  const danger = [tools].flat(Infinity).filter((x) => x?.classList?.contains('danger'));
+  const rest = [tools].flat(Infinity).filter((x) => !danger.includes(x));
+  const left = [danger, lead].flat(Infinity).filter(Boolean);
   const panel = h('section', { class: full ? 'sheet full' : 'sheet', role: 'dialog', 'aria-label': title },
     h('div', { class: 'sheet-grip' }),
     h('header', { class: 'sheet-head' },
-      lead ? h('div', { class: 'sheet-lead' }, lead) : null,
+      left.length ? h('div', { class: 'sheet-lead' }, left) : null,
       h('h2', {}, title),
-      h('div', { class: 'sheet-tools' }, tools,
+      h('div', { class: 'sheet-tools' }, rest,
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: ask }, '✕'))),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);

@@ -2008,7 +2008,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     query: () => f.inputs.name.value.trim(),
     onSearch: onSearch && (() => onSearch(f.values())),
   });
-  // Продати — ліворуч від заголовка, видалити — праворуч; внизу лише «Скасувати» і «Зберегти»
+  // Продати й кошик — ліворуч від заголовка; внизу лише «Скасувати» і «Зберегти»
   const close = sheet(title, pick ? h('div', {}, pick.el, f.el) : f.el, {
     lead: item ? toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }) : null,
     tools: item ? [toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger')] : [],
@@ -2046,7 +2046,7 @@ function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove }) {
         stat(t('Дата продажи'), fmt.date(item.soldDate))),
       kv([item.soldPlace ? [t('Кому / где продал'), item.soldPlace] : null])]) : null,
     item.specs ? box(t('Характеристики'), h('div', { class: 'purchase-specs' }, item.specs)) : null), {
-    // Продати — ліворуч від заголовка, як у формі; олівець і кошик — праворуч
+    // Продати й кошик — ліворуч від заголовка, як у формі; олівець — праворуч
     lead: toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }),
     tools: [
       toolBtn('edit', t('Изменить'), () => { close(); onEdit(); }),
