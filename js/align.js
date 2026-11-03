@@ -3,6 +3,8 @@ import { h, backLayer, toast } from './ui.js';
 import { t } from './i18n.js';
 import { decode, draw, pack } from './photos.js';
 
+const tours = () => import('./tours.js');
+
 // робоча копія для перетворення: трохи більша за готове фото, щоб не втрачати різкість
 const WORK = 3200;
 const PAD = 28;
@@ -495,7 +497,8 @@ export async function alignTarget(file, { max, again = false, original = false }
         h('span', {}, t('Выровнять мишень')),
         h('div', { class: 'editor-row' },
           tool('⟲', t('Повернуть влево'), () => turn(-1)),
-          tool('⟳', t('Повернуть вправо'), () => turn(1)))),
+          tool('⟳', t('Повернуть вправо'), () => turn(1)),
+          tool('?', t('Подсказки'), () => tours().then((m) => m.alignTour())))),
       stage,
       h('div', { class: 'editor-tools' },
         hint,
@@ -509,6 +512,8 @@ export async function alignTarget(file, { max, again = false, original = false }
     const unlayer = backLayer(cancel);
     window.addEventListener('resize', layout);
     document.addEventListener('keydown', onKey);
+    // Перше вирівнювання — коротко, що робити й що далі; потім — кнопка «?»
+    setTimeout(() => { if (root.isConnected) tours().then((m) => m.alignTour({ auto: true })); }, 500);
     layout();
     showCrop();
   });
