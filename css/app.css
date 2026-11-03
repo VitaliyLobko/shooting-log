@@ -423,6 +423,66 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 :is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) > .card + .card .swipe-body { border-top: 1px solid var(--line-soft); }
 :is(.fold:is([data-key^="ammo:"], [data-key^="recipes:"]) > .fold-body, .cal-body) .big { font-size: 22px; }
+/* Екіпірування: та сама картка, що калібр у Складі; значок категорії — лінією в кольорі шапки, без нахилу набою */
+.gear-ico svg { width: 24px; height: 24px; transform: none; filter: none; fill: none;
+  stroke: hsl(var(--h) 55% 74%); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+:root[data-theme="light"] .gear-ico svg { stroke: #fff; filter: none; }
+.cal-head .gear-ico svg { width: 20px; height: 20px; }
+:root[data-theme="light"] .cal-head .gear-ico svg { filter: none; }
+.cal-head .cal-edit { flex: none; width: 34px; height: 34px; margin: 0 -6px 0 0; }
+.cal-head .cal-edit svg { width: 17px; height: 17px; }
+.cal-group:not([open]) > .cal-head .cal-edit { display: none; }
+/* Порожні категорії й «+ Категорія» — чипами під картками */
+.kind-bar { display: grid; gap: 8px; margin: 2px 0 14px; }
+.kind-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.kind-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border: 1px solid var(--line);
+  border-radius: 12px; background: color-mix(in srgb, hsl(var(--h) 45% 45%) 14%, var(--surface)); color: var(--text); font: inherit; font-weight: 650; cursor: pointer; }
+:root[data-theme="light"] .kind-chip { background: color-mix(in srgb, hsl(var(--h) 35% 45%) 7%, var(--surface)); }
+.kind-chip .gear-ico { width: 30px; height: 30px; border-radius: 9px; }
+.kind-chip .gear-ico svg { width: 18px; height: 18px; }
+.kind-chip.add { padding: 9px 14px; border-style: dashed; background: transparent; color: var(--accent-2); }
+.kind-move .gear-ico { width: 40px; height: 40px; border-radius: 12px; }
+/* Шторка категорії: превʼю шапки, значки групами з пошуком, колір відтінком */
+.kind-form { display: grid; gap: 12px; }
+.kind-form .kind-preview { margin: 0; }
+.pick-fold { padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+.pick-fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; list-style: none; cursor: pointer; }
+.pick-fold > summary::-webkit-details-marker { display: none; }
+.pick-fold > summary .field-label { margin: 0; }
+.pick-fold[open] > summary { margin-bottom: 10px; }
+.pick-value { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.pick-value .gear-ico { width: 30px; height: 30px; border-radius: 9px; }
+.pick-value .gear-ico svg { width: 18px; height: 18px; }
+.icon-groups { display: grid; gap: 12px; }
+.icon-search { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: inherit; font: inherit; }
+.icon-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.icon-group-title { margin: 0 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.icon-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.icon-opt { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1.5px solid transparent;
+  border-radius: 10px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.icon-opt svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.icon-opt[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, hsl(var(--h) 45% 45%) 30%, var(--surface-2)); }
+.icon-group[hidden], .icon-opt[hidden] { display: none; }
+.hue-picker { display: grid; gap: 8px; }
+.hue-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.hue-swatch { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 10px; background: hsl(var(--h) 45% 45%); cursor: pointer; }
+:root[data-theme="light"] .hue-swatch { background: hsl(var(--h) 38% 55%); }
+.hue-swatch[aria-pressed="true"] { outline: 3px solid var(--text); outline-offset: 2px; }
+.hue-strip { position: relative; height: 30px; border-radius: 10px; cursor: pointer; touch-action: none;
+  background: linear-gradient(to right, hsl(0 45% 45%), hsl(60 45% 45%), hsl(120 45% 45%), hsl(180 45% 45%), hsl(240 45% 45%), hsl(300 45% 45%), hsl(359 45% 45%)); }
+.hue-strip:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.hue-knob { position: absolute; top: -5px; bottom: -5px; width: 16px; margin-left: -8px; border: 3px solid #fff; border-radius: 9px;
+  background: hsl(var(--h) 45% 45%); box-shadow: 0 0 0 1px rgb(0 0 0 / .45); pointer-events: none; }
+.cal-total.money { font-size: 18px; line-height: 1.15; text-align: right; }
+.cal-body > .row { min-height: 54px; padding: 9px 14px; border: 0; border-radius: 0; background: var(--surface); }
+.cal-body > .row + .row { border-top: 1px solid var(--line-soft); }
+.cal-body > .row .row-qty { font-size: 15px; text-align: right; }
+.gear-group.sold .row-title { color: var(--muted); }
+/* Перегляд покупки: фото плиткою поруч із категорією, характеристики — як вставили, з переносами рядків */
+.purchase-head { display: flex; align-items: center; gap: 12px; }
+.purchase-photo { flex: none; width: 88px; height: 88px; border-radius: 14px; object-fit: cover; background: var(--surface-2); cursor: zoom-in; }
+.purchase-sub { color: var(--muted); }
+.purchase-specs { white-space: pre-line; overflow-wrap: anywhere; }
 .fold-cost { margin-left: 8px; padding-left: 8px; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
 .cost-line { grid-column: 1 / -1; margin-top: -4px; color: var(--accent-2); font-weight: 600; }
 .cost-line:empty { display: none; }
@@ -2316,7 +2376,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .ex-ring-name { position: absolute; inset: 12px; display: grid; place-items: center; text-align: center; font-size: 12px; font-weight: 800; line-height: 1.1; overflow-wrap: anywhere; }
 .ex-mini { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 2px 4px; font-size: 13px; color: var(--muted); }
 .ex-mini b { color: var(--text); font-size: 15px; }
-.ex-info { display: grid; gap: 12px; margin: 4px 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.ex-info { display: grid; gap: 12px; }
 .recipe-info { display: grid; gap: 14px; margin: 4px 0 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
 .recipe-info section + section { padding-top: 14px; border-top: 1px solid var(--line); }
 .recipe-info h4 { margin: 0 0 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }

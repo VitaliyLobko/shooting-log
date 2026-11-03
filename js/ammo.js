@@ -2,8 +2,18 @@
 import { h } from './ui.js';
 import * as M from './model.js';
 
-/** Відтінок від калібру: стволи й набої одного калібру одного кольору. */
+// Свій колір калібру (олівець у шапці калібру) — записи calibers, id = назва калібру
+const OWN_HUE = new Map();
+
+export function setCaliberHues(list = []) {
+  OWN_HUE.clear();
+  for (const r of list) if (Number.isFinite(r.hue)) OWN_HUE.set(r.id, r.hue);
+}
+
+/** Відтінок від калібру: стволи й набої одного калібру одного кольору; свій — якщо вибрали. */
 export function caliberHue(caliber) {
+  const own = OWN_HUE.get(String(caliber ?? '').trim());
+  if (own !== undefined) return own;
   let hash = 7;
   for (const ch of String(caliber ?? '')) hash = (hash * 31 + ch.codePointAt(0)) % 360;
   return hash;

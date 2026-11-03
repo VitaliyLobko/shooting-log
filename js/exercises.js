@@ -136,7 +136,7 @@ export const EXERCISES = [
         '- A5 (15×20 см) — для досвідчених',
         'Положення:',
         '- A4 і A5 — стоячи зі 100 м',
-        '- просунутий рівень — A5 з коліна з ременем з 200 м',
+        '- складніший рівень — A5 з коліна з ременем з 200 м',
         'Без упорів.',
         'Хід: один постріл → дійти до мішені → підписати пробоїну номером → повернутися.',
         'Тривалість: 10 пострілів ≈ 30 хв і 2 км.',
@@ -428,8 +428,40 @@ const bestOf = (ex, list) => list.reduce((b, s) => (!b || s.score > b.score
 // Свої вправи з бази: тримаємо тут, щоб exById і назва в журналі бачили їх як вбудовані.
 let CUSTOM = [];
 
+/**
+ * Правка вбудованої вправи, збережена іншою мовою: рядки, що збігаються з текстом вбудованої
+ * (назва, правила, зони, варіанти, звання), — поточною мовою; дописане самим стрільцем лишається як є.
+ */
+function fromBase(rec) {
+  const base = EXERCISES.find((e) => e.id === rec.id);
+  if (!base) return rec;
+  const map = new Map();
+  const add = (o) => {
+    if (!o || typeof o === 'string') return;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) v.forEach((line, i) => map.set(line.trim(), L(o)[i]));
+      else map.set(v.trim(), L(o));
+    }
+  };
+  add(base.name);
+  add(base.rules);
+  (base.zones ?? []).forEach(([, label]) => add(label));
+  (base.variants ?? []).forEach(([, label]) => add(label));
+  (base.ranks ?? []).forEach(([, name]) => add(name));
+  const tr = (s) => (typeof s === 'string' ? map.get(s.trim()) ?? s : s);
+  return {
+    ...rec,
+    name: tr(rec.name),
+    rules: String(rec.rules ?? '').split('\n').map(tr).join('\n'),
+    zones: rec.zones?.map((z) => ({ ...z, label: tr(z.label) })),
+    variants: rec.variants?.map((x) => ({ ...x, label: tr(x.label) })),
+    ranks: rec.ranks?.map(([min, name]) => [min, tr(name)]),
+  };
+}
+
 /** Запис своєї вправи → той самий вигляд, що й у вбудованих (зони, правила, підпис). */
-export function asExercise(rec) {
+export function asExercise(raw) {
+  const rec = fromBase(raw);
   const lines = String(rec.rules ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
   // Правка вбудованої вправи — запис із тим самим id: особливі механіки (прострочка Купера,
   // ціна влучання за часом) лишаються від неї, решту беремо з правки.
@@ -546,16 +578,15 @@ function exerciseTile(ex, ctx) {
       mine.length ? t('попыток: {n}', { n: mine.length }) : null].filter(Boolean).join(' · ')));
 }
 
-/** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — під «i» в шапці. */
+/** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — згортним блоком під підзаголовком. */
 function exerciseSheet(ex, ctx) {
-  infoOpen = false;
   const body = () => {
     const mine = myScores(ex, ctx);
     const top = bestOf(ex, mine);
     const series = M.scoreSeries(ctx.scores, ex.id);
     return h('div', {},
       h('p', { class: 'muted' }, L(ex.sub)),
-      infoPanel(ex),
+      infoPanel(ex, ctx),
       mine.length ? recordHero(ex, top, mine) : null,
       ex.zones ? h('div', { class: 'btn-row' },
         btn(t('Записать результат'), () => { close(); scoreSheet(ex, ctx); }, 'primary')) : null,
@@ -572,8 +603,8 @@ function exerciseSheet(ex, ctx) {
   // Видаляються всі однаково; вбудована живе в коді, тож її ховаємо — повернути можна в Налаштуваннях.
   const own = ctx.custom.find((r) => r.id === ex.id);
   const builtIn = EXERCISES.some((e) => e.id === ex.id);
-  const tools = [infoButton(), ...(ctx.onSaveExercise ? [
-    toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ?? asRecord(ex), ctx); }),
+  const tools = [...(ctx.onSaveExercise ? [
+    toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ? fromBase(own) : asRecord(ex), ctx); }),
     own && builtIn ? toolBtn('reset', t('Вернуть встроенную'), () => ctx.onDeleteExercise?.(own, () => close())) : null,
     builtIn
       ? toolBtn('delete', t('Удалить'), () => ctx.onHideExercise?.(ex, () => close()), 'danger')
@@ -582,30 +613,13 @@ function exerciseSheet(ex, ctx) {
   const close = sheet(L(ex.name), body(), { live: body, tools });
 }
 
-// Панель правил відкрита чи ні — одна на всі вправи, поки застосунок відкритий.
-let infoOpen = false;
-
-/** Правила й підрахунок очок: читають раз, тож вони під «i», а не в самій картці. */
-function infoPanel(ex) {
+/** Правила й підрахунок очок — згортним блоком під підзаголовком: видно одразу, а читають раз, тож згорнуто, стан пам'ятає. */
+function infoPanel(ex, ctx) {
   const rules = L(ex.rules)?.length
     ? h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Правила')), h('ul', { class: 'ex-rules' }, textItems(L(ex.rules))))
     : null;
-  return h('div', { class: 'ex-info', hidden: !infoOpen }, rules,
-    h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Подсчёт очков')), scoringContent(ex)));
-}
-
-/** «i» у шапці картки: ховає й показує панель правил (тіло картки перемальовується — стан у infoOpen). */
-function infoButton() {
-  const button = h('button', {
-    type: 'button', class: 'hint-btn', 'aria-label': t('Правила и подсчёт очков'), 'aria-expanded': String(infoOpen),
-    onclick: () => {
-      infoOpen = !infoOpen;
-      button.setAttribute('aria-expanded', String(infoOpen));
-      const panel = button.closest('.sheet')?.querySelector('.ex-info');
-      if (panel) panel.hidden = !infoOpen;
-    },
-  }, 'i');
-  return button;
+  return ctx.box(t('Правила и подсчёт очков'), h('div', { class: 'ex-info' }, rules,
+    h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Подсчёт очков')), scoringContent(ex))), { fold: 'ex-rules' });
 }
 
 /** Звання за результатом: поточне, наступне й пройдена частка шляху до нього (0..1). */
