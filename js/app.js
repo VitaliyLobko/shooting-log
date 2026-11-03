@@ -6560,34 +6560,59 @@ async function goScreen(to, seg) {
   else if (seg && seg !== segNow) render();
 }
 
-/** Тур: після нього — той самий екран і розділи, що були до нього. */
-async function withTour(start) {
+/** Тур: після нього — той самий екран і розділи, що були до нього; onDone(дійшов до кінця) — після повернення. */
+async function withTour(start, onDone) {
   const was = { tab, stockSeg, gunsSeg, rangeSeg };
-  const back = () => {
+  const back = (done) => {
     ({ stockSeg, gunsSeg, rangeSeg } = was);
     if (tab !== was.tab) goTab(`#${was.tab}`);
     else render();
+    onDone?.(done);
   };
   const m = await tours();
   return start(m, { onClose: back });
 }
 
-/** «?» угорі: підказки до відкритого розділу; у тренажера — його власний тур. */
+const isEmpty = () => !db.STORES.some((s) => state[s]?.length);
+// Демо в базі — є його фото (ph-…); справжні фото мають UUID
+const hasDemo = () => state.photos.some((p) => DEMO_PHOTO.test(p.id));
+
+/** «?» угорі: підказки до відкритого розділу; у тренажера — його власний тур; без записів — демо й знайомство. */
 function screenHelp() {
   if (tab === 'targets' && rangeSeg === 'sim') {
     import('./sim-tour.js').then((m) => m.simTour($('view')));
     return;
   }
+  if (isEmpty()) { offerDemo(); return; }
   const seg = { ammo: stockSeg, guns: gunsSeg, targets: rangeSeg }[tab] ?? null;
   withTour((m, opts) => m.screenTour(tab, seg, goScreen, opts)).then((shown) => {
     if (!shown) toast(t('Подсказки появятся, когда здесь будут записи'));
   });
 }
 
-const appTour = () => withTour((m, opts) => m.appTour(goScreen, opts));
+/** Знайомство з усім застосунком; з демо — останнім кроком, як його прибрати, а хто пропустив — нагадуємо. */
+function appTour() {
+  if (isEmpty()) { offerDemo(); return; }
+  const demo = hasDemo();
+  withTour((m, opts) => m.appTour(goScreen, demo, opts), (done) => {
+    if (demo && !done) toast(t('Демо убирается так: ⚙ → «Удалить данные с устройства»'), { timeout: 9000 });
+  });
+}
 
-/** Демодані без шторки імпорту (база порожня — об'єднувати нічого) і одразу знайомство з розділами. */
-async function demoWithTour() {
+/** Тур без записів показувати нічому — пропонуємо демо й одразу знайомство з усім застосунком. */
+function offerDemo() {
+  const close = sheet(t('Тур на примере'), h('div', {},
+    h('p', {}, t('Пока записей нет — показывать нечего. Загружу демо-данные: три ствола с историей, покупками и мишенями — и проведу по разделам.')),
+    h('p', { class: 'muted' }, t('В конце покажу, как убрать демо перед своим учётом.'))), {
+    actions: [
+      btn(t('Не сейчас'), () => close()),
+      btn(t('Загрузить и показать'), () => { close(); loadDemoQuiet().then((ok) => ok && appTour()); }, 'primary'),
+    ],
+  });
+}
+
+/** Демодані без шторки імпорту: база порожня — об'єднувати нічого. */
+async function loadDemoQuiet() {
   toast(t('Загружаю демо-данные…'));
   try {
     const res = await fetch('./demo.json', { cache: 'no-store' });
@@ -6596,11 +6621,11 @@ async function demoWithTour() {
     await db.mergeImport(importChanges(data));
     await demoBlobs(data.photos);
     await refresh();
+    return true;
   } catch {
     toast(t('Не удалось загрузить демо-данные'));
-    return;
+    return false;
   }
-  appTour();
 }
 
 /** Перший запуск на порожній базі: показати на прикладі чи почати самому. Раз на пристрій. */
@@ -6611,7 +6636,7 @@ function welcome() {
     h('p', { class: 'muted' }, t('Посмотреть на готовом примере? Загружу демо-данные — три ствола с историей — и покажу разделы. Демо потом удаляется одной кнопкой в настройках.'))), {
     actions: [
       btn(t('Начну сам'), () => { close(); toast(t('Подсказки к разделу — кнопка «?» вверху')); }),
-      btn(t('Показать на примере'), () => { close(); demoWithTour(); }, 'primary'),
+      btn(t('Показать на примере'), () => { close(); loadDemoQuiet().then((ok) => ok && appTour()); }, 'primary'),
     ],
   });
 }
