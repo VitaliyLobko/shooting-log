@@ -25,6 +25,7 @@ import {
 const alignMod = () => import('./align.js');
 const pdfMod = () => import('./pdf.js');
 const simIntro = (...args) => import('./sim-tour.js').then((m) => m.simIntro(...args));
+const tours = () => import('./tours.js');
 
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
@@ -6546,14 +6547,85 @@ async function loadDemo() {
   }
 }
 
+// ---------- знайомство: перший запуск, тури ----------
+
+const WELCOMED = 'shooters-log:welcomed';
+
+/** Перейти на вкладку й розділ (для туру); чекає, доки екран перемалюється. */
+async function goScreen(to, seg) {
+  const segs = { ammo: () => { stockSeg = seg; }, guns: () => { gunsSeg = seg; }, targets: () => { rangeSeg = seg; } };
+  const segNow = { ammo: stockSeg, guns: gunsSeg, targets: rangeSeg }[to];
+  if (seg && segs[to]) segs[to]();
+  if (tab !== to) await new Promise((resolve) => { window.addEventListener('hashchange', resolve, { once: true }); goTab(`#${to}`); });
+  else if (seg && seg !== segNow) render();
+}
+
+/** Тур: після нього — той самий екран і розділи, що були до нього. */
+async function withTour(start) {
+  const was = { tab, stockSeg, gunsSeg, rangeSeg };
+  const back = () => {
+    ({ stockSeg, gunsSeg, rangeSeg } = was);
+    if (tab !== was.tab) goTab(`#${was.tab}`);
+    else render();
+  };
+  const m = await tours();
+  return start(m, { onClose: back });
+}
+
+/** «?» угорі: підказки до відкритого розділу; у тренажера — його власний тур. */
+function screenHelp() {
+  if (tab === 'targets' && rangeSeg === 'sim') {
+    import('./sim-tour.js').then((m) => m.simTour($('view')));
+    return;
+  }
+  const seg = { ammo: stockSeg, guns: gunsSeg, targets: rangeSeg }[tab] ?? null;
+  withTour((m, opts) => m.screenTour(tab, seg, goScreen, opts)).then((shown) => {
+    if (!shown) toast(t('Подсказки появятся, когда здесь будут записи'));
+  });
+}
+
+const appTour = () => withTour((m, opts) => m.appTour(goScreen, opts));
+
+/** Демодані без шторки імпорту (база порожня — об'єднувати нічого) і одразу знайомство з розділами. */
+async function demoWithTour() {
+  toast(t('Загружаю демо-данные…'));
+  try {
+    const res = await fetch('./demo.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { data } = await res.json();
+    await db.mergeImport(importChanges(data));
+    await demoBlobs(data.photos);
+    await refresh();
+  } catch {
+    toast(t('Не удалось загрузить демо-данные'));
+    return;
+  }
+  appTour();
+}
+
+/** Перший запуск на порожній базі: показати на прикладі чи почати самому. Раз на пристрій. */
+function welcome() {
+  remember(WELCOMED, '1');
+  const close = sheet(t('Добро пожаловать'), h('div', {},
+    h('p', {}, t('Shooter’s Log ведёт учёт патронов, оружия, стрельб и мишеней. Всё хранится на этом устройстве, без сервера.')),
+    h('p', { class: 'muted' }, t('Посмотреть на готовом примере? Загружу демо-данные — три ствола с историей — и покажу разделы. Демо потом удаляется одной кнопкой в настройках.'))), {
+    actions: [
+      btn(t('Начну сам'), () => { close(); toast(t('Подсказки к разделу — кнопка «?» вверху')); }),
+      btn(t('Показать на примере'), () => { close(); demoWithTour(); }, 'primary'),
+    ],
+  });
+}
+
 /**
- * У демо фото мішеней — лише мініатюри, повних файлів на Диску в них немає. Мініатюра й стає
- * повним фото: без нього не відкриється розмітка. Наявні файли не чіпаємо.
+ * У демо на Диску повних файлів немає. Фото стволів лежать поруч (p.file), у мішеней повним фото
+ * стає мініатюра: без нього не відкриється розмітка. Наявні файли не чіпаємо.
  */
 async function demoBlobs(photos = []) {
   const have = new Set(await db.blobKeys());
   for (const p of photos) {
-    const blob = have.has(p.id) ? null : dataUrlBlob(p.thumb);
+    if (have.has(p.id)) continue;
+    const file = p.file ? await fetch(p.file).then((r) => (r.ok ? r.blob() : null)).catch(() => null) : null;
+    const blob = file ?? dataUrlBlob(p.thumb);
     if (blob) await db.putBlob(p.id, blob);
   }
 }
@@ -6580,6 +6652,12 @@ async function fullPhoto(photo) {
   return thumb;
 }
 
+/** Записи копії по сховищах, без порожніх id: { store: { put: [obj] } }. */
+function importChanges(data) {
+  const validId = (id) => (typeof id === 'string' && id !== '') || Number.isFinite(id);
+  return Object.fromEntries(db.STORES.map((s) => [s, { put: (data[s] ?? []).filter((x) => x && validId(x.id)) }]));
+}
+
 /** demo — демодані з комплекту: після імпорту мініатюри стають повними фото. */
 function importParsed(parsed, { demo = false } = {}) {
   {
@@ -6590,8 +6668,7 @@ function importParsed(parsed, { demo = false } = {}) {
       return;
     }
     const count = db.STORES.reduce((s, k) => s + (data[k]?.length ?? 0), 0);
-    const validId = (id) => (typeof id === 'string' && id !== '') || Number.isFinite(id);
-    const changes = Object.fromEntries(db.STORES.map((s) => [s, { put: (data[s] ?? []).filter((x) => x && validId(x.id)) }]));
+    const changes = importChanges(data);
     const close = sheet(t('Импорт'), h('div', {},
       h('p', {}, t('В файле {n} записей.', { n: count })),
       h('p', { class: 'muted small' }, t('«Объединить» — добавит новые записи и обновит те, что в файле новее: более поздние правки на устройстве останутся. «Заменить всё» — сначала удалит текущие данные.')),
@@ -6792,7 +6869,8 @@ function aboutPanel() {
         h('p', { class: 'muted small' }, t('Версия {v} · сборка {b}', { v: self.APP_VERSION, b: self.APP_BUILD ?? '—' })))),
     h('p', { class: 'muted small about-desc' }, t('Учёт боеприпасов, настрела по стволам, кучности и упражнений. Работает без интернета: всё считается на устройстве.')),
     // Сім тапів по «Перевірити оновлення» — панель святкових сценок (updateTap)
-    h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), updateTap), btn(t('Что нового'), () => allChanges().then(changesSheet))),
+    h('div', { class: 'btn-row' }, btn(t('Проверить обновление'), updateTap), btn(t('Что нового'), () => allChanges().then(changesSheet)),
+      btn(t('Тур по приложению'), appTour)),
     // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
     h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
       h('span', { class: 'donate-art' },
@@ -7176,7 +7254,7 @@ function storageRow() {
 
 function demoRow() {
   return setRow('demo', 'play', t('Демо-данные'), '', [
-    h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: семь стволов, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
+    h('p', { class: 'muted small' }, t('Учёт с 2022 года для примера: три ствола с фото и тюнингом, экипировка, покупки и стрельбы, самоснаряжение, чистки, размеченные мишени, упражнения с ростом результата, скорости и серии таймера. Удобно посмотреть, как всё работает, пока своих записей нет.')),
     h('div', { class: 'btn-row' }, btn(t('Загрузить демо-данные'), loadDemo))]);
 }
 
@@ -7388,8 +7466,9 @@ function render() {
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === (view.tab ?? tab)));
   playTab(view.tab ?? tab);
   $('settings-btn').classList.toggle('active', (view.tab ?? tab) === 'settings');
-  // У налаштуваннях — «Назад» туди, звідки прийшли
+  // У налаштуваннях — «Назад» туди, звідки прийшли; підказки «?» — лише в розділах
   $('back-btn').hidden = tab !== 'settings';
+  $('tour-btn').hidden = tab === 'settings' || tab === 'guide';
   $('back-btn').href = `#${backTab}`;
   document.querySelector('.tabs a[data-tab="guns"]').classList.toggle('alert',
     state.weapons.some(needsCleaning) || urgentPermits().length > 0);
@@ -7561,6 +7640,7 @@ window.addEventListener('scroll', () => {
   fabY = y;
 }, { passive: true });
 $('sync-chip').addEventListener('click', onSyncChip);
+$('tour-btn').addEventListener('click', screenHelp);
 window.addEventListener('hashchange', route);
 // Нижні вкладки — свайпом по панелі, як розділи; у налаштуваннях жодна не вибрана — свайп нічого не робить
 swipeStep(document.querySelector('.tabs'), (dir) => {
@@ -7616,9 +7696,12 @@ try {
     btn(t('Попробовать ещё раз'), () => location.reload(), 'primary')));
   throw err;
 }
+// Нова установка: «Що нового» ще не бачили й записів немає — showNews позначить версію баченою, тож питаємо до нього
+const firstRun = !recall(SEEN_KEY) && !recall(WELCOMED) && !db.STORES.some((s) => state[s]?.length);
 route();
 holidayScene();
 showNews();
+if (firstRun) welcome();
 // Після «Що нового»: шторка з ярлика має бути зверху
 runShortcut();
 // нагадування по черзі — наступне після показаного, щоб не перекрило; поки відкрита шторка («Що нового», ярлик) — чекають

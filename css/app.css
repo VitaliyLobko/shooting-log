@@ -166,6 +166,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .gear svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
 .gear svg path { stroke-width: 2.6; }   /* зубці шестерні товсті — інакше в 21 px це «сонце» */
+#tour-btn svg path { stroke-width: 2; }
 .gear.active { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
 /* Перейшли в налаштування — шестерня провертається на два зубці з доворотом, як механізм */
 #settings-btn.play svg { animation: gear-turn 1.4s cubic-bezier(.3, 0, .2, 1); }
@@ -3047,6 +3048,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .tour-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .tour-skip { padding: 8px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
 .tour-next { min-height: 38px; padding: 8px 18px; }
+.tour-right { display: flex; align-items: center; gap: 10px; }
 /* Палець у турі: свайпи по прицілу (swipe) чи ведення прицілу (drag — за пальцем іде перехрестя); рух лише transform/opacity */
 .tour-finger { position: fixed; z-index: 1201; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
   opacity: 0; background: rgb(255 255 255 / .28); border: 2px solid rgb(255 255 255 / .9);

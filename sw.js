@@ -35,6 +35,8 @@ const ASSETS = [
   './js/guide.js',
   './js/scenes.js',
   './js/sim-tour.js',
+  './js/tour.js',
+  './js/tours.js',
   './js/masks.js',
   './js/md.js',
   './js/ballistics.js',
