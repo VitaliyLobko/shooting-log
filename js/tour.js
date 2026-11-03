@@ -51,7 +51,7 @@ export async function runTour(steps, { onClose } = {}) {
   const follow = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
   const close = (done) => {
     window.removeEventListener('scroll', follow, true); window.removeEventListener('resize', follow);
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     shield.remove(); hole.remove(); card.remove();
     onClose?.(done);
   };
@@ -82,15 +82,18 @@ export async function runTour(steps, { onClose } = {}) {
     if (dir > 0) close(i >= 0);
     return false;
   };
+  // Клавіші — лише туру: Escape інакше закрив би й редактор під ним (той теж слухає document)
   const onKey = (e) => {
+    if (!['Escape', 'ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+    e.stopPropagation();
     if (e.key === 'Escape') close(false);
     else if (e.key === 'ArrowRight') next.click();
-    else if (e.key === 'ArrowLeft' && i > 0) show(i - 1, -1);
+    else if (i > 0) show(i - 1, -1);
   };
   next.addEventListener('click', () => (i < steps.length - 1 ? show(i + 1) : close(true)));
   back.addEventListener('click', () => show(i - 1, -1));
   skip.addEventListener('click', () => close(false));
   window.addEventListener('scroll', follow, true); window.addEventListener('resize', follow);
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
   return show(0);
 }

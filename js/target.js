@@ -6,6 +6,8 @@ import { decode } from './photos.js';
 import * as M from './model.js';
 import { findHoles } from './holes.js';
 
+const tours = () => import('./tours.js');
+
 export const COLORS = ['#ff4d4d', '#38b6ff', '#ffd23f', '#4ade80', '#d27bff', '#ff9f43'];
 export const UNITS = [['cm', 'см'], ['moa', 'MOA'], ['mil', 'MRAD']];
 export const CLICKS = [['mil0.1', '0,1 MRAD'], ['mil0.05', '0,05 MRAD'], ['moa0.25', '¼ MOA'], ['moa0.2387', '¼″ / 100 ярдов'], ['moa0.125', '⅛ MOA'], ['moa0.5', '½ MOA'], ['moa1', '1 MOA'],
@@ -599,7 +601,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     function panel() {
       // Підпис під кожним значком, а не лише під вибраним: перехрестя «точки прицілювання» саме по собі не читається
       modeRow.replaceChildren(...[['view', t('Просмотр')], ['holes', t('Пробоины')], ['poa', t('Точка прицеливания'), t('Точка')], ['scale', t('Масштаб')]].map(([key, label, short]) => h('button', {
-        type: 'button', role: 'tab', class: key === mode ? 'on' : null, 'aria-selected': String(key === mode), 'aria-label': label, title: label,
+        type: 'button', role: 'tab', class: key === mode ? 'on' : null, 'aria-selected': String(key === mode), 'aria-label': label, title: label, dataset: { mode: key },
         onclick: () => { mode = key; selected = null; paint(); },
       }, icon(key), h('span', { class: short ? 'seg-long' : null }, label), short ? h('span', { class: 'seg-short', 'aria-hidden': 'true' }, short) : null)));
       // групи видно й у «Перегляді»: вибрану пробоїну можна перенести в іншу групу
@@ -943,7 +945,8 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
         h('button', { type: 'button', class: 'icon-btn', title: t('Закрыть'), 'aria-label': t('Закрыть'), onclick: leave }, '✕'),
         // Видалення — окремо ліворуч, подалі від «Скасувати» й «Зберегти»: не натиснути випадково
         delBtn,
-        h('div', { class: 'tg-tools' }, undoBtn, redoBtn, tool('fit', t('Вписать в экран'), () => { fit(); paint(); })),
+        h('div', { class: 'tg-tools' }, undoBtn, redoBtn, tool('fit', t('Вписать в экран'), () => { fit(); paint(); }),
+          h('button', { type: 'button', class: 'tg-tool tg-help', title: t('Подсказки'), 'aria-label': t('Подсказки'), onclick: () => tours().then((m) => m.markTour()) }, '?')),
         h('button', { type: 'button', class: 'btn primary tg-save', onclick: save }, `✓ ${t('Сохранить')}`)),
       stage,
       h('div', { class: 'tg-panel' }, modeRow, holesRow, scaleRow, poaRow));
@@ -953,5 +956,7 @@ export async function markTarget(blob, marks, { distance, unit, click, scaleMm =
     document.addEventListener('keydown', onKey);
     paint();
     observer.observe(stage);
+    // Перша розмітка — тур по кроках; далі — кнопка «?»
+    setTimeout(() => { if (root.isConnected) tours().then((m) => m.markTour({ auto: true })); }, 500);
   });
 }
