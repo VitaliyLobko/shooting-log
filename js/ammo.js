@@ -2,18 +2,64 @@
 import { h } from './ui.js';
 import * as M from './model.js';
 
-// Свій колір калібру (олівець у шапці калібру) — записи calibers, id = назва калібру
+// Свій колір калібру (олівець у шапці калібру) — записи calibers, id = назва калібру.
+// Без свого — колір за потужністю: від блакитного (мілкашка) через зелений і помаранчевий до малинового (.50 BMG).
 const OWN_HUE = new Map();
+// Енергія з власних набоїв (вага кулі × швидкість) — для калібрів, яких немає в таблиці
+const OWN_ENERGY = new Map();
 
-export function setCaliberHues(list = []) {
+/** Свої кольори й енергія калібрів зі складу; викликати після кожного завантаження даних. */
+export function setCaliberHues(list = [], cartridges = []) {
   OWN_HUE.clear();
   for (const r of list) if (Number.isFinite(r.hue)) OWN_HUE.set(r.id, r.hue);
+  OWN_ENERGY.clear();
+  for (const c of cartridges) {
+    const grams = Number(c.bulletWeight) * (c.weightUnit === 'г' ? 1 : 0.0647989);
+    const e = (grams / 1000) * Number(c.mv) ** 2 / 2;
+    const key = String(c.caliber ?? '').trim();
+    if (e > 0 && key) OWN_ENERGY.set(key, Math.max(OWN_ENERGY.get(key) ?? 0, e));
+  }
 }
 
-/** Відтінок від калібру: стволи й набої одного калібру одного кольору; свій — якщо вибрали. */
+// Типова дульна енергія, Дж — довідково, щоб калібри стали на шкалу потужності. Конкретніші — вище.
+const ENERGY = [
+  [/17\s*hmr/, 330], [/22\s*(wmr|mag)/, 400], [/22\s*(lr|long|l\.?r)/, 150],
+  [/9\s*[x×х*]\s*18|makarov|макаров/, 300], [/380/, 270], [/7\.62\s*[x×х*]\s*25|tokarev|(^|\s)тт($|\s)/, 700], [/5\.7\s*[x×х*]\s*28/, 400],
+  [/9\s*[x×х*]\s*19|(^|[^\d.])9\s*(mm|мм)|luger|para/, 500], [/45\s*acp/, 500], [/40\s*s&?w/, 570], [/357/, 750], [/44\s*mag/, 1400],
+  [/300\s*(blk|blackout|aac)/, 1300], [/5\.45/, 1350], [/(^|[^\d])(223|5\.56)/, 1750], [/7\.62\s*[x×х*]\s*39/, 2050],
+  [/6\.5\s*(grendel|гренд)/, 2300], [/243/, 2600], [/6\.5\s*(cm|creed|крід)/, 2700],
+  [/308|7\.62\s*[x×х*]\s*51/, 3300], [/7\.62\s*[x×х*]\s*54/, 3600], [/30[-.]06|7\.62\s*[x×х*]\s*63/, 3800],
+  [/300\s*(wm|win\s*mag|prc)/, 5000], [/338/, 6500], [/375/, 8000], [/408/, 10000],
+  [/50\s*bmg|12\.7\s*[x×х*]\s*(99|108)/, 18000], [/14\.5/, 32000],
+];
+// Шкала: [Дж, відтінок]; між точками — за логарифмом енергії, щоб і мілкі калібри не злипались
+const SCALE = [[150, 200], [500, 175], [1300, 145], [1750, 125], [2100, 88], [2700, 55], [3300, 35], [3600, 20],
+  [5000, 8], [6500, 0], [18000, -60]];
+// Дробові — окремо: у дробу й кулі зовсім різна енергія
+const SHOT_HUE = 320;
+
+/** Типова дульна енергія калібру, Дж; null — невідомий калібр. */
+export function caliberEnergy(caliber) {
+  const c = String(caliber ?? '').toLowerCase().replace(',', '.');
+  return ENERGY.find(([re]) => re.test(c))?.[1] ?? OWN_ENERGY.get(String(caliber ?? '').trim()) ?? null;
+}
+
+function energyHue(e) {
+  if (e <= SCALE[0][0]) return SCALE[0][1];
+  const i = SCALE.findIndex(([x]) => x >= e);
+  if (i < 0) return (SCALE.at(-1)[1] + 360) % 360;
+  const [[e0, h0], [e1, h1]] = [SCALE[i - 1], SCALE[i]];
+  const k = Math.log(e / e0) / Math.log(e1 / e0);
+  return Math.round((h0 + (h1 - h0) * k + 360) % 360);
+}
+
+/** Відтінок калібру: свій → дробовий → за потужністю → від назви (невідомий калібр без даних про кулю). */
 export function caliberHue(caliber) {
   const own = OWN_HUE.get(String(caliber ?? '').trim());
   if (own !== undefined) return own;
+  if (M.barrelLifeFor(caliber)?.smooth) return SHOT_HUE;
+  const e = caliberEnergy(caliber);
+  if (e) return energyHue(e);
   let hash = 7;
   for (const ch of String(caliber ?? '')) hash = (hash * 31 + ch.codePointAt(0)) % 360;
   return hash;

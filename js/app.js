@@ -42,7 +42,7 @@ const LOW_ROUNDS = 50;
 
 async function refresh() {
   state = await db.loadAll();
-  setCaliberHues(state.calibers);
+  setCaliberHues(state.calibers, state.cartridges);
   render();
   refreshSheets();
 }
@@ -7605,7 +7605,7 @@ registerWorker();
 navigator.storage?.persist?.().catch(() => {});
 try {
   state = await db.loadAll();
-  setCaliberHues(state.calibers);
+  setCaliberHues(state.calibers, state.cartridges);
 } catch (err) {
   // Приватний режим, скінчилось місце, збій браузера: без цього лишався б порожній екран без жодного слова
   window.removeEventListener('hashchange', route);
