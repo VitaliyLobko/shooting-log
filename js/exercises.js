@@ -578,16 +578,15 @@ function exerciseTile(ex, ctx) {
       mine.length ? t('попыток: {n}', { n: mine.length }) : null].filter(Boolean).join(' · ')));
 }
 
-/** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — під «i» в шапці. */
+/** Картка вправи: рекорд у кільці звання, кнопка, динаміка й результати; правила й підрахунок — згортним блоком під підзаголовком. */
 function exerciseSheet(ex, ctx) {
-  infoOpen = false;
   const body = () => {
     const mine = myScores(ex, ctx);
     const top = bestOf(ex, mine);
     const series = M.scoreSeries(ctx.scores, ex.id);
     return h('div', {},
       h('p', { class: 'muted' }, L(ex.sub)),
-      infoPanel(ex),
+      infoPanel(ex, ctx),
       mine.length ? recordHero(ex, top, mine) : null,
       ex.zones ? h('div', { class: 'btn-row' },
         btn(t('Записать результат'), () => { close(); scoreSheet(ex, ctx); }, 'primary')) : null,
@@ -604,7 +603,7 @@ function exerciseSheet(ex, ctx) {
   // Видаляються всі однаково; вбудована живе в коді, тож її ховаємо — повернути можна в Налаштуваннях.
   const own = ctx.custom.find((r) => r.id === ex.id);
   const builtIn = EXERCISES.some((e) => e.id === ex.id);
-  const tools = [infoButton(), ...(ctx.onSaveExercise ? [
+  const tools = [...(ctx.onSaveExercise ? [
     toolBtn('edit', t('Изменить'), () => { close(); exerciseForm(own ? fromBase(own) : asRecord(ex), ctx); }),
     own && builtIn ? toolBtn('reset', t('Вернуть встроенную'), () => ctx.onDeleteExercise?.(own, () => close())) : null,
     builtIn
@@ -614,30 +613,13 @@ function exerciseSheet(ex, ctx) {
   const close = sheet(L(ex.name), body(), { live: body, tools });
 }
 
-// Панель правил відкрита чи ні — одна на всі вправи, поки застосунок відкритий.
-let infoOpen = false;
-
-/** Правила й підрахунок очок: читають раз, тож вони під «i», а не в самій картці. */
-function infoPanel(ex) {
+/** Правила й підрахунок очок — згортним блоком під підзаголовком: видно одразу, а читають раз, тож згорнуто, стан пам'ятає. */
+function infoPanel(ex, ctx) {
   const rules = L(ex.rules)?.length
     ? h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Правила')), h('ul', { class: 'ex-rules' }, textItems(L(ex.rules))))
     : null;
-  return h('div', { class: 'ex-info', hidden: !infoOpen }, rules,
-    h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Подсчёт очков')), scoringContent(ex)));
-}
-
-/** «i» у шапці картки: ховає й показує панель правил (тіло картки перемальовується — стан у infoOpen). */
-function infoButton() {
-  const button = h('button', {
-    type: 'button', class: 'hint-btn', 'aria-label': t('Правила и подсчёт очков'), 'aria-expanded': String(infoOpen),
-    onclick: () => {
-      infoOpen = !infoOpen;
-      button.setAttribute('aria-expanded', String(infoOpen));
-      const panel = button.closest('.sheet')?.querySelector('.ex-info');
-      if (panel) panel.hidden = !infoOpen;
-    },
-  }, 'i');
-  return button;
+  return ctx.box(t('Правила и подсчёт очков'), h('div', { class: 'ex-info' }, rules,
+    h('div', {}, h('div', { class: 'ex-scoring-title' }, t('Подсчёт очков')), scoringContent(ex))), { fold: 'ex-rules' });
 }
 
 /** Звання за результатом: поточне, наступне й пройдена частка шляху до нього (0..1). */

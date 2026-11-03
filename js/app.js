@@ -6,6 +6,7 @@ import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from '
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue, componentIcon } from './ammo.js';
+import { gearSvg, GEAR_ICON_GROUPS, GEAR_HUES } from './gear-icons.js';
 import { lineChart, barChart } from './chart.js';
 import { toUsd, rateOn, refreshRates, rateSeries } from './usd.js';
 import { ammoLevel, shotLevel, levelArt, rankRing } from './levels.js';
@@ -28,7 +29,7 @@ const simIntro = (...args) => import('./sim-tour.js').then((m) => m.simIntro(...
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [] };
+let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [], gearKinds: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -896,12 +897,14 @@ function calGroup(g, { prefix = 'ammo', card = cartridgeCard } = {}) {
 }
 
 /** Група-картка: шапка в кольорі --h зі значком, назвою, «N поз.» і підсумком; тап по шапці згортає, стан запам'ятовується. */
-function groupCard(key, { hue, icon, title, count, total = null, cls = '' }, body) {
+function groupCard(key, { hue, icon, title, count, total = null, cls = '', onEdit = null }, body) {
   const el = h('details', { class: `cal-group ${cls}`, open: unfolded.has(key), style: `--h:${hue}` },
     h('summary', { class: 'cal-head' }, h('span', { class: 'chevron', 'aria-hidden': 'true' }), icon,
       h('div', { class: 'cal-name' }, h('div', { class: 'cal-title' }, title),
         h('div', { class: 'cal-meta' }, t('{n} поз.', { n: count }))),
-      total),
+      total,
+      // Олівець у шапці — змінити саму групу; тап по ньому не згортає картку
+      onEdit ? toolBtn('edit', t('Изменить'), (e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }, 'small cal-edit') : null),
     h('div', { class: 'cal-body' }, body));
   el.addEventListener('toggle', () => setUnfolded(key, el.open));
   return el;
@@ -1627,28 +1630,39 @@ function renderGuns() {
   return h('div', {}, seg, gunsSeg === 'gear' ? renderGear() : renderWeapons());
 }
 
-// Категорії екіпірування: бронезахист окремо від одягу — його цікаво рахувати окремо.
-const GEAR_KINDS = [['armor', 'Бронезащита'], ['carry', 'Разгрузка, подсумки и одежда'],
-  ['devices', 'Приборы'], ['cleaning', 'Чистка и уход'], ['cases', 'Чехлы, кейсы и сейф'], ['reload', 'Релоад'],
-  ['other', 'Другое']];
-// Колишня категорія «Одяг і форма» злита з розвантаженням; невідома — в «Інше»
-const gearKind = (k) => (k === 'clothes' ? 'carry' : GEAR_KINDS.some(([x]) => x === k) ? k : 'other');
+// Категорії екіпірування: вбудовані — [id, назва (ключ перекладу), відтінок шапки, значок].
+// Стрілець правит їх олівцем у шапці категорії — це записи gearKinds: запис з id вбудованої
+// міняє її (hidden — прибрана), з новим id — своя категорія.
+const GEAR_KINDS = [['armor', 'Бронезащита', 95, 'armor'], ['carry', 'Разгрузка, подсумки и одежда', 35, 'vest'],
+  ['devices', 'Приборы', 205, 'earmuffs'], ['cleaning', 'Чистка и уход', 175, 'bottle'],
+  ['cases', 'Чехлы, кейсы и сейф', 265, 'gun-case'], ['reload', 'Релоад', 15, 'flask'], ['other', 'Другое', 60, 'crate']];
+// «Інше» не прибирається: туди потрапляє все, чия категорія зникла
+const GEAR_FALLBACK = 'other';
+const SOLD_LOOK = { hue: 140, icon: 'price-tag' };
 
-// Категорія екіпірування — відтінок шапки картки й значок, як калібр у Складі
-const GEAR_LOOK = {
-  armor: [95, '<path d="M12 3l7 2.6V11c0 4.6-3 8.3-7 10-4-1.7-7-5.4-7-10V5.6z"/><path d="M8.5 9.5h7M8.5 13h7M10 16.5h4"/>'],
-  carry: [35, '<path d="M8.5 3.5L5 5.5V20h14V5.5l-3.5-2L14 7h-4z"/><path d="M8.5 12h7M8.5 16h7"/>'],
-  devices: [205, '<path d="M4.5 14.5V12a7.5 7.5 0 0 1 15 0v2.5"/><rect x="3" y="13.5" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="13.5" width="4.5" height="7" rx="1.6"/>'],
-  cleaning: [175, '<path d="M9.5 3h5M10.5 3v3.5h3V3"/><path d="M9 6.5h6l1 3.2V20a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9.7z"/><path d="M8 13h8"/>'],
-  cases: [265, '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4.5h6V7M3 12.5h18M10.8 11v3h2.4v-3"/>'],
-  reload: [15, '<path d="M9 3h6M10 3v6L5 18.2A2 2 0 0 0 6.8 21h10.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.4 15h9.2"/>'],
-  other: [60, '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>'],
-  sold: [140, '<path d="M3.5 12.5V4h8.5l8.5 8.5-8.5 8.5z"/><circle cx="8" cy="8.5" r="1.6"/>'],
-};
+/** Категорії по порядку, назви вже перекладені; hidden: true — лише прибрані вбудовані. */
+function gearKinds({ hidden = false } = {}) {
+  const own = new Map(state.gearKinds.map((r) => [r.id, r]));
+  const list = [
+    ...GEAR_KINDS.map(([id, name, hue, icon], i) => {
+      const r = own.get(id);
+      return { id, builtIn: true, name: r?.name || t(name), hue: r?.hue ?? hue, icon: r?.icon ?? icon, order: r?.order ?? i, hidden: Boolean(r?.hidden) };
+    }),
+    ...state.gearKinds.filter((r) => !GEAR_KINDS.some(([id]) => id === r.id))
+      .map((r) => ({ id: r.id, name: r.name, hue: r.hue ?? 60, icon: r.icon ?? 'crate', order: r.order ?? GEAR_KINDS.length, hidden: false })),
+  ];
+  return list.filter((k) => k.hidden === hidden).sort((a, b) => a.order - b.order);
+}
 
-function gearIcon(kind) {
+/** Категорія запису: колишня «Одяг і форма» — розвантаження, прибрана чи невідома — «Інше». */
+function gearKind(k, kinds = gearKinds()) {
+  const id = k === 'clothes' ? 'carry' : k;
+  return kinds.find((x) => x.id === id) ?? kinds.find((x) => x.id === GEAR_FALLBACK);
+}
+
+function gearIcon(key) {
   const el = h('span', { class: 'ammo-ico gear-ico', 'aria-hidden': 'true' });
-  el.innerHTML = `<svg viewBox="0 0 24 24">${GEAR_LOOK[kind][1]}</svg>`;
+  el.innerHTML = `<svg viewBox="0 0 24 24">${gearSvg(key)}</svg>`;
   return el;
 }
 
@@ -1871,9 +1885,10 @@ function renderGear() {
     }).join(' · ');
   const usdTotal = usdSum([...rowsOf('gun'), ...rowsOf('mod'), ...rowsOf('gear')]);
   const usdBack = usdSum(rowsOf('sale'));
-  const order = GEAR_KINDS.map(([k]) => k);
-  const groups = groupBy(state.gear.filter((g) => !isSold(g)).sort(byName), (g) => gearKind(g.kind))
-    .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b));
+  const kinds = gearKinds();
+  const byKind = new Map(groupBy(state.gear.filter((g) => !isSold(g)).sort(byName), (g) => gearKind(g.kind, kinds).id));
+  // Порожні категорії — рядком значків під картками: видно, що є, тап — змінити
+  const idle = kinds.filter((k) => !byKind.has(k.id));
   const sold = soldItems();
   const net = back ? h('div', {}, t('вернул с продаж {back} · чистые расходы {net}', {
     back: grn(back) + (usdBack === null ? '' : ` · ${usdFmt(usdBack)}`),
@@ -1881,12 +1896,16 @@ function renderGear() {
   return h('div', {},
     hero(t('Вложено всего'), tileMoney(total, usdTotal), [split, net], 'accent'),
     spendingChart(spent),
-    groups.map(([kind, items]) => groupCard(`gear:${kind}`, {
-      hue: GEAR_LOOK[kind][0], icon: gearIcon(kind), title: t(GEAR_KINDS.find(([k]) => k === kind)[1]), count: items.length, cls: 'gear-group',
-      total: gearTotal(items.reduce((s, g) => s + priceOf(g.price), 0), usdSum(items.map((g) => [g.price, g.date, g.usdRate]))),
-    }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearDetail(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate)))),
+    kinds.filter((k) => byKind.has(k.id)).map((k) => {
+      const items = byKind.get(k.id);
+      return groupCard(`gear:${k.id}`, {
+        hue: k.hue, icon: gearIcon(k.icon), title: k.name, count: items.length, cls: 'gear-group', onEdit: () => gearKindForm(k),
+        total: gearTotal(items.reduce((s, g) => s + priceOf(g.price), 0), usdSum(items.map((g) => [g.price, g.date, g.usdRate]))),
+      }, items.map((g) => priceRow(g.name, placeLine(g.date, g.place) || g.note, g.price, () => gearDetail(g), photoThumb(gearPhoto(g.id)), g.date, g.usdRate)));
+    }),
+    gearKindsBar(idle),
     sold.length ? groupCard('gear:sold', {
-      hue: GEAR_LOOK.sold[0], icon: gearIcon('sold'), title: t('Продано'), count: sold.length, cls: 'gear-group sold',
+      hue: SOLD_LOOK.hue, icon: gearIcon(SOLD_LOOK.icon), title: t('Продано'), count: sold.length, cls: 'gear-group sold',
       total: gearTotal(back, usdBack),
     }, sold.map(({ item, weapon, kind }) => {
         const paid = priceOf(kind === 'gun' ? item.buyPrice : item.price);
@@ -1912,7 +1931,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
   const src = item ?? preset;
   const f = form([
     { name: 'name', label: t('Название'), required: true, value: src?.name, placeholder, wide: true },
-    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: src?.kind ?? kinds[0][0], options: kinds.map(([k, label]) => [k, t(label)]), wide: true } : null,
+    kinds ? { name: 'kind', label: t('Категория'), type: 'select', value: src?.kind ?? kinds[0][0], options: kinds, wide: true } : null,
     { name: 'price', label: t('Цена, грн'), type: 'number', step: 'any', min: 0, value: src?.price, half: true },
     { name: 'date', label: t('Дата покупки'), type: 'date', value: src?.date ?? M.today(), half: true },
     rateField('usdRate', src?.usdRate),
@@ -1935,10 +1954,10 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     query: () => f.inputs.name.value.trim(),
     onSearch: onSearch && (() => onSearch(f.values())),
   });
-  // Видалити й продати — іконками в шапці, як в інших картках; внизу лише «Скасувати» і «Зберегти»
+  // Продати — ліворуч від заголовка, видалити — праворуч; внизу лише «Скасувати» і «Зберегти»
   const close = sheet(title, pick ? h('div', {}, pick.el, f.el) : f.el, {
-    lead: item ? toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger') : null,
-    tools: item ? [toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); })] : [],
+    lead: item ? toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }) : null,
+    tools: item ? [toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger')] : [],
     actions: [
       btn(t('Отмена'), () => close()),
       btn(t('Сохранить'), async () => {
@@ -1973,9 +1992,10 @@ function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove }) {
         stat(t('Дата продажи'), fmt.date(item.soldDate))),
       kv([item.soldPlace ? [t('Кому / где продал'), item.soldPlace] : null])]) : null,
     item.specs ? box(t('Характеристики'), h('div', { class: 'purchase-specs' }, item.specs)) : null), {
+    // Продати — ліворуч від заголовка, як у формі; олівець і кошик — праворуч
+    lead: toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }),
     tools: [
       toolBtn('edit', t('Изменить'), () => { close(); onEdit(); }),
-      toolBtn('sell', isSold(item) ? t('Продажа') : t('Продал'), () => { close(); sellForm(item, onSell); }),
       toolBtn('delete', t('Удалить'), () => { close(); confirmSheet(t('Удалить?'), item.name, t('Удалить'), onRemove); }, 'danger'),
     ],
   });
@@ -1996,14 +2016,14 @@ function gearActions(g) {
 
 function gearDetail(g) {
   purchaseDetail(g, {
-    sub: t(GEAR_KINDS.find(([k]) => k === gearKind(g.kind))[1]),
+    sub: gearKind(g.kind).name,
     photo: gearPhoto(g.id), onEdit: () => gearForm(g), ...gearActions(g),
   });
 }
 
 function gearForm(g = null, { file = null, preset = null } = {}) {
-  purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind) }, {
-    kinds: GEAR_KINDS, placeholder: t('Плитоноска, шлем, подсумок…'),
+  purchaseForm(g ? t('Изменить') : t('Новая экипировка'), g && { ...g, kind: gearKind(g.kind).id }, {
+    kinds: gearKinds().map((k) => [k.id, k.name]), placeholder: t('Плитоноска, шлем, подсумок…'),
     photo: { current: g ? gearPhoto(g.id) : null, file },
     preset,
     onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ gearId: g?.id ?? null, draft: g ? null : values })),
@@ -2013,6 +2033,194 @@ function gearForm(g = null, { file = null, preset = null } = {}) {
     },
     ...(g ? gearActions(g) : {}),
   });
+}
+
+/** Під картками: порожні категорії значками (тап — змінити), «+ Категорія» й повернення прибраних вбудованих. */
+function gearKindsBar(idle) {
+  const hidden = gearKinds({ hidden: true });
+  return h('div', { class: 'kind-bar' },
+    idle.length ? h('div', { class: 'muted small' }, t('Пустые категории:')) : null,
+    h('div', { class: 'kind-chips' },
+      idle.map((k) => h('button', { type: 'button', class: 'kind-chip', style: `--h:${k.hue}`, onclick: () => gearKindForm(k) }, gearIcon(k.icon), k.name)),
+      h('button', { type: 'button', class: 'kind-chip add', onclick: () => gearKindForm() }, `+ ${t('Категория')}`)),
+    hidden.length ? h('div', { class: 'btn-row' }, btn(t('Вернуть убранные категории ({n})', { n: hidden.length }), () => restoreGearKinds(hidden), 'mini quiet')) : null);
+}
+
+async function restoreGearKinds(list) {
+  await db.write({ gearKinds: { put: list.map((k) => ({ ...state.gearKinds.find((r) => r.id === k.id), hidden: false })) } });
+  await refresh();
+  toast(t('Категории вернулись: {n}', { n: list.length }));
+}
+
+/**
+ * Категорія екіпірування: назва, значок, колір шапки й місце серед інших — олівцем у шапці категорії
+ * чи «+ Категорія» під картками. Незмінену назву вбудованої не записуємо: її перекладає мова застосунку.
+ */
+function gearKindForm(k = null) {
+  const kinds = gearKinds();
+  const d = { icon: k?.icon ?? 'crate', hue: k?.hue ?? GEAR_HUES[(kinds.length * 5) % GEAR_HUES.length] };
+  const others = kinds.filter((x) => x.id !== k?.id);
+  const here = k ? kinds.findIndex((x) => x.id === k.id) : others.length;
+  const fName = form([{ name: 'name', label: t('Название'), required: true, value: k?.name, placeholder: t('Тепловизоры, медицина…'), wide: true }]);
+  const fPlace = form([{
+    name: 'place', label: t('Место в списке'), type: 'select', value: String(here), wide: true,
+    options: [...others.map((x, i) => [String(i), t('перед «{name}»', { name: x.name })]), [String(others.length), t('в конце')]],
+  }]);
+  // Превʼю — та сама шапка, що буде над покупками
+  let ico = gearIcon(d.icon);
+  const title = h('div', { class: 'cal-title' });
+  const preview = h('div', { class: 'cal-group kind-preview' }, h('div', { class: 'cal-head' }, ico, h('div', { class: 'cal-name' }, title)));
+  const icons = gearIconPicker(d, () => paint());
+  const hues = huePicker(d, () => paint());
+  const iconName = h('span', { class: 'pick-value' });
+  // Відтінок — на всю шторку: ним фарбуються й превʼю, і вибраний значок
+  const body = h('div', { class: 'kind-form' });
+  function paint() {
+    body.style.setProperty('--h', d.hue);
+    const next = gearIcon(d.icon);
+    ico.replaceWith(next);
+    ico = next;
+    title.textContent = fName.inputs.name.value.trim() || t('Новая категория');
+    iconName.replaceChildren(...icons.label());
+    icons.paint();
+    hues.paint();
+  }
+  fName.inputs.name.addEventListener('input', paint);
+  const iconFold = h('details', { class: 'pick-fold' }, h('summary', {}, h('span', { class: 'field-label' }, t('Значок')), iconName), icons.el);
+  paint();
+  body.append(preview, fName.el, iconFold, h('div', { class: 'field-label' }, t('Цвет')), hues.el, fPlace.el);
+  const close = sheet(k ? t('Категория') : t('Новая категория'), body, {
+    tools: k && k.id !== GEAR_FALLBACK ? [toolBtn('delete', t('Удалить'), () => { close(); removeGearKind(k); }, 'danger')] : [],
+    actions: [btn(t('Отмена'), () => close()), btn(t('Сохранить'), save, 'primary')],
+  });
+  async function save() {
+    if (invalidField(fName)) return;
+    const name = fName.inputs.name.value.trim();
+    const id = k?.id ?? db.uid();
+    const base = GEAR_KINDS.find(([x]) => x === id);
+    const stored = (x) => state.gearKinds.find((r) => r.id === x) ?? { id: x, created: Date.now() };
+    const rec = { ...stored(id), name, icon: d.icon, hue: d.hue };
+    if (base && name === t(base[1])) delete rec.name;
+    // Місце — порядковим номером для всіх, щоб на іншому пристрої список став так само; пишемо лише змінені
+    const at = Number(fPlace.inputs.place.value);
+    const seq = [...others.slice(0, at), { id }, ...others.slice(at)];
+    const put = seq.flatMap((x, i) => (x.id === id ? [{ ...rec, order: i }] : x.order === i ? [] : [{ ...stored(x.id), order: i }]));
+    close();
+    await db.write({ gearKinds: { put } });
+    await refresh();
+    if (!k) toast(t('Категория «{name}» добавлена', { name }));
+  }
+}
+
+/** Прибрати категорію; покупки з неї — в обрану іншу. Вбудована ховається (її можна повернути), своя видаляється. */
+function removeGearKind(k) {
+  const kinds = gearKinds();
+  const items = state.gear.filter((g) => gearKind(g.kind, kinds).id === k.id);
+  const drop = async (to = null) => {
+    await db.write({
+      gearKinds: k.builtIn
+        ? { put: [{ ...(state.gearKinds.find((r) => r.id === k.id) ?? { id: k.id, created: Date.now() }), hidden: true }] }
+        : { del: [k.id] },
+      ...(to ? { gear: { put: items.map((g) => ({ ...g, kind: to })) } } : {}),
+    });
+    await refresh();
+    toast(t('Категория «{name}» удалена', { name: k.name }));
+  };
+  if (!items.length) {
+    confirmSheet(t('Удалить категорию?'), k.name, t('Удалить'), () => drop());
+    return;
+  }
+  // «Інше» — першим: найчастіше покупки переносять саме туди
+  const others = kinds.filter((x) => x.id !== k.id).sort((a, b) => (b.id === GEAR_FALLBACK) - (a.id === GEAR_FALLBACK));
+  const close = sheet(t('Удалить «{name}»?', { name: k.name }), h('div', {},
+    h('p', { class: 'muted' }, t('В ней {n} поз. Куда их перенести?', { n: items.length })),
+    h('div', { class: 'rows kind-move' }, others.map((x) => h('button', {
+      type: 'button', class: 'row', style: `--h:${x.hue}`, onclick: () => { close(); drop(x.id); },
+    }, gearIcon(x.icon), h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, x.name)))))), {
+    actions: [btn(t('Отмена'), () => close())],
+  });
+}
+
+// Пошук значка без різниці між великими літерами й видами апострофа
+const findKey = (s) => s.toLocaleLowerCase().replace(/[’ʼ`]/g, "'").trim();
+
+/** Усі значки групами (захист, оптика, похід…), зверху — пошук за назвою; назва групи теж шукається. */
+function gearIconPicker(d, onPick) {
+  const ru = lang() === 'ru';
+  const buttons = [];
+  const names = new Map();
+  const groups = GEAR_ICON_GROUPS.map((g) => {
+    const title = g.title[ru ? 1 : 0];
+    const row = h('div', { class: 'icon-opts', role: 'group', 'aria-label': title }, g.icons.map(([key, uk, rus]) => {
+      const name = ru ? rus : uk;
+      names.set(key, name);
+      const b = h('button', {
+        type: 'button', class: 'icon-opt', title: name, 'aria-label': name, dataset: { v: key, find: findKey(name) },
+        onclick: () => { d.icon = key; onPick(); },
+      });
+      b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${gearSvg(key)}</svg>`;
+      buttons.push(b);
+      return b;
+    }));
+    return h('div', { class: 'icon-group', dataset: { find: findKey(title) } }, h('div', { class: 'icon-group-title' }, title), row);
+  });
+  const none = h('p', { class: 'muted small', hidden: true }, t('Ничего не найдено'));
+  const filter = (q) => {
+    let shown = 0;
+    for (const g of groups) {
+      const whole = !q || g.dataset.find.includes(q);
+      let inGroup = 0;
+      for (const b of g.querySelectorAll('.icon-opt')) {
+        b.hidden = !(whole || b.dataset.find.includes(q));
+        if (!b.hidden) inGroup += 1;
+      }
+      g.hidden = !inGroup;
+      shown += inGroup;
+    }
+    none.hidden = shown > 0;
+  };
+  const search = h('input', {
+    type: 'search', class: 'icon-search', placeholder: t('Поиск: прицел, аптечка, кейс…'), 'aria-label': t('Поиск значка'), enterkeyhint: 'search',
+    oninput: (e) => filter(findKey(e.target.value)),
+  });
+  return {
+    el: h('div', { class: 'icon-groups' }, search, none, groups),
+    paint: () => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === d.icon))),
+    label: () => [gearIcon(d.icon), names.get(d.icon) ?? ''],
+  };
+}
+
+/** Колір шапки — відтінком: готові веселкою, свій — смугою. Насиченість і яскравість кожна тема бере свої. */
+function huePicker(d, onPick) {
+  const swatches = GEAR_HUES.map((hue) => h('button', {
+    type: 'button', class: 'hue-swatch', style: `--h:${hue}`, 'aria-label': `${hue}°`, onclick: () => { d.hue = hue; onPick(); },
+  }));
+  const knob = h('span', { class: 'hue-knob' });
+  const strip = h('div', { class: 'hue-strip', role: 'slider', tabindex: 0, 'aria-label': t('Свой оттенок'), 'aria-valuemin': 0, 'aria-valuemax': 359 }, knob);
+  const set = (v) => { d.hue = Math.round(Math.min(359, Math.max(0, v))); onPick(); };
+  // Захоплення вказівника — щоб шторка не гортала сторінку, поки тягнуть смугу
+  const fromPointer = (e) => { const r = strip.getBoundingClientRect(); set(((e.clientX - r.left) / r.width) * 359); };
+  strip.addEventListener('pointerdown', (e) => {
+    try { strip.setPointerCapture(e.pointerId); } catch { /* вказівник уже відпущено */ }
+    fromPointer(e);
+  });
+  strip.addEventListener('pointermove', (e) => { if (strip.hasPointerCapture?.(e.pointerId)) fromPointer(e); });
+  strip.addEventListener('keydown', (e) => {
+    const dir = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    set(d.hue + dir * 5);
+  });
+  return {
+    el: h('div', { class: 'hue-picker' }, h('div', { class: 'hue-swatches' }, swatches),
+      h('div', { class: 'muted small' }, t('Свой оттенок')), strip),
+    paint: () => {
+      swatches.forEach((b, i) => b.setAttribute('aria-pressed', String(GEAR_HUES[i] === d.hue)));
+      knob.style.left = `${(d.hue / 359) * 100}%`;
+      knob.style.setProperty('--h', d.hue);
+      strip.setAttribute('aria-valuenow', String(d.hue));
+    },
+  };
 }
 
 /**
