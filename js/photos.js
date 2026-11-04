@@ -283,6 +283,10 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
     if (list.length < 2) return;
     i = (i + step + list.length) % list.length;
     show();
+    // Наступне фото в'їжджає з того боку, куди гортали
+    img.classList.remove('in-next', 'in-prev');
+    void img.offsetWidth;
+    img.classList.add(step > 0 ? 'in-next' : 'in-prev');
   };
   const onKey = (e) => {
     if (e.key === 'Escape') close();
@@ -330,14 +334,27 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
         },
       }, t('Удалить')) : null) : null);
 
-  let startX = null;
-  img.addEventListener('pointerdown', (e) => { startX = e.clientX; });
-  img.addEventListener('pointerup', (e) => {
-    if (startX === null) return;
-    const dx = e.clientX - startX;
-    startX = null;
-    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  // Свайп: фото йде за пальцем; далі ніж на 50 px — наступне, інакше повертається на місце
+  let drag = null;
+  img.addEventListener('pointerdown', (e) => {
+    if (list.length < 2) return;
+    drag = { id: e.pointerId, x: e.clientX };
+    img.setPointerCapture(e.pointerId);
+    img.classList.add('dragging');
   });
+  img.addEventListener('pointermove', (e) => {
+    if (drag?.id === e.pointerId) img.style.transform = `translateX(${e.clientX - drag.x}px)`;
+  });
+  const drop = (e, swipe) => {
+    if (drag?.id !== e.pointerId) return;
+    const dx = e.clientX - drag.x;
+    drag = null;
+    img.classList.remove('dragging');
+    img.style.transform = '';
+    if (swipe && Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  };
+  img.addEventListener('pointerup', (e) => drop(e, true));
+  img.addEventListener('pointercancel', (e) => drop(e, false));
 
   async function show() {
     const p = list[i];
@@ -349,7 +366,8 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
     note.textContent = '';
     img.src = p.thumb;
     if (url) { URL.revokeObjectURL(url); url = null; }
-    const blob = p.file ?? await db.getBlob(p.id);
+    // У демо-фото file — шлях рядком, повне фото лежить у сховищі
+    const blob = (p.file instanceof Blob ? p.file : null) ?? await db.getBlob(p.id);
     if (list[i] !== p) return;
     if (blob) {
       url = URL.createObjectURL(blob);

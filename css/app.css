@@ -932,7 +932,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line);
 }
 .gun-hero-pic { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; cursor: pointer; }
-.gun-hero-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gun-hero-img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+/* Кілька фото — стрічка, що гортається свайпом і зупиняється на кожному кадрі */
+.gun-hero-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.gun-hero-track::-webkit-scrollbar { display: none; }
+.gun-hero-track .gun-hero-pic { position: relative; inset: auto; flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+.gun-hero-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  width: 34px;
+  height: 48px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(0 0 0 / .45);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.gun-hero-nav.prev { left: 8px; }
+.gun-hero-nav.next { right: 8px; }
+/* Стрілки — лише мишею: на телефоні гортають пальцем */
+@media (hover: hover) and (pointer: fine) {
+  .gun-hero:hover .gun-hero-nav { display: block; }
+}
 .gun-hero-mono {
   display: grid;
   place-items: center;
@@ -1075,7 +1109,17 @@ button.gun-stat { cursor: pointer; }
 .viewer-head .icon-btn { background: rgb(255 255 255 / .12); color: #fff; }
 .viewer-count { font-variant-numeric: tabular-nums; opacity: .8; }
 .viewer-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: pinch-zoom; }
-.viewer-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.viewer-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+  transition: transform .2s ease; }
+.viewer-img.dragging { transition: none; }
+.viewer-img.in-next { animation: viewer-in-next .24s ease-out; }
+.viewer-img.in-prev { animation: viewer-in-prev .24s ease-out; }
+@keyframes viewer-in-next { from { transform: translateX(35%); opacity: 0; } }
+@keyframes viewer-in-prev { from { transform: translateX(-35%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .viewer-img { transition: none; }
+  .viewer-img.in-next, .viewer-img.in-prev { animation: none; }
+}
 .viewer-nav { z-index: 1; }
 .viewer-nav {
   position: absolute;
@@ -1139,6 +1183,20 @@ button.gun-stat { cursor: pointer; }
 .editor-angle { width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
 .studio-canvas { display: block; max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 6px 24px rgb(0 0 0 / .45); }
 .studio-status { color: #fff; opacity: .8; }
+.studio-swatches { gap: 12px; }
+.studio-swatch {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid rgb(255 255 255 / .25);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+}
+.studio-swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgb(255 255 255 / .15); }
+.studio-quota { margin: 0; text-align: center; color: #fff; font-size: 13px; opacity: .7; }
+.photo-src-ico.studio-ico { font-size: 28px; }
+.photo-src:disabled { opacity: .5; cursor: default; }
 .editor-aspects { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
 .editor-aspects button {
   min-height: 34px;

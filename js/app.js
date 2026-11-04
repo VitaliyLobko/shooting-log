@@ -3,7 +3,7 @@ import * as M from './model.js';
 import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
-import { studioPhoto } from './studio.js';
+import { studioPhoto, studioQuota, quotaText, isCutout } from './studio.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue, componentIcon, setCaliberHues } from './ammo.js';
@@ -1470,6 +1470,12 @@ function coverPhoto(w) {
   return list.find((p) => p.id === w.coverId) ?? list[0] ?? null;
 }
 
+/** Порядок гортання — у шапці картки й на весь екран: обкладинка перша, далі решта в порядку додавання. */
+function photoSlides(w) {
+  const cover = coverPhoto(w);
+  return cover ? [cover, ...weaponPhotos(w.id).filter((p) => p !== cover)] : [];
+}
+
 const monogram = (w) => String(w.name ?? '').split(/[\s-]+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase() || '—';
 
 /** Без фото — монограма за назвою на плитці кольору калібру: стволи видно один від одного. */
@@ -1552,34 +1558,55 @@ async function coverUrl(p) {
 }
 
 /**
- * Шапка картки: обкладинка на всю ширину (повне фото; поки вантажиться чи не синхронізоване — мініатюра),
- * без фото — монограма на кольорі калібру. Тап — усі фото на весь екран, «+ Фото» — додати.
+ * Шапка картки: фото на всю ширину (повне; поки вантажиться чи не синхронізоване — мініатюра),
+ * без фото — монограма на кольорі калібру. Кілька фото гортаються свайпом: обкладинка перша, далі решта.
+ * Тап — це фото на весь екран, «+ Фото» — додати.
  */
 function gunHero(w, caption) {
-  const photos = weaponPhotos(w.id);
-  const cover = coverPhoto(w);
+  const slides = photoSlides(w);
+  const cover = slides[0];
   const input = h('input', {
     type: 'file', accept: 'image/*', multiple: true, hidden: true,
-    onchange: (e) => { const files = [...e.target.files]; e.target.value = ''; addPhotos(w.id, files); },
+    onchange: (e) => { const files = [...e.target.files]; e.target.value = ''; addWeaponPhotos(w.id, files); },
   });
-  const pic = cover ? h('img', { class: 'gun-hero-img', src: cover.thumb, alt: '' })
-    : h('span', { class: 'gun-hero-mono', 'aria-hidden': 'true' }, monogram(w));
-  if (cover) coverUrl(cover).then((url) => { if (url) pic.src = url; });
+  const slide = (p) => {
+    const img = h('img', { class: 'gun-hero-img', src: p.thumb, alt: '', draggable: 'false' });
+    coverUrl(p).then((url) => { if (url) img.src = url; });
+    return h('button', {
+      type: 'button', class: 'gun-hero-pic', 'aria-label': t('Фото'), onclick: () => openPhotos(w.id, slides.indexOf(p)),
+    }, img);
+  };
+  const many = slides.length > 1;
+  const num = h('span', {}, many ? `1 / ${slides.length}` : '');
+  let frame = 0;
+  const track = h('div', {
+    class: 'gun-hero-track',
+    onscroll: () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        num.textContent = `${Math.round(track.scrollLeft / track.clientWidth) + 1} / ${slides.length}`;
+      });
+    },
+  }, slides.map(slide));
+  const nav = (dir, label, text) => h('button', {
+    type: 'button', class: `gun-hero-nav ${dir > 0 ? 'next' : 'prev'}`, 'aria-label': label,
+    onclick: () => track.scrollBy({ left: dir * track.clientWidth, behavior: 'smooth' }),
+  }, text);
   return h('div', { class: `gun-hero ${cover ? '' : 'empty'}`, style: `--h:${caliberHue(w.caliber)}` },
-    h('button', {
-      type: 'button', class: 'gun-hero-pic', 'aria-label': cover ? t('Фото') : t('Добавить фото'),
-      onclick: () => (cover ? openPhotos(w.id, photos.indexOf(cover)) : input.click()),
-    }, pic),
+    cover ? track : h('button', { type: 'button', class: 'gun-hero-pic', 'aria-label': t('Добавить фото'), onclick: () => input.click() },
+      h('span', { class: 'gun-hero-mono', 'aria-hidden': 'true' }, monogram(w))),
+    many ? nav(-1, t('Предыдущее'), '‹') : null,
+    many ? nav(1, t('Следующее'), '›') : null,
     caption?.length ? h('span', { class: 'gun-hero-cap' }, caption) : null,
     h('span', { class: 'gun-hero-tools' },
-      photos.length > 1 ? h('span', { class: 'gun-hero-count' }, icon('camera'), fmt.num(photos.length)) : null,
+      many ? h('span', { class: 'gun-hero-count' }, icon('camera'), num) : null,
       h('button', { type: 'button', class: 'gun-hero-add', onclick: () => input.click() }, '+ ', t('Фото'))),
     input);
 }
 
 /** Фото ствола на весь екран: обкладинка, правка, видалення; картку оновить refresh (шторка live). */
 function openPhotos(weaponId, index) {
-  viewer(weaponPhotos(weaponId), Math.max(0, index), {
+  viewer(photoSlides(findWeapon(weaponId)), Math.max(0, index), {
     isCover: (p) => coverPhoto(findWeapon(weaponId))?.id === p.id,
     onCover: (p) => saveEntity('weapons', { ...findWeapon(weaponId), coverId: p.id }),
     // Правка зберігає фото з новим id і сама оновлює стан
@@ -2767,6 +2794,44 @@ async function addPhotos(weaponId, files) {
   if (added) confirmed();
 }
 
+/**
+ * «+ Фото» в картці: одне звичайне фото — вибір «як є» чи «✨ Студія» із залишком на місяць.
+ * Кілька фото чи PNG без фону — одразу як є (студію можна зробити потім у перегляді).
+ */
+async function addWeaponPhotos(weaponId, files) {
+  if (files.length !== 1) { addPhotos(weaponId, files); return; }
+  const [file] = files;
+  const bmp = await decode(file).catch(() => null);
+  const cut = bmp ? isCutout(bmp) : true;
+  bmp?.close?.();
+  if (cut) { addPhotos(weaponId, files); return; }
+  const left = h('small', {}, t('Проверяю лимит…'));
+  const studioBtn = h('button', {
+    type: 'button', class: 'photo-src main',
+    onclick: async () => {
+      close();
+      const canvas = await studioPhoto(file, {
+        // Сервер не вирізав — фото не губиться, зберігаємо як є
+        onError: (err) => { toast(`${err.message}. ${t('Фото сохранено как есть')}`); addPhotos(weaponId, files); },
+      });
+      if (canvas) await saveStudioPhoto(weaponId, canvas);
+    },
+  }, h('span', { class: 'photo-src-ico studio-ico', 'aria-hidden': 'true' }, '✨'), h('b', {}, t('Студийное фото')), left);
+  const close = sheet(t('Добавить фото'), h('div', {},
+    h('div', { class: 'photo-srcs' },
+      h('button', { type: 'button', class: 'photo-src', onclick: () => { close(); addPhotos(weaponId, files); } },
+        h('span', { class: 'photo-src-ico' }, icon('gallery')), h('b', {}, t('Как есть')), h('small', {}, t('Без изменений'))),
+      studioBtn),
+    h('p', { class: 'muted small' }, t('Студия вырезает оружие из фона на сервере и кладёт на студийный фон. Оригинал не сохраняется — только студийное фото.'))));
+  const quota = await studioQuota();
+  if (!quota) { left.textContent = navigator.onLine ? '' : t('Нужен интернет'); return; }
+  left.textContent = quotaText(quota.month);
+  if (quota.month.left < 1 || quota.day.left < 1) {
+    studioBtn.disabled = true;
+    if (quota.month.left > 0) left.textContent = t('Сегодня лимит исчерпан');
+  }
+}
+
 async function removePhotos(list) {
   if (!list.length) return;
   const ids = list.map((p) => p.id);
@@ -2813,11 +2878,15 @@ async function studioWeaponPhoto(p) {
   const blob = await db.getBlob(p.id);
   if (!blob) { toast(t('Полное фото ещё не загрузилось — изменить можно после синхронизации')); return null; }
   const canvas = await studioPhoto(blob, { onError: (err) => toast(err.message) });
-  if (!canvas) return null;
+  return canvas ? saveStudioPhoto(p.weaponId, canvas) : null;
+}
+
+/** Студійне фото ствола зберігається новим записом і стає головним. */
+async function saveStudioPhoto(weaponId, canvas) {
   const result = await pack(canvas);
   const id = db.uid();
-  const fresh = { id, weaponId: p.weaponId, created: Date.now(), thumb: result.thumb, w: result.w, h: result.h, driveId: null };
-  const w = findWeapon(p.weaponId);
+  const fresh = { id, weaponId, created: Date.now(), thumb: result.thumb, w: result.w, h: result.h, driveId: null };
+  const w = findWeapon(weaponId);
   await db.write({
     photos: { put: [fresh] },
     blobs: { put: [{ id, blob: result.blob }] },
@@ -7352,15 +7421,15 @@ const GUIDE_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
   + '<circle cx="33" cy="16" r="1" fill="var(--accent)"/>'
   + '</svg>';
 
-// Та сама книга, що в курсу марксмана; на правій сторінці замість прицілу — лійка для пороху й набій
+// Та сама книга, що в курсу марксмана; на правій сторінці замість прицілу — лійка, з якої сиплеться порох
 const RELOAD_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
   + '<path d="M24 7c-5-3-12-3.6-18-2.4v21.8c6-1.2 13-.6 18 2.4 5-3 12-3.6 18-2.4V4.6C36 3.4 29 4 24 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
   + '<path d="M24 7v21.8" stroke="currentColor" stroke-width="1.4" opacity=".6"/>'
   + '<path d="M9.5 11h10M9.5 15h10M9.5 19h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>'
-  + '<path d="M26.3 12.2h6.6l-2.5 5.4v4.8h-1.6v-4.8z" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>'
-  + '<path d="M37 7.8c.9 1 1.3 2.4 1.3 3.8v.9h-2.6v-.9c0-1.4.4-2.8 1.3-3.8z" fill="var(--accent)"/>'
-  + '<path d="M35.7 13.4h2.6v1.5l1.2 1.6v6.9h-5v-6.9l1.2-1.6z" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>'
-  + '<path d="M34.1 24.5h5.8" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/>'
+  + '<path d="M28 10.6h10l-3.6 6.4v4.4l-.4.4h-2l-.4-.4v-4.4z" fill="var(--accent)" fill-opacity=".22" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>'
+  + '<path d="M27.2 10.6h11.6" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>'
+  + '<circle cx="33" cy="23.5" r=".6" fill="var(--accent)"/>'
+  + '<circle cx="33" cy="25.3" r=".5" fill="var(--accent)" opacity=".6"/>'
   + '</svg>';
 
 /** Посилання на довідник: у «Полігон → Вправи» — курс марксмана, у «Склад → Релоадінг» — курс релоадінгу. */
