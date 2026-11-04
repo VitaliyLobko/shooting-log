@@ -4,7 +4,9 @@
 // Що потрібно в налаштуваннях Worker:
 //   IMAGES — прив'язка Images (Settings → Bindings → Images);
 //   DB     — прив'язка бази D1 для лічильників; таблицю Worker створює сам.
-// Необов'язково: PER_IP_MONTH (за замовчуванням 30), PER_IP_DAY (20), PER_DAY (150) — ліміти.
+// Необов'язково: PER_IP_MONTH (за замовчуванням 30), PER_IP_DAY (20), PER_DAY (150) — ліміти;
+//   OWNER_KEY (секрет) — ключ власника: з ним (заголовок X-Studio-Key) особисті ліміти не діють,
+//   лишається тільки місячна межа самого Cloudflare.
 //
 // Вирізання робить Cloudflare Images (segment=foreground, модель BiRefNet).
 // Безкоштовний план — 5000 перетворень на місяць; понад це Cloudflare не бере грошей,
@@ -16,6 +18,7 @@
 // GET /quota — скільки ще можна сьогодні й цього місяця (для підпису в застосунку).
 // Відповідь /cutout несе те саме в заголовках X-Left-Day, X-Left-Month і X-Limit-Month.
 // Невдала спроба (ліміт, помилка Images) лічильники не з'їдає.
+// З ключем власника /quota відповідає { owner: true }, /cutout — заголовком X-Owner: 1.
 
 const ORIGINS = ['https://vitaliylobko.github.io', 'http://127.0.0.1:8091', 'http://127.0.0.1:8092'];
 const MAX_BYTES = 6 * 2 ** 20;
@@ -26,8 +29,8 @@ function cors(req) {
   return {
     'Access-Control-Allow-Origin': ORIGINS.includes(origin) ? origin : ORIGINS[0],
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Expose-Headers': 'X-Left-Day, X-Left-Month, X-Limit-Month',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Studio-Key',
+    'Access-Control-Expose-Headers': 'X-Left-Day, X-Left-Month, X-Limit-Month, X-Owner',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -82,7 +85,14 @@ async function person(req, env) {
 
 const left = (limit, used) => Math.max(0, limit - used);
 
+/** Власник застосунку: ключ із заголовка збігається із секретом OWNER_KEY. */
+function isOwner(req, env) {
+  const key = req.headers.get('X-Studio-Key');
+  return Boolean(env.OWNER_KEY && key && key === env.OWNER_KEY);
+}
+
 async function quota(req, env) {
+  if (isOwner(req, env)) return json(req, 200, { owner: true, day: { owner: true }, month: { owner: true } });
   await init(env.DB);
   const p = await person(req, env);
   const [d, m] = await Promise.all([count(env.DB, ...p.dayKey), count(env.DB, ...p.monthKey)]);
@@ -98,6 +108,7 @@ async function cutout(req, env) {
   const size = Number(req.headers.get('Content-Length') || 0);
   if (!TYPES.includes(type)) return json(req, 415, { reason: 'type' });
   if (!size || size > MAX_BYTES) return json(req, 413, { reason: 'size' });
+  if (isOwner(req, env)) return transform(req, env, { 'X-Owner': '1' });
 
   await init(env.DB);
   const p = await person(req, env);
@@ -117,18 +128,21 @@ async function cutout(req, env) {
       .bind(p.day, p.month).run();
   }
 
+  const res = await transform(req, env, {
+    'X-Left-Day': String(left(p.perDay, d)), 'X-Left-Month': String(left(p.perMonth, m)), 'X-Limit-Month': String(p.perMonth),
+  });
+  if (!res.ok) await unbump(env.DB, [p.monthKey, p.dayKey, all]);
+  return res;
+}
+
+/** Вирізання через Cloudflare Images; помилка — JSON із причиною (9422 — вичерпано місяць Cloudflare). */
+async function transform(req, env, headers) {
   try {
     const out = await env.IMAGES.input(req.body)
       .transform({ segment: 'foreground' })
       .output({ format: 'image/webp', quality: 90 });
-    return out.response({
-      headers: {
-        ...cors(req), 'Cache-Control': 'no-store',
-        'X-Left-Day': String(left(p.perDay, d)), 'X-Left-Month': String(left(p.perMonth, m)), 'X-Limit-Month': String(p.perMonth),
-      },
-    });
+    return out.response({ headers: { ...cors(req), 'Cache-Control': 'no-store', ...headers } });
   } catch (err) {
-    await unbump(env.DB, [p.monthKey, p.dayKey, all]);
     const code = Number(err?.code) || Number(/\b(9\d{3})\b/.exec(String(err?.message || err))?.[1]) || 0;
     if (code === 9422) return json(req, 429, { reason: 'month' });
     return json(req, 502, { reason: 'images', code, message: String(err?.message || err).slice(0, 200) });

@@ -2798,6 +2798,8 @@ async function addPhotos(weaponId, files) {
  * «+ Фото» в картці: одне звичайне фото — вибір «як є» чи «✨ Студія» із залишком на місяць.
  * Кілька фото чи PNG без фону — одразу як є (студію можна зробити потім у перегляді).
  */
+const STUDIO_EXAMPLE = './demo/zion-z15.jpg';
+
 async function addWeaponPhotos(weaponId, files) {
   if (files.length !== 1) { addPhotos(weaponId, files); return; }
   const [file] = files;
@@ -2805,6 +2807,10 @@ async function addWeaponPhotos(weaponId, files) {
   const cut = bmp ? isCutout(bmp) : true;
   bmp?.close?.();
   if (cut) { addPhotos(weaponId, files); return; }
+  // Кожен варіант показує, що вийде: «як є» — саме це фото, студія — приклад із демо
+  const own = URL.createObjectURL(file);
+  const pic = (src, tag = null) => h('span', { class: 'photo-src-pic', 'aria-hidden': 'true' },
+    h('img', { src, alt: '', onerror: (e) => { e.target.hidden = true; } }), tag ? h('span', { class: 'photo-src-tag' }, tag) : null);
   const left = h('small', {}, t('Проверяю лимит…'));
   const studioBtn = h('button', {
     type: 'button', class: 'photo-src main',
@@ -2816,13 +2822,14 @@ async function addWeaponPhotos(weaponId, files) {
       });
       if (canvas) await saveStudioPhoto(weaponId, canvas);
     },
-  }, h('span', { class: 'photo-src-ico studio-ico', 'aria-hidden': 'true' }, '✨'), h('b', {}, t('Студийное фото')), left);
+  }, pic(STUDIO_EXAMPLE, t('пример')), h('b', {}, t('Студийное фото')), left);
   const close = sheet(t('Добавить фото'), h('div', {},
     h('div', { class: 'photo-srcs' },
       h('button', { type: 'button', class: 'photo-src', onclick: () => { close(); addPhotos(weaponId, files); } },
-        h('span', { class: 'photo-src-ico' }, icon('gallery')), h('b', {}, t('Как есть')), h('small', {}, t('Без изменений'))),
+        pic(own), h('b', {}, t('Как есть')), h('small', {}, t('Без изменений'))),
       studioBtn),
-    h('p', { class: 'muted small' }, t('Студия вырезает оружие из фона на сервере и кладёт на студийный фон. Оригинал не сохраняется — только студийное фото.'))));
+    h('p', { class: 'muted small' }, t('Студия вырезает оружие из фона на сервере и кладёт на студийный фон. Оригинал не сохраняется — только студийное фото.'))),
+  { onClose: () => URL.revokeObjectURL(own) });
   const quota = await studioQuota();
   if (!quota) { left.textContent = navigator.onLine ? '' : t('Нужен интернет'); return; }
   left.textContent = quotaText(quota.month);

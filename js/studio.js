@@ -1,6 +1,6 @@
 // Студійне фото: предмет без фону на студійному тлі з тінню — як демо-фото.
 // Звідки береться вирізаний предмет: сервер («✨ Студія», studioPhoto) або телефон (PNG без фону → laid у photos.js).
-import { h, backLayer } from './ui.js';
+import { h, backLayer, toast } from './ui.js';
 import { t } from './i18n.js';
 
 export const STUDIO_URL = 'https://shooters-studio.hobbyplanner338.workers.dev';
@@ -10,6 +10,26 @@ const SEND = 2048; // довша сторона фото, що йде на се�
 const TILT = 28; // ° — нахил довгого предмета: приклад унизу, дуло вгорі
 const LONG = 6; // відношення осей, від якого предмет «довгий» (ствол), а не шолом чи рюкзак
 const KEY = 'shooters-log:studio-backdrop';
+const OWNER = 'shooters-log:studio-key';
+
+// Ключ власника (студія без особистих лімітів) приходить одноразовим посиланням #studio-key=…:
+// запам'ятовуємо на цьому пристрої й прибираємо з адреси, щоб не лишився в історії
+// (і коли застосунок уже відкритий: тоді змінюється лише # — слухач стоїть раніше за маршрутизатор)
+function takeKey() {
+  const key = /(?:^#|&)studio-key=([\w-]{16,})/.exec(location.hash)?.[1];
+  if (!key) return;
+  try { localStorage.setItem(OWNER, key); } catch { /* приватне вікно */ }
+  history.replaceState(null, '', location.pathname + location.search);
+  setTimeout(() => toast(t('Студия без лимитов на этом устройстве')), 1500);
+}
+takeKey();
+window.addEventListener('hashchange', takeKey);
+
+function keyHeaders() {
+  let key = null;
+  try { key = localStorage.getItem(OWNER); } catch { /* приватне вікно */ }
+  return key ? { 'X-Studio-Key': key } : {};
+}
 
 const REASONS = {
   mine: 'Ваши студийные фото на этот месяц закончились — новые будут с 1-го числа',
@@ -31,6 +51,19 @@ function radial(g, w, hh, from, to, { cy = 0.45, sx = 0.62, sy = 0.75 } = {}) {
   g.restore();
 }
 
+/** Тінь по краях кадру: до кутів темніє до alpha, центр лишається світлим. */
+function vignette(g, w, hh, alpha) {
+  g.save();
+  g.translate(w / 2, hh / 2);
+  g.scale(w * 0.62, hh * 0.7);
+  const r = g.createRadialGradient(0, 0, 0.4, 0, 0, 1.05);
+  r.addColorStop(0, 'rgb(0 0 0 / 0)');
+  r.addColorStop(1, `rgb(0 0 0 / ${alpha})`);
+  g.fillStyle = r;
+  g.fillRect(-3, -3, 6, 6);
+  g.restore();
+}
+
 /** Сітка креслення: дрібна клітинка й крупна кожна п'ята. */
 function grid(g, w, hh) {
   const step = hh / 17;
@@ -44,19 +77,23 @@ function grid(g, w, hh) {
   }
 }
 
-/** Тла студії: назва, зразок для кружка, малювання й колір тіні. */
+/**
+ * Тла студії: назва, зразок для кружка, малювання, колір тіні предмета, її глибина
+ * (depth — множник зсуву й розмиття: на кольорових тлах тінь довша, щоб предмет не «прилипав»)
+ * і тінь по краях кадру за замовчуванням (shade, 0–1 — її змінює повзунок «Тінь»).
+ */
 export const BACKDROPS = [
-  { id: 'graphite', name: 'Графит', swatch: 'rgb(48 53 62)', shadow: 'rgb(0 0 0 / .55)',
+  { id: 'graphite', name: 'Графит', swatch: 'rgb(48 53 62)', shadow: 'rgb(0 0 0 / .55)', shade: 0.25,
     paint: (g, w, hh) => radial(g, w, hh, 'rgb(62 68 78)', 'rgb(22 24 29)') },
-  { id: 'light', name: 'Светлый каталог', swatch: 'rgb(226 228 232)', shadow: 'rgb(0 0 0 / .3)',
-    paint: (g, w, hh) => radial(g, w, hh, 'rgb(248 249 250)', 'rgb(196 200 207)') },
-  { id: 'olive', name: 'Олива', swatch: 'rgb(68 75 52)', shadow: 'rgb(0 0 0 / .55)',
-    paint: (g, w, hh) => radial(g, w, hh, 'rgb(84 92 64)', 'rgb(26 29 20)') },
-  { id: 'coyote', name: 'Койот', swatch: 'rgb(176 151 110)', shadow: 'rgb(40 25 5 / .45)',
-    paint: (g, w, hh) => radial(g, w, hh, 'rgb(201 176 134)', 'rgb(116 94 62)') },
-  { id: 'blueprint', name: 'Чертёж', swatch: 'rgb(26 50 84)', shadow: 'rgb(0 0 0 / .5)',
-    paint: (g, w, hh) => { radial(g, w, hh, 'rgb(30 58 96)', 'rgb(10 20 38)'); grid(g, w, hh); } },
-  { id: 'softbox', name: 'Софтбокс', swatch: 'rgb(12 12 14)', shadow: 'rgb(0 0 0 / .7)',
+  { id: 'light', name: 'Светлый каталог', swatch: 'rgb(214 216 221)', shadow: 'rgb(0 0 0 / .5)', depth: 1.3, shade: 0.75,
+    paint: (g, w, hh) => radial(g, w, hh, 'rgb(242 243 245)', 'rgb(128 132 140)') },
+  { id: 'olive', name: 'Олива', swatch: 'rgb(62 69 47)', shadow: 'rgb(0 0 0 / .7)', depth: 1.4, shade: 0.7,
+    paint: (g, w, hh) => radial(g, w, hh, 'rgb(84 92 64)', 'rgb(18 20 13)') },
+  { id: 'coyote', name: 'Койот', swatch: 'rgb(160 135 96)', shadow: 'rgb(30 18 2 / .65)', depth: 1.4, shade: 0.72,
+    paint: (g, w, hh) => radial(g, w, hh, 'rgb(198 172 130)', 'rgb(72 55 32)') },
+  { id: 'blueprint', name: 'Чертёж', swatch: 'rgb(24 46 78)', shadow: 'rgb(0 0 0 / .65)', depth: 1.4, shade: 0.72,
+    paint: (g, w, hh) => { radial(g, w, hh, 'rgb(30 58 96)', 'rgb(6 13 26)'); grid(g, w, hh); } },
+  { id: 'softbox', name: 'Софтбокс', swatch: 'rgb(12 12 14)', shadow: 'rgb(0 0 0 / .7)', shade: 0.2,
     paint: (g, w, hh) => {
       g.fillStyle = '#050506';
       g.fillRect(0, 0, w, hh);
@@ -175,18 +212,23 @@ function turned(src, { level, tilt, flip }) {
   return crop(r);
 }
 
-/** Предмет на студійному тлі w×hh з тінню знизу — числа з dev-скрипта демо-фото. */
-function compose(item, w, hh, backdrop = BACKDROPS[0]) {
+/**
+ * Предмет на студійному тлі w×hh з тінню знизу — числа з dev-скрипта демо-фото.
+ * x, y — зсув від центру частками кадру, scale — розмір відносно вписаного, shade — тінь по краях.
+ */
+function compose(item, w, hh, backdrop = BACKDROPS[0], { x = 0, y = 0, scale = 1, shade = backdrop.shade ?? 0 } = {}) {
   const c = canvas(w, hh);
   const g = c.getContext('2d');
   backdrop.paint(g, w, hh);
-  const k = Math.min((w * 0.86) / item.width, (hh * 0.72) / item.height, 3);
+  if (shade > 0) vignette(g, w, hh, shade);
+  const k = Math.min((w * 0.86) / item.width, (hh * 0.72) / item.height, 3) * scale;
   const iw = Math.round(item.width * k), ih = Math.round(item.height * k);
   g.imageSmoothingQuality = 'high';
+  const depth = backdrop.depth ?? 1;
   g.shadowColor = backdrop.shadow;
-  g.shadowOffsetY = (22 * hh) / 1080;
-  g.shadowBlur = (36 * hh) / 1080;
-  g.drawImage(item, Math.round((w - iw) / 2), Math.round((hh - ih) / 2), iw, ih);
+  g.shadowOffsetY = (22 * depth * hh) / 1080;
+  g.shadowBlur = (36 * depth * hh) / 1080;
+  g.drawImage(item, Math.round((w - iw) / 2 + x * w), Math.round((hh - ih) / 2 + y * hh), iw, ih);
   return c;
 }
 
@@ -199,7 +241,7 @@ export function laid(src) {
 /** Скільки студійних фото лишилось людині: { day, month: { left, limit } } або null (немає зв'язку). */
 export async function studioQuota() {
   try {
-    const res = await fetch(`${STUDIO_URL}/quota`, { signal: AbortSignal.timeout(6000), cache: 'no-store' });
+    const res = await fetch(`${STUDIO_URL}/quota`, { headers: keyHeaders(), signal: AbortSignal.timeout(6000), cache: 'no-store' });
     return res.ok ? await res.json() : null;
   } catch {
     return null;
@@ -224,11 +266,12 @@ async function cutout(blob) {
   }
   let res;
   try {
-    res = await fetch(`${STUDIO_URL}/cutout`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body });
+    res = await fetch(`${STUDIO_URL}/cutout`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg', ...keyHeaders() }, body });
   } catch {
     throw new Error(t('Нет связи: фон вырезается на сервере'));
   }
   if (res.ok) {
+    if (res.headers.get('X-Owner') === '1') return { blob: await res.blob(), month: { owner: true } };
     const left = res.headers.get('X-Left-Month');
     const limit = res.headers.get('X-Limit-Month');
     return { blob: await res.blob(), month: left === null ? null : { left: Number(left), limit: Number(limit) } };
@@ -237,9 +280,10 @@ async function cutout(blob) {
   throw new Error(t(REASONS[reason] ?? 'Не удалось вырезать фон'));
 }
 
-/** Підпис залишку: «Цього місяця ще 12 з 30». */
+/** Підпис залишку: «Цього місяця ще 12 з 30»; з ключем власника — «Без ліміту». */
 export function quotaText(month) {
   if (!month) return '';
+  if (month.owner) return t('Без лимита');
   return month.left > 0
     ? t('В этом месяце ещё {n} из {limit}', { n: month.left, limit: month.limit })
     : t('Студийные фото на этот месяц закончились');
@@ -279,15 +323,16 @@ export async function studioPhoto(blob, { onError } = {}) {
   }
 
   const small = toCanvas(item, 900);
-  const st = orient(item);
-  const auto = st.tilt;
   let backdrop = savedBackdrop();
+  // Положення (x, y — частки кадру), розмір і тінь по краях — разом із нахилом у st
+  const st = { ...orient(item), x: 0, y: 0, scale: 1, shade: backdrop.shade ?? 0 };
+  const auto = st.tilt;
   const view = h('canvas', { class: 'studio-canvas' });
   let frame = 0;
   const paint = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      const c = compose(turned(small, st), 800, 450, backdrop);
+      const c = compose(turned(small, st), 800, 450, backdrop, st);
       view.width = c.width;
       view.height = c.height;
       view.getContext('2d').drawImage(c, 0, 0);
@@ -300,6 +345,44 @@ export async function studioPhoto(blob, { onError } = {}) {
     oninput: (e) => { st.tilt = Number(e.target.value); value.textContent = sign(st.tilt); paint(); },
   });
   const setTilt = (v) => { slider.value = v; slider.dispatchEvent(new Event('input')); };
+  const pct = (v) => `${Math.round(v * 100)}%`;
+  const shadeValue = h('span', { class: 'editor-angle' }, pct(st.shade));
+  const shadeSlider = h('input', {
+    type: 'range', min: 0, max: 100, step: 1, value: Math.round(st.shade * 100), 'aria-label': t('Тень по краям'),
+    oninput: (e) => { st.shade = Number(e.target.value) / 100; shadeValue.textContent = pct(st.shade); paint(); },
+  });
+  const setShade = (v) => { shadeSlider.value = Math.round(v * 100); shadeSlider.dispatchEvent(new Event('input')); };
+
+  // Один палець тягне предмет, два — ще й змінюють розмір; подвійний дотик повертає в центр
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const touches = new Map();
+  let start = null;
+  const snap = () => {
+    const [a, b] = [...touches.values()];
+    return {
+      x: st.x, y: st.y, scale: st.scale,
+      mid: b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { ...a },
+      d: b ? Math.hypot(a.x - b.x, a.y - b.y) : 0,
+    };
+  };
+  view.addEventListener('pointerdown', (e) => {
+    view.setPointerCapture(e.pointerId);
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    start = snap();
+  });
+  view.addEventListener('pointermove', (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const now = snap();
+    st.x = clamp(start.x + (now.mid.x - start.mid.x) / view.clientWidth, -0.5, 0.5);
+    st.y = clamp(start.y + (now.mid.y - start.mid.y) / view.clientHeight, -0.5, 0.5);
+    if (start.d && now.d) st.scale = clamp((start.scale * now.d) / start.d, 0.4, 2.5);
+    paint();
+  });
+  const lift = (e) => { touches.delete(e.pointerId); start = touches.size ? snap() : null; };
+  view.addEventListener('pointerup', lift);
+  view.addEventListener('pointercancel', lift);
+  view.addEventListener('dblclick', () => { st.x = 0; st.y = 0; st.scale = 1; paint(); });
   const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
   const swatches = BACKDROPS.map((b) => h('button', {
     type: 'button', class: 'studio-swatch', style: `--sw:${b.swatch}`, title: t(b.name), 'aria-label': t(b.name),
@@ -308,14 +391,14 @@ export async function studioPhoto(blob, { onError } = {}) {
       backdrop = b;
       saveBackdrop(b);
       swatches.forEach((s, k) => s.setAttribute('aria-pressed', String(BACKDROPS[k] === b)));
-      paint();
+      setShade(b.shade ?? 0);
     },
   }));
   const saveBtn = h('button', {
     type: 'button', class: 'btn primary',
-    onclick: () => { saveBtn.disabled = true; close(compose(turned(item, st), W, H, backdrop)); },
+    onclick: () => { saveBtn.disabled = true; close(compose(turned(item, st), W, H, backdrop, st)); },
   }, t('Сохранить'));
-  stage.replaceChildren(view);
+  stage.replaceChildren(view, h('p', { class: 'studio-hint' }, t('Двигайте пальцем, двумя — размер; двойной тап — в центр')));
   root.append(
     h('div', { class: 'editor-tools' },
       h('div', { class: 'editor-row studio-swatches', role: 'group', 'aria-label': t('Фон') }, swatches),
@@ -324,6 +407,7 @@ export async function studioPhoto(blob, { onError } = {}) {
         tool('—', t('Ровно'), () => setTilt(0)),
         tool('⟋', t('Наискосок, как в каталоге'), () => setTilt((auto || TILT) * (st.flip ? -1 : 1)))),
       h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Наклон')), slider, value),
+      h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Тень')), shadeSlider, shadeValue),
       month ? h('p', { class: 'studio-quota' }, quotaText(month)) : null),
     h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => close(null) }, t('Отмена')), saveBtn));
   paint();

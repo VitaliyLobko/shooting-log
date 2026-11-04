@@ -1194,8 +1194,14 @@ button.gun-stat { cursor: pointer; }
   cursor: pointer;
 }
 .studio-swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgb(255 255 255 / .15); }
+.editor-stage:has(.studio-canvas) { position: relative; }
+.studio-canvas { touch-action: none; cursor: grab; }
+.studio-hint { position: absolute; left: 0; right: 0; bottom: 6px; margin: 0; text-align: center; color: #fff; font-size: 12px; opacity: .55; pointer-events: none; }
 .studio-quota { margin: 0; text-align: center; color: #fff; font-size: 13px; opacity: .7; }
-.photo-src-ico.studio-ico { font-size: 28px; }
+/* Прев'ю варіанта додавання фото: «як є» — саме фото, студія — приклад */
+.photo-src-pic { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; margin-bottom: 6px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.photo-src-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photo-src-tag { position: absolute; top: 6px; left: 6px; padding: 1px 7px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: 11px; font-weight: 600; }
 .photo-src:disabled { opacity: .5; cursor: default; }
 .editor-aspects { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
 .editor-aspects button {
