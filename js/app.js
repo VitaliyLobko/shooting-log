@@ -3,6 +3,7 @@ import * as M from './model.js';
 import * as sync from './sync.js';
 import { t, plural, lang, setLang, LANGS, collate, applyStatic, locale } from './i18n.js';
 import { prepare as preparePhoto, editPhoto, viewer, decode, draw, pack } from './photos.js';
+import { studioPhoto } from './studio.js';
 import { renderMarkdown, excerpt } from './md.js';
 import { COLORS, UNITS, CLICKS, num, length, size, offsetText, corrections, groupRows, elevText, holdText, paintPreview, shareImage, markTarget } from './target.js';
 import { cartridgeIcon, caliberHue, componentIcon, setCaliberHues } from './ammo.js';
@@ -1583,6 +1584,7 @@ function openPhotos(weaponId, index) {
     onCover: (p) => saveEntity('weapons', { ...findWeapon(weaponId), coverId: p.id }),
     // Правка зберігає фото з новим id і сама оновлює стан
     onEdit: (p) => editWeaponPhoto(p),
+    onStudio: (p) => studioWeaponPhoto(p),
     onDelete: (p) => new Promise((resolve) => {
       confirmSheet(t('Удалить фото?'), t('Фото удалится на всех устройствах.'), t('Удалить'), async () => {
         dropCoverUrl(p.id);
@@ -2801,6 +2803,26 @@ async function editWeaponPhoto(p) {
     ...(w?.coverId === p.id ? { weapons: { put: [{ ...w, coverId: id }] } } : {}),
   });
   sync.trashPhoto(oldDrive);
+  await refresh();
+  confirmed();
+  return fresh;
+}
+
+/** Студійне фото — нове фото ствола поруч з оригіналом, одразу головне. */
+async function studioWeaponPhoto(p) {
+  const blob = await db.getBlob(p.id);
+  if (!blob) { toast(t('Полное фото ещё не загрузилось — изменить можно после синхронизации')); return null; }
+  const canvas = await studioPhoto(blob, { onError: (err) => toast(err.message) });
+  if (!canvas) return null;
+  const result = await pack(canvas);
+  const id = db.uid();
+  const fresh = { id, weaponId: p.weaponId, created: Date.now(), thumb: result.thumb, w: result.w, h: result.h, driveId: null };
+  const w = findWeapon(p.weaponId);
+  await db.write({
+    photos: { put: [fresh] },
+    blobs: { put: [{ id, blob: result.blob }] },
+    ...(w ? { weapons: { put: [{ ...w, coverId: id }] } } : {}),
+  });
   await refresh();
   confirmed();
   return fresh;
@@ -7330,19 +7352,15 @@ const GUIDE_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
   + '<circle cx="33" cy="16" r="1" fill="var(--accent)"/>'
   + '</svg>';
 
-// Прес для спорядження: матриця й набій під нею, важіль, поруч — пляшковий набій
+// Та сама книга, що в курсу марксмана; на правій сторінці замість прицілу — лійка для пороху й набій
 const RELOAD_ICON = '<svg viewBox="0 0 48 32" aria-hidden="true">'
-  + '<path d="M3 29.5h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
-  + '<path d="M19 21v8.5M7 29.5V6.5h12V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
-  + '<rect x="10.5" y="1.5" width="5" height="9" rx="1" fill="var(--accent)"/>'
-  + '<path d="M9.5 4.5h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-  + '<path d="M13 11.2l1.1 2.2v1.3l.6.8v3.6h-3.4v-3.6l.6-.8v-1.3z" fill="var(--accent)"/>'
-  + '<rect x="11.4" y="20" width="3.2" height="9" rx=".6" fill="currentColor" opacity=".7"/>'
-  + '<path d="M14.6 23.5L19 23l10.2-13.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
-  + '<circle cx="30.2" cy="8" r="2.2" fill="currentColor"/>'
-  + '<path d="M39 3c1.4 1.6 2 3.6 2 6v3l1.6 3v14.5h-7.2V15l1.6-3V9c0-2.4.6-4.4 2-6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
-  + '<path d="M39 3c1.4 1.6 2 3.6 2 6v1h-4V9c0-2.4.6-4.4 2-6z" fill="var(--accent)"/>'
-  + '<path d="M35.4 27h7.2" stroke="currentColor" stroke-width="1.1" opacity=".6"/>'
+  + '<path d="M24 7c-5-3-12-3.6-18-2.4v21.8c6-1.2 13-.6 18 2.4 5-3 12-3.6 18-2.4V4.6C36 3.4 29 4 24 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+  + '<path d="M24 7v21.8" stroke="currentColor" stroke-width="1.4" opacity=".6"/>'
+  + '<path d="M9.5 11h10M9.5 15h10M9.5 19h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>'
+  + '<path d="M26.3 12.2h6.6l-2.5 5.4v4.8h-1.6v-4.8z" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>'
+  + '<path d="M37 7.8c.9 1 1.3 2.4 1.3 3.8v.9h-2.6v-.9c0-1.4.4-2.8 1.3-3.8z" fill="var(--accent)"/>'
+  + '<path d="M35.7 13.4h2.6v1.5l1.2 1.6v6.9h-5v-6.9l1.2-1.6z" fill="none" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>'
+  + '<path d="M34.1 24.5h5.8" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/>'
   + '</svg>';
 
 /** Посилання на довідник: у «Полігон → Вправи» — курс марксмана, у «Склад → Релоадінг» — курс релоадінгу. */
