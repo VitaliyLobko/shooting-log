@@ -131,24 +131,60 @@ function toCanvas(src, max = Infinity) {
   return c;
 }
 
-/** Обрізка по непрозорих пікселях. */
+/**
+ * Обрізка по предмету. Вирізання лишає довкола ледь видимий пил і ореол (напівпрозорі точки далеко від предмета) —
+ * за ними рамка роздувалась, і предмет стояв не по центру. Тому рахуємо лише щільні пікселі (alpha > 64)
+ * і лише рядки та стовпці, де їх хоча б 3 поспіль не випадкові: окремі пилинки рамку не розсувають.
+ */
 function crop(c) {
-  const a = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
-  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
-  for (let y = 0; y < c.height; y++) {
-    for (let x = 0; x < c.width; x++) {
-      if (a[(y * c.width + x) * 4 + 3] > 8) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-      }
+  const w = c.width, hh = c.height;
+  const a = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, hh).data;
+  const rows = new Uint32Array(hh); const cols = new Uint32Array(w);
+  for (let y = 0; y < hh; y++) {
+    for (let x = 0; x < w; x++) {
+      if (a[(y * w + x) * 4 + 3] > 64) { rows[y]++; cols[x]++; }
     }
   }
-  if (x1 < 0) return c;
+  // Поріг — частка розміру: прев'ю (900 px) і збереження (2400 px) мають обрізатись однаково, інакше предмет «з'їжджає»
+  const MIN = Math.max(2, Math.round(Math.max(w, hh) * 0.004));
+  let y0 = 0; while (y0 < hh && rows[y0] < MIN) y0++;
+  let y1 = hh - 1; while (y1 > y0 && rows[y1] < MIN) y1--;
+  let x0 = 0; while (x0 < w && cols[x0] < MIN) x0++;
+  let x1 = w - 1; while (x1 > x0 && cols[x1] < MIN) x1--;
+  if (y0 >= hh || x0 >= w) return c;
+  const pad = 2;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(hh - 1, y1 + pad);
   const r = canvas(x1 - x0 + 1, y1 - y0 + 1);
   r.getContext('2d').drawImage(c, -x0, -y0);
   return r;
+}
+
+/**
+ * Прибрати ореол вирізання: на краю предмета лишається світла кайма старого фону. Маску підрізаємо всередину
+ * (мінімум alpha серед сусідів, на великому фото — на 2 px), а майже прозоре прибираємо зовсім.
+ * Прев'ю й збереження беруть ту саму чисту маску.
+ */
+function clean(c) {
+  const w = c.width, hh = c.height;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const img = g.getImageData(0, 0, w, hh); const a = img.data;
+  const passes = Math.max(w, hh) > 1500 ? 2 : 1;
+  let al = new Uint8ClampedArray(w * hh);
+  for (let p = 0; p < w * hh; p++) al[p] = a[p * 4 + 3];
+  for (let n = 0; n < passes; n++) {
+    const out = new Uint8ClampedArray(al);
+    for (let y = 1; y < hh - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = y * w + x;
+        if (!al[p]) continue;
+        out[p] = Math.min(al[p], al[p - 1], al[p + 1], al[p - w], al[p + w]);
+      }
+    }
+    al = out;
+  }
+  for (let p = 0; p < w * hh; p++) a[p * 4 + 3] = al[p] < 48 ? 0 : al[p];
+  g.putImageData(img, 0, 0);
+  return c;
 }
 
 /** Фото без фону: кути прозорі й прозорого щонайменше 8 % кадру. */
@@ -234,7 +270,7 @@ function compose(item, w, hh, backdrop = BACKDROPS[0], { x = 0, y = 0, scale = 1
 
 /** Вирізаний предмет → студійне фото 1600×900 у початковому положенні на останньому вибраному тлі. */
 export function laid(src) {
-  const c = toCanvas(src, 2400);
+  const c = clean(toCanvas(src, 2400));
   return compose(turned(c, orient(c)), W, H, savedBackdrop());
 }
 
@@ -313,7 +349,7 @@ export async function studioPhoto(blob, { onError } = {}) {
     const got = await Promise.race([cutout(blob), done.then(() => null)]);
     if (!got) return finish(null);
     const cut = await createImageBitmap(got.blob);
-    item = toCanvas(cut);
+    item = clean(toCanvas(cut));
     cut.close?.();
     month = got.month;
   } catch (err) {

@@ -624,7 +624,8 @@ function scope(svg, o) {
   // Перетягування, вітер і рух міняють лише зсув прицілу (hx, hy у «Виносі», rx, ry у далекомірі): тоді кадр із ціллю не будуємо заново,
   // а зсуваємо його групу — це в рази дешевше; позначки, що залежать від зсуву (кільце й підпис виносу, розкид), — заново лише вони.
   // Кадр ширший за коло (E), тож зсув до 0,4 R не відкриває країв; далі — знову повністю
-  const key = JSON.stringify({ ...o, hx: 0, hy: 0, rx: 0, ry: 0 });
+  // aimHead — у ключі: перемкнули голова ↔ груди — кадр будуємо заново, а не зсуваємо старий зі старою зоною
+  const key = JSON.stringify({ ...o, hx: 0, hy: 0, rx: 0, ry: 0, aimHead });
   const was = svg._sc;
   if (was?.key === key && svg.lastChild === was.ring && svg.childNodes.length === was.n) {
     const at = was.pos(o); const dx = at.cx - was.cx; const dy = at.top - was.top;

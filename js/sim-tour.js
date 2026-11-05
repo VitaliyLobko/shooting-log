@@ -37,6 +37,8 @@ export function simTour(root) {
   const steps = STEPS.map(([sels, title, text, gesture, mode]) => [sels.flatMap((s) => [...root.querySelectorAll(s)]).filter(visible), title, text, gesture, mode])
     .filter(([nodes]) => nodes.length);
   if (!steps.length || document.querySelector('.tour-hole')) return;
+  // Тур показано — більше сам не відкривається, навіть якщо його перервало оновлення застосунку
+  markSeen();
   // Тап по вже ввімкненому режиму має свою дію (точка, «чим міряти») — тиснемо лише невибраний
   const modeBtn = (m) => root.querySelector(m === 'range' ? '#m-range' : '#m-aim');
   const was = modeBtn('range')?.getAttribute('aria-pressed') === 'true' ? 'range' : 'aim';
@@ -121,5 +123,6 @@ export function simIntro(root, { auto = false } = {}) {
     quick.append(el('h4', '', t('За 30 секунд')), ol, again);
     help.prepend(quick);
   }
-  if (auto && !seen()) setTimeout(() => { if (root.isConnected && visible(root)) simTour(root); }, 700);
+  // Сам — лише коли поверх нічого не відкрито: після оновлення там «Що нового», і тур ліз би поверх нього
+  if (auto && !seen()) setTimeout(() => { if (root.isConnected && visible(root) && !document.getElementById('layer')?.children.length) simTour(root); }, 700);
 }

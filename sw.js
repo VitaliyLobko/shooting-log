@@ -32,6 +32,7 @@ const ASSETS = [
   './js/gear-icons.js',
   './js/icons-lucide.js',
   './js/photos.js',
+  './js/zero.js',
   './js/studio.js',
   './js/guide.js',
   './js/scenes.js',

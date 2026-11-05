@@ -39,8 +39,9 @@ const SCREENS = [
     { sel: ['.seg-nav [data-seg="sim"]'], title: 'Тренажёр', brief: true, text: 'Прицел с сеткой: дальность, поправки на ветер и движение, упражнения. У него свой тур — покажется при первом входе.' },
   ]],
   ['targets', 'targets', [
-    { sel: ['#view details.fold:first-of-type'], title: 'Мишени', brief: true, text: 'Сфотографируйте мишень, отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправку в кликах.' },
+    { sel: ['#view details.fold:first-of-type'], optional: true, title: 'Мишени', brief: true, text: 'Сфотографируйте мишень, отметьте масштаб и пробоины — приложение посчитает кучность, СТП и поправку в кликах.' },
     { sel: ['.unit-seg'], title: 'Единицы', text: 'Кучность в сантиметрах, MOA или MRAD — как привычнее.' },
+    { sel: ['.zero-start'], optional: true, title: 'Пристрелка', text: 'Мастер пристрелки: выберите ствол и прицел, отметьте группу — покажет, сколько кликов и куда крутить.' },
     { sel: ['#fab'], title: 'Новая мишень', text: '«+» — фото мишени, выровнять, данные выстрела и разметка пробоин. В первый раз на каждом шаге будут подсказки.' },
   ]],
   ['targets', 'chrono', [
@@ -52,14 +53,24 @@ const SCREENS = [
   ]],
 ];
 
-/** Кроки екрана з переходом на нього перед кожним: go(вкладка, розділ) з app.js. */
-const stepsOf = ([tab, seg, steps], go, onlyBrief) => steps.filter((s) => !onlyBrief || s.brief)
-  .map((s) => ({ ...s, before: () => go(tab, seg) }));
+/**
+ * Кроки екрана з переходом на нього перед кожним: go(вкладка, розділ) з app.js.
+ * hide — вимкнені розділи (⚙ → «Розділи»): лишився один розділ на вкладці — панелі розділів нема, і крок про неї зайвий
+ */
+const stepsOf = ([tab, seg, steps], go, onlyBrief, hide = []) => {
+  const left = SCREENS.filter(([a, b]) => a === tab && b && !hide.includes(b)).length;
+  return steps.filter((s) => !onlyBrief || s.brief)
+    .filter((s) => left > 1 || !s.sel.every((x) => x.startsWith('.seg-nav')))
+    .map((s) => ({ ...s, before: () => go(tab, seg) }));
+};
 
 /** Тур розділу, що відкритий; false — у ньому поки нічого показати (порожній екран). */
 export function screenTour(tab, seg, go, opts) {
-  const screen = SCREENS.find(([a, b]) => a === tab && (b === null || b === seg));
-  return screen ? runTour(stepsOf(screen, go, false), opts) : Promise.resolve(false);
+  const screen = SCREENS.find(([a, b]) => a === tab && (b === null || b === seg) && !opts?.hide?.includes(b));
+  // optional — того, чого може не бути (мішеней ще нема, нема стволів із прицілом): тур іде на відкритому екрані,
+  // тож відкидаємо одразу, щоб лічильник не починався з «2 / 3» і не перескакував
+  if (!screen) return Promise.resolve(false);
+  return runTour(stepsOf(screen, go, false, opts?.hide).filter((s) => !s.optional || s.sel.some((x) => document.querySelector(x))), opts);
 }
 
 /**
@@ -69,7 +80,7 @@ export function screenTour(tab, seg, go, opts) {
 export function appTour(go, demo, opts) {
   return runTour([
     { sel: ['.tabs'], title: 'Четыре раздела', text: 'Склад, Арсенал, Журнал и Полигон. Свайп по нижней панели — соседний раздел.', before: () => go('ammo', 'ammo') },
-    ...SCREENS.flatMap((s) => stepsOf(s, go, true)),
+    ...SCREENS.filter(([, seg]) => !opts?.hide?.includes(seg)).flatMap((s) => stepsOf(s, go, true, opts?.hide)),
     { sel: ['#tour-btn'], title: 'Подсказки', text: 'Кнопка «?» в любом разделе покажет подсказки к нему.' },
     { sel: ['#settings-btn'], title: 'Настройки', text: 'Google Диск, резервная копия, оформление.' },
     ...(demo ? [{
