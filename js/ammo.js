@@ -53,16 +53,19 @@ function energyHue(e) {
   return Math.round((h0 + (h1 - h0) * k + 360) % 360);
 }
 
-/** Відтінок калібру: свій → дробовий → за потужністю → від назви (невідомий калібр без даних про кулю). */
+/** Відтінок калібру: свій → стандартний. */
 export function caliberHue(caliber) {
-  const own = OWN_HUE.get(String(caliber ?? '').trim());
-  if (own !== undefined) return own;
-  if (M.barrelLifeFor(caliber)?.smooth) return SHOT_HUE;
+  return OWN_HUE.get(String(caliber ?? '').trim()) ?? defaultHue(caliber).hue;
+}
+
+/** Стандартний відтінок, без свого: дробовий → за потужністю → від назви (невідомий калібр без даних про кулю). by — звідки. */
+export function defaultHue(caliber) {
+  if (M.barrelLifeFor(caliber)?.smooth) return { hue: SHOT_HUE, by: 'shot' };
   const e = caliberEnergy(caliber);
-  if (e) return energyHue(e);
+  if (e) return { hue: energyHue(e), by: 'energy', energy: e };
   let hash = 7;
   for (const ch of String(caliber ?? '')) hash = (hash * 31 + ch.codePointAt(0)) % 360;
-  return hash;
+  return { hue: hash, by: 'name' };
 }
 
 const PISTOL_CAL = /(9\s*[x×х*]\s*1[789]|\.?45\s*acp|\.?40\s*s&?w|\.?380|9\s*(mm|мм)|luger|para|makarov|макаров|5[.,]7\s*[x×х*]\s*28|7[.,]62\s*[x×х*]\s*25)/i;

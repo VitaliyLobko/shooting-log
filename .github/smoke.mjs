@@ -56,7 +56,8 @@ listeners.push((m) => {
   if (m.sessionId !== sessionId) return;
   if (m.method === 'Runtime.exceptionThrown') errors.push(`[${step}] ${m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text}`);
   if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push(`[${step}] console.error: ${m.params.args.map((a) => a.value ?? a.description).join(' ')}`);
-  if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error' && !/favicon/.test(m.params.entry.url ?? '')) errors.push(`[${step}] ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
+  // navigator.vibrate без справжнього дотику Chrome блокує й пише в журнал — це не помилка застосунку
+  if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error' && !/favicon/.test(m.params.entry.url ?? '') && !/navigator\.vibrate/.test(m.params.entry.text)) errors.push(`[${step}] ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
 });
 await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
 await cdp('Emulation.setDeviceMetricsOverride', { width: 412, height: 900, deviceScaleFactor: 1, mobile: true });
@@ -73,7 +74,8 @@ const click = (re) => js(`const re = ${re}; const b = [...document.querySelector
   .find((e) => e.offsetParent !== null && re.test(e.textContent.trim())); b?.click(); return !!b;`);
 const sheetOpen = () => js(`return !!document.querySelector('#layer > *')`);
 const closeSheets = async () => { for (let i = 0; i < 5 && await sheetOpen(); i++) { await js('history.back()'); await sleep(400); } };
-const blank = () => js(`return document.querySelector('main, #app')?.innerText.trim().length < 5`);
+// Порожній — якщо й за 3 с нічого не намалювалось: після перезавантаження вкладка малюється не одразу
+const blank = async () => !await until(`document.querySelector('main, #app')?.innerText.trim().length >= 5`, 3000);
 const checks = [];
 const check = (ok, what) => { checks.push(`${ok ? '✓' : '✗'} ${what}`); if (!ok) errors.push(`[${step}] не вийшло: ${what}`); };
 
@@ -115,6 +117,77 @@ try {
     }
   };
   await tour('демо');
+
+  // Правка без змін нічого не губить: відкрити запис демо, «Зберегти», порівняти з тим, що було.
+  // Порожнє (null, '', false, 0, [], {}) і час зміни не рахуємо — форма може дописати їх сама.
+  const strip = (v) => {
+    if (Array.isArray(v)) { const a = v.map(strip).filter((x) => x !== undefined); return a.length ? a : undefined; }
+    if (v && typeof v === 'object') {
+      const o = Object.fromEntries(Object.entries(v).filter(([k]) => !['updated', 'modified'].includes(k)).map(([k, x]) => [k, strip(x)]).filter(([, x]) => x !== undefined));
+      return Object.keys(o).length ? o : undefined;
+    }
+    return v === null || v === '' || v === false || v === 0 ? undefined : v;
+  };
+  const flat = (o, p = '') => (o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => flat(v, p ? `${p}.${k}` : k)) : [[p, JSON.stringify(o)]]);
+  const diff = (a, b) => {
+    const A = new Map(flat(strip(a))); const B = new Map(flat(strip(b)));
+    return [...new Set([...A.keys(), ...B.keys()])].filter((k) => A.get(k) !== B.get(k)).map((k) => `${k}: ${A.get(k) ?? '—'} → ${B.get(k) ?? '—'}`);
+  };
+  const store = (name) => js(`return (await (await import('/js/db.js')).loadAll()).${name}`);
+  const unfold = () => js(`document.querySelectorAll('main details:not([open]) > summary').forEach((s) => s.click()); await new Promise((r) => setTimeout(r, 400));`);
+  // Картка зі свайпом відкривається лише справжнім дотиком або Enter — тиснемо Enter
+  const tapIn = (sel) => js(`const e = [...document.querySelectorAll(${JSON.stringify(sel)})].pop(); e?.scrollIntoView();
+    if (e?.classList.contains('swipe')) e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); else e?.click(); return !!e`);
+  const tapText = (text) => js(`const s = document.querySelector('#layer > :last-child'); if (!s) return false; const e = [...s.querySelectorAll('.row-title, .mount-name, .price-name, b, span')]
+    .find((x) => x.textContent.trim() === ${JSON.stringify(text)}); (e?.closest('button, .row') ?? e)?.click(); return !!e`);
+  const editAndSave = async () => {
+    await sleep(600);
+    if (!await tapIn('#layer > :last-child [aria-label="Змінити"]')) return 'нема олівця «Змінити»';
+    await sleep(700);
+    if (!await tapIn('#layer > :last-child .btn.primary')) return 'нема «Зберегти»';
+    await sleep(900);
+    // Форма лишилась відкритою — збереження не пройшло (помилка в полі)
+    const stuck = await js(`const s = document.querySelector('#layer > :last-child'); const b = s?.querySelector('.btn.primary');
+      return b && /Зберегти|Сохранить/.test(b.textContent) ? [...s.querySelectorAll('.field-error, .form-error')].map((e) => e.textContent).join(' | ') || 'форма не закрилась' : null`);
+    return stuck ? `не збереглось: ${stuck}` : null;
+  };
+  // Запис справді перезаписано — інакше «нічого не змінилось» нічого не доводить
+  const saved = (before, after) => (after?.updated && after.updated !== before.updated ? [] : ['запис не перезаписано']);
+  const richest = (list, n) => [...list].filter((x) => !x.archived).sort((a, b) => JSON.stringify(b).length - JSON.stringify(a).length).slice(0, n);
+  const ROUNDTRIP = [
+    ['weapons', 'guns', 'guns', 3], ['cartridges', 'ammo', 'ammo', 3], ['components', 'ammo', 'components', 2], ['recipes', 'ammo', 'recipes', 2],
+    ['targets', 'targets', 'targets', 3], ['chrono', 'targets', 'chrono', 2], ['gear', 'guns', 'gear', 2],
+  ];
+  for (const [name, hash, seg, n] of ROUNDTRIP) {
+    for (const rec of richest(await store(name), n)) {
+      step = `правка без змін: ${name} «${rec.name ?? rec.id}»`;
+      await closeSheets();
+      await js(`location.hash = '#${hash}'`); await sleep(400);
+      await js(`document.querySelector('.seg-nav [data-seg="${seg}"]')?.click()`); await sleep(400);
+      await unfold();
+      const opened = name === 'gear' ? await js(`const e = [...document.querySelectorAll('main .row-title, main .price-name, main b')].find((x) => x.textContent.trim() === ${JSON.stringify(rec.name)});
+        (e?.closest('button, .row') ?? e)?.click(); return !!e`) : await tapIn(`main [data-id="${rec.id}"]`);
+      const fail = opened ? await editAndSave() : 'запис не знайдено в списку';
+      const after = (await store(name)).find((x) => x.id === rec.id);
+      const d = fail ? [fail] : [...saved(rec, after), ...diff(rec, after)];
+      check(!d.length, `${step}${d.length ? ` — ${d.join('; ')}` : ''}`);
+    }
+  }
+  // Тюнінг живе в стволі: картка ствола → рядок тюнінгу → олівець
+  for (const w of (await store('weapons')).filter((x) => x.mods?.length)) {
+    const mod = richest(w.mods, 1)[0];
+    step = `правка без змін: тюнінг «${mod.name}» (${w.name})`;
+    await closeSheets();
+    await js(`location.hash = '#guns'`); await sleep(400);
+    await js(`document.querySelector('.seg-nav [data-seg="guns"]')?.click()`); await sleep(400);
+    await tapIn(`main [data-id="${w.id}"]`); await sleep(700);
+    await js(`document.querySelectorAll('#layer > :last-child .box.closed').forEach((b) => b.classList.remove('closed'))`);
+    const fail = await tapText(mod.name) ? await editAndSave() : 'тюнінг не знайдено в картці';
+    const after = (await store('weapons')).find((x) => x.id === w.id);
+    const d = fail ? [fail] : [...saved(w, after), ...diff(w, after)];
+    check(!d.length, `${step}${d.length ? ` — ${d.join('; ')}` : ''}`);
+  }
+  await closeSheets();
 
   step = 'пристрілка з Мішеней';
   await js(`location.hash = '#targets'`); await sleep(400);

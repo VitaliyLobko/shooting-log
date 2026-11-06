@@ -3,7 +3,7 @@
 // movement: { id, batch, date, kind, qty, caliber, cartridgeId?, componentId?,
 //             weaponId?, recipeId?, price?, note?, foreignWeapon?, foreignWeaponName?, foreignAmmo?,
 //             suppressor?, bipod?, time?, temp?, wind?, windClock?, gps? }
-//   suppressor / bipod — стріляли з глушником / із сошок (лише свій ствол; так само в мішені).
+//   suppressor / bipod — лише старі стрільби (до 0.7.101): тепер глушник і упор (rest) пишуться в мішень і результат вправи.
 //   temp / wind / windClock / gps — погода й місце стрільби, як у мішені й результаті вправи (блок «Де, коли, погода»).
 //   kind: buy | shot | reload | consume | adjust
 //   qty: зі знаком, у штуках патронів або в одиницях компонента.
@@ -144,11 +144,14 @@ const BARREL_LIFE = [
   [/22\s*lr/, 50000, null],
 ];
 
+/** Дробовий калібр: «12 кал», «12ga», «20 калібр» або з довжиною гільзи — «12/76», «20/70». */
+const SMOOTH_CALIBER = /(^|[^\d.,])(10|12|16|20|28|32)\s*(кал|ga|g\b|калібр|\/\s*(6[3-9]|7\d|89)(?!\d))/;
+
 /** Ресурс за калібром: { min, max } або { smooth: true } для гладкоствольної; null — невідомо. */
 export function barrelLifeFor(caliber) {
   const c = String(caliber ?? '').toLowerCase();
   if (!c) return null;
-  if (/(^|[^\d])(12|16|20|28)\s*(кал|ga|g\b|калібр)/.test(c)) return { smooth: true };
+  if (SMOOTH_CALIBER.test(c)) return { smooth: true };
   const row = BARREL_LIFE.find(([re]) => re.test(c));
   return row ? { min: row[1], max: row[2] } : null;
 }
@@ -159,7 +162,7 @@ export function barrelLifeFor(caliber) {
  */
 export function bulletMm(caliber) {
   const c = String(caliber ?? '').toLowerCase().replace(',', '.');
-  if (!c || /(^|[^\d])(10|12|16|20|28|32)\s*(кал|ga|g\b|калібр)/.test(c)) return null;
+  if (!c || SMOOTH_CALIBER.test(c)) return null;
   const mm = c.match(/(\d+(?:\.\d+)?)\s*(?:[x×х*]\s*\d|мм|mm)/) ?? c.match(/(?:^|[^\d.])(\d\.\d+)/);
   if (mm && Number(mm[1]) >= 4 && Number(mm[1]) <= 13) return Number(mm[1]);
   const inch = c.match(/(?:^|[^\d])\.?(\d{2,3})(?![\d.])/);
@@ -581,26 +584,36 @@ export const PRECISION_MIN_HOLES = 3;
  * пострілів у групі, ніж розмах.
  */
 export function ammoPrecision(targets, photos) {
-  const byCartridge = new Map();
+  return precisionBy(targets, photos, (tg) => tg.cartridgeId).map(({ key, ...r }) => ({ cartridgeId: key, ...r }));
+}
+
+// Групи зважуємо за кількістю пострілів: десятка знає про набій більше, ніж трійка.
+const weighted = (list, fn) => list.reduce((s, x) => s + fn(x) * x.n, 0) / list.reduce((s, x) => s + x.n, 0);
+
+/**
+ * Те саме порівняння за будь-якою ознакою мішені: keyOf(tg) — набій, упор, глушник; null — мішень не враховуємо.
+ * Рядки { key, groups, shots, meanRadius, best, offset, targets }, найкупчастіший першим.
+ */
+export function precisionBy(targets, photos, keyOf) {
+  const byKey = new Map();
   for (const tg of targets) {
+    const key = keyOf(tg);
     const photo = photos.find((p) => p.id === tg.photoId);
-    if (!tg.cartridgeId || !(tg.distance > 0) || !photo) continue;
+    if (key === null || key === undefined || key === '' || !(tg.distance > 0) || !photo) continue;
     const k = 100 / tg.distance;
     for (const g of targetStats(tg, photo)) {
       if (!g.stats || g.stats.n < PRECISION_MIN_HOLES) continue;
-      const row = byCartridge.get(tg.cartridgeId) ?? { cartridgeId: tg.cartridgeId, list: [], targets: new Set() };
+      const row = byKey.get(key) ?? { key, list: [], targets: new Set() };
       row.list.push({ ...g.stats, k });
       row.targets.add(tg.id);
-      byCartridge.set(tg.cartridgeId, row);
+      byKey.set(key, row);
     }
   }
   const avg = (list, fn) => list.reduce((s, x) => s + fn(x), 0) / list.length;
-  // Групи зважуємо за кількістю пострілів: десятка знає про набій більше, ніж трійка.
-  const weighted = (list, fn) => list.reduce((s, x) => s + fn(x) * x.n, 0) / list.reduce((s, x) => s + x.n, 0);
-  return [...byCartridge.values()].map(({ cartridgeId, list, targets: ids }) => {
+  return [...byKey.values()].map(({ key, list, targets: ids }) => {
     const shifted = list.filter((s) => s.offset);
     return {
-      cartridgeId,
+      key,
       groups: list.length,
       shots: list.reduce((s, x) => s + x.n, 0),
       meanRadius: weighted(list, (s) => s.meanRadius * mrBias(s.n) * s.k),
@@ -609,6 +622,65 @@ export function ammoPrecision(targets, photos) {
       targets: [...ids],
     };
   }).sort((a, b) => a.meanRadius - b.meanRadius);
+}
+
+/** Упор мішені: новий запис — rest, до 0.7.101 — лише прапорець «сошки» (bipod); null — не вказано. */
+export const restOf = (x) => (x && 'rest' in x ? x.rest ?? null : x?.bipod ? 'bipod' : null);
+
+/**
+ * Куди глушник зсуває СТП — окремо для кожного прицілу (у кожного свій нуль). Порівнюємо лише групи того самого
+ * прицілу, набою й дистанції, з глушником і без, з позначеною точкою прицілювання; «влучання вище» мішені віднімаємо.
+ * Мішені, де про глушник нічого не записано (нема ствола чи дуже старі), не беремо.
+ * [{ scopeId, shift: [x праворуч, y вгору] мм на 100 м, on, off — груп з глушником і без, pairs — скільки пар «набій + дистанція»,
+ *    ammo — те саме окремо для кожного набою: [{ cartridgeId, shift, on, off, pairs }] }]
+ */
+export function suppressorShift(targets, photos) {
+  const cells = new Map();
+  for (const tg of targets) {
+    if (!('suppressor' in tg) || !tg.scopeId || !tg.cartridgeId || !(tg.distance > 0)) continue;
+    const photo = photos.find((p) => p.id === tg.photoId);
+    if (!photo) continue;
+    const k = 100 / tg.distance;
+    const up = (Number(tg.zeroUp) || 0) * 10;
+    for (const g of targetStats(tg, photo)) {
+      if (!g.stats?.offset || g.stats.n < PRECISION_MIN_HOLES) continue;
+      const key = `${tg.scopeId}|${tg.cartridgeId}|${tg.distance}`;
+      const cell = cells.get(key) ?? { scopeId: tg.scopeId, cartridgeId: tg.cartridgeId, on: [], off: [] };
+      cell[tg.suppressor ? 'on' : 'off'].push({ x: g.stats.offset[0] * k, y: (g.stats.offset[1] - up) * k, n: g.stats.n });
+      cells.set(key, cell);
+    }
+  }
+  const parts = [...cells.values()].filter((c) => c.on.length && c.off.length).map((c) => ({
+    scopeId: c.scopeId, cartridgeId: c.cartridgeId, on: c.on.length, off: c.off.length,
+    n: c.on.reduce((s, g) => s + g.n, 0) + c.off.reduce((s, g) => s + g.n, 0),
+    d: [weighted(c.on, (g) => g.x) - weighted(c.off, (g) => g.x), weighted(c.on, (g) => g.y) - weighted(c.off, (g) => g.y)],
+  }));
+  // Пари (набій + дистанція) зводимо у зсув, зважений за пострілами
+  const sum = (list) => ({
+    on: list.reduce((s, p) => s + p.on, 0), off: list.reduce((s, p) => s + p.off, 0), pairs: list.length,
+    shift: [weighted(list, (p) => p.d[0]), weighted(list, (p) => p.d[1])],
+  });
+  const groupBy = (list, key) => [...Map.groupBy(list, (p) => p[key])];
+  return groupBy(parts, 'scopeId').map(([scopeId, list]) => ({
+    scopeId, ...sum(list),
+    ammo: groupBy(list, 'cartridgeId').map(([cartridgeId, own]) => ({ cartridgeId, ...sum(own) })),
+  }));
+}
+
+/** Зсув глушника для таблиці DOPE: свого набою, якщо записано, інакше загальний для прицілу. */
+export const supShiftFor = (scope, cartridgeId) => (cartridgeId && scope?.supShiftBy?.[cartridgeId]) || scope?.supShift || null;
+
+/**
+ * Поправка барабаном на глушник, мрад { x праворуч, y вгору }: зараз з глушником чи без (current), прицілу пристріляно
+ * з ним чи без (zeroSuppressor), supShift — куди глушник зсуває влучання, мрад. Як при пристрілці — нуль;
+ * невідомо, як пристрілювали, чи зсуву нема — null (вгадувати знак не можна).
+ */
+export function suppressorFix(current, zeroSuppressor, supShift) {
+  if (typeof zeroSuppressor !== 'boolean' || !supShift) return null;
+  if (!!current === zeroSuppressor) return { x: 0, y: 0 };
+  // Поставили глушник — влучання пішло на зсув, крутимо назустріч; зняли — навпаки
+  const sign = current ? -1 : 1;
+  return { x: sign * supShift.x, y: sign * supShift.y };
 }
 
 // ---------- ряди для графіків ----------
