@@ -352,7 +352,69 @@ function independence() {
 </svg>`;
 }
 
+// День народження ствола (дата покупки): торт на столі, свічка; постріл гасить полум'я — дим, конфеті, гірлянда
+const FLAME = [180, 266];
+
+function birthday(p = {}) {
+  const rnd = seeded(7);
+  let conf = '', bulbs = '', flags = '';
+  for (let j = 0; j < 36; j++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 3.6, r = 80 + rnd() * 130;
+    conf += `<rect x="${FLAME[0] - 2}" y="${FLAME[1] - 4}" width="4" height="7" rx="1" fill="${CONFETTI[j % CONFETTI.length]}" `
+      + `style="--dx:${(Math.cos(a) * r).toFixed(1)}px;--dy:${(Math.sin(a) * r).toFixed(1)}px;`
+      + `--r:${(rnd() * 720 - 360).toFixed(0)}deg;animation-delay:${(1.42 + rnd() * 0.15).toFixed(2)}s"/>`;
+  }
+  // гірлянда-прапорці вгорі провисає дугою; лампочки між прапорцями засвічуються після пострілу
+  const sag = (x) => 64 + 46 * Math.sin((x / 360) * Math.PI);
+  for (let i = 0; i < 9; i++) {
+    const x = 20 + i * 40, y = sag(x);
+    flags += `<path d="M${x - 13} ${y.toFixed(1)}L${x + 13} ${sag(x + 13).toFixed(1)}L${x} ${(y + 30).toFixed(1)}Z" fill="${CONFETTI[i % CONFETTI.length]}" opacity=".85"/>`;
+    const bx = x + 20, by = sag(bx) + 3;
+    if (i < 8) bulbs += `<circle cx="${bx}" cy="${by.toFixed(1)}" r="4" fill="#ffd56b" style="animation-delay:${(1.7 + i * 0.07).toFixed(2)}s"/>`;
+  }
+  const years = Number.isFinite(p.years) ? String(p.years) : '';
+  return `
+<svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <defs>
+    <radialGradient id="sc-candle"><stop offset="0" stop-color="#ffd56b" stop-opacity=".55"/><stop offset="1" stop-color="#ff9a3c" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="-400" y="-400" width="1160" height="1440" fill="#140f0c"/>
+  <circle class="sc-candle-glow" cx="${FLAME[0]}" cy="${FLAME[1] + 60}" r="240" fill="url(#sc-candle)"/>
+  <path d="M-10 ${sag(-10).toFixed(1)}Q180 ${(sag(180) * 2 - 64).toFixed(1)} 370 ${sag(370).toFixed(1)}" fill="none" stroke="#6d5a48" stroke-width="2"/>
+  <g>${flags}</g>
+  <g class="sc-bulbs">${bulbs}</g>
+  <rect x="-400" y="470" width="1160" height="600" fill="#3a2a1f"/>
+  <rect x="-400" y="466" width="1160" height="8" fill="#4a3628"/>
+  <ellipse cx="180" cy="468" rx="112" ry="12" fill="#d9d4c7"/>
+  <g class="sc-cake">
+    <rect x="95" y="400" width="170" height="66" rx="6" fill="#6b3f2a"/>
+    <path d="M95 410V404q0-6 6-6h158q6 0 6 6v6q-8 10-14 0t-14 4-14-2-14 6-14-4-14 3-14-5-14 6-14-3-14 4-14-4-14 5-12-6z" fill="#f3e6cf"/>
+    <text x="180" y="452" text-anchor="middle" font-size="30" font-weight="800" font-family="system-ui, sans-serif" fill="#ffd56b">${years}</text>
+    <rect x="125" y="352" width="110" height="50" rx="6" fill="#7a4a32"/>
+    <path d="M125 362v-4q0-6 6-6h98q6 0 6 6v4q-8 9-13 0t-13 5-13-3-13 6-13-4-13 4-13-5-11 5z" fill="#f3e6cf"/>
+    <clipPath id="sc-wax"><rect x="173" y="282" width="14" height="70" rx="2"/></clipPath>
+    <rect x="173" y="282" width="14" height="70" rx="2" fill="#f4efe4"/>
+    <g clip-path="url(#sc-wax)" stroke="#e8734f" stroke-width="4">
+      <path d="M170 292l20-10M170 306l20-10M170 320l20-10M170 334l20-10M170 348l20-10M170 362l20-10"/>
+    </g>
+    <path d="M176 282q0 6 2 9" stroke="#fffaf0" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M180 282v-8" stroke="#2b2420" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g class="sc-flame-out" transform="translate(${FLAME[0]} ${FLAME[1]})"><g class="sc-flame">
+    <path d="M0-16q9 10 7 18a7 7 0 0 1-14 0q-2-8 7-18z" fill="#ff9a3c"/>
+    <path d="M0-8q5 6 4 11a4 4 0 0 1-8 0q-1-5 4-11z" fill="#fff4dc"/>
+  </g></g>
+  <path class="sc-smoke" pathLength="1" d="M180 274c-8-14 8-22 0-36s8-22 0-38" fill="none" stroke="#9aa0a6" stroke-width="3" stroke-linecap="round"/>
+  <g class="sc-conf">${conf}</g>
+  ${RETICLE}
+</svg>`;
+}
+
 const SCENES = {
+  birthday: {
+    svg: birthday,
+    text: (p = {}) => [t('С днём рождения, {name}!', { name: p.name ?? '' }), [p.age, p.shots].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
+  },
   independence: { svg: independence, text: () => t('С Днём Независимости!\nСлава Украине!') },
   halloween: { svg: halloween, text: () => t('Счастливого Хэллоуина!') },
   snowman: { svg: snowman, text: () => t('Встречаем {year}!\nВыстоим!', { year: comingYear() }) },
@@ -360,7 +422,7 @@ const SCENES = {
 };
 
 /** Програти сценку name; повертає false, якщо такої нема. */
-export function playScene(name) {
+export function playScene(name, params) {
   const s = SCENES[name];
   if (!s) return false;
   const el = document.createElement('div');
@@ -382,11 +444,11 @@ export function playScene(name) {
   const play = () => {
     const id = ++run;
     el.classList.remove('done');
-    stage.innerHTML = s.svg();
+    stage.innerHTML = s.svg(params);
     const cap = document.createElement('p');
     cap.className = 'scene-cap';
     // кожен рядок — окремий span, щоб сценка могла показати наступний рядок пізніше
-    cap.append(...s.text().split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
+    cap.append(...s.text(params).split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
     stage.append(cap);
     Promise.all(finite().map((a) => a.finished)).then(() => id === run && end(), () => {});
   };

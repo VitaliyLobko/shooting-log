@@ -184,8 +184,13 @@ function clean(c) {
   }
   for (let p = 0; p < w * hh; p++) a[p * 4 + 3] = al[p] < 48 ? 0 : al[p];
   g.putImageData(img, 0, 0);
+  // Чисті пікселі вже в руках — orient() візьме їх звідси: повторне читання з полотна на телефоні коштує сотні мс
+  pixels.set(c, a);
   return c;
 }
+
+/** Пікселі полотна, вже прочитані в clean() (лише поки полотно живе й не змінювалось). */
+const pixels = new WeakMap();
 
 /** Фото без фону: кути прозорі й прозорого щонайменше 8 % кадру. */
 export function isCutout(src) {
@@ -208,7 +213,7 @@ export function isCutout(src) {
  */
 export function orient(c) {
   const step = Math.max(1, Math.round(Math.max(c.width, c.height) / 200));
-  const a = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+  const a = pixels.get(c) ?? c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
   const pts = [];
   for (let y = 0; y < c.height; y += step) {
     for (let x = 0; x < c.width; x += step) if (a[(y * c.width + x) * 4 + 3] > 128) pts.push(x, y);
@@ -365,10 +370,15 @@ export async function studioPhoto(blob, { onError } = {}) {
   const auto = st.tilt;
   const view = h('canvas', { class: 'studio-canvas' });
   let frame = 0;
+  // Поворот з обрізкою читає пікселі — дорого; тягнуть і масштабують пальцем без зміни кута, тож повернутий предмет кешуємо
+  let turnKey = '';
+  let turnedSmall = null;
   const paint = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
-      const c = compose(turned(small, st), 800, 450, backdrop, st);
+      const key = `${st.level}|${st.tilt}|${st.flip}`;
+      if (key !== turnKey) { turnKey = key; turnedSmall = turned(small, st); }
+      const c = compose(turnedSmall, 800, 450, backdrop, st);
       view.width = c.width;
       view.height = c.height;
       view.getContext('2d').drawImage(c, 0, 0);
