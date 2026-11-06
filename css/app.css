@@ -3302,6 +3302,12 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-wob { 30% { transform: rotate(-4deg); } 65% { transform: rotate(2.5deg); } }
 /* Геловін: від влучання гарбуз зникає, сяйво спалахує й гасне, шматки летять дугою й лягають на землю */
 .scene-halloween .sc-pk { animation: sc-hide .04s linear 1.27s both; }
+/* хмари пливуть через місяць, туман стелиться, ліхтарики-гарбузи блимають */
+.scene-halloween .sc-clouds { animation: sc-clouds 14s linear infinite alternate; }
+@keyframes sc-clouds { to { transform: translateX(-60px); } }
+.scene-halloween .sc-hfog ellipse { animation: sc-drift ease-in-out infinite alternate; }
+.scene-halloween .sc-lface, .scene-halloween .sc-lglow { animation: sc-lflick 1.3s steps(2, jump-none) infinite; }
+@keyframes sc-lflick { 30% { opacity: .55; } 60% { opacity: .9; } }
 .scene-halloween .sc-halo { transform-box: fill-box; transform-origin: center; animation: sc-burst .7s ease-out 1.27s both; }
 @keyframes sc-burst { 25% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
 /* forwards, не both: до пострілу шматків не видно (базове opacity 0), а не перший кадр анімації */
@@ -3320,22 +3326,26 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-bat3 { 0% { transform: scale(.4); opacity: 0; } 12% { opacity: 1; } 100% { transform: translate(140px, -10px) scale(1.25); opacity: 1; } }
 .scene-halloween .sc-wing { transform-box: fill-box; transform-origin: 0 40%; animation: sc-flap .2s ease-in-out infinite alternate; }
 @keyframes sc-flap { from { transform: scaleY(1.05); } to { transform: scaleY(-.45); } }
-/* Новий рік: цинк відкривається, трасери летять до початку цифр, цифри прокреслюються (разова сценка — dashoffset прийнятний), салют */
+/* Новий рік: ліхтарики злітають з поля в точки цифр, тонка лінія з'єднує їх (разова сценка — dashoffset прийнятний), салют фоном */
 .scene:is(.scene-newyear, .scene-snowman) { background: linear-gradient(#050812, #0e1628 70%); }
-.scene-newyear .scene-cap { animation-delay: 3.2s; color: #fff1c4; text-shadow: 0 2px 14px rgb(255 190 80 / .55); }
-.scene-newyear .sc-lid { transform-box: fill-box; transform-origin: 0 100%; animation: sc-lid .5s cubic-bezier(.3, 1.5, .5, 1) .3s both; }
-@keyframes sc-lid { to { transform: rotate(-125deg); } }
-.scene-newyear .sc-can-glow { animation: sc-show .4s ease-out .55s both; }
-.scene-newyear .sc-tr { opacity: 0; animation: sc-fly .45s cubic-bezier(.2, .6, .4, 1) both; }
-@keyframes sc-fly { 0% { transform: translate(0, 0); opacity: 0; } 12%, 85% { opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)); opacity: 0; } }
-.scene-newyear .sc-year path { stroke-dasharray: 1; animation: sc-draw .7s ease-in-out var(--d) both; }
-.scene-newyear .sc-ink { stroke: #fff1c4; stroke-width: 2.6; }
-.scene-newyear .sc-glow { stroke: #ffb03a; stroke-width: 7; stroke-opacity: .35; }
+.scene-newyear .scene-cap { animation-delay: 4s; color: #fff1c4; text-shadow: 0 2px 14px rgb(255 190 80 / .55); }
+.scene-newyear .sc-lan { animation: sc-lan-rise 2.4s cubic-bezier(.3, .1, .3, 1) both; }
+@keyframes sc-lan-rise { 0% { transform: translate(var(--fx), var(--fy)) scale(.5); opacity: 0; } 12% { opacity: 1; } 55% { transform: translate(calc(var(--fx) * .3 + 4px), calc(var(--fy) * .3)) scale(.9); } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+.scene-newyear .sc-lbob { animation: sc-lbob 3s ease-in-out infinite; }
+@keyframes sc-lbob { 50% { transform: translate(.8px, -1.6px); opacity: .8; } }
+.scene-newyear .sc-lan-near { opacity: 0; animation: sc-lan-near linear infinite; }
+@keyframes sc-lan-near { 0% { transform: translate(0, 560px); opacity: 0; } 8% { opacity: 1; } 50% { transform: translate(-14px, 280px); } 85% { opacity: .9; } 100% { transform: translate(6px, -60px); opacity: 0; } }
+.scene-newyear .sc-year path { stroke-dasharray: 1; animation: sc-draw .9s ease-in-out var(--d) both; }
+.scene-newyear .sc-ink { stroke: #ffe3a8; stroke-width: 1.1; stroke-opacity: .8; }
+.scene-newyear .sc-glow { stroke: #ffb03a; stroke-width: 6; stroke-opacity: .22; }
 @keyframes sc-draw { from { stroke-dashoffset: 1; opacity: 0; } 2% { opacity: 1; } to { stroke-dashoffset: 0; } }
-.scene-newyear .sc-year { animation: sc-hide .35s ease-in 2.85s both; }
+/* фінал Нового року: ялинка мерехтить гірляндою, салюти фоном повторюються */
+.scene-newyear .sc-ny-bulbs circle { animation: sc-twinkle 1.6s ease-in-out infinite; }
+@keyframes sc-twinkle { 50% { opacity: .25; } }
+.scene-newyear .sc-ny-star { filter: drop-shadow(0 0 5px #ffd56b); }
+.scene-newyear .sc-fw { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-fw 2.6s cubic-bezier(.15, .7, .3, 1) infinite; }
+@keyframes sc-fw { 0% { transform: scale(.15); opacity: 0; } 8% { opacity: 1; } 60% { opacity: .85; } 100% { transform: translateY(10px) scale(1); opacity: 0; } }
 @keyframes sc-hide { to { opacity: 0; } }
-.scene-newyear .sc-sparks path { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-spark 1.7s cubic-bezier(.15, .7, .3, 1) both; }
-@keyframes sc-spark { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 6% { opacity: 1; } 60% { opacity: .9; } 100% { transform: translate(var(--dx), calc(var(--dy) + 30px)) scale(.4); opacity: 0; } }
 .scene .sc-snow circle { opacity: .7; animation: sc-snow linear infinite; }
 @keyframes sc-snow { to { transform: translate(-14px, 670px); } }
 /* 31.12 злий сніговик-ватник, руки в боки: влучання — діра з ватою, гойднувся, брови підскочили, очі округлились, морква обвисла, вушанка злетіла, конфеті */
@@ -3363,6 +3373,94 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   30% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--r) * .3)); }
   85% { opacity: 1; }
   100% { transform: translate(calc(var(--dx) * 1.5), calc(var(--dy) + 300px)) rotate(var(--r)); opacity: 0; } }
+/* 1.10 День захисників і захисниць: пара в окопі, постріл; камера відʼїжджає — захисники постають на гребені на тлі сходу */
+.scene-defenders { --ax: 222px; --ay: 346px; background: #081028; }
+.scene-defenders .sc-bushes { animation: sc-hide .6s ease-out 4.2s both; }
+.scene-defenders .sc-ret { animation: sc-aim-def 4s cubic-bezier(.3, .7, .3, 1) .8s both; }
+@keyframes sc-aim-def {
+  0% { transform: translate(330px, 610px); opacity: 0; }
+  15% { opacity: 1; }
+  42% { transform: translate(calc(var(--ax) + 7px), calc(var(--ay) - 4px)); }
+  55% { transform: translate(var(--ax), var(--ay)); }
+  58% { transform: translate(var(--ax), calc(var(--ay) - 12px)); }
+  64%, 72% { transform: translate(var(--ax), var(--ay)); opacity: 1; }
+  85%, 100% { transform: translate(var(--ax), var(--ay)); opacity: 0; } }
+.scene-defenders .sc-flash { animation-delay: 3s; }
+.scene-defenders .scene-cap { font-size: 22px; animation-delay: 7.3s; }
+.scene-defenders .scene-cap span + span { margin-top: 6px; font-size: 21px; font-weight: 700; color: #fff1c4; animation: sc-cap .6s ease-out 7.9s both; }
+.scene-defenders .sc-fog ellipse { animation: sc-drift ease-in-out infinite alternate; }
+@keyframes sc-drift { to { transform: translateX(26px); } }
+.scene-defenders .sc-fog { animation: sc-hide 1.5s ease-in-out 3.5s both; }
+.scene-defenders .sc-stars { animation: sc-hide 1.4s ease-in-out 3.8s both; }
+.scene-defenders .sc-dawn { opacity: 0; animation: sc-show 1.8s ease-in-out 3.8s both; }
+.scene-defenders .sc-night { opacity: var(--o); animation: sc-hide 1.8s ease-in-out 3.8s both; }
+.scene-defenders .sc-sun { animation: sc-rise-def 2.2s cubic-bezier(.3, .6, .4, 1) 4s both; }
+@keyframes sc-rise-def { from { transform: translateY(90px); opacity: 0; } }
+/* корректувальниця показує окупанту середній палець, після влучання — великий палець снайперу; снайпер віддача й кивок */
+.scene-defenders .sc-bino { animation: sc-hide .2s ease-out 1.3s both; }
+.scene-defenders .sc-middle { opacity: 0; animation: sc-show .25s ease-out 1.3s both, sc-jab .28s ease-in-out 1.6s 4 alternate, sc-hide .2s ease-out 3.1s forwards; }
+@keyframes sc-jab { to { transform: translateY(-6px); } }
+.scene-defenders .sc-flare { animation: sc-flare 4.4s linear both, sc-hide .8s ease-out 3.6s forwards; }
+@keyframes sc-flare { from { transform: translate(70px, 70px); } to { transform: translate(96px, 236px); } }
+.scene-defenders .sc-flare-core { animation: sc-flick .12s linear infinite alternate; }
+@keyframes sc-flick { to { opacity: .6; } }
+.scene-defenders .sc-thumb { opacity: 0; animation: sc-show .25s ease-out 3.35s both; }
+.scene-defenders .sc-sniper { animation: sc-kick .3s ease-out 3s both; }
+@keyframes sc-kick { 30% { transform: translate(-2px, 5px); } }
+.scene-defenders .sc-nod { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-nod .5s ease-in-out 3.5s both; }
+@keyframes sc-nod { 45% { transform: translateY(4px) rotate(3deg); } }
+/* окупант падає за кущ, каска з Z злітає й котиться */
+.scene-defenders .sc-foe { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-foe-down .6s ease-in 3.05s both; }
+@keyframes sc-foe-down { to { transform: translate(-4px, 26px) rotate(-75deg); opacity: 0; } }
+.scene-defenders .sc-zhelm { transform-box: fill-box; transform-origin: center; animation: sc-zfly 1.1s cubic-bezier(.3, .6, .5, 1) 3.03s both, sc-hide .6s ease-out 4.4s forwards; }
+@keyframes sc-zfly { 30% { transform: translate(14px, -24px) rotate(160deg); } 100% { transform: translate(30px, 22px) rotate(380deg); } }
+.scene-defenders .sc-bush { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-wob .5s ease-out 3.05s both; }
+/* зміна плану: окоп іде вниз, з-під кадру виростає гребінь */
+.scene-defenders .sc-close { animation: sc-out-down .9s cubic-bezier(.5, 0, .8, .6) 3.9s both; }
+@keyframes sc-out-down { to { transform: translateY(320px); } }
+.scene-defenders .sc-ridge { animation: sc-ridge-up 1s cubic-bezier(.2, .7, .3, 1) 3.95s both; }
+@keyframes sc-ridge-up { from { transform: translateY(240px); } }
+.scene-defenders .sc-crew { filter: drop-shadow(0 0 1.2px #ffd27a) drop-shadow(0 0 6px rgb(255 170 60 / .6)); }
+.scene-defenders .sc-def { opacity: 0; animation: sc-stand .6s cubic-bezier(.2, .8, .3, 1.15) both; }
+@keyframes sc-stand { from { opacity: 0; transform: translateY(46px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }
+.scene-defenders .sc-unfurl { transform-box: fill-box; transform-origin: 0 50%; animation: sc-unfurl .7s ease-out 5.8s both; }
+@keyframes sc-unfurl { from { transform: scaleX(.05); } }
+.scene-defenders .sc-wave { transform-box: fill-box; transform-origin: 0 50%; animation: sc-wave .7s ease-in-out infinite alternate; }
+@keyframes sc-wave { to { transform: skewY(5deg) scaleX(.94); } }
+.scene-defenders .sc-drone { animation: sc-takeoff 2.4s cubic-bezier(.5, 0, .7, .4) 5.9s both; }
+@keyframes sc-takeoff { 15% { transform: translateY(-8px); } 100% { transform: translate(70px, -260px) scale(.3); opacity: 0; } }
+.scene-defenders .sc-shield { opacity: 0; animation: sc-show .8s ease-out 6.3s both; filter: drop-shadow(0 0 8px rgb(255 213 107 / .6)); }
+.scene-defenders .sc-coa { opacity: 0; animation: sc-show 1s ease-in-out 6.8s both; }
+/* 22.01 День Соборності: постріл у кол на кризі, тріщини затягуються, живий ланцюг, половини щита змикаються, світанок */
+.scene-sobornist { --ax: 196px; --ay: 440px; background: #070f26; }
+.scene-sobornist .scene-cap { animation-delay: 5.2s; }
+.scene-sobornist .scene-cap span + span { margin-top: 6px; font-size: 30px; animation: sc-cap .6s ease-out 5.6s both; }
+.scene-sobornist .sc-dawn { opacity: 0; animation: sc-show 1.4s ease-in-out 4.4s both; }
+.scene-sobornist .sc-stars { animation: sc-hide 1.4s ease-in-out 4.4s both; }
+.scene-sobornist .sc-rag { transform-box: fill-box; transform-origin: 0 50%; animation: sc-rag .5s ease-in-out infinite alternate; }
+@keyframes sc-rag { to { transform: skewY(6deg) scaleX(.92); } }
+.scene-sobornist .sc-stake { animation: sc-sink .7s cubic-bezier(.5, 0, .9, .5) 1.4s both; }
+@keyframes sc-sink { 15% { transform: translateY(-3px) rotate(-2deg); } 100% { transform: translateY(66px); } }
+.scene-sobornist .sc-hole { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-hole 1.6s ease-out 1.3s both; }
+@keyframes sc-hole { 10%, 55% { opacity: 1; } 100% { opacity: 0; transform: scale(.4); } }
+.scene-sobornist .sc-splash circle { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-spark .9s cubic-bezier(.15, .7, .3, 1) both; }
+.scene-sobornist .sc-cracks path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: sc-crack 2s linear .7s both; }
+@keyframes sc-crack { 0% { stroke-dashoffset: 1; } 25%, 65% { stroke-dashoffset: 0; } 95%, 100% { stroke-dashoffset: 1; } }
+.scene-sobornist .sc-bridge { opacity: 0; animation: sc-show .5s ease-out 2.6s both; }
+.scene-sobornist .sc-man { opacity: 0; animation: sc-man .3s ease-out both; }
+@keyframes sc-man { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.scene-sobornist .sc-hands path { opacity: 0; animation: sc-show .25s ease-out both; filter: drop-shadow(0 0 3px #ffb347); }
+.scene-sobornist .sc-half { animation: sc-join .6s cubic-bezier(.3, 1.5, .5, 1) 3.8s both; }
+@keyframes sc-join { from { transform: translate(var(--fx), var(--fy)); } }
+.scene-sobornist .sc-half { filter: drop-shadow(0 0 6px #ffd56b); }
+.scene-sobornist .sc-moon, .scene-sobornist .sc-moonpath { animation: sc-hide 1.4s ease-in-out 4.4s both; }
+.scene-sobornist .sc-windows { animation: sc-hide 1.2s ease-in-out 4.8s both; }
+.scene-sobornist .sc-lamp { opacity: .15; animation: sc-lamp .4s ease-out both; }
+@keyframes sc-lamp { to { opacity: 1; filter: drop-shadow(0 0 4px #ffb347); } }
+.scene-sobornist .sc-whole { opacity: 0; animation: sc-show 1s ease-in-out 4.4s both; }
+.scene-sobornist .sc-grow { transform-box: view-box; animation: sc-grow 1.2s cubic-bezier(.3, .7, .3, 1) 4.4s both; }
+@keyframes sc-grow { to { transform: translateY(-30px) scale(1.7); } }
+.scene-sobornist .sc-click { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-burst .5s ease-out 4.3s both; }
 /* День народження ствола: приціл на полум'я свічки, постріл гасить — дим, конфеті, гірлянда засвічується */
 .scene-birthday { --ax: 180px; --ay: 266px; }
 .scene-birthday .scene-cap { animation-delay: 2.2s; }
@@ -3379,26 +3477,53 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-jolt { 30% { transform: scale(1.02, .98); } }
 .scene-snowman .sc-conf rect, .scene-birthday .sc-conf rect { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-conf 2.4s cubic-bezier(.2, .6, .5, 1) both; }
 /* 24.08: наша ракета — спалах, ядерний гриб, кремль стирається; у нас сходить сонце й проявляється герб */
-.scene-independence .scene-cap span + span { margin-top: 6px; font-size: 30px; animation: sc-cap .6s ease-out 4.8s both; }
+.scene-independence .scene-cap span + span { margin-top: 6px; font-size: 30px; animation: sc-cap .6s ease-out 8.1s both; }
 .scene-independence { background: #0f2a5c; }
-.scene-independence .scene-cap { animation-delay: 3.9s; color: #12306a; text-shadow: 0 1px 8px rgb(255 236 170 / .7); }
-.scene-independence .sc-sun { animation: sc-rise 5s cubic-bezier(.3, .6, .4, 1) both; }
-@keyframes sc-rise { from { transform: translateY(50px); } to { transform: translateY(-34px); } }
-.scene-independence .sc-flash { animation: sc-flash .6s ease-out 1.25s both; }
-.scene-independence .sc-bm { opacity: 0; animation: sc-bm .9s cubic-bezier(.55, 0, .9, .6) both; }
+.scene-independence .scene-cap { animation-delay: 7.3s; color: #12306a; text-shadow: 0 1px 8px rgb(255 236 170 / .7); }
+.scene-independence .sc-sun { animation: sc-rise 3.2s cubic-bezier(.3, .6, .4, 1) 4.5s both; }
+@keyframes sc-rise { from { transform: translateY(130px); } to { transform: translateY(-34px); } }
+/* До удару — ніч: небо й поле темні, світає лише після прильоту */
+.scene-independence .sc-night { opacity: var(--o, .82); animation: sc-hide 1.8s ease-in-out 4.5s both; }
+.scene-independence .sc-flash { animation: sc-flash .6s ease-out 4.25s both; }
+.scene-independence .sc-bm { opacity: 0; animation: sc-bm 1.6s cubic-bezier(.35, 0, .75, .85) both; }
+/* дымний слід тягнеться за ракетою (та сама крива часу), після вибуху розвіюється */
+.scene-independence .sc-smoke path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: sc-smoke-draw 1.6s cubic-bezier(.35, 0, .75, .85) 2.65s both; }
+@keyframes sc-smoke-draw { to { stroke-dashoffset: 0; } }
+.scene-independence .sc-smoke { animation: sc-smoke-out 2s ease-out 4.4s both; }
+@keyframes sc-smoke-out { to { opacity: 0; transform: translate(-6px, -14px); } }
+.scene-independence .sc-exh { transform-box: fill-box; transform-origin: 100% 50%; animation: sc-exh .08s linear infinite alternate; }
+@keyframes sc-exh { to { transform: scaleX(.6); opacity: .8; } }
+/* влучання: ударна хвиля, уламки, кадр трусить */
+.scene-independence .sc-shock { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-shock 1s ease-out 4.27s both; }
+@keyframes sc-shock { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(6); stroke-width: .3; } }
+.scene-independence .sc-debris > * { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-spark 1.3s cubic-bezier(.15, .7, .3, 1) both; }
+.scene-independence svg { animation: sc-shake .6s ease-out 4.25s both; }
+@keyframes sc-shake { 0%, 100% { transform: none; } 15% { transform: translate(-4px, 3px); } 30% { transform: translate(4px, -2px); } 45% { transform: translate(-3px, 2px); } 65% { transform: translate(2px, -1px); } 80% { transform: translate(-1px, 1px); } }
 @keyframes sc-bm { 0% { transform: translate(var(--fx), var(--fy)); opacity: 1; } 99% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
-.scene-independence .sc-boom { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-boom .8s ease-out 1.25s both; }
+.scene-independence .sc-boom { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-boom 1.1s ease-out 4.25s both; }
 @keyframes sc-boom { 0% { transform: scale(.2); opacity: 0; } 15% { opacity: 1; } 100% { transform: scale(3.4); opacity: 0; } }
-.scene-independence .sc-kremlin { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-erase .6s ease-in 1.35s forwards; }
+.scene-independence .sc-kremlin { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-erase .9s ease-in 4.35s forwards; }
 @keyframes sc-erase { to { transform: scale(1.15, 0); opacity: 0; } }
-.scene-independence .sc-kglow { opacity: 0; animation: sc-show .6s ease-out 1.3s both; }
-.scene-independence .sc-mush { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; animation: sc-mush 2s cubic-bezier(.2, .7, .3, 1) 1.3s both; }
+.scene-independence .sc-kglow { opacity: 0; animation: sc-show .6s ease-out 4.3s both; }
+.scene-independence .sc-mush { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; animation: sc-mush 2s cubic-bezier(.2, .7, .3, 1) 4.3s both; }
 @keyframes sc-mush { 0% { transform: scale(.25, .05); opacity: 0; } 6% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-.scene-independence .sc-mglow { animation: sc-cool 3.2s ease-out 1.3s both; }
+.scene-independence .sc-mglow { animation: sc-cool 3.2s ease-out 4.3s both; }
 @keyframes sc-cool { from { opacity: 1; } to { opacity: .25; } }
 /* спершу з прозорості проявляється щит, потім на ньому проступає тризуб */
-.scene-independence .sc-shield { animation: sc-show .7s ease-out 2.2s both; }
-.scene-independence .sc-coa { animation: sc-show 1s ease-in-out 2.9s both; }
+.scene-independence .sc-shield { animation: sc-show .7s ease-out 5.6s both; }
+.scene-independence .sc-coa { animation: sc-show 1s ease-in-out 6.3s both; }
+/* Кремль наближається (камера летить до нього), на підльоті — ракета */
+.scene-independence .sc-kzoom { transform-box: view-box; animation: sc-kzoom 4.25s cubic-bezier(.4, .05, .6, .95) both; }
+/* Гроза над Кремлем: блискавки спалахують по черзі, дощ, після вибуху хмару розносить */
+.scene-independence .sc-bolt, .scene-independence .sc-skyflash { opacity: 0; animation: sc-bolt .7s linear both; }
+@keyframes sc-bolt { 0% { opacity: 0; } 4% { opacity: 1; } 10% { opacity: .2; } 16% { opacity: 1; } 40%, 100% { opacity: 0; } }
+.scene-independence .sc-skyflash { animation-name: sc-skyflash; }
+@keyframes sc-skyflash { 0% { opacity: 0; } 5% { opacity: .3; } 12% { opacity: .04; } 18% { opacity: .24; } 45%, 100% { opacity: 0; } }
+.scene-independence .sc-rain { animation: sc-rain .35s linear infinite; }
+@keyframes sc-rain { to { transform: translate(-4px, 14px); } }
+.scene-independence .sc-storm { transform-box: fill-box; transform-origin: 50% 0; animation: sc-storm-out 1.4s ease-out 4.3s forwards; }
+@keyframes sc-storm-out { to { opacity: 0; transform: translateY(-30px) scale(1.25, .9); } }
+@keyframes sc-kzoom { from { transform: scale(.18); opacity: .6; } }
 
 /* Майстер пристрілки */
 .scope-zrow { display: flex; align-items: center; gap: 8px; }
@@ -3432,7 +3557,9 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .zero-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .zero-row > .zero-lab { flex-basis: 100%; margin: 0; }
 .zero-how { margin: 0; font-size: 13.5px; }
-.zero-center { margin: 0; font-weight: 650; }
+.zero-center { margin: 0; font-size: 13.5px; color: var(--muted); }
+.zero-stats { display: grid; gap: 2px; }
+.zero-do { margin: 0; font-weight: 750; font-size: 16px; }
 .zero-tgt .zl { font: 600 1px system-ui, sans-serif; font-size: var(--zl, 0.55px); fill: rgb(0 0 0 / .45); text-anchor: middle; }
 .zero-tgt .zl.l { text-anchor: start; } .zero-tgt .zl.r { text-anchor: end; }
 .zero-tgt .zl.d { fill: rgb(0 0 0 / .6); font-weight: 700; }
@@ -3450,7 +3577,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .zero-turn .zt-main small { font-size: 11px; color: var(--muted); }
 .zero-turn .zt-txt { display: grid; gap: 1px; font-size: 14px; font-weight: 600; line-height: 1.25; }
 .zero-turn .zt-txt small { color: var(--muted); font-size: 11.5px; }
-.zero-turn .zt-badge { position: absolute; top: -8px; right: 10px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font: 700 11px system-ui, sans-serif; color: var(--muted); }
+.zero-turn .zt-tag { font: 700 11.5px system-ui, sans-serif; font-style: normal; color: var(--muted); }
 .zero-turn.calm { border-color: var(--line); background: color-mix(in srgb, var(--text) 5%, transparent); }
 .zero-turn.calm .zt-arrow { background: color-mix(in srgb, var(--text) 22%, transparent); color: var(--text); }
 .zero-turn.calm .zt-main b { color: var(--muted); }
@@ -3466,7 +3593,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .zero-modes button { padding: 9px 6px; border: 0; border-radius: 10px; background: none; color: var(--text); font: 650 13px/1.2 system-ui, sans-serif; cursor: pointer; }
 .zero-modes button.on { background: var(--accent); color: var(--surface); }
 .zero-click { margin: 0; font-size: 13px; color: var(--muted); }
-.zero-turn .zt-badge.ok { color: var(--buy); border-color: color-mix(in srgb, var(--buy) 55%, transparent); }
+.zero-turn .zt-tag.ok { color: var(--buy); }
 .zero-turn.ok .zt-arrow { background: color-mix(in srgb, var(--buy) 30%, transparent); }
 .zero-help { display: grid; gap: 14px; }
 .zero-help h3 { margin: 0 0 4px; font-size: 15px; color: var(--accent); }
@@ -3522,7 +3649,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .spec-strip .spec b { font-size: 15px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .spec-strip .spec.accent { background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
 .spec-strip .spec.accent b { color: var(--accent); }
-.zero-spread { margin: -4px 0 0; font-size: 13.5px; color: var(--muted); }
+.zero-spread { margin: 0; font-size: 13.5px; color: var(--muted); }
 .zero-tgt .zc-mr { fill: rgb(37 99 235 / .07); stroke: #2563eb; stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .set-switches { display: grid; gap: 6px; }
 .set-switch { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }

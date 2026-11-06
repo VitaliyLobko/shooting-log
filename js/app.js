@@ -7578,7 +7578,7 @@ function newer(a, b) {
 }
 
 // Святкові мініатюри при запуску: день (ММ-ДД) → сценка; ?scene=<назва> — показати будь-коли
-const SCENE_DAYS = { '01-01': 'newyear', '08-24': 'independence', '10-31': 'halloween', '12-31': 'snowman' };
+const SCENE_DAYS = { '01-01': 'newyear', '01-22': 'sobornist', '08-24': 'independence', '10-31': 'halloween', '12-31': 'snowman' };
 
 // Не заходив у свято — сценка покажеться при першому запуску впродовж стількох днів після
 const SCENE_LATE_DAYS = 3;
@@ -7673,7 +7673,7 @@ function updateTap() {
 /** Усі святкові сценки під рукою, щоб переглянути без чекання дати. */
 function scenesRow() {
   if (recall(SCENES_PANEL_KEY) !== '1') return null;
-  const list = [['independence', t('День Независимости'), '24.08'], ['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
+  const list = [['sobornist', t('День Соборности'), '22.01'], ['independence', t('День Независимости'), '24.08'], ['halloween', t('Хэллоуин'), '31.10'], ['snowman', t('Снеговик'), '31.12'], ['newyear', t('Новый год'), '1.01']];
   return setRow('scenes', 'sparkle', t('Праздничные сценки'), '',
     h('div', { class: 'btn-row' }, list.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name))),
       btn(t('День рождения ствола'), () => playScene('birthday', demoBirthday()))));
