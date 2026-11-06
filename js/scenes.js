@@ -301,6 +301,16 @@ function star(cx, cy, R, r) {
   return `M${pts.join('L')}Z`;
 }
 
+/** Фактура снігу на грудці (cx, cy, r): дрібні сірувато-сині горбки, гуще в тіні. */
+function snowTex(rnd, cx, cy, r) {
+  let out = '';
+  for (let j = 0; j < 14; j++) {
+    const a = Math.PI * (0.45 + rnd() * 1.2), d = r * (0.45 + rnd() * 0.45);
+    out += `<ellipse cx="${f1(cx + Math.cos(a) * d)}" cy="${f1(cy + Math.sin(a) * d)}" rx="${f1(1.6 + rnd() * 2.4)}" ry="${f1(0.8 + rnd() * 1)}" opacity="${(0.35 + rnd() * 0.4).toFixed(2)}"/>`;
+  }
+  return out;
+}
+
 function snowman() {
   const rnd = seeded(31);
   const night = winterNight(rnd);
@@ -332,7 +342,8 @@ function snowman() {
   return `
 <svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
   <defs>
-    <radialGradient id="sc-ball" cx=".4" cy=".35" r=".7"><stop offset=".3" stop-color="#f4f8fc"/><stop offset="1" stop-color="#aebcd0"/></radialGradient>
+    <radialGradient id="sc-ball" cx=".62" cy=".3" r=".8"><stop offset="0" stop-color="#ffffff"/><stop offset=".4" stop-color="#eef3f9"/><stop offset=".8" stop-color="#b7c6dc"/><stop offset="1" stop-color="#8296b8"/></radialGradient>
+    <radialGradient id="sc-carrot" cx=".3" cy=".3" r=".9"><stop offset="0" stop-color="#ffa154"/><stop offset="1" stop-color="#d0601e"/></radialGradient>
     <clipPath id="sc-vat"><path d="${VATNIK}"/></clipPath>
   </defs>
   ${night.back}
@@ -340,6 +351,9 @@ function snowman() {
   <ellipse cx="180" cy="500" rx="62" ry="7" fill="#0b1020" opacity=".55"/>
   <g class="sc-man">
     <circle cx="180" cy="452" r="50" fill="url(#sc-ball)"/>
+    <path d="M146 416Q180 430 214 416" stroke="#8296b8" stroke-width="6" stroke-linecap="round" fill="none" opacity=".55"/>
+    <g fill="#c9d5e6">${snowTex(seeded(311), 180, 452, 50)}</g>
+    <ellipse cx="200" cy="428" rx="12" ry="6" fill="#fff" opacity=".55" transform="rotate(30 200 428)"/>
     <circle cx="180" cy="378" r="40" fill="url(#sc-ball)"/>
     <path d="${VATNIK}" fill="#3d4436"/>
     <g clip-path="url(#sc-vat)" fill="none">
@@ -350,14 +364,19 @@ function snowman() {
     <path d="M162 346Q180 356 198 346L194 340Q180 348 166 340Z" fill="#4b5343"/>
     <rect x="199" y="393" width="12" height="10" fill="#565d4b" transform="rotate(8 205 398)"/>
     <g class="sc-gap">${wad}<path d="${gap}" fill="#0c1425"/></g>
-    <path d="M148 364L126 398 160 430M212 364L238 396 204 414" stroke="#3d4436" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M148 364L127 399 156 424M212 364L238 396 222 410" stroke="#3d4436" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M148 364L127 399 156 424M212 364L238 396 222 410" stroke="#4b5343" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(2 -5)" opacity=".7"/>
+    <path d="M158 426L188 431M222 412L209 414M171 428l-5-9M233 406l8-6" stroke="#2e2119" stroke-width="3.2" stroke-linecap="round" fill="none"/>
     <g transform="translate(182 420) rotate(-12)">${RIFLE}</g>
-    <path d="M160 430l7 1M160 433l6 4M204 414l7-3M205 417l7-1" stroke="#5a3d24" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <path d="M188 431q7-1 7 5M189 433q6 1 5 7M187 429q8-4 9 1M209 414q-4-6-9-4M209 415q-3 6-8 6M210 413q2-7 7-6" stroke="#2e2119" stroke-width="2.6" stroke-linecap="round" fill="none"/>
     <circle cx="180" cy="300" r="30" fill="url(#sc-ball)"/>
+    <ellipse cx="192" cy="284" rx="7" ry="4" fill="#fff" opacity=".6" transform="rotate(30 192 284)"/>
+    <path d="M182 312L206 318 182 316Z" fill="#8296b8" opacity=".45"/>
     <circle class="sc-eye" cx="170" cy="296" r="2.8" fill="#1b1b1b"/><circle class="sc-eye" cx="191" cy="296" r="2.8" fill="#1b1b1b"/>
     <path class="sc-brow" d="M162 286L177 292M199 286L184 292" stroke="#1b1b1b" stroke-width="3.2" stroke-linecap="round"/>
-    <g fill="#1b1b1b"><circle cx="167" cy="318" r="1.6"/><circle cx="173" cy="314" r="1.6"/><circle cx="180" cy="313" r="1.6"/><circle cx="187" cy="314" r="1.6"/><circle cx="193" cy="318" r="1.6"/></g>
-    <path class="sc-nose" d="M181 301L210 307 181 311Z" fill="#e8742a"/>
+    <g fill="#1b1b1b">${[[166, 319, 2.2, 1.7, 20], [172.5, 315, 2, 1.6, -10], [180, 313.5, 2.3, 1.8, 5], [187.5, 315, 1.9, 1.6, 15], [194, 319, 2.2, 1.7, -20]]
+    .map(([x, y, rx, ry, a]) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(${a} ${x} ${y})"/><circle cx="${x + 0.6}" cy="${y - 0.6}" r=".5" fill="#5a6274"/>`).join('')}</g>
+    <g class="sc-nose"><path d="M181 300L211 307 181 312Z" fill="url(#sc-carrot)"/><path d="M188 302.5l1 2.5M195 304l1 2.2M202 305.5l.8 1.8" stroke="#a8471a" stroke-width="1" stroke-linecap="round"/></g>
   </g>
   <g class="sc-pile">
     <g transform="translate(210 452) rotate(-58) scale(.85)">${RIFLE}</g>
@@ -369,6 +388,11 @@ function snowman() {
     <g fill="#1b1b1b"><circle cx="134" cy="488" r="2"/><circle cx="214" cy="482" r="2"/><circle cx="226" cy="492" r="1.6"/></g>
   </g>
   <g class="sc-puff" fill="#eef2f7">${puff}</g>
+  <g class="sc-uaflag">
+    <path d="M168 468V418" stroke="#6b4a32" stroke-width="2.4" stroke-linecap="round"/>
+    <g class="sc-uacloth"><path d="M169 419h24v8h-24z" fill="#2f6fd0"/><path d="M169 427h24v8h-24z" fill="#ffd500"/></g>
+    <ellipse cx="168" cy="468" rx="7" ry="2.2" fill="#eef3f9"/>
+  </g>
   <g class="sc-hat">
     <path d="M152 282Q153 254 180 252Q207 254 208 282Z" fill="#4a3828"/>
     <g fill="#6b5440"><rect x="146" y="274" width="68" height="14" rx="7"/><path d="M147 282h11v26q-5 5-11 0z"/><path d="M202 282h11v26q-6 5-11 0z"/></g>
@@ -594,7 +618,16 @@ function person(x, y, i) {
 function sobornist() {
   const rnd = seeded(2201);
   let stars = '', snow = '', drops = '', cracks = '', people = '', hands = '', windows = '', blocks = '', lamps = '', firs = '';
-  for (let j = 0; j < 34; j++) stars += `<circle cx="${(rnd() * 360).toFixed(0)}" cy="${(rnd() * 280).toFixed(0)}" r="${(0.5 + rnd() * 0.9).toFixed(1)}"/>`;
+  // зорі на все небо (і вище кадру — на високих екранах), частина мерехтить; Чумацький Шлях — густа смуга навскіс
+  for (let j = 0; j < 90; j++) {
+    const big = j % 9 === 0;
+    stars += `<circle${big ? ' class="sc-tw"' : ''} cx="${(-30 + rnd() * 420).toFixed(0)}" cy="${(-150 + rnd() * 545).toFixed(0)}" `
+      + `r="${(big ? 1.3 + rnd() * 0.6 : 0.4 + rnd() * 0.8).toFixed(1)}"${big ? ` style="animation-delay:-${(rnd() * 1.6).toFixed(2)}s"` : ''}/>`;
+  }
+  for (let j = 0; j < 110; j++) {
+    const t = rnd(), off = (rnd() + rnd() + rnd() - 1.5) * 26;
+    stars += `<circle cx="${(-30 + t * 420 + off * 0.5).toFixed(1)}" cy="${(-60 + t * 330 - off).toFixed(1)}" r="${(0.3 + rnd() * 0.5).toFixed(1)}" opacity="${(0.4 + rnd() * 0.5).toFixed(2)}"/>`;
+  }
   for (let j = 0; j < 22; j++) {
     snow += `<circle cx="${(rnd() * 360).toFixed(0)}" cy="-10" r="${(1 + rnd() * 1.4).toFixed(1)}" `
       + `style="animation-duration:${(5 + rnd() * 4).toFixed(1)}s;animation-delay:-${(rnd() * 8).toFixed(1)}s"/>`;
@@ -641,7 +674,9 @@ function sobornist() {
       hands += `<path d="M${x.toFixed(1)} ${(y - 10).toFixed(1)}L${nx.toFixed(1)} ${(ny - 10).toFixed(1)}" style="animation-delay:${(+go + 0.08).toFixed(2)}s"/>`;
     }
   }
-  const half = (side) => `<g clip-path="url(#sc-half-${side})"><path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="5"/></g>`;
+  // половина герба — з половиною тризуба: зійдуться — тризуб складеться цілим
+  const half = (side) => `<g clip-path="url(#sc-half-${side})"><path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="5"/>`
+    + `<g fill="#ffd500"><path d="${COA_MID}"/><path d="${COA_SIDE}"/><path d="${COA_SIDE}" transform="scale(-1 1)"/></g></g>`;
   const bridge = `M${BRIDGE[0][0]} ${BRIDGE[0][1]}Q${BRIDGE[1][0]} ${BRIDGE[1][1]} ${BRIDGE[2][0]} ${BRIDGE[2][1]}`;
   return `
 <svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -649,6 +684,7 @@ function sobornist() {
     <linearGradient id="sc-sob-night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070f26"/><stop offset=".55" stop-color="#1b2a52"/><stop offset="1" stop-color="#4d4a72"/></linearGradient>
     <linearGradient id="sc-sob-dawn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d5fa8"/><stop offset=".6" stop-color="#8fb0d0"/><stop offset=".9" stop-color="#ffc98a"/><stop offset="1" stop-color="#ffb070"/></linearGradient>
     <linearGradient id="sc-sob-ice" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f8db0"/><stop offset="1" stop-color="#a9c1da"/></linearGradient>
+    <radialGradient id="sc-sob-milky"><stop offset="0" stop-color="#b8c6f0" stop-opacity=".16"/><stop offset="1" stop-color="#b8c6f0" stop-opacity="0"/></radialGradient>
     <radialGradient id="sc-sob-moon"><stop offset=".3" stop-color="#fffbe8"/><stop offset=".45" stop-color="#e8eefc" stop-opacity=".35"/><stop offset="1" stop-color="#e8eefc" stop-opacity="0"/></radialGradient>
     <clipPath id="sc-half-l"><rect x="-90" y="-10" width="90" height="250"/></clipPath>
     <clipPath id="sc-half-r"><rect x="0" y="-10" width="90" height="250"/></clipPath>
@@ -656,7 +692,10 @@ function sobornist() {
   </defs>
   <rect x="-400" y="-400" width="1160" height="830" fill="url(#sc-sob-night)"/>
   <rect class="sc-dawn" x="-400" y="-400" width="1160" height="830" fill="url(#sc-sob-dawn)"/>
-  <g class="sc-stars" fill="#d6def0">${stars}</g>
+  <g class="sc-stars" fill="#d6def0">
+    <ellipse cx="180" cy="105" rx="270" ry="34" transform="rotate(38 180 105)" fill="url(#sc-sob-milky)"/>
+    ${stars}
+  </g>
   <circle class="sc-moon" cx="300" cy="84" r="44" fill="url(#sc-sob-moon)"/>
   <rect x="-400" y="404" width="1160" height="110" fill="url(#sc-sob-ice)"/>
   <path class="sc-moonpath" d="M282 410h36M276 424h48M286 440h30M280 458h40" stroke="#e8eefc" stroke-width="2.5" stroke-linecap="round" opacity=".35"/>
@@ -699,9 +738,9 @@ function sobornist() {
   <path d="M-400 514Q-100 500 60 512T360 508T760 512" fill="none" stroke="#dfe8f2" stroke-width="2" opacity=".45"/>
   <path d="M14 520l-4-26M22 520l2-30M30 520l-6-20M330 516l4-24M340 516l-2-30M348 516l6-18" stroke="#2c3550" stroke-width="2" stroke-linecap="round"/>
   <g class="sc-grow" style="transform-origin:180px 224px"><g transform="translate(180 190)">
-    <g class="sc-half" style="--fx:-116px;--fy:-12px"><g transform="scale(.3)">${half('l')}</g></g>
-    <g class="sc-half" style="--fx:120px;--fy:58px"><g transform="scale(.3)">${half('r')}</g></g>
-    <g class="sc-whole" transform="scale(.3)">
+    <g class="sc-half" style="--fx:-108px;--fy:-40px"><g transform="scale(.42)">${half('l')}</g></g>
+    <g class="sc-half" style="--fx:108px;--fy:-40px"><g transform="scale(.42)">${half('r')}</g></g>
+    <g class="sc-whole" transform="scale(.42)">
       <path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="5"/>
       <g fill="#ffd500"><path d="${COA_MID}"/><path d="${COA_SIDE}"/><path d="${COA_SIDE}" transform="scale(-1 1)"/></g>
     </g>
@@ -770,18 +809,9 @@ function birthday(p = {}) {
 </svg>`;
 }
 
-// ── Риг людини: поза задається точками кистей і стоп, лікті й коліна — дволанкова IK; ріст 100, стопи в (0, 0) ──
+// ── Помічники малювання: числа з одним знаком, точка, кінцівка-трапеція (гілки дерева на Геловін) ──
 const f1 = (n) => n.toFixed(1);
 const pt = (p) => `${f1(p[0])} ${f1(p[1])}`;
-const rotP = ([x, y], [cx, cy], deg) => {
-  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
-  return [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c];
-};
-const toward = (a, b, l) => {
-  const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-  return [a[0] + ((b[0] - a[0]) * l) / d, a[1] + ((b[1] - a[1]) * l) / d];
-};
-const seg = (a, b, w, col) => `<path d="M${pt(a)}L${pt(b)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
 /** Кінцівка, що звужується від w1 до w2: обрис трапецією з півколами на кінцях. */
 function limb(a, b, w1, w2, col) {
   const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L, r1 = w1 / 2, r2 = w2 / 2;
@@ -789,296 +819,143 @@ function limb(a, b, w1, w2, col) {
   return `<path d="M${pt(p1)}L${pt(p2)}A${f1(r2)} ${f1(r2)} 0 0 0 ${pt(p3)}L${pt(p4)}A${f1(r1)} ${f1(r1)} 0 0 0 ${pt(p1)}Z" fill="${col}"/>`;
 }
 
-/** Суглоб між a і ціллю b для ланок l1, l2; bend +1 — згин ліворуч від напрямку a→b (для руки, що звисає, — назовні вліво). */
-function ik(a, b, l1, l2, bend) {
-  const d = Math.min(Math.hypot(b[0] - a[0], b[1] - a[1]), l1 + l2 - 0.01);
-  const c = (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d);
-  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) + bend * Math.acos(Math.max(-1, Math.min(1, c)));
-  return [a[0] + l1 * Math.cos(ang), a[1] + l1 * Math.sin(ang)];
+// 1.10 День захисників і захисниць: тепла кімната ввечері — батарея, чай, кіт на підвіконні, гірлянда; шибка запітніла.
+// На шибці сам собою малюється пальцем сердечко — крізь нього видно холодне поле, окоп і вартового з парою з рота.
+// Камера наближається до сердечка: нам тепло вдома — бо вони на варті
+const HEART = 'M180 330C120 288 100 250 112 222C124 194 164 194 180 224C196 194 236 194 248 222C260 250 240 288 180 330Z';
+const GLASS = [58, 110, 244, 312]; // x, y, ширина, висота скла
+
+/** Штора з складками: від карниза (x, top) донизу до y, ширина w; side −1 — ліва (край зі збором праворуч). */
+function curtain(x, w, top, y, side) {
+  const edge = side < 0 ? x + w : x, out = side < 0 ? x : x + w;
+  let folds = '';
+  for (let i = 1; i < 4; i++) {
+    const fx = x + (w * i) / 4;
+    folds += `M${f1(fx)} ${top + 4}Q${f1(fx + side * 3)} ${f1((top + y) / 2)} ${f1(fx - side * 2)} ${y}`;
+  }
+  return `<path d="M${out} ${top}H${edge}Q${f1(edge + side * 10)} ${f1(top + (y - top) * 0.45)} ${f1(edge - side * 6)} ${f1(top + (y - top) * 0.62)}`
+    + `Q${f1(edge + side * 4)} ${f1(top + (y - top) * 0.8)} ${f1(edge + side * 8)} ${y}H${out}Z" fill="#7a2c27"/>`
+    + `<path d="${folds}" stroke="#5a1d1a" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8"/>`
+    + `<path d="M${f1(edge - side * 2)} ${f1(top + (y - top) * 0.6)}q${side * -8} 4 ${side * -16} 2" stroke="#c9963c" stroke-width="3" fill="none" stroke-linecap="round"/>`;
 }
 
-/** Шолом навколо центру голови: high-cut з навушниками й кріпленням ПНБ (наші) або повний (o.full); o.back — вигляд ззаду. */
-function helmet(c, o = {}) {
-  if (o.full) {
-    return `<path d="M-8.7 3.2C-9.8-8.8-4.9-11 0-11C4.9-11 9.8-8.8 8.7 3.2L6.9 3.6L6.5-1.8H-6.5L-6.9 3.6Z" fill="${c.helm}"/>${o.mark ?? ''}`;
+function defendersHome() {
+  const rnd = seeded(1001);
+  const [gx, gy, gw, gh] = GLASS;
+  let stars = '', snow = '', bulbs = '', breath = '', drops = '', frost = '';
+  for (let j = 0; j < 26; j++) stars += `<circle cx="${f1(gx + rnd() * gw)}" cy="${f1(gy + rnd() * 170)}" r="${f1(0.4 + rnd() * 0.7)}"/>`;
+  // сніг надворі — лише за шибкою
+  for (let j = 0; j < 22; j++) {
+    snow += `<circle cx="${f1(gx + rnd() * gw)}" cy="${gy - 10}" r="${f1(0.8 + rnd() * 1.2)}" `
+      + `style="animation-duration:${(5 + rnd() * 4).toFixed(1)}s;animation-delay:-${(rnd() * 8).toFixed(1)}s"/>`;
   }
-  const dome = o.back
-    ? `<path d="M-7.9 1.6C-8.6-8.4-4.7-10.7 0-10.7C4.7-10.7 8.6-8.4 7.9 1.6Z" fill="${c.helm}"/>`
-      + `<rect x="-3.6" y="-6.4" width="7.2" height="4.6" rx="1" fill="${c.gear}"/><rect x="-2.6" y="-9.6" width="5.2" height="2.4" rx=".6" fill="${c.patch ?? c.gear}"/>`
-    : `<path d="M-7.9-.4C-8.5-8.5-4.7-10.7 0-10.7C4.7-10.7 8.5-8.5 7.9-.4L6.6 0L6.2-2.3H-6.2L-6.6 0Z" fill="${c.helm}"/>`;
-  return `${dome}<rect x="-9.5" y="-2.8" width="3.7" height="6.6" rx="1.7" fill="${c.gear}"/><rect x="5.8" y="-2.8" width="3.7" height="6.6" rx="1.7" fill="${c.gear}"/>`
-    + `<rect x="-2.6" y="-12.4" width="5.2" height="2.9" rx=".8" fill="${c.gear}"/>`;
-}
-
-/**
- * Людина з пози p: feet — стопи, arms — [{side 0|1, hand, el?, bend?, cls?, thumb?, point?}], lean/tilt — нахил тулуба/голови,
- * drop — присід, f — жіноча статура, back — вигляд ззаду, c — кольори (за замовчуванням силует DEF_INK).
- * Повертає { svg, j } — j із суглобами, щоб домалювати спорядження.
- */
-function figure(p) {
-  const f = !!p.f;
-  const c = { cloth: DEF_INK, skin: DEF_INK, helm: DEF_INK, gear: DEF_INK, glove: DEF_INK, hair: DEF_INK, boot: DEF_INK, ...p.c };
-  const drop = p.drop ?? 0, lean = p.lean ?? 0, pelvis = [0, -50 + drop];
-  const U = (x, y) => rotP([x, y + drop], pelvis, lean);
-  const sw = f ? 9.6 : 11.6, ww = f ? 6.4 : 8, hw = f ? 8.8 : 9.4;
-  const sh = [U(-sw + 2.2, -78.6), U(sw - 2.2, -78.6)];
-  const neck = U(0, -84);
-  const head = rotP(U(0, -91), neck, p.tilt ?? 0);
-  const j = { sh, head, U, hrot: lean + (p.tilt ?? 0) };
-  const quad = (x, y, w, h, fill) => `<path d="M${pt(U(x, y))}L${pt(U(x + w, y))}L${pt(U(x + w, y + h))}L${pt(U(x, y + h))}Z" fill="${fill}"/>`;
-  let legs = '';
-  if (!p.noLegs) {
-    const feet = p.feet ?? [[-7, -2.5], [7, -2.5]], kb = p.kb ?? [1, -1];
-    [-1, 1].forEach((s, i) => {
-      const hip = [s * (f ? 4.6 : 5), -48 + drop];
-      const k = ik(hip, feet[i], 24, 23, kb[i]), a = toward(k, feet[i], 23);
-      legs += limb(hip, k, f ? 10.4 : 11.4, f ? 7 : 7.8, c.cloth) + limb(k, a, f ? 7 : 7.8, f ? 5 : 5.6, c.cloth)
-        + `<circle cx="${f1(k[0])}" cy="${f1(k[1])}" r="${f ? 3.5 : 4.1}" fill="${c.gear}"/>`
-        + `<path d="M${pt([a[0] - 3.4, a[1] - 1.2])}h6.8l${f1(0.6 + s * 1.4)} 4.4h-9.6z" fill="${c.boot}"/>`;
-    });
+  // гірлянда під карнизом: три провиси, лампочки мерехтять
+  const BULB = ['#ffd56b', '#ff8a5c', '#ffb347', '#ff9ad0', '#fff1c4'];
+  const sag = (t) => 104 + Math.abs(Math.sin(t * Math.PI * 3)) * 12;
+  let wire = 'M58 104';
+  for (let i = 1; i <= 30; i++) wire += `L${f1(58 + (244 * i) / 30)} ${f1(sag(i / 30))}`;
+  for (let i = 1; i < 18; i++) {
+    const t = i / 18;
+    bulbs += `<circle cx="${f1(58 + 244 * t)}" cy="${f1(sag(t) + 3)}" r="2.6" fill="${BULB[i % 5]}" style="animation-delay:-${((i * 0.41) % 1.6).toFixed(2)}s"/>`;
   }
-  const torso = `<path d="M${pt(U(-sw, -75.5))}Q${pt(U(-sw + 0.3, -81))} ${pt(U(-sw + 5, -81.6))}L${pt(U(sw - 5, -81.6))}`
-    + `Q${pt(U(sw - 0.3, -81))} ${pt(U(sw, -75.5))}L${pt(U(ww, -58))}L${pt(U(hw, -45))}L${pt(U(-hw, -45))}L${pt(U(-ww, -58))}Z" fill="${c.cloth}"/>`;
-  const plate = p.noPlate ? '' : quad(-sw + 1.4, -79.8, 2 * sw - 2.8, 21, c.gear)
-    + quad(-sw - 0.8, -68, 2.6, 7, c.gear) + quad(sw - 1.8, -68, 2.6, 7, c.gear) + quad(-ww - 0.6, -58.6, 2 * ww + 1.2, 3.4, c.gear)
-    + (p.back && c.molle ? [-76, -72, -68, -64].map((y) => `<path d="M${pt(U(-sw + 3.4, y))}L${pt(U(sw - 3.4, y))}" stroke="${c.molle}" stroke-width="1.1"/>`).join('') : '');
-  const arms = (p.arms ?? []).map((a) => {
-    const s0 = sh[a.side], e = a.el ?? ik(s0, a.hand, 17, 15, a.bend ?? (a.side ? -1 : 1));
-    const h = a.el ? a.hand : toward(e, a.hand, 15);
-    const lw = p.lw ?? 1;
-    let s = limb(s0, e, (f ? 7 : 8) * lw, (f ? 5.6 : 6.2) * lw, c.cloth) + limb(e, h, (f ? 5.6 : 6.2) * lw, (f ? 4.2 : 4.6) * lw, c.cloth) + (a.noHand ? '' : `<circle cx="${f1(h[0])}" cy="${f1(h[1])}" r="${f ? 2.6 : 3}" fill="${c.glove}"/>`);
-    if (a.point) s += seg(h, toward(h, a.point, 4.6), 2, c.glove);
-    // середній палець: кулак тильним боком до нас, палець угору
-    if (a.fuck) {
-      s += `<g transform="translate(${pt(h)})"><rect x="-3.6" y="-1.4" width="7.2" height="6.4" rx="2.4" fill="${c.glove}"/>`
-        + '<circle cx="-2.7" cy="-1.5" r="1.15"/><circle cx="-1.6" cy="-1.9" r="1.1"/><circle cx="1.6" cy="-1.9" r="1.1"/><circle cx="2.7" cy="-1.5" r="1.1"/>'.replace(/\/>/g, ` fill="${c.glove}"/>`)
-        + `<rect x="-1.1" y="-10.4" width="2.2" height="10" rx="1.1" fill="${c.glove}"/><path d="M-3.2 1.4h6.4M-3.2 3.2h6.4" stroke="#000" stroke-opacity=".3" stroke-width=".5"/></g>`;
-    }
-    if (a.thumb) s += seg([h[0] + 0.8, h[1] - 1.4], [h[0] + 1.1, h[1] - 5.4], 2, c.glove);
-    if (p.patch && !a.noPatch) {
-      const m = toward(s0, e, 4.4), deg = (Math.atan2(e[1] - s0[1], e[0] - s0[0]) * 180) / Math.PI - 90;
-      s += `<g transform="translate(${pt(m)}) rotate(${f1(deg)})"><rect x="-2.3" y="-1.6" width="4.6" height="1.6" fill="#2f6fd0"/><rect x="-2.3" y="0" width="4.6" height="1.6" fill="#ffd500"/></g>`;
-    }
-    return a.cls ? `<g class="${a.cls}">${s}</g>` : s;
-  }).join('');
-  // коса: спереду — через плече назовні, ззаду — по спині
-  let braid = '';
-  if (p.braid) {
-    const from = p.braid === 'back' ? rotP([head[0], head[1] + 5], head, j.hrot) : rotP([head[0] + p.braid * 5.4, head[1] + 2.6], head, j.hrot);
-    const to = p.braid === 'back' ? U(0.5, -61) : U(p.braid * (sw + 2.4), -64);
-    const mid = p.braid === 'back' ? U(-1.5, -72) : U(p.braid * (sw + 3), -78);
-    for (let k = 0; k <= 7; k++) {
-      const t = k / 7, q = [(1 - t) ** 2 * from[0] + 2 * t * (1 - t) * mid[0] + t * t * to[0], (1 - t) ** 2 * from[1] + 2 * t * (1 - t) * mid[1] + t * t * to[1]];
-      braid += `<ellipse cx="${f1(q[0])}" cy="${f1(q[1])}" rx="${f1(2.5 - t * 0.6)}" ry="${f1(1.9 - t * 0.4)}" transform="rotate(${k % 2 ? 28 : -28} ${pt(q)})" `
-        + `fill="${c.hair}"${c.hairLine ? ` stroke="${c.hairLine}" stroke-width=".5"` : ''}/>`;
-    }
-    if (c.tie) braid += `<rect x="${f1(to[0] - 1.6)}" y="${f1(to[1] + 1.2)}" width="3.2" height="1.3" fill="#2f6fd0"/><rect x="${f1(to[0] - 1.6)}" y="${f1(to[1] + 2.5)}" width="3.2" height="1.3" fill="#ffd500"/>`;
+  // пара з рота вартового — клубочки здіймаються й тануть
+  for (let j = 0; j < 3; j++) breath += `<circle cx="174.5" cy="283" r="${2 + j * 0.6}" style="animation-delay:${(3 + j * 0.7).toFixed(1)}s"/>`;
+  // краплі стікають з нижніх країв сердечка
+  for (const [x, y, l] of [[134, 296, 14], [222, 296, 11], [181, 336, 18]]) {
+    drops += `<path pathLength="1" d="M${x} ${y}q1 ${l / 2} 0 ${l}"/><circle cx="${x}" cy="${y + l}" r="1.8" class="sc-dropend"/>`;
   }
-  const face = p.back || !c.eyes ? '' : `<circle cx="-2.3" cy=".6" r=".8" fill="${c.eyes}"/><circle cx="2.3" cy=".6" r=".8" fill="${c.eyes}"/>`;
-  const headSvg = seg(U(0, -80), neck, 5.6, c.skin)
-    + `<g transform="translate(${pt(head)}) rotate(${f1(j.hrot)})"><circle r="6.3" fill="${c.skin}"/>${face}${p.noHelmet ? '' : helmet(c, { back: p.back, full: p.fullHelmet, mark: p.mark })}${p.helmExtra ?? ''}</g>`;
-  const headG = p.headCls ? `<g class="${p.headCls}">${headSvg}</g>` : headSvg;
-  const body = p.back
-    ? legs + arms + torso + plate + (p.braid === 'back' ? headG + braid : headG)
-    : legs + torso + plate + headG + braid + arms;
-  return { svg: (p.behind?.(j) ?? '') + body + (p.gear?.(j) ?? ''), j };
-}
-
-/** Автомат: rear — кисть на пістолетній рукоятці, front — на цівці; o.scope — приціл, o.len — ствол. */
-function gun(rear, front, col, o = {}) {
-  const L = Math.hypot(front[0] - rear[0], front[1] - rear[1]);
-  const ux = (front[0] - rear[0]) / L, uy = (front[1] - rear[1]) / L;
-  const [nx, ny] = ux >= 0 ? [uy, -ux] : [-uy, ux]; // нормаль догори
-  const at = (t, n = 0) => [rear[0] + ux * t + nx * n, rear[1] + uy * t + ny * n];
-  const bl = o.len ?? 11;
-  return seg(at(-13, -1), at(-2, 0.6), 4.4, col) + seg(at(-2, 0.6), at(L + 4, 0.6), 3.4, col) + seg(at(L + 4, 0.6), at(L + 4 + bl, 0.6), 1.6, col)
-    + seg(at(L + 3 + bl, 0.6), at(L + 5.5 + bl, 0.6), 2.6, col) + seg(at(3, -1), at(6, -7.6), 3, col)
-    + (o.scope ? seg(at(-1, 3.6), at(6.5, 3.6), 3.4, col) + seg(at(2, 1.6), at(2, 3), 1.2, col) : seg(at(1, 2.4), at(5, 2.4), 1.8, col));
-}
-
-// 1.10 День захисників і захисниць: передсвітанковий окоп — снайпер і корректувальниця з косою працюють у парі,
-// постріл по окупанту з Z на касці; камера відʼїжджає — на гребені на тлі сходу сонця постають захисники й захисниці
-const DEF_FOE = [222, 346]; // голова окупанта за кущем
-const DEF_INK = '#151a22';
-
-/** Захисники силуетами на гребені: 2 + прапороносець + 2, кожен у своїй позі. */
-function defenders() {
-  // природні пози: опорна нога пряма (кісточка на 47 від стегна), друга розслаблена коліном досередини, стопи на ширині стегон
-  const crew = [
-    // піхотинець: автомат «напоготові» стволом донизу через стегно
-    [36, 482, 1.06, 4.6, {
-      feet: [[-9, -1], [8, -1.8]], kb: [1, 1], lean: -1.5, patch: true,
-      arms: [{ side: 0, hand: [-8, -54], bend: 1 }, { side: 1, hand: [7, -62], bend: -1 }],
-      gear: () => gun([7, -62], [-8, -54], DEF_INK, { scope: true, len: 14 }),
-    }],
-    // медикиня: рюкзак, коса через плече, рука на лямці, сумка з хрестом
-    [102, 478, 1.02, 5, {
-      f: true, feet: [[-7.5, -1.8], [8, -1]], kb: [-1, -1], lean: -2, braid: -1, patch: true,
-      arms: [{ side: 0, hand: [-5, -73], bend: 1, noPatch: true }, { side: 1, hand: [13, -50], bend: -1 }],
-      behind: (j) => `<path d="M${pt(j.U(-9, -89))}h18v28h-18z" fill="${DEF_INK}"/>`,
-      gear: () => '<path d="M11.5 -50.5v3"/><rect x="8" y="-48" width="13" height="10.5" rx="2.2"/><path d="M14.5 -46v6.4M11.3 -42.8h6.4" stroke="#e8463a" stroke-width="2.2"/>',
-    }],
-    // прапороносець: древко біля правого боку, рука на рівні плеча, друга вільно
-    [180, 474, 1.16, 5.5, {
-      feet: [[-9, -1], [9, -1.6]], kb: [1, 1], patch: true,
-      arms: [{ side: 0, hand: [-12, -50], bend: 1 }, { side: 1, hand: [14, -88], bend: 1, noPatch: true }],
-      behind: () => seg([14, 2], [14, -172], 2.6, DEF_INK),
-      gear: () => '<g class="sc-unfurl"><g class="sc-wave"><path d="M14-172q15-5 31 0t31 0v20q-15-5-31 0t-31 0z" fill="#005bbb"/>'
-        + '<path d="M14-152q15-5 31 0t31 0v20q-15-5-31 0t-31 0z" fill="#ffd500"/></g></g>',
-    }],
-    // оператор дрона: зігнутою рукою підкидає квадрокоптер, пульт у другій руці
-    [258, 478, 1.04, 5.2, {
-      feet: [[-8.5, -1.8], [8.5, -1]], kb: [-1, -1], lean: 2, patch: true,
-      arms: [{ side: 0, hand: [-16, -56], bend: 1 }, { side: 1, hand: [17, -106], bend: 1 }],
-      gear: () => `<rect x="-26" y="-61" width="10" height="7" rx="1.8"/>${seg([-25, -61], [-27, -69], 1.2, DEF_INK)}${seg([-17, -61], [-15, -69], 1.2, DEF_INK)}`
-        + `<g class="sc-drone"><g transform="translate(18 -114)">${seg([-11, 0], [11, 0], 1.8, DEF_INK)}<ellipse rx="4.6" ry="2.6"/>`
-        + '<ellipse cx="-11" cy="-2.4" rx="6.4" ry="1.2"/><ellipse cx="11" cy="-2.4" rx="6.4" ry="1.2"/><path d="M-3 2.4l-1.6 3M3 2.4l1.6 3" stroke="#151a22" stroke-width="1"/>'
-        + '<circle cx="-11" cy=".4" r="1.1" fill="#ff3b30"/><circle cx="11" cy=".4" r="1.1" fill="#34c759"/></g></g>',
-    }],
-    // мінометник: крок до міномета, двома руками тримає міну над стволом — хвостовиком донизу
-    [330, 482, 1.06, 4.8, {
-      feet: [[-12, -1], [8, -1.6]], kb: [1, 1], lean: -12, patch: true,
-      arms: [{ side: 0, hand: [-35, -74], bend: -1 }, { side: 1, hand: [-28, -76], bend: 1, noPatch: true }],
-      behind: () => '<path d="M-31 .5h18v-3.4h-18z"/>' + limb([-22, -1], [-31, -60], 8, 6.4, DEF_INK) + seg([-30.6, -58.5], [-31.4, -62.5], 9.4, DEF_INK)
-        + seg([-27, -33], [-15, 0], 2.2, DEF_INK) + seg([-27, -33], [-39, 0], 2.2, DEF_INK) + seg([-20, -14], [-35, -14], 1.4, DEF_INK),
-      gear: () => '<path d="M-31.5-84q3.7 2.4 3.7 7.8v5h-7.4v-5q0-5.4 3.7-7.8z"/><path d="M-32.5-71.2h2v5h-2z"/><path d="M-34.5-66.2h6l-1.2-3h-3.6z"/>',
-    }],
-  ];
-  return crew.map(([x, y, s, go, pose]) => `<g transform="translate(${x} ${y}) scale(${s})"><g class="sc-def" style="animation-delay:${go}s">${figure(pose).svg}</g></g>`).join('');
-}
-
-/** Пара в окопі зі спини, кольором: снайпер у маскхалаті (голова до приклада) і корректувальниця з біноклем і косою. */
-function trenchPair(rnd) {
-  const UA = { cloth: 'url(#sc-mc)', skin: '#3d4832', helm: 'url(#sc-mc)', gear: '#5b5440', glove: '#2c2e24', molle: '#48422f', patch: '#7d8b62' };
-  // гвинтівка снайпера: від щоки до цілі, лежить на бруствері
-  const cheek = [150, 590], dir = toward(cheek, [DEF_FOE[0], DEF_FOE[1]], 1), along = (t, n = 0) => [cheek[0] + (dir[0] - cheek[0]) * t - (dir[1] - cheek[1]) * n, cheek[1] + (dir[1] - cheek[1]) * t + (dir[0] - cheek[0]) * n];
-  const rifle = limb(along(0), along(40), 9, 4.4, '#1d1f1a') + limb(along(40), along(54), 2.6, 2, '#1d1f1a') + seg(along(53), along(57), 3.4, '#1d1f1a')
-    + seg(along(36), [along(36)[0] - 8, along(36)[1] + 12], 2, '#1d1f1a') + seg(along(36), [along(36)[0] + 6, along(36)[1] + 12], 2, '#1d1f1a')
-    + limb(along(4, 8), along(26, 7), 11, 7, '#121410') + seg(along(10, 3), along(10, 6), 3.4, '#121410') + seg(along(20, 3), along(20, 6), 3.4, '#121410')
-    + `<circle cx="${f1(along(4, 8)[0])}" cy="${f1(along(4, 8)[1])}" r="4.4" fill="#2a3a4a" stroke="#0d0e0b" stroke-width="1.6"/>`
-    + `<circle cx="${f1(along(4, 8)[0] - 1.2)}" cy="${f1(along(4, 8)[1] - 1.2)}" r="1.2" fill="#8fb4d6" opacity=".6"/>`;
-  // маскхалат-накидка: плечі з рваним краєм, жмути джуту на шоломі
-  const GH = ['#66704b', '#3b4530', '#7a7552', '#4a5638'];
-  const cape = (j) => {
-    let d = `M${pt(j.U(-19, -63))}Q${pt(j.U(-19.5, -82))} ${pt(j.U(-8, -84.5))}L${pt(j.U(8, -84.5))}Q${pt(j.U(19.5, -82))} ${pt(j.U(19, -63))}`;
-    for (let x = 19; x > -19; x -= 1.4) d += `L${pt(j.U(x - 0.7, -63 + 2.5 + rnd() * 3.5))}L${pt(j.U(x - 1.4, -63 - rnd()))}`;
-    let tufts = '';
-    for (let k = 0; k < 110; k++) {
-      const x = -18.5 + rnd() * 37, y = -83 + ((x / 18.5) ** 2) * 11 + rnd() * 17, w = 0.6 + rnd() * 0.8;
-      tufts += `<path d="M${pt(j.U(x - w, y))}L${pt(j.U(x + w, y))}L${pt(j.U(x + (rnd() - 0.5) * 2, y + 2.4 + rnd() * 2.8))}Z" fill="${GH[k % 4]}"/>`;
-    }
-    return `<path d="${d}Z" fill="#4f5b3c"/>${tufts}`;
-  };
-  let helmTufts = '';
-  for (let k = 0; k < 16; k++) {
-    const a = Math.PI * (1.05 + rnd() * 0.9), r = 4 + rnd() * 5.6, x = Math.cos(a) * r, y = Math.sin(a) * r * 1.05 - 1.5, w = 0.9 + rnd() * 0.8;
-    helmTufts += `<path d="M${f1(x - w)} ${f1(y)}h${f1(2 * w)}l${f1(-w + (rnd() - 0.5))} ${f1(1.8 + rnd() * 1.6)}z" fill="${GH[k % 4]}"/>`;
-  }
-  const sniper = figure({
-    back: true, noLegs: true, tilt: 10, lean: 3, lw: 0.85, c: UA, helmExtra: helmTufts,
-    arms: [{ side: 0, el: [-21, -64], hand: [-10, -77] }, { side: 1, el: [23, -83], hand: [18, -86], noPatch: true, noHand: true }],
-    headCls: 'sc-nod', gear: cape,
-  });
-  const spotter = figure({
-    back: true, noLegs: true, f: true, braid: 'back', lw: 0.85, c: { ...UA, hair: '#a87a42', hairLine: '#7a5530', tie: true },
-    patch: true,
-    arms: [{ side: 0, el: [-20, -87], hand: [-7.5, -93] }, { side: 1, el: [20, -87], hand: [7.5, -93], cls: 'sc-bino' },
-      { side: 1, el: [22, -94], hand: [16, -112], cls: 'sc-middle', fuck: true, noPatch: true },
-      { side: 1, el: [22, -90], hand: [19, -106], cls: 'sc-thumb', thumb: true, noPatch: true }],
-    behind: () => '<g class="sc-bino"><rect x="-11.6" y="-96" width="4.6" height="6.4" rx="1.4" fill="#1d2019"/><rect x="7" y="-96" width="4.6" height="6.4" rx="1.4" fill="#1d2019"/></g>',
-  });
-  return `${rifle}
-    <g class="sc-sniper"><g transform="translate(112 864) scale(3.2)">${sniper.svg}</g></g>
-    <g class="sc-spotter"><g transform="translate(278 866) scale(3)">${spotter.svg}</g></g>`;
-}
-
-function defendersDay() {
-  const rnd = seeded(110);
-  let stars = '', trees = '', fog = '', bags = '';
-  for (let j = 0; j < 22; j++) stars += `<circle cx="${(rnd() * 360).toFixed(0)}" cy="${(rnd() * 240).toFixed(0)}" r="${(0.5 + rnd() * 0.8).toFixed(1)}"/>`;
-  // лісосмуга: дальній туманний обрис + ближній ряд тополь і крон зі стовбурами; на світанку верхівки підсвічує сонце
-  const tr = seeded(1101), TREE = ['#5d5a2a', '#6b5426', '#4f5528', '#7a6428', '#56482a', '#8a6f2c'];
-  let far = 'M-40 338';
-  for (let x = -40; x <= 410; x += 7) far += `Q${x + 3.5} ${(312 - tr() * 12).toFixed(0)} ${x + 7} ${(318 - tr() * 6).toFixed(0)}`;
-  far += 'V342H-40Z';
-  for (let x = -30; x < 400; x += 13 + tr() * 12) {
-    const col = TREE[Math.floor(tr() * TREE.length)], base = 339;
-    trees += `<path d="M${f1(x)} ${base}v-${(9 + tr() * 4).toFixed(0)}" stroke="#2e2618" stroke-width="1.6"/>`;
-    if (tr() < 0.35) {
-      const h = 34 + tr() * 18, w = 5 + tr() * 2.5, cy = base - 8 - h / 2;
-      trees += `<ellipse cx="${f1(x)}" cy="${f1(cy)}" rx="${f1(w)}" ry="${f1(h / 2)}" fill="${col}"/>`;
-          } else {
-      const r = 8 + tr() * 6, top = base - 10 - r;
-      for (let k = 0; k < 4; k++) {
-        trees += `<circle cx="${f1(x + (k - 1.5) * r * 0.55)}" cy="${f1(top + (k % 2 ? -r * 0.35 : r * 0.15) + tr() * 3)}" r="${f1(r * (0.6 + tr() * 0.25))}" fill="${col}"/>`;
-      }
+  // мороз по нижніх кутках скла — гілочки
+  for (const [cx, dir] of [[gx, 1], [gx + gw, -1]]) {
+    for (let j = 0; j < 7; j++) {
+      // гілочка під кутом b від вертикалі, всередину скла; на ній два бокові відростки
+      const l = 26 + rnd() * 26, y0 = gy + gh, b = 0.25 + j * 0.2;
+      const tx = cx + dir * Math.sin(b) * l, ty = y0 - Math.cos(b) * l;
+      frost += `M${f1(cx)} ${y0}L${f1(tx)} ${f1(ty)}`
+        + `M${f1(cx + (tx - cx) * 0.5)} ${f1(y0 + (ty - y0) * 0.5)}l${f1(dir * 6)} -4`
+        + `M${f1(cx + (tx - cx) * 0.7)} ${f1(y0 + (ty - y0) * 0.7)}l${f1(-dir * 2)} -6`;
     }
   }
-  for (let j = 0; j < 7; j++) {
-    fog += `<ellipse cx="${(rnd() * 420 - 30).toFixed(0)}" cy="${(350 + rnd() * 24).toFixed(0)}" rx="${(60 + rnd() * 50).toFixed(0)}" ry="${(7 + rnd() * 6).toFixed(0)}" `
-      + `style="animation-duration:${(5 + rnd() * 4).toFixed(1)}s"/>`;
-  }
-  for (let r = 0; r < 4; r++) {
-    for (let x = -40 + (r % 2) * 31; x < 400; x += 62) {
-      bags += `<rect x="${x}" y="${552 + r * 24}" width="60" height="26" rx="12"/><path d="M${x + 9} ${565 + r * 24}h42"/>`;
-    }
-  }
-  // окупант визирає з-за куща: поясний план, каска з Z злітає окремо
-  const RU = { cloth: '#5d6140', skin: '#b89474', helm: '#4a5236', gear: '#41462f', glove: '#3a3d2c', eyes: '#2a1f18' };
-  const S = 1.9, base = [DEF_FOE[0], DEF_FOE[1] + 91 * S];
-  const foe = figure({ noLegs: true, noHelmet: true, c: RU, lean: -4,
-    arms: [{ side: 0, hand: [-14, -70], bend: 1 }, { side: 1, hand: [4, -62], bend: -1 }],
-    gear: () => gun([4, -62], [-14, -70], '#222', { len: 9 }) });
-  const zmark = '<path d="M-3.2-8.4h6.4l-6.4 5.6h6.4" fill="none" stroke="#f1f1f1" stroke-width="1.5" stroke-linejoin="round"/>';
-  const head = foe.j.head;
   return `
 <svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
   <defs>
-    <linearGradient id="sc-def-night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#081028"/><stop offset=".7" stop-color="#1f2c52"/><stop offset="1" stop-color="#4a4466"/></linearGradient>
-    <linearGradient id="sc-def-dawn" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="480"><stop offset="0" stop-color="#2d5fa8"/><stop offset=".55" stop-color="#8fb0d0"/><stop offset=".85" stop-color="#ffbf73"/><stop offset="1" stop-color="#ffd98a"/></linearGradient>
-    <radialGradient id="sc-def-sun"><stop offset=".3" stop-color="#fff3c4"/><stop offset=".45" stop-color="#ffd166" stop-opacity=".85"/><stop offset="1" stop-color="#ff9f40" stop-opacity="0"/></radialGradient>
-    <linearGradient id="sc-def-field" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b7963e"/><stop offset="1" stop-color="#6e5524"/></linearGradient>
-    <pattern id="sc-mc" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="#55583f"/>
-      <path d="M2 3q3-2 5 0t-1 4q-3 1-4-1z" fill="#6f6b4c"/><path d="M9 9q4-1 5 2t-3 3q-3-1-2-5z" fill="#3f4a32"/><path d="M11 1q2 0 3 2-1 2-3 1z" fill="#4b3f2e"/>
-      <path d="M1 11q2-1 3 1t-2 3q-2 0-1-4z" fill="#7a7456"/><path d="M6 12q1-1 2 0-1 1-2 0z" fill="#4b3f2e"/><path d="M12 5q2 0 2 2t-2 0z" fill="#7a7456"/></pattern>
-    <radialGradient id="sc-def-flare"><stop offset="0" stop-color="#fff6d0" stop-opacity=".9"/><stop offset=".25" stop-color="#ffe7a0" stop-opacity=".35"/><stop offset="1" stop-color="#ffe7a0" stop-opacity="0"/></radialGradient>
-    <clipPath id="sc-def-bush"><rect x="0" y="0" width="360" height="${DEF_FOE[1] + 46}"/></clipPath>
+    <linearGradient id="sc-dh-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1912"/><stop offset="1" stop-color="#3f271a"/></linearGradient>
+    <radialGradient id="sc-dh-lamp" cx="0" cy=".45" r=".9"><stop offset="0" stop-color="#ffb35c" stop-opacity=".34"/><stop offset="1" stop-color="#ffb35c" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sc-dh-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#081124"/><stop offset=".7" stop-color="#1c2c52"/><stop offset="1" stop-color="#3a4d78"/></linearGradient>
+    <linearGradient id="sc-dh-field" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4a6e"/><stop offset="1" stop-color="#1a2440"/></linearGradient>
+    <radialGradient id="sc-dh-heat" cx=".5" cy="1" r=".8"><stop offset="0" stop-color="#ff9a4a" stop-opacity=".3"/><stop offset="1" stop-color="#ff9a4a" stop-opacity="0"/></radialGradient>
+    <clipPath id="sc-dh-glass"><rect x="${gx}" y="${gy}" width="${gw}" height="${gh}"/></clipPath>
+    <mask id="sc-dh-mist" maskUnits="userSpaceOnUse" x="${gx}" y="${gy}" width="${gw}" height="${gh}">
+      <rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="#fff"/>
+      <path class="sc-hfill" d="${HEART}" fill="#000"/>
+      <path class="sc-hline" pathLength="1" d="${HEART}" fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
   </defs>
-  <rect x="-400" y="-400" width="1160" height="1040" fill="url(#sc-def-night)"/>
-  <rect class="sc-dawn" x="-400" y="-400" width="1160" height="1040" fill="url(#sc-def-dawn)"/>
-  <g class="sc-stars" fill="#d6def0">${stars}</g>
-  <g class="sc-flare"><circle r="70" fill="url(#sc-def-flare)"/><path d="M0-4q-4-16 2-34t-2-30" fill="none" stroke="#aab2c6" stroke-width="1.6" opacity=".3"/><circle class="sc-flare-core" r="2.8" fill="#fffbe8"/></g>
-  <rect x="-400" y="334" width="1160" height="400" fill="url(#sc-def-field)"/>
-  <path d="${far}" fill="#4d5444" opacity=".85"/>
-  <g>${trees}</g>
-  <rect x="-400" y="330" width="1160" height="10" fill="#3a3420" opacity=".55"/>
-  <rect class="sc-night" x="-400" y="300" width="1160" height="400" fill="#0a0f1c" style="--o:.55"/>
-  <circle class="sc-sun" cx="180" cy="452" r="130" fill="url(#sc-def-sun)"/>
-  <g class="sc-fog" fill="#dfe6f2" opacity=".3">${fog}</g>
-  <g class="sc-bushes">
-    <g clip-path="url(#sc-def-bush)"><g class="sc-foe"><g transform="translate(${pt(base)}) scale(${S})">${foe.svg}</g></g></g>
-    <g class="sc-bush" fill="#2f3a22"><circle cx="${DEF_FOE[0] - 24}" cy="${DEF_FOE[1] + 40}" r="15"/><circle cx="${DEF_FOE[0]}" cy="${DEF_FOE[1] + 34}" r="17"/>
-      <circle cx="${DEF_FOE[0] + 24}" cy="${DEF_FOE[1] + 40}" r="15"/><circle cx="${DEF_FOE[0] - 12}" cy="${DEF_FOE[1] + 50}" r="16"/><circle cx="${DEF_FOE[0] + 12}" cy="${DEF_FOE[1] + 50}" r="16"/></g>
+  <g class="sc-cam">
+  <rect x="-400" y="-400" width="1160" height="1440" fill="url(#sc-dh-wall)"/>
+  <g clip-path="url(#sc-dh-glass)">
+    <rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="url(#sc-dh-sky)"/>
+    <g fill="#cfd8ee">${stars}</g>
+    <path d="M268 138a9 9 0 1 0 8 13a7 7 0 1 1-8-13z" fill="#eef1ff"/>
+    <path d="M${gx} 300Q110 292 150 298T240 296T${gx + gw} 300V${gy + gh}H${gx}Z" fill="url(#sc-dh-field)"/>
+    <path d="M${gx} 300Q110 292 150 298T240 296T${gx + gw} 300" stroke="#5a6d96" stroke-width="1.2" fill="none"/>
+    <path d="M${gx} 298l6-9 5 9 4-7 5 7 6-11 5 11 5-6 4 6M${gx + gw} 297l-6-10-5 10-5-8-4 8-6-12-5 12" fill="#0c1428"/>
+    <g transform="translate(180 300) scale(1.75) translate(-180 -300)">
+    <g class="sc-sentry">
+      <path d="M186.5 297L193 270.5" stroke="#0b1122" stroke-width="1.5" stroke-linecap="round"/><path d="M192 274.5l2.6-1" stroke="#0b1122" stroke-width="1.2"/>
+      <path d="M169.5 300v-7.5q0-6.5 9.5-7q9.5.5 9.5 7v7.5z" fill="#0f172b"/>
+      <path d="M176.8 286.5v-3h4.4v3z" fill="#0f172b"/>
+      <circle cx="179" cy="280.4" r="3.9" fill="#0f172b"/>
+      <path d="M173.6 280.6a5.4 5.4 0 0 1 10.8 0l1.2.5v1h-13.2v-1z" fill="#1b2644"/>
+      <path d="M182 276.6a5.4 5.4 0 0 1 2.4 4M186.2 288q2 1.2 2.3 4.5" stroke="#7088b8" stroke-width=".7" fill="none" stroke-linecap="round"/>
+    </g>
+    <path d="M150 301q4-6 9 0q4-6 9 0q4-5 8 0M190 301q4-6 9 0q4-6 9 0q4-5 8 0" fill="#26314c"/>
+    <path d="M150 297.5q4-3 9 0q4-3 9 0q4-2.5 8 0M190 297.5q4-3 9 0q4-3 9 0q4-2.5 8 0" stroke="#dfe8f6" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M214 300V276" stroke="#2a2420" stroke-width="1"/>
+    <g class="sc-dflag"><path d="M214.5 276h10v3.4h-10z" fill="#2f6fd0"/><path d="M214.5 279.4h10v3.4h-10z" fill="#ffd500"/></g>
+    <g class="sc-breath" fill="#dfe8f6">${breath}</g>
+    </g>
+    <g class="sc-snow" fill="#e8eef8">${snow}</g>
+    <g mask="url(#sc-dh-mist)">
+      <rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" fill="#c3ccda" opacity=".78"/>
+      <path d="${frost}" stroke="#f2f6fc" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".7"/>
+    </g>
+    <g class="sc-drops" stroke="#e6edf6" stroke-width="2.2" fill="#e6edf6" stroke-linecap="round" opacity=".55">${drops}</g>
   </g>
-  <g transform="translate(${pt(base)}) scale(${S})"><g transform="translate(${pt(head)})"><g class="sc-zhelm">${helmet(RU, { full: true, mark: zmark })}</g></g></g>
-  <g class="sc-ridge">
-    <g class="sc-crew" fill="${DEF_INK}">${defenders()}</g>
-    <path d="M-400 640V478Q-100 470 60 474Q180 462 300 474Q420 482 760 476V1040H-400Z" fill="#12151c"/>
+  <rect x="44" y="96" width="272" height="340" fill="none" stroke="#6b4528" stroke-width="14"/>
+  <rect x="51" y="103" width="258" height="326" fill="none" stroke="#4a2e1a" stroke-width="2"/>
+  <path d="M58 160H302" stroke="#6b4528" stroke-width="7"/>
+  <path d="M${wire.slice(1)}" stroke="#2a1d14" stroke-width="1.2" fill="none"/>
+  <g class="sc-dh-bulbs">${bulbs}</g>
+  <rect x="-400" y="-400" width="760" height="1440" fill="url(#sc-dh-lamp)"/>
+  <path d="M-10 72H370" stroke="#b8893c" stroke-width="4" stroke-linecap="round"/>
+  ${curtain(-6, 66, 74, 480, -1)}${curtain(300, 66, 74, 480, 1)}
+  <path d="M26 434H334V450H26Z" fill="#8a5a34"/><path d="M26 434H334V438H26Z" fill="#a8723f"/>
+  <path d="M26 450H334" stroke="#5a3820" stroke-width="2"/>
+  <ellipse cx="180" cy="500" rx="110" ry="46" fill="url(#sc-dh-heat)"/>
+  <g fill="#c9c2b6">${Array.from({ length: 9 }, (_, i) => `<rect x="${92 + i * 20}" y="470" width="14" height="72" rx="6"/>`).join('')}</g>
+  <g fill="#e6e0d4">${Array.from({ length: 9 }, (_, i) => `<rect x="${94 + i * 20}" y="472" width="4" height="68" rx="2"/>`).join('')}</g>
+  <path d="M88 482H268M88 530H268" stroke="#a9a196" stroke-width="5" stroke-linecap="round"/>
+  <path class="sc-heat" d="M120 462q-4-7 0-14t0-14M180 462q-4-7 0-14t0-14M240 462q-4-7 0-14t0-14" stroke="#ffcf95" stroke-width="1.4" fill="none" opacity=".35" stroke-linecap="round"/>
+  <g>
+    <rect x="80" y="414" width="22" height="22" rx="3" fill="#ece1cc"/><path d="M80 420h22v5H80z" fill="#2f6fd0"/><path d="M80 425h22v3H80z" fill="#ffd500"/>
+    <path d="M102 419q8 1 7 7t-7 6" stroke="#ece1cc" stroke-width="3" fill="none"/>
+    <ellipse cx="91" cy="414.5" rx="10" ry="2.2" fill="#7a4a2a"/>
+    <path class="sc-steam" d="M87 410q-4-6 0-12t0-12M95 410q-4-6 0-12t0-12" stroke="#f5ead8" stroke-width="2" fill="none" stroke-linecap="round" opacity=".55"/>
   </g>
-  <g class="sc-close">
-    <g fill="#4d4230" stroke="#3a3124" stroke-width="1.2">${bags}</g>
-    ${trenchPair(rnd)}
+  <g>
+    <path d="M226 434q-2-20 26-22q30 0 32 22z" fill="#2c2420"/>
+    <circle cx="232" cy="422" r="10" fill="#2c2420"/>
+    <path d="M224 416l1-10 6 6zM234 412l6-7 1 9z" fill="#2c2420"/>
+    <path d="M226 423q3 2 6 0M235 423q3 2 6 0" stroke="#c98a4a" stroke-width="1" fill="none" stroke-linecap="round"/>
+    <path d="M228 412q8-8 30-6q20 2 26 16" stroke="#c98a4a" stroke-width="1.4" fill="none" opacity=".6"/>
+    <path class="sc-tail" d="M284 433q10-1 8 -10" stroke="#2c2420" stroke-width="5" fill="none" stroke-linecap="round"/>
   </g>
-  <g class="sc-shield"><g transform="translate(180 96) scale(.48)">
-    <path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="5"/>
-    <g class="sc-coa" fill="#ffd500"><path d="${COA_MID}"/><path d="${COA_SIDE}"/><path d="${COA_SIDE}" transform="scale(-1 1)"/></g>
-  </g></g>
-  ${RETICLE}
+  </g>
 </svg>`;
 }
 
 const SCENES = {
-  defenders: { svg: defendersDay, text: () => t('С Днём защитников и защитниц!\nСпасибо за каждый рассвет') },
+  defenders: { svg: defendersHome, text: () => t('С Днём защитников и защитниц!\nНам тепло дома — потому что вы на посту') },
   sobornist: { svg: sobornist, text: () => t('С Днём Соборности!\nВместе — несокрушимы') },
   birthday: {
     svg: birthday,

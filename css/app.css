@@ -3286,7 +3286,12 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-fade { from { opacity: 0; } }
 @keyframes sc-cap { from { opacity: 0; transform: translateY(10px); } }
 .scene-cap span { display: block; }
+.scene-cap { text-wrap: balance; }
+/* низький екран (ноутбук, телефон боком): малюнок вписується по висоті й підпис налазить на нього — дрібніше й нижче */
+@media (max-height: 560px) { .scene-cap { font-size: 20px; bottom: calc(9% + env(safe-area-inset-bottom)); } }
 @keyframes sc-show { from { opacity: 0; } to { opacity: 1; } }
+/* іскри, бризки, уламки, вата: летять від точки на --dx/--dy і трохи падають (Геловін, сніговик, Соборність, Незалежність) */
+@keyframes sc-spark { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 6% { opacity: 1; } 60% { opacity: .9; } 100% { transform: translate(var(--dx), calc(var(--dy) + 30px)) scale(.4); opacity: 0; } }
 /* Постріл (Геловін, сніговик): приціл заходить і зупиняється на --ax/--ay, спалах, віддача, пробоїна */
 .scene .sc-ret { animation: sc-aim 2.1s cubic-bezier(.3, .7, .3, 1) .15s both; }
 .scene-halloween { --ax: 180px; --ay: 302px; }
@@ -3306,6 +3311,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene-halloween .sc-clouds { animation: sc-clouds 14s linear infinite alternate; }
 @keyframes sc-clouds { to { transform: translateX(-60px); } }
 .scene-halloween .sc-hfog ellipse { animation: sc-drift ease-in-out infinite alternate; }
+@keyframes sc-drift { to { transform: translateX(26px); } }
 .scene-halloween .sc-lface, .scene-halloween .sc-lglow { animation: sc-lflick 1.3s steps(2, jump-none) infinite; }
 @keyframes sc-lflick { 30% { opacity: .55; } 60% { opacity: .9; } }
 .scene-halloween .sc-halo { transform-box: fill-box; transform-origin: center; animation: sc-burst .7s ease-out 1.27s both; }
@@ -3350,7 +3356,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-snow { to { transform: translate(-14px, 670px); } }
 /* 31.12 злий сніговик-ватник, руки в боки: влучання — діра з ватою, гойднувся, брови підскочили, очі округлились, морква обвисла, вушанка злетіла, конфеті */
 .scene-snowman { --ax: 180px; --ay: 384px; }
-.scene-snowman .scene-cap { animation-delay: 2.5s; color: #fff1c4; text-shadow: 0 2px 14px rgb(255 190 80 / .55); }
+.scene-snowman .scene-cap { animation-delay: 3s; color: #fff1c4; text-shadow: 0 2px 14px rgb(255 190 80 / .55); }
 /* осідання — fill forwards, а не both: інакше його початковий кадр перекрив би гойдання */
 .scene-snowman .sc-man { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-wob .7s ease-out 1.27s both, sc-fall .5s cubic-bezier(.55, 0, .85, .4) 1.95s forwards; }
 @keyframes sc-fall { to { transform: translateY(8px) scale(1.3, .05); opacity: 0; } }
@@ -3366,6 +3372,11 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene-snowman .sc-nose { transform-box: fill-box; transform-origin: 0 50%; animation: sc-droop .5s cubic-bezier(.3, 1.6, .5, 1) 1.35s both; }
 @keyframes sc-droop { to { transform: rotate(38deg); } }
 .scene-snowman .sc-hat { transform-box: fill-box; transform-origin: center; animation: sc-hat 1.2s cubic-bezier(.2, .7, .4, 1) 1.28s both; }
+/* після падіння — у замет зверху встромляється синьо-жовтий прапорець і майорить */
+.scene-snowman .sc-uaflag { animation: sc-uaflag .5s cubic-bezier(.5, 0, .7, 1.4) 2.55s both; }
+@keyframes sc-uaflag { from { transform: translateY(-300px); opacity: 0; } 10% { opacity: 1; } }
+.scene-snowman .sc-uacloth { transform-box: fill-box; transform-origin: 0 50%; animation: sc-uawave 1.1s ease-in-out 3s infinite alternate; }
+@keyframes sc-uawave { from { transform: skewY(-5deg) scaleX(1); } to { transform: skewY(4deg) scaleX(.9); } }
 @keyframes sc-hat { 85% { opacity: 1; } 100% { transform: translate(70px, -330px) rotate(320deg); opacity: 0; } }
 @keyframes sc-conf {
   0% { transform: translate(0, 0) rotate(0); opacity: 0; }
@@ -3373,64 +3384,27 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
   30% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--r) * .3)); }
   85% { opacity: 1; }
   100% { transform: translate(calc(var(--dx) * 1.5), calc(var(--dy) + 300px)) rotate(var(--r)); opacity: 0; } }
-/* 1.10 День захисників і захисниць: пара в окопі, постріл; камера відʼїжджає — захисники постають на гребені на тлі сходу */
-.scene-defenders { --ax: 222px; --ay: 346px; background: #081028; }
-.scene-defenders .sc-bushes { animation: sc-hide .6s ease-out 4.2s both; }
-.scene-defenders .sc-ret { animation: sc-aim-def 4s cubic-bezier(.3, .7, .3, 1) .8s both; }
-@keyframes sc-aim-def {
-  0% { transform: translate(330px, 610px); opacity: 0; }
-  15% { opacity: 1; }
-  42% { transform: translate(calc(var(--ax) + 7px), calc(var(--ay) - 4px)); }
-  55% { transform: translate(var(--ax), var(--ay)); }
-  58% { transform: translate(var(--ax), calc(var(--ay) - 12px)); }
-  64%, 72% { transform: translate(var(--ax), var(--ay)); opacity: 1; }
-  85%, 100% { transform: translate(var(--ax), var(--ay)); opacity: 0; } }
-.scene-defenders .sc-flash { animation-delay: 3s; }
-.scene-defenders .scene-cap { font-size: 22px; animation-delay: 7.3s; }
-.scene-defenders .scene-cap span + span { margin-top: 6px; font-size: 21px; font-weight: 700; color: #fff1c4; animation: sc-cap .6s ease-out 7.9s both; }
-.scene-defenders .sc-fog ellipse { animation: sc-drift ease-in-out infinite alternate; }
-@keyframes sc-drift { to { transform: translateX(26px); } }
-.scene-defenders .sc-fog { animation: sc-hide 1.5s ease-in-out 3.5s both; }
-.scene-defenders .sc-stars { animation: sc-hide 1.4s ease-in-out 3.8s both; }
-.scene-defenders .sc-dawn { opacity: 0; animation: sc-show 1.8s ease-in-out 3.8s both; }
-.scene-defenders .sc-night { opacity: var(--o); animation: sc-hide 1.8s ease-in-out 3.8s both; }
-.scene-defenders .sc-sun { animation: sc-rise-def 2.2s cubic-bezier(.3, .6, .4, 1) 4s both; }
-@keyframes sc-rise-def { from { transform: translateY(90px); opacity: 0; } }
-/* корректувальниця показує окупанту середній палець, після влучання — великий палець снайперу; снайпер віддача й кивок */
-.scene-defenders .sc-bino { animation: sc-hide .2s ease-out 1.3s both; }
-.scene-defenders .sc-middle { opacity: 0; animation: sc-show .25s ease-out 1.3s both, sc-jab .28s ease-in-out 1.6s 4 alternate, sc-hide .2s ease-out 3.1s forwards; }
-@keyframes sc-jab { to { transform: translateY(-6px); } }
-.scene-defenders .sc-flare { animation: sc-flare 4.4s linear both, sc-hide .8s ease-out 3.6s forwards; }
-@keyframes sc-flare { from { transform: translate(70px, 70px); } to { transform: translate(96px, 236px); } }
-.scene-defenders .sc-flare-core { animation: sc-flick .12s linear infinite alternate; }
-@keyframes sc-flick { to { opacity: .6; } }
-.scene-defenders .sc-thumb { opacity: 0; animation: sc-show .25s ease-out 3.35s both; }
-.scene-defenders .sc-sniper { animation: sc-kick .3s ease-out 3s both; }
-@keyframes sc-kick { 30% { transform: translate(-2px, 5px); } }
-.scene-defenders .sc-nod { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-nod .5s ease-in-out 3.5s both; }
-@keyframes sc-nod { 45% { transform: translateY(4px) rotate(3deg); } }
-/* окупант падає за кущ, каска з Z злітає й котиться */
-.scene-defenders .sc-foe { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-foe-down .6s ease-in 3.05s both; }
-@keyframes sc-foe-down { to { transform: translate(-4px, 26px) rotate(-75deg); opacity: 0; } }
-.scene-defenders .sc-zhelm { transform-box: fill-box; transform-origin: center; animation: sc-zfly 1.1s cubic-bezier(.3, .6, .5, 1) 3.03s both, sc-hide .6s ease-out 4.4s forwards; }
-@keyframes sc-zfly { 30% { transform: translate(14px, -24px) rotate(160deg); } 100% { transform: translate(30px, 22px) rotate(380deg); } }
-.scene-defenders .sc-bush { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-wob .5s ease-out 3.05s both; }
-/* зміна плану: окоп іде вниз, з-під кадру виростає гребінь */
-.scene-defenders .sc-close { animation: sc-out-down .9s cubic-bezier(.5, 0, .8, .6) 3.9s both; }
-@keyframes sc-out-down { to { transform: translateY(320px); } }
-.scene-defenders .sc-ridge { animation: sc-ridge-up 1s cubic-bezier(.2, .7, .3, 1) 3.95s both; }
-@keyframes sc-ridge-up { from { transform: translateY(240px); } }
-.scene-defenders .sc-crew { filter: drop-shadow(0 0 1.2px #ffd27a) drop-shadow(0 0 6px rgb(255 170 60 / .6)); }
-.scene-defenders .sc-def { opacity: 0; animation: sc-stand .6s cubic-bezier(.2, .8, .3, 1.15) both; }
-@keyframes sc-stand { from { opacity: 0; transform: translateY(46px); } 30% { opacity: 1; } to { opacity: 1; transform: none; } }
-.scene-defenders .sc-unfurl { transform-box: fill-box; transform-origin: 0 50%; animation: sc-unfurl .7s ease-out 5.8s both; }
-@keyframes sc-unfurl { from { transform: scaleX(.05); } }
-.scene-defenders .sc-wave { transform-box: fill-box; transform-origin: 0 50%; animation: sc-wave .7s ease-in-out infinite alternate; }
-@keyframes sc-wave { to { transform: skewY(5deg) scaleX(.94); } }
-.scene-defenders .sc-drone { animation: sc-takeoff 2.4s cubic-bezier(.5, 0, .7, .4) 5.9s both; }
-@keyframes sc-takeoff { 15% { transform: translateY(-8px); } 100% { transform: translate(70px, -260px) scale(.3); opacity: 0; } }
-.scene-defenders .sc-shield { opacity: 0; animation: sc-show .8s ease-out 6.3s both; filter: drop-shadow(0 0 8px rgb(255 213 107 / .6)); }
-.scene-defenders .sc-coa { opacity: 0; animation: sc-show 1s ease-in-out 6.8s both; }
+/* 1.10 День захисників і захисниць: тепла кімната, на запітнілій шибці малюється сердечко — крізь нього вартовий
+   у холодному полі; камера наближається до сердечка */
+.scene-defenders { background: #2a1912; }
+.scene-defenders .scene-cap { animation-delay: 5.2s; color: #fff1c4; text-shadow: 0 1px 3px rgb(0 0 0 / .7), 0 2px 14px rgb(255 160 60 / .35); }
+.scene-defenders .scene-cap span + span { margin-top: 6px; font-size: 21px; font-weight: 700; animation: sc-cap .6s ease-out 5.8s both; }
+.scene-defenders .sc-hline { stroke-dasharray: 1; animation: sc-hdraw 2s ease-in-out .7s both; }
+@keyframes sc-hdraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.scene-defenders .sc-hfill { opacity: 0; animation: sc-show .9s ease-in-out 2.7s both; }
+.scene-defenders .sc-drops path { stroke-dasharray: 1; animation: sc-hdraw 1.6s ease-in 2.6s both; }
+.scene-defenders .sc-dropend { opacity: 0; animation: sc-show .2s ease-out 4.1s both; }
+.scene-defenders .sc-cam { transform-box: view-box; transform-origin: 180px 262px; animation: sc-cam 2.2s cubic-bezier(.45, 0, .3, 1) 3.3s both; }
+@keyframes sc-cam { to { transform: translateY(-20px) scale(1.5); } }
+.scene-defenders .sc-breath circle { opacity: 0; animation: sc-breath 2.1s ease-out infinite; }
+@keyframes sc-breath { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 15% { opacity: .8; } 100% { transform: translate(-6px, -16px) scale(1.8); opacity: 0; } }
+.scene-defenders .sc-dflag { transform-box: fill-box; transform-origin: 0 50%; animation: sc-uawave 1s ease-in-out infinite alternate; }
+.scene-defenders .sc-dh-bulbs circle { animation: sc-twinkle 1.6s ease-in-out infinite; filter: drop-shadow(0 0 3px #ffb347); }
+.scene-defenders .sc-steam { stroke-dasharray: 6 4; animation: sc-steam 1.4s linear infinite; }
+@keyframes sc-steam { to { stroke-dashoffset: -20; } }
+.scene-defenders .sc-heat { stroke-dasharray: 5 5; animation: sc-steam 2s linear infinite; }
+.scene-defenders .sc-tail { transform-box: fill-box; transform-origin: 0 100%; animation: sc-tail 2.4s ease-in-out infinite alternate; }
+@keyframes sc-tail { to { transform: rotate(-14deg); } }
 /* 22.01 День Соборності: постріл у кол на кризі, тріщини затягуються, живий ланцюг, половини щита змикаються, світанок */
 .scene-sobornist { --ax: 196px; --ay: 440px; background: #070f26; }
 .scene-sobornist .scene-cap { animation-delay: 5.2s; }
@@ -3450,8 +3424,14 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene-sobornist .sc-man { opacity: 0; animation: sc-man .3s ease-out both; }
 @keyframes sc-man { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .scene-sobornist .sc-hands path { opacity: 0; animation: sc-show .25s ease-out both; filter: drop-shadow(0 0 3px #ffb347); }
-.scene-sobornist .sc-half { animation: sc-join .6s cubic-bezier(.3, 1.5, .5, 1) 3.8s both; }
-@keyframes sc-join { from { transform: translate(var(--fx), var(--fy)); } }
+.scene-sobornist .sc-tw { animation: sc-twinkle 1.6s ease-in-out infinite; }
+/* половинки щита підіймаються над своїми берегами на одній висоті, тримаються, поки сходиться ланцюг, і змикаються над мостом */
+.scene-sobornist .sc-half { animation: sc-join 1.5s ease-out 2.9s both; }
+@keyframes sc-join {
+  0% { transform: translate(var(--fx), calc(var(--fy) + 50px)); opacity: 0; }
+  35%, 60% { transform: translate(var(--fx), var(--fy)); opacity: 1; animation-timing-function: cubic-bezier(.3, 1.4, .5, 1); }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
 .scene-sobornist .sc-half { filter: drop-shadow(0 0 6px #ffd56b); }
 .scene-sobornist .sc-moon, .scene-sobornist .sc-moonpath { animation: sc-hide 1.4s ease-in-out 4.4s both; }
 .scene-sobornist .sc-windows { animation: sc-hide 1.2s ease-in-out 4.8s both; }
@@ -3459,11 +3439,14 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-lamp { to { opacity: 1; filter: drop-shadow(0 0 4px #ffb347); } }
 .scene-sobornist .sc-whole { opacity: 0; animation: sc-show 1s ease-in-out 4.4s both; }
 .scene-sobornist .sc-grow { transform-box: view-box; animation: sc-grow 1.2s cubic-bezier(.3, .7, .3, 1) 4.4s both; }
-@keyframes sc-grow { to { transform: translateY(-30px) scale(1.7); } }
+@keyframes sc-grow { to { transform: translateY(-30px) scale(1.4); } }
 .scene-sobornist .sc-click { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sc-burst .5s ease-out 4.3s both; }
 /* День народження ствола: приціл на полум'я свічки, постріл гасить — дим, конфеті, гірлянда засвічується */
 .scene-birthday { --ax: 180px; --ay: 266px; }
-.scene-birthday .scene-cap { animation-delay: 2.2s; }
+/* підпис на плашці: довга назва ствола переноситься й лягає на торт — без плашки й зі світінням губилася */
+.scene-birthday .scene-cap { animation-delay: 2.2s; left: 0; right: 0; width: fit-content; max-width: calc(100% - 32px); margin-inline: auto; padding: 10px 18px 12px;
+  border-radius: 18px; border: 1px solid rgb(255 213 107 / .25); background: rgb(24 14 10 / .78); backdrop-filter: blur(6px);
+  font-size: 24px; color: #ffe08a; text-shadow: 0 1px 2px rgb(0 0 0 / .6); }
 .scene-birthday .scene-cap span + span { margin-top: 8px; font-size: 18px; font-weight: 700; color: #f3e6cf; text-shadow: none; animation: sc-cap .6s ease-out 2.6s both; }
 .scene-birthday .sc-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: sc-flicker .16s ease-in-out infinite alternate; }
 @keyframes sc-flicker { to { transform: scale(.9, 1.08) skewX(3deg); } }

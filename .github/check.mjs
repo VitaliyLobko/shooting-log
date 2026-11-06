@@ -50,6 +50,23 @@ for (const path of ['demo.json', 'manifest.webmanifest']) {
   try { JSON.parse(read(path)); } catch (e) { errors.push(`${path}: ${e.message}`); }
 }
 
+// CSS-анімації: кожна названа анімація має @keyframes, і жодних двох @keyframes з одним ім'ям —
+// інакше елемент з opacity: 0 тихо не з'являється (так у 0.7.102 зникли іскри чотирьох сценок)
+{
+  const css = read('css/app.css');
+  const KW = new Set(['none', 'both', 'forwards', 'backwards', 'infinite', 'alternate', 'alternate-reverse', 'reverse', 'normal',
+    'linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'paused', 'running', 'step-start', 'step-end', 'jump-none', 'jump-start', 'jump-end', 'jump-both', 'start', 'end']);
+  const defined = [...css.matchAll(/@keyframes ([\w-]+)/g)].map((m) => m[1]);
+  const twice = defined.filter((n, i) => defined.indexOf(n) !== i);
+  if (twice.length) errors.push(`css/app.css: @keyframes двічі — ${[...new Set(twice)].join(', ')}`);
+  const used = new Set();
+  for (const m of css.matchAll(/animation(?:-name)?\s*:\s*([^;}]+)/g)) {
+    for (const tok of m[1].replace(/[\w-]+\([^)]*\)/g, '').split(/[\s,]+/)) if (/^[a-z][\w-]*$/.test(tok) && !KW.has(tok)) used.add(tok);
+  }
+  const missing = [...used].filter((n) => !defined.includes(n));
+  if (missing.length) errors.push(`css/app.css: анімація без @keyframes — ${missing.join(', ')}`);
+}
+
 // кожен реліз — запис у «Що нового» обома мовами
 const self = {};
 vm.runInNewContext(read('version.js'), { self });
