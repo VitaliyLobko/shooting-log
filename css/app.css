@@ -1038,6 +1038,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .gun-flags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .gun-flags .badge { margin: 0; }
 .gun-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 10px; }
+.gun-stat.gun-stat-now { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; padding: 8px 12px; }
+.gun-stat-now .tool-ico { width: 30px; height: 30px; background: none; color: var(--accent); }
+.gun-stat-now .tool-ico svg { width: 24px; height: 24px; }
+.gun-stat-now .gun-stat-label { font-size: 15px; font-weight: 650; color: var(--text); }
 .gun-stat {
   display: flex;
   flex-direction: column;
@@ -1384,6 +1388,9 @@ button.gun-stat { cursor: pointer; }
 
 .scopes { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .weapon-info > .scopes { margin-top: -4px; }
+.weapon-info:has(> .now-ico) { display: flex; align-items: center; gap: 8px; }
+.weapon-info > .scopes { flex: 1; min-width: 0; }
+.weapon-info > .now-ico { flex: none; width: 38px; height: 38px; color: var(--accent); }
 .scope { display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
 .scope-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .scope-name { font-weight: 600; }
@@ -1838,9 +1845,12 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 
 /* «Поправки зараз» */
 .now h4 { margin: 14px 0 6px; }
-.now-dists { margin-bottom: 6px; }
-.now-dist-in { max-width: none; }
-.now-big { margin: 14px 0 4px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); }
+.now-dists { margin: 4px 0 10px; }
+.now .chips input.now-dist-in { width: 84px; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); text-align: center; font: inherit; color: var(--text); }
+.now .chips input.now-dist-in.on { border-color: var(--fill); box-shadow: 0 0 0 1px var(--fill); font-weight: 650; }
+.now .box > .now-big:last-child, .now .box-body > .now-big:last-child { margin-bottom: 0; }
+.now .box .switch-row, .now .box label:last-child { margin-bottom: 0; }
+.now-big { margin: 4px 0; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); }
 .now-dist { color: var(--muted); font-weight: 650; }
 .now-main { font-size: 34px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .now-sub { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1848,7 +1858,8 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 .now-src { margin: 8px 0 0; }
 .now-wx-info:empty { display: none; }
 .now-table tbody tr { cursor: pointer; }
-.now-table tr.zero td { color: var(--accent); }
+.now-table tr.sel td { color: var(--accent); font-weight: 700; }
+.now-table tr.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .guide h3 { margin: 22px 0 8px; font-size: 17px; }
 .guide p { margin: 0 0 12px; }
 .guide ul, .guide ol { margin: 0 0 12px; padding-left: 22px; }
@@ -3782,8 +3793,8 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .zero-ico { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: var(--accent); }
 .zero-ico .btn-ico { display: grid; }
 .zero-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.zero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.zero > *, .zero-setup > * { min-width: 0; }
+.zero:not(tr) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.zero:not(tr) > *, .zero-setup > * { min-width: 0; }
 .zero .chips { flex-wrap: wrap; }
 .zero-setup { display: grid; gap: 8px; }
 .zero-setup label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }

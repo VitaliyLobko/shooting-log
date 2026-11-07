@@ -1012,7 +1012,8 @@ function recipeField(c) {
   }];
 }
 
-function cartridgeForm(c = null) {
+/** Форма набою; onSaved(obj) — після збереження (форма, з якої відкрили, перераховує своє). */
+function cartridgeForm(c = null, { onSaved = null } = {}) {
   const f = form([
     { name: 'name', label: t('Назва'), required: true, value: c?.name, placeholder: 'GGG 147 FMJ', half: true },
     { name: 'caliber', label: t('Калібр'), required: true, value: c?.caliber, list: 'cal-list', half: true },
@@ -1092,6 +1093,7 @@ function cartridgeForm(c = null) {
     } else {
       await saveEntity('cartridges', obj);
     }
+    onSaved?.(obj);
   }
 }
 
@@ -1631,7 +1633,15 @@ function gunStats(w, close) {
     tile(c.every ? `${fmt.num(c.count)} / ${fmt.num(c.every)}` : fmt.num(c.since),
       c.every && c.unit === 'sessions' ? t('стрільб після чистки') : t('після чистки'),
       cleanPct === null ? null : h('div', { class: 'bar' }, h('div', { class: `fill ${c.due ? 'over' : fillClass(cleanPct)}`, style: `width:${Math.max(4, cleanPct)}%` }))),
-    tile(p?.value ?? '—', p?.label ?? t('Купчастість'), null, { type: 'button', title: t('Купчастість'), onclick: () => openTargets(w, close) }));
+    tile(p?.value ?? '—', p?.label ?? t('Купчастість'), null, { type: 'button', title: t('Купчастість'), onclick: () => openTargets(w, close) }),
+    w.scopes?.length ? tile(toolIcon('poa'), t('Поправки зараз'), null, { type: 'button', class: 'gun-stat gun-stat-now', title: t('Поправки зараз'), onclick: () => openNow(w) }) : null);
+}
+
+/** Значок «Поправки зараз» у плитці ствола: тап не відкриває картку. */
+function nowIconBtn(w) {
+  const b = toolBtn('poa', t('Поправки зараз'), (e) => { e.stopPropagation(); openNow(w); }, 'small now-ico');
+  b.addEventListener('keydown', (e) => e.stopPropagation());
+  return b;
 }
 
 // Повні фото обкладинок — object URL на сеанс: шапка не перечитує blob при кожному оновленні картки
@@ -1764,7 +1774,7 @@ function weaponCard(w) {
           h('span', { class: 'sr' }, t('настріл'))),
         precisionBadge(w)),
       // Приціл — рядком на всю ширину: між фото й настрілом на телефоні його назва рвалась посеред слова.
-      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w)) : null,
+      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w), nowIconBtn(w)) : null,
       // Смуг немає: плитка говорить лише про те, що потребує уваги, решта — в картці
       flags ? h('div', { class: 'card-foot' }, flags) : null));
   return swipeable(card, {
@@ -3740,7 +3750,7 @@ function openNow(w) {
     ammo: state.cartridges.filter((c) => !c.archived && c.caliber && M.sameCaliber(c.caliber, w.caliber)).sort(byName),
     chronoMv: (c) => chronoMv(w, c),
     suppressor: lastGear(w).suppressor,
-    clockPicker, switchLabel, reticleOf, locate: devicePosition, uid: db.uid,
+    clockPicker, switchLabel, reticleOf, box, locate: devicePosition, uid: db.uid,
     dope: () => (findWeapon(w.id) ?? w).dope ?? [],
     saveDope: async (card) => {
       const cur = findWeapon(w.id) ?? w;
@@ -3981,7 +3991,7 @@ function dopeForm(w, d = null) {
   const calcSource = () => {
     const c = findCartridge(f.inputs.cartridgeId.value);
     if (!c) return { error: t('Виберіть набій — розрахунок за його BC і швидкістю') };
-    if (!(c.bc > 0 && c.mv > 0)) return { error: t('У набою «{n}» немає BC чи швидкості — заповніть їх у картці набою', { n: c.name }) };
+    if (!(c.bc > 0 && c.mv > 0)) return { error: t('У набою «{n}» немає BC чи швидкості, без них рахувати нема з чого.', { n: c.name }), fix: c };
     const chrono = chronoMv(w, c); const sc = scope();
     return { c, mv: Math.round(chrono ?? c.mv), chrono: !!chrono, zero: sc?.zero > 0 ? sc.zero : null, sh: sc?.sh > 0 ? sc.sh : null };
   };
@@ -4024,13 +4034,17 @@ function dopeForm(w, d = null) {
   };
   const paintCalc = () => {
     const s = calcSource();
-    calcInfo.textContent = s.error ?? `${calcText(s)}. ${t('Рядки 25 і 50 м та 100–700 м через 50 м замінять поточні; вітер — за швидкості з поля вище.')}`;
+    // Немає BC чи швидкості — кнопка тут же: картка набою відкривається поверх, після збереження рахуємо знову
+    calcInfo.replaceChildren(s.error ?? `${calcText(s)}. ${t('Рядки 25 і 50 м та 100–700 м через 50 м замінять поточні; вітер — за швидкості з поля вище.')}`,
+      ...(s.fix ? [' ', btn(t('Заповнити BC і швидкість'), () => cartridgeForm(findCartridge(s.fix.id) ?? s.fix, { onSaved: paintCalc }), 'mini')] : []));
+    calcInfo.classList.toggle('warn-text', !!s.error);
     if (!calcPanel.hidden) paintTraj();
   };
   calcForm.el.addEventListener('input', () => { forecastNote = ''; paintTraj(); });
   const fillCalc = () => {
     const s = calcSource();
-    if (s.error) { fieldError(f.inputs.cartridgeId, s.error); return; }
+    // Помилку видно тут, біля кнопки, а не на полі «Набій» угорі форми, якого зараз не видно
+    if (s.error) { paintCalc(); formError(s.error); calcInfo.scrollIntoView({ block: 'center', behavior: smooth() }); return; }
     if (calcForm.invalid()) { formError(t('Температура й висота — числа')); return; }
     const v = calcForm.values(); const tC = v.temp ?? 15; const alt = v.alt ?? 0;
     const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh: s.sh ?? 6, zero: s.zero ?? 100, tC, alt, max: 700, step: 25 });
