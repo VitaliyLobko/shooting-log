@@ -74,7 +74,7 @@ export function zeroWizard(ctx) {
   const cart = () => ammo.find((c) => c.id === s.cid) ?? null;
   const want = () => {
     const c = cart();
-    return wantUpMm({ d: s.d, zero: s.zero, dope: ctx.dope(s.cid), c, mv: c ? ctx.chronoMv(c) ?? c.mv : null, sh: scope.sh });
+    return wantUpMm({ d: s.d, zero: s.zero, dope: ctx.dope(s.cid), c, mv: c ? (ctx.gunMv?.(c)?.mv ?? c.mv) : null, sh: scope.sh });
   };
   const statsOf = (g) => g.stats ?? (g.holes.length ? M.groupStats(g.holes.map(([x, y]) => [x * 10, y * 10]), [0, 0]) : null);
   const reset = () => { s.groups = [{ holes: [] }]; store(); paint(); };

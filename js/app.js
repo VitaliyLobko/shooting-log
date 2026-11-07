@@ -484,6 +484,8 @@ function clockPicker(select, { speed = null, hideSpeed = false } = {}) {
     knobText.setAttribute('x', kx.toFixed(2)); knobText.setAttribute('y', (ky + 2.2).toFixed(2));
     knobText.textContent = fmt.num(w);
     knob.style.display = knobText.style.display = v && w > 0 ? '' : 'none';
+    // Підпис шкали під кружком сили не читається й налазить на нього — ховаємо той, до якого кружок впритул
+    scaleText.forEach((el) => { el.style.display = v && w > 0 && Math.hypot(kx - +el.getAttribute('x'), ky - +el.getAttribute('y')) < 9 ? 'none' : ''; });
     dial.classList.toggle('calm', w === 0);
     pad.setAttribute('aria-valuenow', String(w));
     pad.setAttribute('aria-valuetext', `${fmt.num(w)} ${t('м/с')}`);
@@ -1012,7 +1014,8 @@ function recipeField(c) {
   }];
 }
 
-function cartridgeForm(c = null) {
+/** Форма набою; onSaved(obj) — після збереження (форма, з якої відкрили, перераховує своє). */
+function cartridgeForm(c = null, { onSaved = null } = {}) {
   const f = form([
     { name: 'name', label: t('Назва'), required: true, value: c?.name, placeholder: 'GGG 147 FMJ', half: true },
     { name: 'caliber', label: t('Калібр'), required: true, value: c?.caliber, list: 'cal-list', half: true },
@@ -1022,6 +1025,8 @@ function cartridgeForm(c = null) {
     { name: 'dragModel', label: t('Модель BC'), type: 'select', value: c?.dragModel ?? 'G7', options: [['G7', 'G7'], ['G1', 'G1']], half: true },
     { name: 'mv', label: t('Швидкість кулі, м/с'), type: 'number', step: 'any', min: 0, value: c?.mv, placeholder: '915', half: true },
     { name: 'bulletLength', label: t('Довжина кулі, мм'), type: 'number', step: 'any', min: 0, value: c?.bulletLength, placeholder: '23,0', half: true },
+    { name: 'testBarrel', label: t('Тестовий ствол, ″'), type: 'number', step: 'any', min: 0, value: c?.testBarrel, placeholder: '20', half: true,
+      hint: t('На якому стволі виробник міряв швидкість (з коробки чи сайту). Тоді «Поправки зараз» перерахують швидкість під довжину ствола вашої зброї. Порожньо — швидкість як вписано.') },
     ...recipeField(c),
     ...(c ? [] : [
       { name: 'initial', label: t('Зараз у наявності, шт'), type: 'number', step: 1, min: 0, half: true },
@@ -1054,7 +1059,7 @@ function cartridgeForm(c = null) {
     const draft = { caliber: f.inputs.caliber.value, bulletWeight: num('bulletWeight'), weightUnit: unit(), bulletLength: num('bulletLength'), mv: num('mv') };
     sgLine.replaceChildren(...stabilityLines(draft).map((x) => h('span', { class: `sg-${x.level}` }, x.text)));
   };
-  const ballistics = formPart(f, ['bulletWeight', 'weightUnit', 'bc', 'dragModel', 'mv', 'bulletLength'], energy, sgLine);
+  const ballistics = formPart(f, ['bulletWeight', 'weightUnit', 'bc', 'dragModel', 'mv', 'testBarrel', 'bulletLength'], energy, sgLine);
   const repaint = () => { paintEnergy(); paintSg(); };
   ballistics.addEventListener('input', repaint);
   ballistics.addEventListener('click', () => queueMicrotask(repaint));
@@ -1076,7 +1081,7 @@ function cartridgeForm(c = null) {
     const v = f.values();
     const obj = { ...(c ?? { id: db.uid(), created: Date.now() }), name: v.name, caliber: v.caliber, bulletWeight: v.bulletWeight, weightUnit: v.weightUnit,
       bc: v.bc > 0 ? v.bc : null, dragModel: v.bc > 0 ? v.dragModel : c?.dragModel, mv: v.mv > 0 ? v.mv : null,
-      bulletLength: v.bulletLength > 0 ? v.bulletLength : null, note: v.note };
+      bulletLength: v.bulletLength > 0 ? v.bulletLength : null, testBarrel: v.testBarrel > 0 ? v.testBarrel : null, note: v.note };
     if (f.inputs.recipeId) obj.recipeId = v.recipeId || null;
     // Новий набій — у розгорнутій групі калібру, інакше картку для свайпу ще треба знайти
     if (!c) setUnfolded(`ammo:${obj.caliber}`, true);
@@ -1092,6 +1097,7 @@ function cartridgeForm(c = null) {
     } else {
       await saveEntity('cartridges', obj);
     }
+    onSaved?.(obj);
   }
 }
 
@@ -1425,7 +1431,7 @@ function stabilityLines(c) {
   const twisted = guns.filter((w) => w.size?.twist > 0);
   if (!twisted.length) return [{ level: 'hint', text: t('Для ФГС вкажіть крок нарізів у картці зброї, блок «Габарити й вага»') }];
   return twisted.map((w) => {
-    const sg = sgOf(c, w, (c.id ? chronoMv(w, c) : null) ?? c.mv);
+    const sg = sgOf(c, w, (c.id ? gunMv(w, c).mv : null) ?? c.mv);
     const v = sgVerdict(sg);
     return { level: v.level, text: t('ФГС у {gun} ({tw}): {sg} — {verdict}', { gun: w.name, tw: twistText(w.size.twist), sg: fmt.num(Math.round(sg * 100) / 100), verdict: t(v.text) }) };
   });
@@ -1634,6 +1640,13 @@ function gunStats(w, close) {
     tile(p?.value ?? '—', p?.label ?? t('Купчастість'), null, { type: 'button', title: t('Купчастість'), onclick: () => openTargets(w, close) }));
 }
 
+/** Значок «Поправки зараз» у плитці ствола: тап не відкриває картку. */
+function nowIconBtn(w) {
+  const b = toolBtn('poa', t('Поправки зараз'), (e) => { e.stopPropagation(); openNow(w); }, 'small now-ico');
+  b.addEventListener('keydown', (e) => e.stopPropagation());
+  return b;
+}
+
 // Повні фото обкладинок — object URL на сеанс: шапка не перечитує blob при кожному оновленні картки
 const coverUrls = new Map();
 
@@ -1655,7 +1668,8 @@ async function coverUrl(p) {
  * без фото — монограма на кольорі калібру. Кілька фото гортаються свайпом: обкладинка перша, далі решта.
  * Тап — це фото на весь екран, «+ Фото» — додати.
  */
-function gunHero(w, caption) {
+/** Шапка картки: фото, знизу на ньому — калібр ліворуч і «Поправки зараз» (foot) праворуч. */
+function gunHero(w, caption, { foot = null } = {}) {
   const slides = photoSlides(w);
   const cover = slides[0];
   const input = h('input', {
@@ -1690,7 +1704,7 @@ function gunHero(w, caption) {
       h('span', { class: 'gun-hero-mono', 'aria-hidden': 'true' }, monogram(w))),
     many ? nav(-1, t('Попереднє'), '‹') : null,
     many ? nav(1, t('Наступне'), '›') : null,
-    caption?.length ? h('span', { class: 'gun-hero-cap' }, caption) : null,
+    caption?.length || foot ? h('div', { class: 'gun-hero-foot' }, caption?.length ? h('span', { class: 'gun-hero-cap' }, caption) : h('span'), foot) : null,
     h('span', { class: 'gun-hero-tools' },
       many ? h('span', { class: 'gun-hero-count' }, icon('camera'), num) : null,
       h('button', { type: 'button', class: 'gun-hero-add', onclick: () => input.click() }, '+ ', t('Фото'))),
@@ -1764,7 +1778,7 @@ function weaponCard(w) {
           h('span', { class: 'sr' }, t('настріл'))),
         precisionBadge(w)),
       // Приціл — рядком на всю ширину: між фото й настрілом на телефоні його назва рвалась посеред слова.
-      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w)) : null,
+      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w), nowIconBtn(w)) : null,
       // Смуг немає: плитка говорить лише про те, що потребує уваги, решта — в картці
       flags ? h('div', { class: 'card-foot' }, flags) : null));
   return swipeable(card, {
@@ -3523,6 +3537,7 @@ async function openZero(w, s) {
     onClose: () => refreshSheets(),
     cartridgeId: [recall(`ammo:${w.id}`), s.zeroAmmo].find((id) => id && ammo.some((c) => c.id === id)) ?? null,
     chronoMv: (c) => chronoMv(w, c),
+    gunMv: (c) => gunMv(w, c), mvSrcText,
     // Таблиця DOPE цього прицілу (свого набою чи без набою) → поправка в мрад на дистанції
     dope: (cid) => {
       const tables = (findWeapon(w.id)?.dope ?? []).filter((d) => d.scopeId === s.id);
@@ -3550,7 +3565,9 @@ function weaponBody(w, close) {
   const caption = [w.caliber ? cartridgeIcon(w.caliber) : null, w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
     w.caliber && rest ? ' · ' : null, rest || null].filter(Boolean);
   return h('div', { class: 'gun-card' },
-    gunHero(w, caption),
+    gunHero(w, caption, {
+      foot: w.scopes?.length ? h('button', { type: 'button', class: 'gun-hero-now', onclick: () => openNow(w) }, toolIcon('poa'), t('Поправки зараз')) : null,
+    }),
     sizeBox(w),
     w.note ? h('p', { class: 'muted small gun-note' }, w.note) : null,
     gunFlags(w, true),
@@ -3607,6 +3624,27 @@ function chronoMv(w, c) {
 }
 
 /**
+ * Швидкість набою з цієї зброї: серія хронографа (найточніше) → швидкість з картки з поправкою на довжину ствола
+ * (якщо в набою вписано тестовий ствол, а в зброї — довжину ствола) → швидкість з картки як є.
+ * { mv, src: 'chrono' | 'barrel' | 'card', delta, gunIn, testIn }; mv — null, якщо швидкості нема.
+ */
+function gunMv(w, c) {
+  const chrono = chronoMv(w, c);
+  if (chrono) return { mv: Math.round(chrono), src: 'chrono' };
+  if (!(c.mv > 0)) return { mv: null, src: 'card' };
+  const delta = M.barrelMvDelta(c.caliber || w.caliber, c.testBarrel, w.size?.barrel);
+  return delta ? { mv: Math.round(c.mv + delta), src: 'barrel', delta, gunIn: Math.round(w.size.barrel / 2.54) / 10, testIn: c.testBarrel }
+    : { mv: Math.round(c.mv), src: 'card' };
+}
+
+/** Звідки швидкість — словами для рядка «Розрахунок». */
+function mvSrcText(g) {
+  return g.src === 'chrono' ? t('хронограф') : g.src === 'barrel'
+    ? t('з картки, {d} м/с за ствол {g}″ замість {t}″', { d: `${g.delta > 0 ? '+' : '−'}${Math.abs(g.delta)}`, g: fmt.num(g.gunIn), t: fmt.num(g.testIn) })
+    : t('з картки набою');
+}
+
+/**
  * Зброя з прицілом для тренажера: на кожен набій її калібру з BC і швидкістю — своя балістика
  * (швидкість — з останньої серії хронографа цієї зброї з цим набоєм, інакше з картки набою).
  * Без таких набоїв 5.56 чи .308 рахує за довідковим набоєм калібру. Пристрілка й сітка — з картки прицілу.
@@ -3616,9 +3654,9 @@ function myGunLoads() {
   return state.weapons.filter((w) => !w.archived && w.caliber).flatMap((w) => {
     const ammo = state.cartridges.filter((c) => !c.archived && c.caliber && M.sameCaliber(c.caliber, w.caliber) && c.bc > 0 && c.mv > 0)
       .sort(byName).map((c) => {
-        const chrono = chronoMv(w, c);
+        const g = gunMv(w, c);
         const gr = c.bulletWeight > 0 ? (c.weightUnit === 'г' ? c.bulletWeight * 15.4324 : c.bulletWeight) : null;
-        return { id: c.id, name: c.name, bc: c.bc, model: c.dragModel || 'G7', mv: Math.round(chrono ?? c.mv), chrono: !!chrono, gr };
+        return { id: c.id, name: c.name, bc: c.bc, model: c.dragModel || 'G7', mv: g.mv, chrono: g.src === 'chrono', gr };
       });
     if (!ammo.length && !cal(w.caliber)) return [];
     return (w.scopes ?? []).flatMap((s) => {
@@ -3632,7 +3670,7 @@ function myGunLoads() {
 function dopeBox(w, close) {
   const list = w.dope ?? [];
   return box(t('DOPE — поправки за дистанціями'), [
-    w.scopes?.length ? h('div', { class: 'btn-row' }, btn(t('Поправки зараз'), () => openNow(w), 'primary')) : null,
+    // «Поправки зараз» — кнопкою на фото картки, тут не дублюємо
     ...list.map((d) => dopeCard(w, d, close)),
     list.length ? null : h('p', { class: 'muted small' }, t('Таблиця: на якій дистанції скільки кліків крутити або скільки виносити по сітці. Для кожного прицілу й набою — своя.')),
     btn(t('+ таблиця поправок'), () => dopeForm(w)),
@@ -3722,15 +3760,18 @@ function dopeCard(w, d, close) {
   const calcBox = h('div', { class: `dope-calc ${windy ? 'windy' : ''}` }, at, windy ? speed : null, windy ? clock : null);
   if (windy) clockPicker(clock, { speed, hideSpeed: true });
   const stale = staleText(d.cond, scope);
-  return h('div', { class: 'dope-card' },
-    h('div', { class: 'dope-head' }, h('span', { class: 'row-title' }, dopeTitle(w, d),
-      condText(d.cond) ? h('span', { class: 'badge small dope-cond' }, condText(d.cond)) : null),
+  // Кожна таблиця згорнута (стан пам'ятається): кілька таблиць не лежать простирадлом; у заголовку — що це й скільки рядків
+  return fold(`dope-t:${d.id}`, [
+    h('span', { class: 'fold-title' }, dopeTitle(w, d)),
+    h('span', { class: 'fold-meta' }, [t('{n} дист.', { n: d.rows.length }), condText(d.cond)].filter(Boolean).join(' · ')),
+    stale ? h('span', { class: 'badge small warn' }, '!') : null,
+  ], h('div', { class: 'dope-card' },
+    h('div', { class: 'dope-head' }, d.note ? h('p', { class: 'muted small dope-note' }, d.note) : h('span'),
       toolBtn('target', t('Тренувати в тренажері'), () => trainDope(d, close), 'small'),
       toolBtn('edit', t('Змінити'), () => dopeForm(w, d), 'small')),
-    d.note ? h('p', { class: 'muted small' }, d.note) : null,
     stale ? h('p', { class: 'warn-text small dope-stale' }, stale) : null,
     sup ? switchLabel(sup, t('З глушником')) : null, sup ? supNote : null,
-    table, calcBox, out);
+    table, calcBox, out));
 }
 
 /** «Поправки зараз» для ствола: набої його калібру, хронограф, глушник як минулого разу, збереження в DOPE. */
@@ -3739,8 +3780,9 @@ function openNow(w) {
     weapon: w,
     ammo: state.cartridges.filter((c) => !c.archived && c.caliber && M.sameCaliber(c.caliber, w.caliber)).sort(byName),
     chronoMv: (c) => chronoMv(w, c),
+    gunMv: (c) => gunMv(w, c), mvSrcText,
     suppressor: lastGear(w).suppressor,
-    clockPicker, switchLabel, reticleOf, locate: devicePosition, uid: db.uid,
+    clockPicker, switchLabel, reticleOf, box, locate: devicePosition, uid: db.uid,
     dope: () => (findWeapon(w.id) ?? w).dope ?? [],
     saveDope: async (card) => {
       const cur = findWeapon(w.id) ?? w;
@@ -3864,8 +3906,6 @@ function dopeForm(w, d = null) {
     { name: 'condT', label: t('Таблиця для температури, °C'), type: 'number', step: 'any', value: d?.cond?.tC, placeholder: '15', half: true },
     { name: 'condAlt', label: t('і висоти над морем, м'), type: 'number', step: 'any', value: d?.cond?.alt, placeholder: '0', half: true },
   ]);
-  f.inputs.condAlt.closest('.field').after(h('small', { class: 'muted dope-cond-hint' },
-    t('Знаючи погоду таблиці, «Поправки зараз» перерахують її під сьогоднішню.')));
   // Пристрілка й висота прицілу, для яких таблицю розраховано: інші в прицілі — таблиця застаріла.
   // Рядки правили руками після розрахунку — це вже не розрахунок, і порівнювати нема з чим
   let setup = d?.cond?.zero || d?.cond?.sh ? { zero: d.cond.zero ?? null, sh: d.cond.sh ?? null, mv: d.cond.mv ?? null } : null;
@@ -3873,6 +3913,19 @@ function dopeForm(w, d = null) {
   ammoPicker(f.inputs.cartridgeId, w.caliber);
   caliberWarnLine(f.inputs.cartridgeId.closest('.field'), () => findCartridge(f.inputs.cartridgeId.value), () => w, [f.inputs.cartridgeId]);
   const scope = () => scopes.find((s) => s.id === f.inputs.scopeId.value) ?? null;
+  // Від чого таблиця: пристрілка й висота прицілу з картки прицілу — поправки рахуються від них
+  const scopeInfo = h('p', { class: 'muted small dope-scope-info' });
+  const paintScopeInfo = () => {
+    const sc = scope();
+    scopeInfo.hidden = !sc;
+    if (!sc) return;
+    scopeInfo.textContent = `${t('Поправки — від пристрілки')} ${sc.zero > 0 ? t('{n} м', { n: fmt.num(sc.zero) }) : t('(не вказано — 100 м)')} · `
+      + `${sc.sh > 0 ? t('приціл {n} см над стволом', { n: fmt.num(sc.sh) }) : t('висоту прицілу не вказано — 6 см')}. `
+      + t('Пристрілка задає нуль таблиці, висота прицілу помітна на ближніх дистанціях (до ~100 м). Змінити — в картці прицілу.');
+  };
+  f.inputs.scopeId.closest('.field').after(scopeInfo);
+  f.inputs.scopeId.addEventListener('change', paintScopeInfo);
+  paintScopeInfo();
   let unit = d?.unit ?? (scope()?.click ? 'click' : 'mil');
   const rowsBox = h('div', { class: 'dope-rows' });
   const toText = (mrad, dist) => {
@@ -3942,6 +3995,7 @@ function dopeForm(w, d = null) {
     next.classList.add('segmented');
     units.replaceChildren(next);
     unitHint.textContent = unit === 'cm' ? t('Сантиметри на цілі: наскільки влучання нижче точки прицілювання без поправки.') : t('Плюс — вгору (далі за пристрілку), мінус — вниз.');
+    unitHint.textContent += ` ${t('«Вітер» — знос при повному боковому вітрі (з 3 чи 9 год) такої швидкості, як в «Умовах таблиці»; без знака — напрям і силу оберете під час розрахунку.')}`;
   };
   // Таблицю вели в кліках, а в прицілу ціни кліку вже немає — показуємо в MRAD, інакше рядки вийшли б порожніми й пропали при збереженні
   if (unit === 'click' && !scope()?.click) unit = 'mil';
@@ -3970,22 +4024,21 @@ function dopeForm(w, d = null) {
     if (Number.isFinite(from.tC)) f.inputs.condT.value = String(from.tC);
     setup = from.sh || from.zero ? { zero: from.zero ?? null, sh: from.sh ?? null, mv: null } : null;
     drawUnits();
+    paintCond();
   });
   rowsBox.addEventListener('input', () => { setup = null; });
   // Розрахунок: набій з BC і швидкістю (з хронографа, якщо є серія), приціл — пристрілка й висота над стволом
-  const calcForm = form([
-    { name: 'temp', label: t('Температура, °C'), type: 'number', step: 'any', value: 15, half: true },
-    { name: 'alt', label: t('Висота над морем, м'), type: 'number', step: 'any', value: 0, half: true },
-  ]);
+  // Погода розрахунку — з «Умов таблиці» (порожні — 15 °C і рівень моря): окремих полів у розрахунку немає
+  const air = () => { const v = f.values(); return { tC: v.condT ?? 15, alt: v.condAlt ?? 0, bad: Number.isNaN(v.condT) || Number.isNaN(v.condAlt) }; };
   const calcInfo = h('p', { class: 'muted small' });
   const calcSource = () => {
     const c = findCartridge(f.inputs.cartridgeId.value);
     if (!c) return { error: t('Виберіть набій — розрахунок за його BC і швидкістю') };
-    if (!(c.bc > 0 && c.mv > 0)) return { error: t('У набою «{n}» немає BC чи швидкості — заповніть їх у картці набою', { n: c.name }) };
-    const chrono = chronoMv(w, c); const sc = scope();
-    return { c, mv: Math.round(chrono ?? c.mv), chrono: !!chrono, zero: sc?.zero > 0 ? sc.zero : null, sh: sc?.sh > 0 ? sc.sh : null };
+    if (!(c.bc > 0 && c.mv > 0)) return { error: t('У набою «{n}» немає BC чи швидкості, без них рахувати нема з чого.', { n: c.name }), fix: c };
+    const g = gunMv(w, c); const sc = scope();
+    return { c, mv: g.mv, chrono: g.src === 'chrono', g, zero: sc?.zero > 0 ? sc.zero : null, sh: sc?.sh > 0 ? sc.sh : null };
   };
-  const calcText = (s) => [`${s.c.dragModel || 'G7'} ${fmt.num(s.c.bc)}`, `${s.mv} ${t('м/с')} (${s.chrono ? t('хронограф') : t('з картки набою')})`,
+  const calcText = (s) => [`${s.c.dragModel || 'G7'} ${fmt.num(s.c.bc)}`, `${s.mv} ${t('м/с')} (${mvSrcText(s.g)})`,
     s.zero ? t('пристрілка {n} м', { n: s.zero }) : t('пристрілку не вказано — від 100 м'),
     s.sh ? t('приціл {n} см над стволом', { n: fmt.num(s.sh) }) : t('висоту прицілу не вказано — 6 см')].join(' · ');
   // Прогноз на день виїзду: температура й висота місця — у поля розрахунку, звідки цифри — у примітку
@@ -3993,10 +4046,10 @@ function dopeForm(w, d = null) {
   const tripBox = tripWeather({
     locate: devicePosition,
     onWeather: ({ temp, elevation, place, date, time }) => {
-      calcForm.inputs.temp.value = String(Math.round(temp));
-      if (elevation !== null) calcForm.inputs.alt.value = String(Math.round(elevation));
+      f.inputs.condT.value = String(Math.round(temp));
+      if (elevation !== null) f.inputs.condAlt.value = String(Math.round(elevation));
       forecastNote = t('прогноз: {place}, {date} {time}', { place, date: fmt.date(date), time });
-      paintCalc();
+      fillCalc();
       toast(t('Прогноз: {temp} °C, висота {alt} м', { temp: fmt.num(Math.round(temp)), alt: fmt.num(Math.round(elevation ?? 0)) }));
     },
   });
@@ -4007,11 +4060,11 @@ function dopeForm(w, d = null) {
   const trajBox = h('div', { class: 'dope-traj' });
   const paintTraj = () => {
     const s = calcSource();
-    const v = calcForm.values();
-    if (s.error || calcForm.invalid()) { trajBox.replaceChildren(); return; }
+    const a = air();
+    if (s.error || a.bad) { trajBox.replaceChildren(); return; }
     const sh = s.sh ?? 6; const zero = s.zero ?? 100;
-    const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: v.temp ?? 15, alt: v.alt ?? 0, max: 700, step: 10 })
-      ?? solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: v.temp ?? 15, alt: v.alt ?? 0, max: 400, step: 10 });
+    const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: a.tC, alt: a.alt, max: 700, step: 10 })
+      ?? solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: a.tC, alt: a.alt, max: 400, step: 10 });
     if (!res) { trajBox.replaceChildren(); return; }
     const pts = trajectoryPoints(res.H, 10, sh);
     const pb = pointBlank(pts, pbR);
@@ -4024,15 +4077,19 @@ function dopeForm(w, d = null) {
   };
   const paintCalc = () => {
     const s = calcSource();
-    calcInfo.textContent = s.error ?? `${calcText(s)}. ${t('Рядки 25 і 50 м та 100–700 м через 50 м замінять поточні; вітер — за швидкості з поля вище.')}`;
+    // Немає BC чи швидкості — кнопка тут же: картка набою відкривається поверх, після збереження рахуємо знову
+    const a = air();
+    calcInfo.replaceChildren(s.error ?? `${t('Розраховано')}: ${calcText(s)} · ${a.tC > 0 ? '+' : ''}${fmt.num(a.tC)} °C · ${fmt.num(a.alt)} ${t('м')}. ${t('Погода й вітер колонки — в «Умовах таблиці» внизу; змінили — натисніть «Розрахувати» ще раз.')}`,
+      ...(s.fix ? [' ', btn(t('Заповнити BC і швидкість'), () => cartridgeForm(findCartridge(s.fix.id) ?? s.fix, { onSaved: paintCalc }), 'mini')] : []));
+    calcInfo.classList.toggle('warn-text', !!s.error);
     if (!calcPanel.hidden) paintTraj();
   };
-  calcForm.el.addEventListener('input', () => { forecastNote = ''; paintTraj(); });
   const fillCalc = () => {
     const s = calcSource();
-    if (s.error) { fieldError(f.inputs.cartridgeId, s.error); return; }
-    if (calcForm.invalid()) { formError(t('Температура й висота — числа')); return; }
-    const v = calcForm.values(); const tC = v.temp ?? 15; const alt = v.alt ?? 0;
+    // Помилку видно тут, біля кнопки, а не на полі «Набій» угорі форми, якого зараз не видно
+    if (s.error) { paintCalc(); formError(s.error); calcInfo.scrollIntoView({ block: 'center', behavior: smooth() }); return; }
+    const { tC, alt, bad } = air();
+    if (bad) { formError(t('Температура й висота — числа')); return; }
     const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh: s.sh ?? 6, zero: s.zero ?? 100, tC, alt, max: 700, step: 25 });
     if (!res) { formError(t('Куля не долітає до 700 м — перевірте BC і швидкість')); return; }
     if (!(Number(windForm.values().windSpeed) > 0)) windForm.inputs.windSpeed.value = '5';
@@ -4050,23 +4107,45 @@ function dopeForm(w, d = null) {
       f.inputs.note.value = [`${t('Розрахунок')}: ${calcText(s)}`, `${tC > 0 ? '+' : ''}${fmt.num(tC)} °C`, `${fmt.num(alt)} ${t('м')}`, forecastNote || null]
         .filter(Boolean).join(' · ');
     }
-    calcPanel.hidden = true;
+    paintCond();
+    paintCalc();
     toast(t('Розраховано рядків: {n} — перевірте й збережіть', { n: rowsBox.children.length }));
   };
-  const calcPanel = h('div', { class: 'dope-paste', hidden: true }, calcInfo, calcForm.el, h('div', { class: 'btn-row' }, tripBtn), tripBox,
-    btn(t('Заповнити рядки'), fillCalc, 'primary'), trajBox);
+  const calcPanel = h('div', { class: 'dope-paste', hidden: true }, calcInfo, h('div', { class: 'btn-row' }, tripBtn), tripBox, trajBox);
   f.inputs.cartridgeId.addEventListener('change', paintCalc);
   f.inputs.scopeId.addEventListener('change', paintCalc);
+  // Одна кнопка: одразу заповнює рядки; під нею — з чого пораховано, погода на виїзд і прямий постріл
   const calcBtn = btn(t('Розрахувати'), () => {
-    calcPanel.hidden = !calcPanel.hidden;
+    calcPanel.hidden = false;
     paste.panel.hidden = true;
-    paintCalc();
-    if (!calcPanel.hidden) calcPanel.scrollIntoView({ block: 'nearest', behavior: smooth() });
+    fillCalc();
+    calcPanel.scrollIntoView({ block: 'nearest', behavior: smooth() });
   });
-  const body = h('div', {}, f.el, h('h3', {}, t('Поправки')), units, unitHint, windForm.el,
-    h('div', { class: 'dope-row dope-cols muted small' }, h('span', {}, t('Дистанція, м')), h('span', {}, t('Поправка')), h('span', {}, t('Вітер'))),
-    rowsBox, h('div', { class: 'btn-row' }, btn(t('+ рядок'), () => addRow()), calcBtn, paste.button), calcPanel, paste.panel);
+  // Порядок: що (приціл, набій) → чим заповнити (розрахунок чи вставка, панель одразу під кнопками) → таблиця →
+  // умови таблиці згорнуто (температура, висота, вітер колонки, примітка; у заголовку — що вписано)
+  const condFields = ['condT', 'condAlt', 'note'].map((k) => f.inputs[k].closest('.field'));
+  const condSum = h('span', { class: 'box-sum' });
+  const windCol = h('span', {}, t('Вітер'));
+  const paintCond = () => {
+    const v = f.values(); const ws = Number(windForm.values().windSpeed);
+    condSum.textContent = [v.condT !== null && !Number.isNaN(v.condT) ? `${fmt.num(v.condT)} °C` : null,
+      v.condAlt !== null && !Number.isNaN(v.condAlt) ? `${fmt.num(v.condAlt)} ${t('м')}` : null,
+      ws > 0 ? t('вітер {n} м/с', { n: fmt.num(ws) }) : null].filter(Boolean).join(' · ');
+    windCol.textContent = ws > 0 ? t('Вітер {n} м/с з 3 чи 9 год', { n: fmt.num(ws) }) : t('Вітер');
+  };
+  const condBox = box(t('Умови таблиці'), [
+    h('div', { class: 'form' }, ...condFields.slice(0, 2),
+      h('small', { class: 'muted dope-cond-hint field' }, t('Знаючи погоду таблиці, «Поправки зараз» перерахують її під сьогоднішню.'))),
+    windForm.el, h('div', { class: 'form' }, condFields[2])], { fold: 'dope-cond', summary: condSum });
+  condBox.addEventListener('input', (e) => { if (e.target === f.inputs.condT || e.target === f.inputs.condAlt) forecastNote = ''; paintCond(); });
+  const body = h('div', { class: 'dope-form' }, f.el,
+    h('h3', {}, t('Заповнити')), h('div', { class: 'btn-row dope-fill' }, calcBtn, paste.button), calcPanel, paste.panel,
+    h('h3', {}, t('Поправки')), units, unitHint,
+    h('div', { class: 'dope-row dope-cols muted small' }, h('span', {}, t('Дистанція, м')), h('span', {}, t('Поправка')), windCol),
+    rowsBox, h('div', { class: 'btn-row' }, btn(t('+ рядок'), () => addRow(), 'mini')),
+    condBox);
   drawUnits();
+  paintCond();
   const remove = d ? () => confirmSheet(t('Видалити таблицю?'), dopeTitle(w, d), t('Видалити'), async () => {
     close();
     const cur = findWeapon(w.id) ?? w;
@@ -4471,13 +4550,34 @@ function sizeFields(w) {
     num('lengthOpen', t('Розкладений приклад, см')),
     num('width', t('Ширина, см')),
     num('height', t('Висота, см')),
-    num('barrel', t('Довжина ствола, мм')),
+    num('barrel', t('Довжина ствола')),
     { name: 'twist', label: t('Крок нарізів'), value: s.twist ? `1:${fmt.num(s.twist)}` : '', placeholder: '1:8', half: true },
     num('weight', t('Вага, г')),
     { name: 'weightNote', label: t('Вага — з чим'), value: s.weightNote, placeholder: t('З колліматором, з набоями…'), wide: true },
   ]);
+  // Довжина ствола — у мм чи дюймах (як на стволі), кнопкою число перераховується; зберігається завжди в мм
+  let barrelUnit = recall('shooters-log:barrel-unit') === 'in' ? 'in' : 'mm';
+  const bIn = f.inputs.barrel;
+  const toIn = (mm) => Math.round((mm / 25.4) * 10) / 10;
+  if (barrelUnit === 'in' && s.barrel > 0) bIn.value = String(toIn(s.barrel)).replace('.', ',');
+  const bVal = () => { const n = Number(String(bIn.value).replace(',', '.')); return bIn.value.trim() && Number.isFinite(n) ? n : null; };
+  const bUnits = chips([['mm', t('мм')], ['in', '″']], barrelUnit, (u) => {
+    if (u === barrelUnit) return;
+    const n = bVal();
+    if (n !== null) bIn.value = String(u === 'in' ? toIn(n) : Math.round(n * 25.4)).replace('.', ',');
+    barrelUnit = u;
+    remember('shooters-log:barrel-unit', u);
+    bIn.placeholder = u === 'in' ? '16' : '406';
+  });
+  bUnits.classList.add('segmented', 'unit-mini');
+  bIn.placeholder = barrelUnit === 'in' ? '16' : '406';
+  // Кнопки — не в <label>: тап по підпису натискав би першу
+  const bField = bIn.closest('.field');
+  const bBox = h('div', { class: bField.className }, h('span', { class: 'field-label' }, t('Довжина ствола')), h('div', { class: 'input-unit' }, bIn, bUnits));
+  bField.replaceWith(bBox);
   const values = () => {
     const v = f.values();
+    if (barrelUnit === 'in' && v.barrel > 0) v.barrel = Math.round(v.barrel * 25.4);
     const size = Object.fromEntries(SIZE_KEYS.map((k) => [k, v[k] > 0 ? v[k] : null]));
     size.twist = parseTwist(v.twist);
     size.weightNote = v.weightNote || null;

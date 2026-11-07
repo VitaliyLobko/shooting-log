@@ -188,6 +188,18 @@ function caliberKey(caliber) {
 }
 
 /** Той самий калібр з урахуванням різних написань; без калібру — підходить до будь-якого. */
+/**
+ * Поправка швидкості на довжину ствола, м/с: (ствол зброї − тестовий ствол набою) × м/с на дюйм для калібру.
+ * Орієнтовно: 5.56, .308, 6.5 CM та інші гвинтівкові — ~7,6 м/с (25 fps) на дюйм, 7.62×39 — ~4,5; .22 LR і гладкий — не рахуємо.
+ * null — нема даних (тестовий ствол не вписано чи довжини ствола зброї немає): тоді швидкість з картки як є.
+ */
+export function barrelMvDelta(caliber, testIn, gunMm) {
+  if (!(testIn > 0) || !(gunMm > 0) || !caliber) return null;
+  if (sameCaliber(caliber, '.22 LR') || /кал|ga|gauge/i.test(caliber)) return null;
+  const perIn = sameCaliber(caliber, '7.62×39') ? 4.5 : 7.6;
+  return Math.round((gunMm / 25.4 - testIn) * perIn);
+}
+
 export function sameCaliber(a, b) {
   return !a || !b || caliberKey(a) === caliberKey(b);
 }

@@ -7,6 +7,7 @@ import * as M from './model.js';
 import { solve } from './ballistics.js';
 import { num } from './target.js';
 import { tripWeather, forecastAt } from './forecast.js';
+import { trajectoryPoints, pointBlank, pointBlankText, trajectoryChart, bestZero, schemeAt, fullChart, zerosLabel } from './trajectory.js';
 
 const unitName = (u) => (u === 'moa' ? 'MOA' : 'MRAD');
 const gridUnit = (reticle) => (reticle === 'mil' || reticle === 'moa' ? reticle : null);
@@ -87,7 +88,9 @@ const pick = (arr, d) => {
   return lo === hi ? arr[lo] : arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
 };
 
-const DISTS = [100, 200, 300, 400, 500, 600, 700, 800];
+// Дистанції — кнопки, таблиця «На всі дистанції» й картинка: до 300 м через 100, далі через 50 — там поправка росте швидко (5.56: 300→400 м — з 1,2 до 2,3 мрад)
+const DISTS = [100, 200, ...Array.from({ length: 11 }, (_, i) => 300 + i * 50)];
+const TABLE_DISTS = DISTS;
 const OUT_NOTE = () => t('* Далі за свою таблицю — розрахунок за балістикою набою.');
 const WX_KEY = 'shooters-log:now-wx';
 const read = (k) => { try { return JSON.parse(localStorage.getItem(k)) ?? null; } catch { return null; } };
@@ -124,26 +127,38 @@ export function nowSheet(ctx) {
   const alt = h('input', { type: 'number', inputmode: 'decimal', step: 'any', 'aria-label': t('Висота над морем, м') });
   temp.value = String(wx.tC); alt.value = String(wx.alt);
   const wxInfo = h('p', { class: 'muted small now-wx-info' });
-  const speed = h('input', { type: 'number', inputmode: 'decimal', min: 0, max: 20, step: 'any', placeholder: t('Вітер, м/с') });
-  speed.value = saved.ws ? String(saved.ws) : '';
+  const speed = h('input', { type: 'number', inputmode: 'decimal', min: 0, max: 10, step: 'any', placeholder: t('Вітер, м/с') });
+  // Край круга — 10 м/с, як у тренажері: дрібний вітер 2–6 м/с займає більшу частину ходу пальця
+  speed.value = saved.ws ? String(Math.min(10, saved.ws)) : '';
   const clock = h('select', { 'aria-label': t('Звідки вітер') },
     selectOptions(Array.from({ length: 12 }, (_, i) => [String(i + 1), t('з {n} год', { n: i + 1 })]), String(saved.clock ?? 3)));
   let dist = saved.d ?? 300;
-  const distIn = h('input', { type: 'number', inputmode: 'numeric', min: 10, max: 800, step: 1, placeholder: '450', class: 'now-dist-in' });
+  const distIn = h('input', { type: 'number', inputmode: 'numeric', min: 10, max: 800, step: 1, placeholder: t('інша'), 'aria-label': t('Інша дистанція, м'), class: 'now-dist-in' });
+  if (!DISTS.includes(dist)) distIn.value = String(dist);
   const sup = h('input', { type: 'checkbox', role: 'switch' });
   sup.checked = !!ctx.suppressor;
   const supRow = ctx.switchLabel(sup, t('З глушником'));
 
   const big = h('div', { class: 'now-big', 'aria-live': 'polite' });
   const tableBox = h('div', { class: 'now-table' });
-  const distChips = h('div', {});
+  // Чіпи створюємо раз: поле «інша» в тому ж ряду не втрачає фокус, поки в ньому пишуть
+  const distChips = Object.assign(chips(DISTS.map((x) => [String(x), String(x)]), '', (v) => { dist = Number(v); distIn.value = ''; paint(); }),
+    { className: 'chips now-dists' });
+  distChips.append(distIn);
+  const wxSum = h('span', { class: 'box-sum' });
+  const windSum = h('span', { class: 'box-sum' });
+  const pbSum = h('span', { class: 'box-sum' });
+  const trajBox = h('div', { class: 'dope-traj' });
+  let pbR = Number(read('shooters-log:pb-r')) || 5;
 
   /** Усе, від чого залежить відповідь: приціл, набій, пристрілка, обидві балістики й таблиця. */
   const model = () => {
     const sc = scope(); const c = cart();
     const zero = sc?.zero > 0 ? sc.zero : 100; const sh = sc?.sh > 0 ? sc.sh : 6;
-    const chrono = c ? ctx.chronoMv(c) : null;
-    const mv = c ? Math.round(chrono ?? c.mv ?? 0) : 0;
+    // Швидкість: хронограф → картка з поправкою на ствол → картка (gunMv у app.js)
+    const g = c ? ctx.gunMv(c) : null;
+    const chrono = g?.src === 'chrono';
+    const mv = g?.mv ?? 0;
     const can = c?.bc > 0 && mv > 0;
     const tC = Number(temp.value.replace(',', '.')); const al = Number(alt.value.replace(',', '.'));
     const air = { tC: Number.isFinite(tC) ? tC : 15, alt: Number.isFinite(al) ? al : 0 };
@@ -160,7 +175,7 @@ export function nowSheet(ctx) {
     const worth = (mrad) => { const k = M.clickValue(sc?.click); return k ? Math.abs(M.fromMrad(mrad, k.unit)) / k.value >= 0.5 : Math.abs(mrad) >= 0.05; };
     const f = shift ? M.suppressorFix(sup.checked, sc?.zeroSuppressor, shift) : null;
     const fix = f && { x: worth(f.x) ? f.x : 0, y: worth(f.y) ? f.y : 0 };
-    return { sc, c, zero, sh, mv, chrono: !!chrono, can, air, now, base, table, stale, shift, fix };
+    return { sc, c, zero, sh, mv, g, chrono: !!chrono, can, air, now, base, table, stale, shift, fix };
   };
 
   /** Вертикаль на дистанції d, мрад (плюс — вгору), і звідки: src — table-wx | table | table-nowx | calc | calc-out. */
@@ -193,7 +208,7 @@ export function nowSheet(ctx) {
   };
 
   const srcText = (m, r) => {
-    const calc = m.can ? `${m.c.dragModel || 'G7'} ${fmt.num(m.c.bc)} · ${m.mv} ${t('м/с')} (${m.chrono ? t('хронограф') : t('з картки набою')}) · ${t('пристрілка {n} м', { n: m.zero })} · ${t('приціл {n} см над стволом', { n: fmt.num(m.sh) })}` : '';
+    const calc = m.can ? `${m.c.dragModel || 'G7'} ${fmt.num(m.c.bc)} · ${m.mv} ${t('м/с')} (${ctx.mvSrcText(m.g)}) · ${t('пристрілка {n} м', { n: m.zero })} · ${t('приціл {n} см над стволом', { n: fmt.num(m.sh) })}` : '';
     return {
       'table-wx': t('Зі своєї таблиці DOPE + поправка на погоду: таблиця для {a}, зараз {b} ({d} MRAD).', { a: condText(m.table?.cond), b: condText(m.air), d: `${r.delta >= 0 ? '+' : '−'}${num(Math.abs(r.delta), 2)}` }),
       table: m.can ? t('Зі своєї таблиці DOPE ({a}): погода та сама.', { a: condText(m.table?.cond) })
@@ -208,11 +223,13 @@ export function nowSheet(ctx) {
     const m = model();
     write(KEY, { scopeId: scopeSel.value, cid: cartSel.value, d: dist, ws: Number(speed.value.replace(',', '.')) || 0, clock: Number(clock.value) });
     write(WX_KEY, m.air);
-    distChips.replaceChildren(Object.assign(chips(DISTS.map((x) => [String(x), String(x)]), DISTS.includes(dist) ? String(dist) : '', (v) => {
-      dist = Number(v); distIn.value = ''; paint();
-    }), { className: 'chips now-dists' }));
+    distChips.querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.value) === dist));
+    distIn.classList.toggle('on', !DISTS.includes(dist));
+    const ws = Number(speed.value.replace(',', '.')) || 0;
+    wxSum.textContent = condText(m.air);
+    windSum.textContent = ws > 0 ? `${fmt.num(ws)} ${t('м/с')} · ${t('з {n} год', { n: Number(clock.value) })}` : t('штиль');
     supRow.hidden = !m.shift;
-    if (!m.c) { big.replaceChildren(h('p', { class: 'muted' }, t('Немає набою з BC і швидкістю чи своєю таблицею для цього прицілу. Заповніть балістику в картці набою.'))); tableBox.replaceChildren(); return; }
+    if (!m.c) { big.replaceChildren(h('p', { class: 'muted' }, t('Немає набою з BC і швидкістю чи своєю таблицею для цього прицілу. Заповніть балістику в картці набою.'))); tableBox.replaceChildren(); tableFrame.hidden = true; pbFrame.hidden = true; return; }
     const r = holdAt(m, dist);
     const click = m.sc?.click; const ret = ctx.reticleOf(m.sc);
     if (!r) {
@@ -223,13 +240,18 @@ export function nowSheet(ctx) {
       const wd = windAt(m, dist, v, h12);
       const cells = elevCells(r.mrad, dist, click, ret);
       const tof = pick(m.now?.T, dist); const vel = pick(m.now?.V, dist);
+      // Дві плитки: вертикаль (барабан) — колір застосунку, вітер — блакитний; зверху дистанція й політ, пояснення — під ними
+      const wc = v > 0 && wd !== null && wd >= 0.0005 ? windCell(wd, dist, click, ret, h12 < 6 ? '→' : '←') : null;
+      const tile = (cls, label, main, sub) => h('div', { class: `now-tile ${cls}` },
+        h('div', { class: 'now-tile-label' }, label), h('div', { class: 'now-main' }, main), sub ? h('div', { class: 'now-sub' }, sub) : null);
       big.replaceChildren(...[
-        h('div', { class: 'now-dist' }, t('{d} м', { d: dist })),
-        h('div', { class: 'now-main' }, cells[0].main),
-        h('div', { class: 'now-sub' }, [cells[0].sub, cells[1] ? `${t('винос')} ${cells[1].main}${cells[1].sub ? ` · ${cells[1].sub}` : ''}` : null].filter(Boolean).join(' · ')),
-        v > 0 && wd !== null ? h('div', { class: 'now-wind' }, wd < 0.0005 ? `${t('Вітер')}: ${t('без поправки')}`
-          : (() => { const wc = windCell(wd, dist, click, ret, h12 < 6 ? '→' : '←'); return `${t('Вітер')}: ${wc.main}${wc.sub ? ` · ${wc.sub}` : ''}`; })()) : null,
-        tof !== null ? h('div', { class: 'muted small' }, t('Час польоту {t} с · швидкість {v} м/с', { t: num(tof, 2), v: Math.round(vel) })) : null,
+        h('div', { class: 'now-head' }, h('span', { class: 'now-dist' }, t('{d} м', { d: dist })),
+          tof !== null ? h('span', { class: 'muted small' }, t('Час польоту {t} с · швидкість {v} м/с', { t: num(tof, 2), v: Math.round(vel) })) : null),
+        h('div', { class: 'now-tiles' },
+          tile('elev', t('Вертикаль'), cells[0].main,
+            [cells[0].sub, cells[1] ? `${t('винос')} ${cells[1].main}${cells[1].sub ? ` · ${cells[1].sub}` : ''}` : null].filter(Boolean).join(' · ')),
+          tile(`wind ${wc ? '' : 'calm'}`, v > 0 ? `${t('Вітер')} · ${fmt.num(v)} ${t('м/с')} ${t('з {n} год', { n: h12 })}` : t('Вітер'),
+            wc ? wc.main : v > 0 ? t('без поправки') : t('штиль'), wc?.sub ?? null)),
         m.fix && (m.fix.x || m.fix.y) ? h('div', { class: 'muted small' }, t('З поправкою на глушник')) : null,
         m.shift && typeof m.sc?.zeroSuppressor !== 'boolean'
           ? h('div', { class: 'muted small' }, t('Чи пристрілювали приціл з глушником, не вказано, тож поправку на глушник не враховано. Відповісти можна в картці таблиці DOPE.')) : null,
@@ -237,25 +259,89 @@ export function nowSheet(ctx) {
         m.stale ? h('p', { class: 'warn-text small' }, m.stale) : null].filter(Boolean));
     }
     paintTable(m);
+    paintTraj(m);
+  };
+
+  /** Прямий постріл за балістикою під цю погоду; без BC і швидкості блоку немає. */
+  // Порівняння на графіку: схема пристрілки пунктиром поверх поточної — 100, 200, 50/200, 25/300 чи найкраща; ще тап — сховати
+  const SCHEMES = [['100', '100 м'], ['200', '200 м'], ['50', '50/200'], ['25', '25/300'], ['best', 'Найкраща']];
+  let pbAlt = '';
+  // Режим блоку: прямий постріл (сантиметри біля лінії прицілу) чи вся траєкторія до 800 м (поправки в мрад)
+  let pbMode = 'pb';
+  // У «Усій траєкторії»: поправки в мрад чи висота кулі над лінією прицілу в см
+  let allView = 'mrad';
+  const paintTraj = (m) => {
+    pbFrame.hidden = !m.now;
+    if (!m.now) { trajBox.replaceChildren(); return; }
+    const modes = chips([['pb', t('Прямий постріл')], ['all', t('Уся траєкторія')]], pbMode, (k) => { pbMode = k; paintTraj(model()); });
+    modes.classList.add('segmented');
+    const pts = trajectoryPoints(m.now.H, 10, m.sh);
+    const pb = pointBlank(pts, pbR);
+    if (pbMode === 'all') {
+      const v = Number(speed.value.replace(',', '.')) || 0;
+      const cross = v * M.windShare(Number(clock.value));
+      pbSum.textContent = t('до {d} м', { d: m.now.H.length * 10 });
+      const views = chips([['mrad', t('Поправки')], ['cm', t('Висота кулі')]], allView, (k) => { allView = k; paintTraj(model()); });
+      views.classList.add('segmented');
+      trajBox.replaceChildren(modes, views, allView === 'cm'
+        ? trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, full: true })
+        : fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross }));
+      return;
+    }
+    const near = pb.spans[0];
+    pbSum.textContent = near ? `${t('до {d} м', { d: fmt.num(Math.round(near[1] / 5) * 5) })} · ±${pbR} ${t('см')}` : '';
+    const radius = chips([5, 10, 15].map((r) => [String(r), `±${r} ${t('см')}`]), String(pbR), (r) => {
+      pbR = Number(r); write('shooters-log:pb-r', pbR); paintTraj(model());
+    });
+    radius.classList.add('segmented');
+    // Головне крупно: від–до, де барабан не крутити; і порада, якщо інша пристрілка дає помітно далі (від 15 м)
+    const r5 = (d) => Math.round(d / 5) * 5;
+    const cur = pb.spans.find(([a, b]) => m.zero >= a && m.zero <= b) ?? near;
+    const best = bestZero(pts, pbR);
+    const better = best && cur && best.zero !== m.zero && best.span[1] - cur[1] >= 15 ? best : null;
+    const bestZ = best?.zero ?? null;
+    // «Найкраща» окремою кнопкою — лише коли вона не збігається з поточною чи з однією зі схем
+    const bestKey = SCHEMES.some(([k]) => Number(k) === bestZ) ? String(bestZ) : 'best';
+    const tiles = cur ? h('div', { class: 'now-tiles' },
+      h('div', { class: 'now-tile elev' }, h('div', { class: 'now-tile-label' }, t('Барабан не крутити')),
+        h('div', { class: 'now-main' }, `${fmt.num(r5(cur[0]))}–${fmt.num(r5(cur[1]))} ${t('м')}`),
+        h('div', { class: 'now-sub' }, t('пристрілка {z} м · цільтесь у центр', { z: fmt.num(m.zero) }))),
+      better ? h('button', { type: 'button', class: `now-tile best ${pbAlt === bestKey ? 'on' : ''}`, 'aria-pressed': String(pbAlt === bestKey),
+        title: t('Показати на графіку'), onclick: () => { pbAlt = pbAlt === bestKey ? '' : bestKey; paintTraj(model()); } }, h('div', { class: 'now-tile-label' }, t('Якщо пристріляти на {z} м', { z: fmt.num(better.zero) })),
+        h('div', { class: 'now-main' }, `${fmt.num(r5(better.span[0]))}–${fmt.num(r5(better.span[1]))} ${t('м')}`),
+        h('div', { class: 'now-sub' }, t('+{n} м', { n: fmt.num(r5(better.span[1]) - r5(cur[1])) }))) : null) : null;
+    // Схеми, що збігаються з поточною пристрілкою, не показуємо; «Найкраща» — лише коли вона інша
+    const schemes = SCHEMES.filter(([k]) => (k === 'best' ? bestZ && bestZ !== m.zero && bestKey === 'best' : Number(k) !== m.zero));
+    if (pbAlt && !schemes.some(([k]) => k === pbAlt)) pbAlt = '';
+    const altZ = pbAlt === 'best' ? bestZ : pbAlt ? Number(pbAlt) : null;
+    const alt = altZ ? schemeAt(pts, altZ, pbR) : null;
+    const pick = h('div', { class: 'chips pb-schemes', role: 'group', 'aria-label': t('Порівняти з пристрілкою') },
+      h('span', { class: 'muted small' }, t('Порівняти:')),
+      ...schemes.map(([k, label]) => h('button', { type: 'button', class: k === pbAlt ? 'on' : '', 'aria-pressed': String(k === pbAlt),
+        // Звичні назви схем; «Найкраща» — своя дистанція, тож обидва її нулі (справжні нулі будь-якої схеми — під графіком)
+        onclick: () => { pbAlt = pbAlt === k ? '' : k; paintTraj(model()); } }, k === 'best' ? `${t('Найкраща')} ${zerosLabel(pts, bestZ)}` : t(label))));
+    trajBox.replaceChildren(modes, radius, tiles, h('p', { class: 'dope-pb muted small' }, pointBlankText(pb, pbR, m.zero)),
+      pick, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt }));
   };
 
   const paintTable = (m) => {
     const click = m.sc?.click; const ret = ctx.reticleOf(m.sc); const one = oneColumn(click, ret);
     const v = Number(speed.value.replace(',', '.')) || 0; const h12 = Number(clock.value);
-    const rows = DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
+    const rows = TABLE_DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
+    tableFrame.hidden = !rows.length;
     if (!rows.length) { tableBox.replaceChildren(); return; }
     const windHead = v > 0 ? t('Вітер {v} м/с', { v: fmt.num(v) }) : null;
-    tableBox.replaceChildren(h('h4', {}, t('На всі дистанції за цієї погоди')),
+    tableBox.replaceChildren(...[
       h('table', { class: 'dope' },
         h('thead', {}, h('tr', {}, h('th', {}, t('м')), ...(one ? [h('th', {}, t('Поправка'))] : [h('th', {}, t('Барабан')), h('th', {}, t('Винос'))]),
           windHead ? h('th', {}, windHead) : null)),
         h('tbody', {}, ...rows.map(({ d, r }) => {
           const wd = windHead ? windAt(m, d, v, h12) : null;
-          return h('tr', { class: d === dist ? 'zero' : '', onclick: () => { dist = d; distIn.value = ''; paint(); } },
+          return h('tr', { class: d === dist ? 'sel' : '', onclick: () => { dist = d; distIn.value = DISTS.includes(d) ? '' : String(d); paint(); } },
             h('td', {}, `${fmt.num(d)}${r.src === 'calc-out' ? '*' : ''}`), ...elevCells(r.mrad, d, click, ret).map(cellTd),
             windHead ? cellTd(wd === null ? { main: '—', sub: null } : windCell(wd, d, click, ret, h12 < 6 ? '→' : '←')) : null);
         }))),
-      rows.some((x) => x.r.src === 'calc-out') ? h('p', { class: 'muted small' }, OUT_NOTE()) : null);
+      rows.some((x) => x.r.src === 'calc-out') ? h('p', { class: 'muted small' }, OUT_NOTE()) : null].filter(Boolean));
   };
 
   /** Таблиця DOPE з цих чисел: 25, 50, 100…700 м, вітер — на 5 м/с збоку, з умовами розрахунку. */
@@ -285,7 +371,7 @@ export function nowSheet(ctx) {
     const m = model(); if (!m.c) return;
     const click = m.sc?.click; const ret = ctx.reticleOf(m.sc);
     const v = Number(speed.value.replace(',', '.')) || 0; const h12 = Number(clock.value);
-    const held = DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
+    const held = TABLE_DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
     const out = held.some((x) => x.r.src === 'calc-out');
     const rows = held.map(({ d, r }) => {
       const c = elevCells(r.mrad, d, click, ret); const wd = v > 0 ? windAt(m, d, v, h12) : null;
@@ -346,18 +432,25 @@ export function nowSheet(ctx) {
   distIn.addEventListener('input', () => { const v = Number(distIn.value); if (v >= 10 && v <= 800) { dist = Math.round(v); paint(); } });
 
   const label = (text, el) => h('label', { class: 'field half' }, h('span', { class: 'field-label' }, text), el);
+  // Порядок: що стріляємо → дистанція → відповідь → умови (згорнуті, підсумок у заголовку) → таблиця → дії
+  const tableFrame = ctx.box(t('На всі дистанції'), tableBox);
+  const pbFrame = ctx.box(t('Траєкторія'), trajBox, { fold: 'now-pb', summary: pbSum });
   const body = h('div', { class: 'now' },
-    h('div', { class: 'form' }, scopes.length > 1 ? label(t('Приціл'), scopeSel) : null, label(t('Набій'), cartSel)),
-    supRow,
-    h('h4', {}, t('Дистанція')), distChips, h('div', { class: 'form' }, label(t('Інша дистанція, м'), distIn)),
-    big,
-    h('h4', {}, t('Погода')),
-    h('div', { class: 'form' }, label(t('Температура, °C'), temp), label(t('Висота над морем, м'), alt)),
-    h('div', { class: 'btn-row' }, hereBtn, tripBtn), trip, wxInfo,
-    h('h4', {}, t('Вітер')), h('div', { class: 'dope-calc windy' }, speed, clock),
-    tableBox,
+    ctx.box(t('Що стріляємо'), [
+      h('div', { class: 'form' }, scopes.length > 1 ? label(t('Приціл'), scopeSel) : null, label(t('Набій'), cartSel)), supRow]),
+    ctx.box(t('Дистанція, м'), [distChips, big]),
+    ctx.box(t('Погода'), [
+      h('div', { class: 'form' }, label(t('Температура, °C'), temp), label(t('Висота над морем, м'), alt)),
+      h('div', { class: 'btn-row' }, hereBtn, tripBtn), trip, wxInfo], { fold: 'now-wx', summary: wxSum }),
+    ctx.box(t('Вітер'), h('div', { class: 'dope-calc windy' }, speed, clock), { fold: 'now-wind', summary: windSum }),
+    tableFrame,
+    pbFrame,
     h('div', { class: 'btn-row' }, btn(t('Зберегти як таблицю DOPE'), saveTable), btn(t('Картинкою'), picture)));
   ctx.clockPicker(clock, { speed, hideSpeed: true });
+  // Погода й вітер щоразу згорнуті: що вписано — видно в заголовку, розгортати щоразу не треба
+  body.querySelectorAll('.box.foldable').forEach((b) => {
+    if (/Погода|Вітер/.test(b.querySelector('.box-toggle')?.textContent ?? '') && !b.classList.contains('closed')) b.querySelector('.box-toggle').click();
+  });
   sheet(t('Поправки зараз · {n}', { n: w.name }), body, { full: true });
   paint();
 }
