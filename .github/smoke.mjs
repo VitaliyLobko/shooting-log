@@ -61,6 +61,8 @@ listeners.push((m) => {
 });
 await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
 await cdp('Emulation.setDeviceMetricsOverride', { width: 412, height: 900, deviceScaleFactor: 1, mobile: true });
+// Святкова сценка при запуску (печиво ≈ 1 з 6) перекрила б екран — смоук перевіряє застосунок, не сценки
+await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `new MutationObserver(() => document.querySelectorAll('.scene').forEach((s) => s.remove())).observe(document, { childList: true, subtree: true });` });
 
 const js = async (expr) => {
   const r = await cdp('Runtime.evaluate', { expression: `(async () => { ${expr} })()`, awaitPromise: true, returnByValue: true });

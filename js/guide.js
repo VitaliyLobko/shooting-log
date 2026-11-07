@@ -1,4 +1,4 @@
-// Довідник стрілка: розділи курсу з guide/marksman.html, калькулятор мил і тренажер сітки.
+// Довідник стрілка: розділи курсу з guide/marksman.uk.html, калькулятор мил і тренажер сітки.
 import { t, lang, locale } from './i18n.js';
 import { solve, airRatio } from './ballistics.js';
 import { MASKS, MASK_CELL } from './masks.js';
@@ -6,12 +6,9 @@ import { wheelStrip, chips } from './ui.js';
 
 const cached = new Map();
 
-// Курс релоадінгу поки лише українською — його показуємо й у російському інтерфейсі
-const UK_ONLY = new Set(['reloading']);
-
-/** Текст курсу (marksman, reloading) мовою інтерфейсу; кешується на сесію (офлайн його віддає service worker). */
+/** Текст курсу (marksman, reloading) — українською; кешується на сесію (офлайн його віддає service worker). */
 export function loadGuide(kind = 'marksman') {
-  const file = lang() === 'uk' || UK_ONLY.has(kind) ? `./guide/${kind}.uk.html` : `./guide/${kind}.html`;
+  const file = `./guide/${kind}.uk.html`;
   if (!cached.has(file)) {
     cached.set(file, fetch(file).then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -53,7 +50,7 @@ const fm = (m) => f(m, m % 1 ? 1 : 0);
 // Розмір цілі: 1,85 — до сотих, 0,5 — до десятих, 2 — ціле
 const sizeTxt = (m) => f(m, Math.round(m * 100) % 10 ? 2 : m % 1 ? 1 : 0);
 // Швидкість цілі на кнопці «Рух» — як її кажуть: крок, біг, авто в км/год
-const MOVE_SHORT = { 1.4: 'шаг', 3.5: 'бег', 8.3: '30 км/ч', 13.9: '50 км/ч' };
+const MOVE_SHORT = { 1.4: 'крок', 3.5: 'біг', 8.3: '30 км/год', 13.9: '50 км/год' };
 /** Розмір у метрах без зайвих нулів і без округлення до десятої: 1,45 · 0,25 · 1. */
 const mFmt = (m) => nf(0, 2).format(m);
 
@@ -64,20 +61,20 @@ export function initCalc(root) {
   const v = (id) => { const x = parseFloat($(id).value); return Number.isFinite(x) ? x : NaN; };
   const range = () => {
     const s = v('r-size'); const m = v('r-mil'); const o = $('r-out');
-    if (!(s > 0 && m > 0)) { o.innerHTML = `<small>${t('Введите размер и угол в MRAD больше нуля')}</small>`; return; }
-    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} ${t('м')}<small>${t('дальность = размер × 1000 ÷ MRAD')}</small>`;
+    if (!(s > 0 && m > 0)) { o.innerHTML = `<small>${t('Уведіть розмір і кут у MRAD більші за нуль')}</small>`; return; }
+    o.innerHTML = `≈ ${f(s * 1000 / m, 0)} ${t('м')}<small>${t('дальність = розмір × 1000 ÷ MRAD')}</small>`;
   };
   const clicks = () => {
     const c = v('c-cm'); const d = v('c-d'); const o = $('c-out');
-    if (!(c >= 0 && d > 0)) { o.innerHTML = `<small>${t('Введите отклонение и дистанцию')}</small>`; return; }
+    if (!(c >= 0 && d > 0)) { o.innerHTML = `<small>${t('Уведіть відхилення й дистанцію')}</small>`; return; }
     const mil = c * 10 / d; const moa = c / (d / 100) / 2.908;
-    o.innerHTML = `${f(mil, 2)} MRAD → ${t('{n} щелч. по 0,1', { n: Math.round(mil * 10) })}`
-      + `<small>${f(moa, 2)} MOA → ${t('{n} щелч. по ¼ MOA', { n: Math.round(moa * 4) })}</small>`;
+    o.innerHTML = `${f(mil, 2)} MRAD → ${t('{n} кл. по 0,1', { n: Math.round(mil * 10) })}`
+      + `<small>${f(moa, 2)} MOA → ${t('{n} кл. по ¼ MOA', { n: Math.round(moa * 4) })}</small>`;
   };
   const lead = () => {
     const s = v('l-v'); const tm = v('l-t'); const d = v('l-d'); const o = $('l-out');
-    if (!(s >= 0 && tm >= 0 && d > 0)) { o.innerHTML = `<small>${t('Введите скорость, время и дистанцию')}</small>`; return; }
-    o.innerHTML = `${f(s * tm * 1000 / d, 1)} ${t('MRAD вперёд')}<small>${t('{v} м по ходу движения', { v: f(s * tm, 2) })}</small>`;
+    if (!(s >= 0 && tm >= 0 && d > 0)) { o.innerHTML = `<small>${t('Уведіть швидкість, час і дистанцію')}</small>`; return; }
+    o.innerHTML = `${f(s * tm * 1000 / d, 1)} ${t('MRAD уперед')}<small>${t('{v} м за ходом руху', { v: f(s * tm, 2) })}</small>`;
   };
   ['r-size', 'r-mil'].forEach((i) => $(i).addEventListener('input', range));
   ['c-cm', 'c-d'].forEach((i) => $(i).addEventListener('input', clicks));
@@ -158,8 +155,8 @@ function acog(g) {
 // Угорі — далекомір: база на −23,9 (2 MOA), лінії плечей 18″ на 300–600 ярдів (5,7 / 4,2 / 3,4 / 2,8) — верх мішені 40″
 const BDC3_WIND = [[2.395, [3.29, 4.98]], [5.575, [2.39, 4.78, 7.07]], [9.465, [3.19, 6.37, 9.56]], [14.545, [4.08, 8.07, 12.25]]];
 const BDC3_HASH = [[2.395, 2.78], [3.885, 0.74], [5.575, 2.1], [7.375, 0.74], [9.465, 1.7], [11.755, 0.74], [14.545, 1.4], [17.035, 0.74]];
-const BDC3_MARKS = [[0, 'точка'], [2.4, 'риска 300 ярдов (2,4)'], [3.9, 'короткая 350 ярдов (3,9)'], [5.6, 'риска «4» (5,6)'], [7.4, 'короткая 450 ярдов (7,4)'],
-  [9.5, 'риска «5» (9,5)'], [11.8, 'короткая 550 ярдов (11,8)'], [14.5, 'риска «6» (14,5)'], [17.0, 'низ вертикали, 650 ярдов (17,0)']];
+const BDC3_MARKS = [[0, 'точка'], [2.4, 'риска 300 ярдів (2,4)'], [3.9, 'коротка 350 ярдів (3,9)'], [5.6, 'риска «4» (5,6)'], [7.4, 'коротка 450 ярдів (7,4)'],
+  [9.5, 'риска «5» (9,5)'], [11.8, 'коротка 550 ярдів (11,8)'], [14.5, 'риска «6» (14,5)'], [17.0, 'низ вертикалі, 650 ярдів (17,0)']];
 function arbdc3(g, R, E = R) {
   const lw = 0.25;
   const ln = (x1, y1, x2, y2, w = lw) => mk('line', { x1, y1, x2, y2, class: 'r-l', 'stroke-width': w }, g);
@@ -199,8 +196,8 @@ function arbdc3(g, R, E = R) {
 // Шеврон 5,73 × 2,87 (плечі 45°, всередині з 1,25); риски під вершиною: 200 — 1,43 (середина шеврона), 300 — 2,87 (основа),
 // 400 — 6,0, 500 — 9,65, 600 — 14,15 (нижня); стебло 0,5 від 3,02. Точки вітру ⌀0,5 — 5 і 10 миль/год: 400 — 4,3 (лише 10),
 // 500 — 2,8 / 5,6, 600 — 3,6 / 7,2. Підкова ⌀35,9 (зовні) завтовшки 4,0 з центром на вершині — передній край для цілі 8,6 миль/год
-const RAPTOR_MARKS = [[0, 'вершина шеврона'], [1.43, 'середина шеврона (200 ярдов)'], [2.87, 'основание шеврона (300 ярдов)'],
-  [6.0, 'риска 400 ярдов'], [9.65, 'риска 500 ярдов'], [14.15, 'нижняя риска 600 ярдов']];
+const RAPTOR_MARKS = [[0, 'вершина шеврона'], [1.43, 'середина шеврона (200 ярдів)'], [2.87, 'основа шеврона (300 ярдів)'],
+  [6.0, 'риска 400 ярдів'], [9.65, 'риска 500 ярдів'], [14.15, 'нижня риска 600 ярдів']];
 function raptor(g) {
   mk('polygon', { points: '0,0 2.87,2.87 1.62,2.87 0,1.25 -1.62,2.87 -2.87,2.87', class: 'r-chev' }, g);
   mk('polygon', { points: '0,3.02 0.25,3.27 0.25,14.4 -0.25,14.4 -0.25,3.27', class: 'r-chev' }, g);
@@ -239,7 +236,7 @@ const DWLR_HASH = [[1.79, 0.76], [3.08, 0.57], [4.57, 0.46], [6.29, 0.38], [8.26
 const DWLR_WIND = [[1.79, [0.8]], [3.08, [1.11]], [4.57, [0.72, 1.45]], [6.29, [0.92, 1.83]], [8.26, [1.12, 2.24]], [10.54, [1.35, 2.7]],
   [13.19, [1.6, 3.2]], [16.24, [1.84, 3.68]]];
 const DWLR_DOTS = [1.21, 2.41, 3.8, 5.4, 7.24, 9.36, 11.81, 14.66];
-const DWLR_MARKS = [[0, 'точка'], [0.7, 'короткая риска (0,7)'], [1.79, 'риска «3» (300 м)'], [2.41, 'точка 350 м'], [3.08, 'риска 400 м'],
+const DWLR_MARKS = [[0, 'точка'], [0.7, 'коротка риска (0,7)'], [1.79, 'риска «3» (300 м)'], [2.41, 'точка 350 м'], [3.08, 'риска 400 м'],
   [3.8, 'точка 450 м'], [4.57, 'риска «5» (500 м)'], [5.4, 'точка 550 м'], [6.29, 'риска 600 м'], [7.24, 'точка 650 м'], [8.26, 'риска «7» (700 м)'],
   [9.36, 'точка 750 м'], [10.54, 'риска 800 м'], [11.81, 'точка 850 м'], [13.19, 'риска «9» (900 м)'], [14.66, 'точка 950 м'], [16.24, 'низ стебла (1000 м)']];
 function dwlr(g, R, E = R) {
@@ -275,7 +272,7 @@ function dwlr(g, R, E = R) {
 // тонкі нитки 0,14, товсті стовпи 0,41 з усіх боків від 4,24; під центром риски на 0,84 / 1,30 / 1,81 / 2,35 / 2,95 завширшки
 // 0,75 / 0,50 / 1,00 / 0,50 / 1,38. Справжні на найбільшій кратності 4×; Leupold радить пристрілку 200 ярдів, точки до 600
 const LP_HASH = [[0.84, 0.75], [1.30, 0.5], [1.81, 1.0], [2.35, 0.5], [2.95, 1.38]];
-const LP_MARKS = [[0, 'перекрестие'], ...LP_HASH.map(([y], i) => [y, `риска ${i + 1} (${String(y).replace('.', ',')})`])];
+const LP_MARKS = [[0, 'перехрестя'], ...LP_HASH.map(([y], i) => [y, `риска ${i + 1} (${String(y).replace('.', ',')})`])];
 function lpar(g, R, E = R) {
   const ln = (x1, y1, x2, y2, w) => mk('line', { x1, y1, x2, y2, class: 'r-l', 'stroke-width': w }, g);
   ln(-4.24, 0, 4.24, 0, 0.14); ln(0, -4.24, 0, 4.24, 0.14);
@@ -324,7 +321,7 @@ function ebr(g, R, E = R) {
 }
 
 const ACOG_MARKS = [[0, 'вершина шеврона'], [4.4, 'верх пенька (300 м)'], [7.8, 'риска 400 м'], [12.6, 'риска 500 м'], [18.7, 'риска 600 м'], [26.4, 'риска 700 м'], [35.8, 'риска 800 м']];
-const BMARKS = [[0, 'центр'], [2.0, 'точка 1 (2,0)'], [5.9, 'точка 2 (5,9)'], [9.9, 'точка 3 (9,9)'], [14.8, 'кончик столба (14,8)']];
+const BMARKS = [[0, 'центр'], [2.0, 'точка 1 (2,0)'], [5.9, 'точка 2 (5,9)'], [9.9, 'точка 3 (9,9)'], [14.8, 'кінчик стовпа (14,8)']];
 
 const RET = {
   // R — радіус поля зору на калібрувальній кратності, за паспортом прицілу (фт чи м на 100 ярдів/м на найбільшій кратності);
@@ -333,19 +330,19 @@ const RET = {
   dsmr: { u: 'MRAD', cal: 6, min: 1, R: 29.5, draw: dsmr, size: (m, d) => m * 1000 / d },
   bplex: { u: 'MOA', cal: 7, min: 2, R: 45.8, draw: bplex, marks: BMARKS, size: (m, d) => m * 100 * 34.377 / d },
   // ACOG TA31 — постійні 4×, поле 7° (210 MOA у радіусі); дрібні риски — лупою
-  acog: { u: 'MOA', cal: 4, min: 4, R: 210, draw: acog, marks: ACOG_MARKS, beyond: 'ниже риски 800 м', size: (m, d) => m * 100 * 34.377 / d },
+  acog: { u: 'MOA', cal: 4, min: 4, R: 210, draw: acog, marks: ACOG_MARKS, beyond: 'нижче риски 800 м', size: (m, d) => m * 100 * 34.377 / d },
   // EBR-2C на Diamondback Tactical 4–16×44 FFP: сітка однакова на будь-якій кратності; поле на 16× 6,7 фт/100 ярд (22,3 MRAD)
   ebr2c: { u: 'MRAD', cal: 16, min: 4, ffp: true, R: 11.17, draw: ebr, size: (m, d) => m * 1000 / d },
   // Strike Eagle 1–6×24: друга площина, риски справжні на 6×; поле на 6× 19,2 фт/100 ярд (220 MOA)
-  arbdc3: { u: 'MOA', cal: 6, min: 1, R: 110, draw: arbdc3, marks: BDC3_MARKS, beyond: 'ниже конца вертикали (650 ярдов) — крути барабан', size: (m, d) => m * 100 * 34.377 / d },
+  arbdc3: { u: 'MOA', cal: 6, min: 1, R: 110, draw: arbdc3, marks: BDC3_MARKS, beyond: 'нижче кінця вертикалі (650 ярдів) — крути барабан', size: (m, d) => m * 100 * 34.377 / d },
   // Viper PST II 1–6×24: друга площина, мітки справжні на 6×; поле на 6× 18,8 фт/100 ярд (62,7 MRAD)
   vmr2: { u: 'MRAD', cal: 6, min: 1, R: 31.3, draw: vmr2, size: (m, d) => m * 1000 / d },
   // Mark 3HD 1,5–4×20: друга площина, мітки справжні на 4×; поле на 4× 29,4 фт/100 ярд (98 MRAD)
-  lpar: { u: 'MRAD', cal: 4, min: 1.5, R: 49, draw: lpar, marks: LP_MARKS, beyond: 'ниже нижней риски — крути барабан', size: (m, d) => m * 1000 / d },
+  lpar: { u: 'MRAD', cal: 4, min: 1.5, R: 49, draw: lpar, marks: LP_MARKS, beyond: 'нижче нижньої риски — крути барабан', size: (m, d) => m * 1000 / d },
   // Tango6T DVO 1–6×24 FFP: мітки справжні на будь-якій кратності; поле на 6× 17,7 фт/100 ярд (59 MRAD)
-  dwlr: { u: 'MRAD', cal: 6, min: 1, ffp: true, R: 29.5, draw: dwlr, marks: DWLR_MARKS, beyond: 'ниже низа стебла (1000 м) — крути барабан', size: (m, d) => m * 1000 / d },
+  dwlr: { u: 'MRAD', cal: 6, min: 1, ffp: true, R: 29.5, draw: dwlr, marks: DWLR_MARKS, beyond: 'нижче низу стебла (1000 м) — крути барабан', size: (m, d) => m * 1000 / d },
   // SLx6 1–6×24 FFP: сітка росте з кратністю, риски справжні на будь-якій; поле на 6× 19,8 фт/100 ярд (227 MOA)
-  raptor: { u: 'MOA', cal: 6, min: 1, ffp: true, R: 113.4, draw: raptor, marks: RAPTOR_MARKS, beyond: 'ниже нижней риски (600 ярдов) — крути барабан', size: (m, d) => m * 100 * 34.377 / d },
+  raptor: { u: 'MOA', cal: 6, min: 1, ffp: true, R: 113.4, draw: raptor, marks: RAPTOR_MARKS, beyond: 'нижче нижньої риски (600 ярдів) — крути барабан', size: (m, d) => m * 100 * 34.377 / d },
 };
 
 // Руки до ≈0,65 м від землі (кінчики пальців у людини 1,7 м), завтовшки ≈8 см
@@ -354,20 +351,20 @@ const CHEST = 'M-.5 1L-.5 .62Q-.5 .42 -.28 .42L.28 .42Q.5 .42 .5 .62L.5 1Z';
 // Силуети в одиницях висоти цілі (h, м): y від 0 (верх) до 1 (низ), x від центру; w — ширина в тих самих одиницях,
 // ap — точка прицілювання (частка висоти), parts — кола [x, y, r]; photo — ціль лише на фото сцен (не дзеркалиться, у виборі схем її немає).
 const TGT = {
-  man: { short: 'Человек', label: 'Человек 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечи', 0.5]] },
-  chest: { short: 'Грудная', label: 'Грудная 0,5 м', h: 0.5, w: 1, ap: 0.65, path: CHEST, parts: [[0, 0.22, 0.18]] },
-  kneel: { short: 'На колене', label: 'Человек на колене ≈1 м', h: 1, w: 0.9, ap: 0.32, ax: 0.03, photo: true, parts: [[0.04, 0.09, 0.085]],
+  man: { short: 'Людина', label: 'Людина 1,7 м', h: 1.7, w: 0.33, ap: 0.3, path: MAN, parts: [[0, 0.0735, 0.0735]], dims: [['голова', 0.25], ['плечі', 0.5]] },
+  chest: { short: 'Грудна', label: 'Грудна 0,5 м', h: 0.5, w: 1, ap: 0.65, path: CHEST, parts: [[0, 0.22, 0.18]] },
+  kneel: { short: 'На коліні', label: 'Людина на коліні ≈1 м', h: 1, w: 0.9, ap: 0.32, ax: 0.03, photo: true, parts: [[0.04, 0.09, 0.085]],
     path: 'M-.06 .19Q.04 .16 .13 .2L.17 .37L.55 .2L.58 .24L.19 .45L.15 .56L.36 .58Q.41 .6 .41 .65L.41 .95L.49 .97L.49 1L.3 1L.3 .68L.05 .7L.01 .95L-.36 .95L-.4 1L-.4 .91L-.1 .88L-.13 .58Z' },
-  ipsc: { short: 'IPSC', label: 'Мишень IPSC 0,76 × 0,46 м', h: 0.76, w: 0.6, ap: 0.55, path: 'M-.1 0H.1V.2H.2L.3 .3V.88L.2 1H-.2L-.3 .88V.3L-.2 .2H-.1Z' },
+  ipsc: { short: 'IPSC', label: 'Мішень IPSC 0,76 × 0,46 м', h: 0.76, w: 0.6, ap: 0.55, path: 'M-.1 0H.1V.2H.2L.3 .3V.88L.2 1H-.2L-.3 .88V.3L-.2 .2H-.1Z' },
   gong: { short: 'Гонг', label: 'Гонг 0,3 м', h: 0.3, w: 1, ap: 0.5, path: 'M-.5 .5a.5 .5 0 1 0 1 0a.5 .5 0 1 0-1 0Z' },
   // УАЗ Пікап: 1,85 × 5,2 м збоку, 1,95 м завширшки; іде ліворуч, водій у відчиненому вікні — точка прицілювання на ньому
-  pickup: { short: 'Пикап', label: 'Пикап сбоку: высота ≈1,85 м, длина ≈5,2 м', h: 1.85, w: 2.81, ap: 0.21, ax: -0.21, photo: true, dims: [['длина', 5.2]],
+  pickup: { short: 'Пікап', label: 'Пікап збоку: висота ≈1,85 м, довжина ≈5,2 м', h: 1.85, w: 2.81, ap: 0.21, ax: -0.21, photo: true, dims: [['довжина', 5.2]],
     path: 'M-1.4 .75L-1.4 .59L-1.33 .44L-.76 .32L-.42 .03L.48 .02L.5 .3L1.38 .3L1.4 .72L1.3 .8L-1.3 .8Z', parts: [[-0.97, 0.83, 0.2], [0.73, 0.83, 0.2]] },
   // Лежачи обличчям до нас: від каски до землі ≈0,5 м, по ліктях ≈0,5 м; ноги йдуть назад праворуч
-  prone: { short: 'Лёжа', label: 'Лёжа: высота ≈0,5 м, по локтям ≈0,5 м', h: 0.5, w: 1.3, ap: 0.4, photo: true, parts: [[0, 0.22, 0.24]],
+  prone: { short: 'Лежачи', label: 'Лежачи: висота ≈0,5 м, по ліктях ≈0,5 м', h: 0.5, w: 1.3, ap: 0.4, photo: true, parts: [[0, 0.22, 0.24]],
     path: 'M-.26 .27Q-.24 0 0 0Q.24 0 .26 .27L.45 .38L.66 .53L.78 .6L1.54 .76L1.54 .97L.6 1L-.46 1L-.45 .8L-.26 .32Z' },
   // Пікап на нас: кермо ліворуч — водій за склом праворуч на кадрі
-  pickupf: { short: 'Пикап в лоб', label: 'Пикап в лоб: высота ≈1,85 м, ширина ≈1,95 м', h: 1.85, w: 1.05, ap: 0.24, ax: 0.2, photo: true, dims: [['ширина', 1.95]],
+  pickupf: { short: 'Пікап у лоб', label: 'Пікап у лоб: висота ≈1,85 м, ширина ≈1,95 м', h: 1.85, w: 1.05, ap: 0.24, ax: 0.2, photo: true, dims: [['ширина', 1.95]],
     path: 'M-.3 .05L.3 .05L.38 .26L.52 .26L.52 .35L.49 .4L.49 1L.36 1L.36 .9L-.38 .9L-.38 1L-.51 1L-.51 .4L-.53 .35L-.53 .26L-.38 .26Z' },
 };
 // Цілі-схеми у виборі й у вправах; ціль на коліні й пікапи — лише на фото сцен
@@ -390,14 +387,14 @@ const KZ = {
 // Чим міряти в далекомірі: [назва, метри, відрізок на цілі в її одиницях] — ['v', x, y1, y2] або ['h', y, x1, x2]
 const MEAS = {
   // «голова–пах» — те, що кладуть у шкалу зросту на сітці (мішень 40″ у AR-BDC3): ≈ 0,53 зросту
-  man: [['рост', 1.7, ['v', 0.22, 0, 1]], ['голова', 0.25, ['v', 0.1, 0, 0.147]], ['плечи', 0.5, ['h', 0.17, -0.155, 0.155]], ['голова–пах', 0.9, ['v', 0.22, 0, 0.53]]],
-  chest: [['высота', 0.5, ['v', 0.56, 0, 1]], ['ширина', 0.5, ['h', 0.8, -0.5, 0.5]]],
-  kneel: [['высота', 1, ['v', 0.62, 0, 1]], ['голова', 0.25, ['v', 0.16, 0, 0.25]], ['плечи', 0.5, ['h', 0.31, -0.22, 0.28]]],
-  ipsc: [['высота', 0.76, ['v', 0.36, 0, 1]], ['ширина', 0.46, ['h', 0.6, -0.3, 0.3]]],
-  gong: [['диаметр', 0.3, ['v', 0.56, 0, 1]]],
-  pickup: [['высота', 1.85, ['v', 1.3, 0, 1]], ['длина', 5.2, ['h', 0.62, -1.4, 1.4]]],
-  pickupf: [['высота', 1.85, ['v', 0.6, 0, 1]], ['ширина', 1.95, ['h', 0.62, -0.53, 0.53]]],
-  prone: [['высота', 0.5, ['v', -0.6, 0, 1]], ['голова', 0.25, ['v', 0.33, 0, 0.49]], ['ширина', 0.5, ['h', 1.05, -0.46, 0.54]]],
+  man: [['зріст', 1.7, ['v', 0.22, 0, 1]], ['голова', 0.25, ['v', 0.1, 0, 0.147]], ['плечі', 0.5, ['h', 0.17, -0.155, 0.155]], ['голова–пах', 0.9, ['v', 0.22, 0, 0.53]]],
+  chest: [['висота', 0.5, ['v', 0.56, 0, 1]], ['ширина', 0.5, ['h', 0.8, -0.5, 0.5]]],
+  kneel: [['висота', 1, ['v', 0.62, 0, 1]], ['голова', 0.25, ['v', 0.16, 0, 0.25]], ['плечі', 0.5, ['h', 0.31, -0.22, 0.28]]],
+  ipsc: [['висота', 0.76, ['v', 0.36, 0, 1]], ['ширина', 0.46, ['h', 0.6, -0.3, 0.3]]],
+  gong: [['діаметр', 0.3, ['v', 0.56, 0, 1]]],
+  pickup: [['висота', 1.85, ['v', 1.3, 0, 1]], ['довжина', 5.2, ['h', 0.62, -1.4, 1.4]]],
+  pickupf: [['висота', 1.85, ['v', 0.6, 0, 1]], ['ширина', 1.95, ['h', 0.62, -0.53, 0.53]]],
+  prone: [['висота', 0.5, ['v', -0.6, 0, 1]], ['голова', 0.25, ['v', 0.33, 0, 0.49]], ['ширина', 0.5, ['h', 1.05, -0.46, 0.54]]],
 };
 
 // Іконки кнопок «чим міряти»: яскраво — саме та частина силуету, яку міряємо, решта — блідо
@@ -412,25 +409,25 @@ const aimIcon = (head) => {
 // Людина цілком: усі варіанти видно на одній фігурі, вибране — яскраво (голова, плечі чи скоба зросту збоку)
 const FIG = (head, body) => `<g transform="translate(-2.5 0)"><circle cx="12" cy="3.4" r="2.3" ${head}/><path d="M8.6 7.2h6.8q1.6 0 1.6 1.6v6.4h-2.1V22h-2.5v-6.6h-.8V22H9.1v-6.8H7V8.8q0-1.6 1.6-1.6z" ${body}/></g>`;
 const MEAS_ICON = {
-  рост: `${FIG(OFF, OFF)}<path d="M20 2v20M18.3 2h3.4M18.3 22h3.4"/>`,
+  зріст: `${FIG(OFF, OFF)}<path d="M20 2v20M18.3 2h3.4M18.3 22h3.4"/>`,
   голова: FIG(ON, OFF),
-  плечи: `${FIG(OFF, OFF)}<path d="M3.5 8.5h12M3.5 7v3M15.5 7v3"/>`,
-  высота: '<path d="M12 3v18M9 3h6M9 21h6M9.5 6.5 12 3l2.5 3.5M9.5 17.5 12 21l2.5-3.5"/>',
+  плечі: `${FIG(OFF, OFF)}<path d="M3.5 8.5h12M3.5 7v3M15.5 7v3"/>`,
+  висота: '<path d="M12 3v18M9 3h6M9 21h6M9.5 6.5 12 3l2.5 3.5M9.5 17.5 12 21l2.5-3.5"/>',
   ширина: '<path d="M3 12h18M3 9v6M21 9v6M6.5 9.5 3 12l3.5 2.5M17.5 9.5 21 12l-3.5 2.5"/>',
-  диаметр: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
+  діаметр: '<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>',
 };
-MEAS_ICON['длина'] = MEAS_ICON['ширина'];
+MEAS_ICON['довжина'] = MEAS_ICON['ширина'];
 MEAS_ICON['голова–пах'] = `${FIG(OFF, OFF)}<path d="M20 2v11M18.3 2h3.4M18.3 13h3.4"/>`;
 // Що в сітці для рухомої цілі
-const MOVE_NOTE = { raptor: 'передний край подковы — упреждение для цели 8,6 миль/ч (≈3,8 м/с, бег) на дистанции своей риски' };
+const MOVE_NOTE = { raptor: 'передній край підкови — упередження для цілі 8,6 миль/год (≈3,8 м/с, біг) на дистанції своєї риски' };
 // Точки вітру в сітці — милі/год повного бокового на дистанції своєї риски
 const WIND_DOTS = { arbdc3: [5, 10, 15], raptor: [5, 10], dwlr: [5, 10] };
 // Шкала дальності в самій сітці: на яку мішень розрахована й які дистанції в мітках (ярди — у метрах)
 const RET_STADIA = {
-  arbdc3: 'шкала вверху — мишень 40″ × 18″ (≈1 м × 46 см): от короткой черты-основы до линии — высота (у бойца голова–пах), ширина линии — плечи; «3 / 4 / 5 / 6» — 300–600 ярдов: 274 / 366 / 457 / 549 м',
-  raptor: 'ширина рисок и основания шеврона — 18″ (46 см, плечи) на 300 / 400 / 500 / 600 ярдов: 274 / 366 / 457 / 549 м',
-  dwlr: 'ширина каждой риски — 18″ (46 см, плечи) на своей дистанции, 300–1000 м',
-  acog: 'ширина рисок 400–800 м — 19″ (48 см, плечи) на своей дистанции',
+  arbdc3: 'шкала вгорі — мішень 40″ × 18″ (≈1 м × 46 см): від короткої риски-основи до лінії — висота (у бійця голова–пах), ширина лінії — плечі; «3 / 4 / 5 / 6» — 300–600 ярдів: 274 / 366 / 457 / 549 м',
+  raptor: 'ширина рисок і основи шеврона — 18″ (46 см, плечі) на 300 / 400 / 500 / 600 ярдів: 274 / 366 / 457 / 549 м',
+  dwlr: 'ширина кожної риски — 18″ (46 см, плечі) на своїй дистанції, 300–1000 м',
+  acog: 'ширина рисок 400–800 м — 19″ (48 см, плечі) на своїй дистанції',
 };
 
 // Голова — [x, y] в одиницях цілі; у кого її нема (гонг, пікапи), там цілимось лише в центр
@@ -564,22 +561,22 @@ const markTxt = (m) => `{ ${[m.tp ? `tp: '${m.tp}'` : null, m.only ? 'only: true
 const SCENES = {
   // Ланцюг: п'ятеро йдуть на нас степом, двоє з них на коліні ціляться; позаду БМП і танк;
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  assault: { name: 'Цепь', px: [8361, 3584], tone: ['#a8c9f0', '#b57f51'], gnd: [0.225, 0.105],
+  assault: { name: 'Ланцюг', px: [8361, 3584], tone: ['#a8c9f0', '#b57f51'], gnd: [0.225, 0.105],
     figs: [['man', 1585, 2010, 2855, null, { c: [-0.045, 0.262], hd: [-0.065, 0.091] }], ['kneel', 1765, 2285, 3470, null, { c: [-0.068, 0.348], hd: [-0.123, 0.146], h: 1.25 }], ['man', 1540, 2075, 4200, null, { c: [0, 0.249], hd: [0.004, 0.09] }], ['kneel', 1730, 2265, 4980, null, { c: [-0.019, 0.339], hd: [-0.025, 0.123], h: 1.27 }], ['man', 1527, 1925, 5520, null, { c: [-0.092, 0.262], hd: [-0.072, 0.105] }]] },
   // Колона: четверо в маскхалатах ідуть зимовою дорогою на нас уступом — по черзі правим і лівим краєм; кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  arctic: { name: 'Колонна', px: [8403, 3584], tone: ['#adb8d6', '#c3c9e2'],
+  arctic: { name: 'Колона', px: [8403, 3584], tone: ['#adb8d6', '#c3c9e2'],
     figs: [['man', 1573, 2245, 5424], ['man', 1700, 1987, 4670], ['man', 1724, 2004, 3835, null, { c: [-0.038, 0.283], hd: [-0.035, 0.1] }], ['man', 1734, 1882, 4355]] },
   // Узлісся: літо, зелена лука перед лісом — один стоїть біля куща в тіні, один іде на нас, один на коліні цілиться;
   // кадр згенеровано (Nano Banana 4K), боки й верхівки дерев дорисовано
-  green: { name: 'Опушка', px: [8358, 4687], tone: ['#91bce9', '#687a35'], gnd: [0.2249, 0.0899],
+  green: { name: 'Узлісся', px: [8358, 4687], tone: ['#91bce9', '#687a35'], gnd: [0.2249, 0.0899],
     figs: [['man', 2816, 3335, 4178, null, { c: [0.004, 0.267], hd: [0, 0.09] }], ['man', 2772, 3243, 5143, null, { c: [0.015, 0.281], hd: [0, 0.09] }], ['kneel', 2954, 3263, 3173, null, { c: [0.05, 0.37], hd: [-0.08, 0.17], h: 1.08 }]] },
   // Околиця села: один біля рогу хати, один іде вулицею, один цілиться з вікна (грудна ціль 0,5 м — за шириною шолома ≈0,27 м);
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  town: { name: 'Окраина', px: [8406, 3584], tone: ['#dce5f4', '#99867d'], gnd: [0.1874, 0.1046],
+  town: { name: 'Околиця', px: [8406, 3584], tone: ['#dce5f4', '#99867d'], gnd: [0.1874, 0.1046],
     figs: [['man', 1452, 1952, 2622, null, { c: [-0.02, 0.3], hd: [0.02, 0.1] }], ['man', 1556, 1952, 5045, null, { c: [-0.03, 0.3], hd: [-0.015, 0.11] }], ['chest', 1454, 1572, 6269, null, { c: [0.08, 0.75], hd: [-0.03, 0.38] }]] },
   // Сутінки: поле після заходу, низький контраст — двоє йдуть на нас, один на коліні цілиться;
   // кадр згенеровано (Nano Banana 4K), боки дорисовано панорамою 21:9
-  dusk: { name: 'Сумерки', px: [8358, 3584], tone: ['#44505d', '#1c1812'], gnd: [0.2249, 0.12],
+  dusk: { name: 'Сутінки', px: [8358, 3584], tone: ['#44505d', '#1c1812'], gnd: [0.2249, 0.12],
     figs: [['man', 1629, 1998, 3733, null, { c: [-0.002, 0.267], hd: [0, 0.09] }], ['man', 1636, 1999, 4173, null, { c: [0.004, 0.27], hd: [0, 0.09] }], ['kneel', 1737, 1994, 4648, null, { c: [-0.026, 0.374], hd: [0.006, 0.115], h: 1.3 }]] },
   // Окоп: позиція на полі — бліндаж із кулеметником у бійниці й окоп, з якого двоє визирають з-за бруствера;
   // грудна ціль 0,5 м — за шоломами (≈0,27 м), масштаб у всіх однаковий; 5-й елемент — земля під бійцем;
@@ -588,12 +585,12 @@ const SCENES = {
     figs: [['chest', 271, 435, 1078, 540, { c: [0.03, 0.78], hd: [0.037, 0.345] }], ['chest', 179, 343, 2059, 531, { only: true, hd: [0.042, 0.353] }], ['chest', 177, 341, 2432, 531, { only: true, hd: [0.054, 0.336] }]] },
   // Лежачи: боєць окремим спрайтом (px — його розмір) на тлі bg з постійним кутовим розміром, як у справжньому прицілі:
   // поле й ліс не змінюються з дистанцією, боєць меншає й підходить до горизонту (ноги на eye/d нижче нього)
-  prone: { name: 'Лёжа', px: [1965, 1050], bg: FIELD,
+  prone: { name: 'Лежачи', px: [1965, 1050], bg: FIELD,
     figs: [['prone', 1, 935, 501, null, { c: [0.025, 0.81], hd: [0.003, 0.379] }]] },
   // Пікап збоку й у лоб: спрайти на тому ж полі, ціль — водій; збоку спрайт розтягнуто на 5 % до пропорцій УАЗа 1,85 × 5,2 м
-  pickup: { name: 'Пикап сбоку', px: [3137, 1167], bg: FIELD,
+  pickup: { name: 'Пікап збоку', px: [3137, 1167], bg: FIELD,
     figs: [['pickup', 3, 1117, 1568]] },
-  pickupf: { name: 'Пикап в лоб', px: [1122, 1114], bg: FIELD,
+  pickupf: { name: 'Пікап у лоб', px: [1122, 1114], bg: FIELD,
     figs: [['pickupf', 1, 1059, 563]] },
 };
 // tp0 — тип із коду: «Скинути бійця» повертає його, коли в розмітці тип змінили
@@ -898,17 +895,17 @@ export function initReticles(root) {
   const gal = $('range-gallery');
   if (gal) {
     [100, 200, 300, 400, 500, 600].forEach((d) => mini(gal, { ret: 'dsmr', mag: 6, dist: d, tgt: 'man', mode: 'range' },
-      `<b>${d} ${t('м')}</b>${t('рост {v} MRAD', { v: f(1700 / d, 1) })}`));
+      `<b>${d} ${t('м')}</b>${t('зріст {v} MRAD', { v: f(1700 / d, 1) })}`));
   }
   const pair = $('sfp-pair');
   if (pair) {
-    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 6×')}</b>${t('5,7 деления = 5,7 MRAD')}`);
-    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 3×')}</b>${t('2,8 деления, но это те же 5,7 MRAD')}`);
+    mini(pair, { ret: 'dsmr', mag: 6, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 6×')}</b>${t('5,7 поділки = 5,7 MRAD')}`);
+    mini(pair, { ret: 'dsmr', mag: 3, dist: 300, tgt: 'man', mode: 'range' }, `<b>${t('300 м на 3×')}</b>${t('2,8 поділки, але це ті самі 5,7 MRAD')}`);
   }
   const bgal = $('bplex-gallery');
   if (bgal) {
     [200, 300, 400, 500, 600, 700].forEach((d) => mini(bgal, { ret: 'bplex', mag: 7, dist: d, tgt: 'man', mode: 'range' },
-      `<b>${d} ${t('м')}</b>${t('рост {v} MOA', { v: f(170 * 34.377 / d, 1) })}`));
+      `<b>${d} ${t('м')}</b>${t('зріст {v} MOA', { v: f(170 * 34.377 / d, 1) })}`));
   }
 }
 
@@ -933,7 +930,7 @@ const LOADS = {
       915: [0.056, 0.116, 0.18, 0.248, 0.32, 0.398, 0.481, 0.571, 0.668, 0.772, 0.886, 1.01, 1.146, 1.294],
       948: [0.054, 0.112, 0.173, 0.239, 0.308, 0.383, 0.463, 0.548, 0.641, 0.74, 0.848, 0.966, 1.094, 1.235],
     },
-    lim: 600, limTxt: 'Дальше 600 м M855 близок к дозвуку: кучность резко падает',  // перекладається через t() у draw()
+    lim: 600, limTxt: 'Далі ніж 600 м M855 близький до дозвуку: купчастість різко падає',  // перекладається через t() у draw()
   },
   b308: {
     ret: 'bplex', gr: 175, mvs: [['720', '16,5″ · 720 м/с'], ['740', '16,5″ · 740 м/с'], ['760', '16,5″ · 760 м/с']], def: '740', zeroLbl: '200 м',
@@ -952,7 +949,7 @@ const LOADS = {
       740: [0.069, 0.141, 0.216, 0.294, 0.376, 0.461, 0.55, 0.644, 0.742, 0.845, 0.954, 1.068, 1.189, 1.316],
       760: [0.067, 0.137, 0.21, 0.286, 0.365, 0.448, 0.535, 0.626, 0.721, 0.821, 0.926, 1.036, 1.153, 1.275],
     },
-    lim: 600, limTxt: 'Дальше 600 м с короткого ствола пуля подходит к трансзвуку: разброс растёт, а ошибка дальности стоит дорого',
+    lim: 600, limTxt: 'Далі ніж 600 м з короткого ствола куля підходить до трансзвуку: розкид росте, а помилка дальності коштує дорого',
   },
   // ACOG: M855 (62 гр, G7 0,151), приціл ≈6,6 см над стволом, пристрілка 100 м; риски Trijicon лягають на 14,5″ (M4) — див. нижче
   acog: {
@@ -972,7 +969,7 @@ const LOADS = {
       915: [0.056, 0.116, 0.18, 0.248, 0.32, 0.398, 0.481, 0.571, 0.668, 0.772, 0.886, 1.01, 1.146, 1.294, 1.451, 1.613],
       948: [0.054, 0.112, 0.173, 0.239, 0.308, 0.383, 0.463, 0.548, 0.641, 0.74, 0.848, 0.966, 1.094, 1.235, 1.387, 1.546],
     },
-    lim: 600, limTxt: 'Дальше 600 м M855 близок к дозвуку: кучность резко падает',
+    lim: 600, limTxt: 'Далі ніж 600 м M855 близький до дозвуку: купчастість різко падає',
   },
   // EBR-2C: .308 175 гр (G7 0,243) з 20–24″, приціл ≈4,5 см над стволом, пристрілка 100 м
   ebr: {
@@ -1026,7 +1023,7 @@ const KIT_INFO = {
   b308: { sec: '308', scope: 'Burris Scout 2–7', ammo: '.308 175 гр' },
   ebr: { sec: '308', scope: 'Vortex Diamondback 4–16', ammo: '.308 175 гр' },
 };
-const KIT_SECTIONS = { own: 'Моё оружие', ar: 'AR-15 · переменные с 1×', fix: 'Призмы', '308': '.308 · марксман и снайпер' };
+const KIT_SECTIONS = { own: 'Моя зброя', ar: 'AR-15 · змінні з 1×', fix: 'Призми', '308': '.308 · марксман і снайпер' };
 // view — [центр x, центр y, півсторона] мініатюри в одиницях сітки: найхарактерніша частина
 const RET_INFO = {
   dsmr: { kind: 'шкала', view: [0, 1.5, 6.5] }, bplex: { kind: 'BDC', view: [0, 4, 12] }, acog: { kind: 'BDC', view: [0, 12, 17] },
@@ -1111,8 +1108,8 @@ function gunLoad(g) {
   return {
     gun: true, calc, ammo: a, sh, shSet: g.sh > 0, zero, lim, label: `${g.name} · ${g.scope} · ${a.name}`,
     ret: base ? LOADS[base].ret : g.reticle === 'moa' ? 'bplex' : 'dsmr', gr: a.gr,
-    mvs: [[String(a.mv), `${a.mv} ${t('м/с')} · ${a.chrono ? t('хронограф') : t('из карточки патрона')}`]], def: String(a.mv),
-    zeroLbl: `200 ${t('м')}`, limTxt: t('Дальше {n} м пуля подходит к трансзвуку: разброс растёт, а ошибка дальности стоит дорого', { n: lim }),
+    mvs: [[String(a.mv), `${a.mv} ${t('м/с')} · ${a.chrono ? t('хронограф') : t('з картки набою')}`]], def: String(a.mv),
+    zeroLbl: `200 ${t('м')}`, limTxt: t('Далі {n} м куля підходить до трансзвуку: розкид зростає, а помилка дальності коштує дорого', { n: lim }),
   };
 }
 
@@ -1195,14 +1192,14 @@ function speedAt(T, mv, d) {
   return v[i] + (v[i + 1] - v[i]) * (x - i);
 }
 
-function bplexWhere(v, M, beyond = 'ниже кончика столба — крути барабан') {
-  if (v <= 0) return `${t(M[0][1])}${v < -0.2 ? ` ${t('(держать чуть ниже)')}` : ''}`;
+function bplexWhere(v, M, beyond = 'нижче за кінчик стовпа — крути барабан') {
+  if (v <= 0) return `${t(M[0][1])}${v < -0.2 ? ` ${t('(тримати трохи нижче)')}` : ''}`;
   for (let i = 1; i < M.length; i++) {
     if (v <= M[i][0]) {
       const a = M[i - 1]; const b = M[i]; const part = (v - a[0]) / (b[0] - a[0]);
       if (part < 0.15) return t(a[1]);
       if (part > 0.85) return t(b[1]);
-      return t('между «{a}» и «{b}», {near}', { a: t(a[1]), b: t(b[1]), near: part < 0.5 ? t('ближе к первой') : t('ближе ко второй') });
+      return t('між «{a}» і «{b}», {near}', { a: t(a[1]), b: t(b[1]), near: part < 0.5 ? t('ближче до першої') : t('ближче до другої') });
     }
   }
   return t(beyond);
@@ -1251,15 +1248,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const measBox = document.createElement('div');
   measBox.className = 'sim-meas'; measBox.hidden = true;
   measBox.setAttribute('role', 'group');
-  measBox.setAttribute('aria-label', t('Чем мерить'));
+  measBox.setAttribute('aria-label', t('Чим міряти'));
   root.querySelector('.ctl > .sim-row .sim-line').append(measBox);
   const measPop = Object.assign(document.createElement('div'), { className: 'sim-pop aim-bar meas-bar', id: 'pop-meas', hidden: true });
-  measPop.setAttribute('role', 'group'); measPop.setAttribute('aria-label', t('Чем мерить'));
+  measPop.setAttribute('role', 'group'); measPop.setAttribute('aria-label', t('Чим міряти'));
   $('pop-aim').after(measPop);
   // Кнопка під лупою — з'являється, коли приціл у далекомірі зсунули
   const retReset = Object.assign(document.createElement('button'), { type: 'button', className: 'sim-zoom sim-ret', textContent: '⟲', hidden: true });
-  retReset.setAttribute('aria-label', t('Вернуть цель на место'));
-  retReset.title = t('Вернуть цель на место');
+  retReset.setAttribute('aria-label', t('Повернути ціль на місце'));
+  retReset.title = t('Повернути ціль на місце');
   svg.parentElement.append(retReset);
   const paintRetReset = (on) => { retReset.hidden = !on; };
   retReset.addEventListener('click', () => {
@@ -1268,8 +1265,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
 
   // Лупа на точці з довгого натискання; «⌖» повертає її як було (на ціль / точку виносу)
   const focusReset = Object.assign(document.createElement('button'), { type: 'button', className: 'sim-zoom sim-focus', textContent: '⌖', hidden: true });
-  focusReset.setAttribute('aria-label', t('Лупа — обратно к цели'));
-  focusReset.title = t('Лупа — обратно к цели');
+  focusReset.setAttribute('aria-label', t('Лупа — назад до цілі'));
+  focusReset.title = t('Лупа — назад до цілі');
   svg.parentElement.append(focusReset);
   const paintFocus = () => { focusReset.hidden = !st.focus || st.zoom <= 1; };
   focusReset.addEventListener('click', () => { st.focus = null; draw(); });
@@ -1283,18 +1280,18 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     .filter(([, L]) => L);
   if (mine.length) {
     // Свої — зверху; вбудовані набори тоді теж групою, щоб не висіли без заголовка під нею
-    const grp = Object.assign(document.createElement('optgroup'), { label: t('Моё оружие'), className: 'my-dope' });
+    const grp = Object.assign(document.createElement('optgroup'), { label: t('Моя зброя'), className: 'my-dope' });
     for (const [key, L] of mine) {
       LOADS[key] = L;
       // Своя зброя: пристрілка з картки й чий набій у розрахунку — свій може лягти інакше
-      const text = L.gun ? [L.label, L.zero ? t('пристрелка {n} м', { n: L.zero }) : t('пристрелка не указана'),
-        L.ammo ? `${L.ammo.model} ${f(L.ammo.bc, 3)} · ${L.ammo.mv} ${t('м/с')}` : t('расчёт как {k}', { k: kitName(L.base).split(' + ')[1] })].join(' · ')
-        : `${L.label} · ${t('таблица DOPE')}`;
+      const text = L.gun ? [L.label, L.zero ? t('пристрілка {n} м', { n: L.zero }) : t('пристрілку не вказано'),
+        L.ammo ? `${L.ammo.model} ${f(L.ammo.bc, 3)} · ${L.ammo.mv} ${t('м/с')}` : t('розрахунок як {k}', { k: kitName(L.base).split(' + ')[1] })].join(' · ')
+        : `${L.label} · ${t('таблиця DOPE')}`;
       grp.append(Object.assign(document.createElement('option'), { value: key, textContent: text }));
     }
     let base = kitSel.querySelector('optgroup.builtin');
     if (!base) {
-      base = Object.assign(document.createElement('optgroup'), { label: t('Справочные наборы'), className: 'builtin' });
+      base = Object.assign(document.createElement('optgroup'), { label: t('Довідкові набори'), className: 'builtin' });
       base.append(...kitSel.querySelectorAll(':scope > option'));
       kitSel.append(base);
     }
@@ -1319,7 +1316,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // Сітка для своєї таблиці — у панелі «Гвинтівка й набій»; одиниці сітки — ті, що в прицілі таблиці
   const myRet = document.createElement('select'); myRet.id = 's-myret';
   const myRetLabel = document.createElement('label');
-  myRetLabel.append(t('Сетка'), myRet); myRetLabel.hidden = true;
+  myRetLabel.append(t('Сітка'), myRet); myRetLabel.hidden = true;
   kitSel.closest('label').after(myRetLabel);
   myRet.addEventListener('change', () => { const L = LOADS[kitSel.value]; L.ret = myRet.value; L.fill(); setupKit(); draw(); });
   const dist = $('s-dist'); const DIST0 = [dist.min, dist.max];
@@ -1345,7 +1342,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Пристрілка: своя зброя — з картки прицілу (міняють там), інакше — вибір; 200 м у M855 — це й 50 м
     const zs = $('s-zero'); const z0 = +zs.value || 100; const zeros = L.zero ? [L.zero] : ZEROS;
     zs.replaceChildren(...zeros.map((v) => Object.assign(document.createElement('option'), {
-      value: String(v), textContent: L.zero ? t('{n} м · из карточки', { n: v }) : `${v} ${t('м')}` })));
+      value: String(v), textContent: L.zero ? t('{n} м · з картки', { n: v }) : `${v} ${t('м')}` })));
     // Новий набір — пристрілка, під яку виробник розрахував мітки (сітки-шкали й решта — 100 м); далі міняй як хочеш
     const kitNow = $('s-kit').value; const fresh = zs.dataset.kit !== kitNow; zs.dataset.kit = kitNow; fillCmp();
     zs.value = String(L.zero ?? (fresh ? L.bdc?.zero ?? 100 : zeros.includes(z0) ? z0 : 100));
@@ -1372,17 +1369,17 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const markScale = Object.assign(document.createElement('input'), { type: 'range', step: '0.01', id: 's-mark-scale' });
   const markScaleV = document.createElement('b');
   const markScaleL = Object.assign(document.createElement('label'), { htmlFor: 's-mark-scale', className: 'mark-scale' });
-  markScaleL.append(Object.assign(document.createElement('span'), { textContent: t('Высота фигуры: каска — земля') }), markScaleV, markScale);
+  markScaleL.append(Object.assign(document.createElement('span'), { textContent: t('Висота фігури: каска — земля') }), markScaleV, markScale);
   const markBtn = (label, fn, cls = '') => { const b = Object.assign(document.createElement('button'), { type: 'button', textContent: label, className: cls }); b.addEventListener('click', fn); return b; };
   const markText = Object.assign(document.createElement('textarea'), { readOnly: true, hidden: true, className: 'mark-text' });
-  markText.setAttribute('aria-label', t('Разметка сцен'));
+  markText.setAttribute('aria-label', t('Розмітка сцен'));
   const curFig = () => { const sr = st.real ? realOf(st, st.tgt) : null; return sr?.real ? figOf(sr.real, sr.fig, st.tgt) : null; };
   const qFig = (q) => (st.real && q.scene ? figOf(q.scene[0], q.scene[1], q.tgt) : null);
   // Чим міряти цю ціль: зріст (висота) — справжній ріст бійця з розмітки; у бійців, чиї голова чи плечі на кадрі
   // намальовані не в пропорції (nm у розмітці), ці виміри не пропонуємо — дальність за ними вийшла б хибною
   const measList = (key = st.tgt, fig = curFig()) => (MEAS[key] ?? [])
     .filter(([n]) => !markOf(fig)?.nm?.includes(n))
-    .map(([n, size, seg], i) => (i === 0 && (n === 'рост' || n === 'высота') ? [n, figH(key, fig), seg]
+    .map(([n, size, seg], i) => (i === 0 && (n === 'зріст' || n === 'висота') ? [n, figH(key, fig), seg]
       : n === 'голова–пах' ? [n, Math.round(figH(key, fig) * 0.53 * 100) / 100, seg] : [n, size, seg]));
   /** Зона ураження словами: назва, розмір у см і кутовий на дистанції d — MRAD і MOA, щоб порівняти з купчастістю гвинтівки. */
   const zoneText = (key, fig, zone, d) => {
@@ -1391,7 +1388,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const [zw, zh] = kz[0] === 'c' ? [2 * kz[3] * fh, 2 * kz[3] * fh] : [kz[3] * fh, kz[4] * fh];
     const round = Math.abs(zw - zh) < 0.005;
     const ang = (k) => (round ? f(zw * k / d, 1) : `${f(zw * k / d, 1)}×${f(zh * k / d, 1)}`);
-    const name = kz[0] === 'c' && HEAD[key] ? 'Зона (голова)' : kz[0] === 'p' ? (zone === 'torso' ? 'Зона (весь торс)' : 'Зона (грудь)') : 'Зона поражения';
+    const name = kz[0] === 'c' && HEAD[key] ? 'Зона (голова)' : kz[0] === 'p' ? (zone === 'torso' ? 'Зона (увесь торс)' : 'Зона (груди)') : 'Зона ураження';
     return { name, size: `${round ? `⌀${f(zw * 100, 0)}` : `${f(zw * 100, 0)}×${f(zh * 100, 0)}`} ${t('см')}`, ang: `${ang(1000)} MRAD · ${ang(3437.75)} MOA` };
   };
   const MODE_ICO = { aim: $('m-aim').innerHTML, range: $('m-range').innerHTML };
@@ -1400,29 +1397,29 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // Є з чого вибирати, куди цілитись: у цілі є голова, і видно не лише її (в окопі — тільки голова)
   const aimChoice = () => { const z = zonesOf(st.tgt, curFig()); return !!z.head && !!z.body; };
   const saveMarks = () => { try { localStorage.setItem(MARKS, JSON.stringify(marks)); } catch { /* приватний режим */ } };
-  const copyBtn = markBtn(t('Скопировать'), async () => {
+  const copyBtn = markBtn(t('Скопіювати'), async () => {
     const txt = Object.keys(marks).map((id) => {
       const cut = id.lastIndexOf('-'); const f = SCENES[id.slice(0, cut)]?.figs[+id.slice(cut + 1)];
       return f ? `${id}: ${markTxt(markOf(f))}` : null;
     }).filter(Boolean).join('\n');
     markText.value = txt; markText.hidden = !txt;
-    if (!txt) copyBtn.textContent = t('Нечего копировать');
+    if (!txt) copyBtn.textContent = t('Нема що копіювати');
     else {
-      try { await navigator.clipboard.writeText(txt); copyBtn.textContent = t('Скопировано'); }
-      catch { markText.focus(); markText.select(); copyBtn.textContent = t('Выделено — скопируйте'); }
+      try { await navigator.clipboard.writeText(txt); copyBtn.textContent = t('Скопійовано'); }
+      catch { markText.focus(); markText.select(); copyBtn.textContent = t('Виділено — скопіюйте'); }
     }
-    setTimeout(() => { copyBtn.textContent = t('Скопировать'); }, 1800);
+    setTimeout(() => { copyBtn.textContent = t('Скопіювати'); }, 1800);
   });
   // Тип бійця міняє й вибрану ціль: сцена та сама, боєць той самий — інакше realOf підбере іншу сцену під новий тип
   const setFigType = (f, tp) => {
     if (f[0] === tp) return;
     f[0] = tp; st.tgt = tp; st.sceneTgt = tp; tgtSel.value = tp; st.meas = 1; paintTgt(); draw();
   };
-  const resetBtn = markBtn(t('Сбросить бойца'), () => { const f = curFig(); if (f) { delete marks[f.id]; saveMarks(); if (f[0] !== f.tp0) setFigType(f, f.tp0); else draw(); } });
+  const resetBtn = markBtn(t('Скинути бійця'), () => { const f = curFig(); if (f) { delete marks[f.id]; saveMarks(); if (f[0] !== f.tp0) setFigType(f, f.tp0); else draw(); } });
   // Тип бійця: поза визначає силует для влучань «у ціль», типовий ріст і що ним міряти. Ріст лишаємо тим самим — кадр не стрибає
-  const FIG_TYPES = [['man', 'стоя'], ['kneel', 'на колене'], ['chest', 'грудная'], ['prone', 'лёжа']];
+  const FIG_TYPES = [['man', 'стоячи'], ['kneel', 'на коліні'], ['chest', 'грудна'], ['prone', 'лежачи']];
   const markType = Object.assign(document.createElement('div'), { className: 'seg mark-seg' });
-  markType.setAttribute('role', 'group'); markType.setAttribute('aria-label', t('Тип бойца'));
+  markType.setAttribute('role', 'group'); markType.setAttribute('aria-label', t('Тип бійця'));
   for (const [tp, label] of FIG_TYPES) {
     const b = markBtn(t(label), () => {
       const f = curFig(); if (!f || f[0] === tp) return;
@@ -1435,8 +1432,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   }
   // Зони: груди (плита) і голова — вимкнути, коли їх за укриттям не видно; хоч одна лишається
   const markZones = Object.assign(document.createElement('div'), { className: 'seg mark-seg' });
-  markZones.setAttribute('role', 'group'); markZones.setAttribute('aria-label', t('Зоны'));
-  for (const [key, label] of [['only', 'грудь'], ['nohd', 'голова']]) {
+  markZones.setAttribute('role', 'group'); markZones.setAttribute('aria-label', t('Зони'));
+  for (const [key, label] of [['only', 'груди'], ['nohd', 'голова']]) {
     const b = markBtn(t(label), () => {
       const f = curFig(); if (!f) return;
       const m = markOf(f); const other = key === 'only' ? 'nohd' : 'only';
@@ -1447,11 +1444,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     b.dataset.key = key; markZones.append(b);
   }
   const row = (label, ctl) => { const l = Object.assign(document.createElement('div'), { className: 'mark-row' }); l.append(Object.assign(document.createElement('span'), { textContent: t(label) }), ctl); return l; };
-  const markTypeRow = row('Тип', markType); const markZonesRow = row('Зоны', markZones);
+  const markTypeRow = row('Тип', markType); const markZonesRow = row('Зони', markZones);
   const markActs = Object.assign(document.createElement('div'), { className: 'mark-acts' });
   markActs.append(resetBtn, copyBtn, markBtn(t('Готово'), () => { st.edit = false; draw(); }, 'primary'));
   // Ориентир висоти фігури для пози бійця — щоб було від чого відштовхуватися
-  const POSE_H = { man: 'стоя — 1,6–1,85 м', kneel: 'на колене с прямой спиной — 1,15–1,3 м, присел низко — 1,0–1,1 м', prone: 'лёжа — 0,4–0,6 м', chest: 'видна часть над укрытием — от каски до края' };
+  const POSE_H = { man: 'стоячи — 1,6–1,85 м', kneel: 'на коліні з прямою спиною — 1,15–1,3 м, присів низько — 1,0–1,1 м', prone: 'лежачи — 0,4–0,6 м', chest: 'видно частину над укриттям — від каски до краю' };
   const markPose = Object.assign(document.createElement('span'), { className: 'muted mark-pose' });
   markBar.append(markTitle, markHint, markTypeRow, markZonesRow, markScaleL, markPose, markActs, markText);
   markScale.addEventListener('input', () => {
@@ -1463,15 +1460,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     markBar.hidden = !st.edit;
     if (!st.edit) return;
     const f = curFig(); const m = markOf(f); const cut = f ? f.id.lastIndexOf('-') : 0;
-    markTitle.textContent = f ? t('Разметка: {scene}, боец {n}', { scene: t(SCENES[f.id.slice(0, cut)].name), n: +f.id.slice(cut + 1) + 1 }) : t('Разметка сцен');
-    markHint.textContent = !f ? t('Выберите фото-сцену с бойцом') : st.mode === 'range' ? t('Переключитесь на прицеливание')
-      : t('Тяните плиту или голову по прицелу. Высотой фигуры (на колене — около 1,2 м, стоя — рост) подгоните круг головы ⌀16 см под лицо. Сохраняется сразу');
+    markTitle.textContent = f ? t('Розмітка: {scene}, боєць {n}', { scene: t(SCENES[f.id.slice(0, cut)].name), n: +f.id.slice(cut + 1) + 1 }) : t('Розмітка сцен');
+    markHint.textContent = !f ? t('Виберіть фото-сцену з бійцем') : st.mode === 'range' ? t('Перемкніться на прицілювання')
+      : t('Тягніть плиту чи голову по прицілу. Висотою фігури (на коліні — близько 1,2 м, стоячи — ріст) підженіть коло голови ⌀16 см під обличчя. Зберігається одразу');
     markScaleL.hidden = !f; markTypeRow.hidden = !f; markZonesRow.hidden = !f; resetBtn.disabled = !f || !marks[f.id];
     if (f) {
       markType.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tp === f[0])));
       markZones.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(!m[b.dataset.key])));
     }
-    markPose.hidden = !f || !POSE_H[st.tgt]; markPose.textContent = POSE_H[st.tgt] ? `${t('Ориентир')}: ${t(POSE_H[st.tgt])}` : '';
+    markPose.hidden = !f || !POSE_H[st.tgt]; markPose.textContent = POSE_H[st.tgt] ? `${t('Орієнтир')}: ${t(POSE_H[st.tgt])}` : '';
     if (f) {
       const base = TGT[st.tgt].h; const h = figH(st.tgt, f);
       markScale.min = String(r3(Math.min(base * 0.65, h))); markScale.max = String(r3(Math.max(base * 1.35, h))); markScale.value = String(h);
@@ -1509,7 +1506,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const a = M[i - 1]; const b = M[i]; const part = (v - a[0]) / (b[0] - a[0]);
       return part < 0.15 ? t(a[1]) : part > 0.85 ? t(b[1]) : `${t(a[1])} – ${t(b[1])}`;
     }
-    return t(C.beyond ?? 'ниже кончика столба — крути барабан');
+    return t(C.beyond ?? 'нижче за кінчик стовпа — крути барабан');
   };
   // Винос будь-якого набору за тих самих умов: другий приціл бере свою пристрілку (під яку виробник розрахував мітки) і свій ствол
   const holdOf = (kit, d, { w = 0, hour = 0, vt = 0, goRight = true, mv = null, z = null } = {}) => {
@@ -1537,7 +1534,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const L = LOADS[other]; const C = RET[L.ret]; const dg = C.u === 'MOA' ? 1 : 2;
     // Кратність — та сама, що в основного, у межах цього прицілу; друга площина не на своїй кратності — мітки не ті, про це в підписі
     const mag = Math.max(C.min, Math.min(C.cal, +$('s-mag').value));
-    const magTxt = ` · ${fm(mag)}×${!C.ffp && mag < C.cal ? ` (${t('метки верны на {n}×', { n: C.cal })})` : ''}`;
+    const magTxt = ` · ${fm(mag)}×${!C.ffp && mag < C.cal ? ` (${t('мітки вірні на {n}×', { n: C.cal })})` : ''}`;
     // Зсув і точка лупи основного — той самий кут і в другому: через справжні кутові одиниці (MRAD ↔ MOA, кратність)
     const Cm = RET[LOADS[$('s-kit').value].ret]; const km = kOf(Cm, +$('s-mag').value);
     const conv = (Cm.u === C.u ? 1 : C.u === 'MOA' ? 3.4377 : 1 / 3.4377) * kOf(C, mag) / km;
@@ -1545,7 +1542,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Далекомір: та сама ціль і скоба «чим міряти» — скільки поділок вона займає в другій сітці
     if (st.mode === 'range') {
       const MS = measList(); const [nm, size] = MS[st.meas - 1] ?? [null, figH(st.tgt, curFig())];
-      const what = nm ? t(nm).replace(/^./, (c) => c.toUpperCase()) : t('Цель');
+      const what = nm ? t(nm).replace(/^./, (c) => c.toUpperCase()) : t('Ціль');
       const cap = `<b>${RET_NAME[L.ret] ?? kitName(other)}</b><br>${what} ${mFmt(size)} ${t('м')} = ${f(C.size(size, d) * kOf(C, mag), dg)} ${C.u}${magTxt}`;
       mini(cmpBox, { ret: L.ret, mag, dist: d, tgt: st.tgt, mode: 'range', hx: 0, hy: 0, rx: st.ret[0] * conv, ry: st.ret[1] * conv, meas: st.meas, zoom: st.zoom, focus, ...realOf(st, st.tgt), ink: st.ink }, cap);
       return;
@@ -1559,7 +1556,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const fillCmp = () => {
     const sel = $('s-cmp'); if (!sel) return;
     const keep = sel.value;
-    sel.replaceChildren(Object.assign(document.createElement('option'), { value: '', textContent: t('нет') }),
+    sel.replaceChildren(Object.assign(document.createElement('option'), { value: '', textContent: t('ні') }),
       ...[...kitSel.options].filter((op) => op.value !== kitSel.value).map((op) => Object.assign(document.createElement('option'), { value: op.value, textContent: op.textContent })));
     sel.value = [...sel.options].some((op) => op.value === keep) ? keep : '';
   };
@@ -1577,9 +1574,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     }
     const [name, ...rest] = L.gun || L.my ? L.label.split(' · ') : kitName(kit).split(' + ');
     const tC = +$('s-temp').value; const alt = +$('s-alt').value;
-    const sub = [L.my || L.gun ? rest.join(' · ') || null : null, L.my ? 'DOPE' : $('s-barrel').selectedOptions[0]?.textContent, L.my ? null : `${t('пристрелка')} ${z} ${t('м')}`,
+    const sub = [L.my || L.gun ? rest.join(' · ') || null : null, L.my ? 'DOPE' : $('s-barrel').selectedOptions[0]?.textContent, L.my ? null : `${t('пристрілка')} ${z} ${t('м')}`,
       L.my ? null : `${tC > 0 ? '+' : ''}${tC}°C · ${alt} ${t('м')}`].filter(Boolean).join(' · ');
-    const head = [t('м'), `${t('Держать')}, ${C.u}`, cs ? `${t('щелч.')} ${cs[1]}` : t('щелч.'), `${t('Ветер 1 м/с')}`, C.marks ? t('Метка') : ''];
+    const head = [t('м'), `${t('Тримати')}, ${C.u}`, cs ? `${t('кл.')} ${cs[1]}` : t('кл.'), `${t('Вітер 1 м/с')}`, C.marks ? t('Мітка') : ''];
     // Холст: білий фон і чорний текст — щоб друкувалось і читалось на сонці
     const W = 760; const rh = 38; const top = 104; const cols = [16, 86, 220, 330, 470];
     const cv = document.createElement('canvas'); cv.width = W; cv.height = top + rh * (rows.length + 1) + 34;
@@ -1607,9 +1604,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   dopeDlg.addEventListener('click', (e) => { if (e.target === dopeDlg) dopeDlg.close(); });
   const openDope = () => {
     const { cv, file } = dopeCard();
-    const close = Object.assign(document.createElement('button'), { type: 'button', className: 'quiz-stop', textContent: t('Закрыть') });
+    const close = Object.assign(document.createElement('button'), { type: 'button', className: 'quiz-stop', textContent: t('Закрити') });
     close.addEventListener('click', () => dopeDlg.close());
-    const saveBtn = Object.assign(document.createElement('button'), { type: 'button', className: 'quiz-go', textContent: t('Сохранить картинкой') });
+    const saveBtn = Object.assign(document.createElement('button'), { type: 'button', className: 'quiz-go', textContent: t('Зберегти картинкою') });
     saveBtn.addEventListener('click', () => cv.toBlob((b) => {
       if (!b) return;
       const fl = new File([b], file, { type: 'image/png' });
@@ -1643,7 +1640,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     $('s-dist-v').textContent = `${d} ${t('м')}`; $('s-mag-v').textContent = `${fm(m)}×`;
     // Кнопки ряду — зведення умов пострілу: підпис зверху, значення під ним; що зсуває поправку — в рамці
     const windOn = w > 0 && !(L.my && !L.windy);
-    toolLabel('sim-wind', w > 0 ? t('{n} ч', { n: hour }) : '');
+    toolLabel('sim-wind', w > 0 ? t('{n} год', { n: hour }) : '');
     $('s-wind-sum').textContent = w > 0 ? `${fm(w)} ${t('м/с')}` : t('штиль');
     toolHot('sim-wind', windOn);
     // Значок вітру (струмені зліва направо — дме з 9 год) повернуто туди, куди дме
@@ -1657,7 +1654,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     $('s-gun-sum').textContent = gunSub;
     const gunBtn = tool('sim-gun'); const gunIco = gunBtn.querySelector(':scope > svg, :scope > .ret-mini');
     if (gunIco && gunBtn.dataset.ret !== L.ret) { gunBtn.dataset.ret = L.ret; gunIco.replaceWith(retThumb(L.ret)); }
-    tool('sim-gun').title = [gunName, gunSub, L.my ? null : `${t('пристрелка')} ${z} ${t('м')}`,
+    tool('sim-gun').title = [gunName, gunSub, L.my ? null : `${t('пристрілка')} ${z} ${t('м')}`,
       !L.my && (tSum !== 15 || aSum) ? `${tSum > 0 ? '+' : ''}${tSum}°${aSum ? ` ${aSum} м` : ''}` : null].filter(Boolean).join(' · ');
     save();
     const tC = +$('s-temp').value; const alt = +$('s-alt').value; const air = airRatio(tC, alt);
@@ -1688,7 +1685,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const lead = (vt * tof / d) * (moa ? 3437.75 : 1000);
     const hx = (left ? wm : -wm) + (goRight ? -lead : lead);
     const mvRaw = +$('s-mv').value || 0;
-    $('s-mv-sum').textContent = mvRaw ? `${t(MOVE_SHORT[mvRaw] ?? `${fm(mvRaw)} м/с`)} ${goRight ? '→' : '←'}` : t('стоит');
+    $('s-mv-sum').textContent = mvRaw ? `${t(MOVE_SHORT[mvRaw] ?? `${fm(mvRaw)} м/с`)} ${goRight ? '→' : '←'}` : t('стоїть');
     toolHot('sim-move', vt > 0);
     aimHead = st.head;
     if ((ranging || !aimChoice()) && !$('pop-aim').hidden) { $('pop-aim').hidden = true; $('m-aim').setAttribute('aria-expanded', 'false'); }
@@ -1699,14 +1696,14 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const MS = measList();
     // Чим міряли — за назвою, щоб на наступній цілі лишилося те саме (ріст ↔ висота, плечі ↔ ширина — одне й те саме)
     if (st.measName !== undefined) {
-      const same = { рост: 'высота', высота: 'рост', плечи: 'ширина', ширина: 'плечи' };
+      const same = { зріст: 'висота', висота: 'зріст', плечі: 'ширина', ширина: 'плечі' };
       const at = st.measName === null ? -1 : MS.findIndex(([n]) => n === st.measName || n === same[st.measName]);
       st.meas = st.measName === null ? 0 : at >= 0 ? at + 1 : 1;
     }
     if (st.meas > MS.length) st.meas = 1;
     measBox.hidden = true;
     // Стрічка над прицілом — усі варіанти з картинкою; відкриває її кнопка «Далекомір»
-    const measIco = (name) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MEAS_ICON[name] ?? MEAS_ICON['высота']}</svg>`;
+    const measIco = (name) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MEAS_ICON[name] ?? MEAS_ICON['висота']}</svg>`;
     // Стрічка «чим міряти» — заново лише коли змінились варіанти, вибраний чи мова, а не на кожен крок повзунка
     const measKey = JSON.stringify([MS, st.meas, lang()]);
     if (measPop.dataset.key !== measKey) {
@@ -1728,9 +1725,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     if (!ranging && !measPop.hidden) { measPop.hidden = true; $('m-range').setAttribute('aria-expanded', 'false'); }
     // Значки режимів показують вибране: куди цілимось (точка на грудях чи голові) і чим міряємо; нема вибору — звичайний значок
     setIco($('m-aim'), aimChoice() ? aimIcon(st.head) : MODE_ICO.aim);
-    $('m-aim').setAttribute('aria-label', aimChoice() ? `${t('Прицеливание')}: ${st.head ? t('голова') : t('центр масс')}` : t('Прицеливание'));
+    $('m-aim').setAttribute('aria-label', aimChoice() ? `${t('Прицілювання')}: ${st.head ? t('голова') : t('центр мас')}` : t('Прицілювання'));
     setIco($('m-range'), MS[st.meas - 1] ? measIco(MS[st.meas - 1][0]) : MODE_ICO.range);
-    $('m-range').setAttribute('aria-label', MS[st.meas - 1] ? `${t('Дальномер')}: ${t(MS[st.meas - 1][0])} ${mFmt(MS[st.meas - 1][1])} ${t('м')}` : t('Дальномер'));
+    $('m-range').setAttribute('aria-label', MS[st.meas - 1] ? `${t('Далекомір')}: ${t(MS[st.meas - 1][0])} ${mFmt(MS[st.meas - 1][1])} ${t('м')}` : t('Далекомір'));
     const disp = st.edit ? 0 : dispOf(u);
     lastFree = { o: { ret: L.ret, mag: m, dist: d, tgt: st.tgt, mode: st.mode, hx, hy: hold, meas: ranging ? st.meas : 0, zoom: st.zoom, focus: st.focus, ...realOf(st, st.tgt), ink: st.ink, flash: st.flashAt, flip: vt > 0 && !goRight, move: vt > 0 ? (goRight ? 1 : -1) : 0, edit: st.edit, disp },
       cmp: [d, { w: windOn ? w : 0, hour, vt, goRight }] };
@@ -1747,47 +1744,47 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Формула — після відповіді й цілком: на вузькому телефоні вона переходить на другий рядок, а «MRAD → м» лишається в першому
     const formula = moa ? `${f(mSize * 100, 0)} см×34,38÷${f(msz, 2)}` : `${f(mSize, 2)}×1000÷${f(msz, 2)}`;
     // Розмір уже є у формулі й на кнопці — у підписі лише що міряємо
-    const what = mName ? t(mName).replace(/^./, (c) => c.toUpperCase()) : t('Цель');
+    const what = mName ? t(mName).replace(/^./, (c) => c.toUpperCase()) : t('Ціль');
     rows.push(`<div><span class="k">${what} (${C.ffp ? fm(m) : C.cal}×)</span><span class="nw"><span class="v">${f(msz, 2)} ${u}</span> → ${d} ${t('м')}</span> <span class="fx nw">= ${formula}</span></div>`);
-    if (ranging && RET_STADIA[L.ret] && !L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Шкала дальности')}</span>${t(RET_STADIA[L.ret])}</div>`);
+    if (ranging && RET_STADIA[L.ret] && !L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Шкала дальності')}</span>${t(RET_STADIA[L.ret])}</div>`);
     // Яка сітка й де її риски справжні: друга площина — лише на калібрувальній кратності, перша — на будь-якій
     // Під що виробник розрахував мітки: інший набій чи пристрілка — мітки ляжуть не на підписані дистанції
     const gNow = M193_GR[mv] ?? L.gr;
     if (L.bdc && !L.my && ((L.bdc.gr && gNow !== L.bdc.gr) || z !== L.bdc.zero)) {
-      rows.push(`<div class="w" data-g="kit"><span class="k">${t('Метки не под твой выстрел')}</span>${t('{by} рассчитал их на {ammo} с пристрелкой {z} м — у тебя {gr} гр, {mz} м; держи по «Где держать»', { by: L.bdc.by, ammo: L.bdc.ammo, z: L.bdc.zero, gr: gNow, mz: z })}</div>`);
+      rows.push(`<div class="w" data-g="kit"><span class="k">${t('Мітки не під твій постріл')}</span>${t('{by} розрахував їх на {ammo} з пристрілкою {z} м — у тебе {gr} гр, {mz} м; тримай за «Де тримати»', { by: L.bdc.by, ammo: L.bdc.ammo, z: L.bdc.zero, gr: gNow, mz: z })}</div>`);
     }
-    if (!L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Сетка')}</span>${RET_NAME[L.ret]} · ${C.ffp ? t('первая плоскость — метки верны на любой кратности')
-      : C.min === C.cal ? t('кратность одна — {n}×', { n: C.cal }) : t('вторая плоскость — метки верны только на {n}×', { n: C.cal })}</div>`);
+    if (!L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Сітка')}</span>${RET_NAME[L.ret]} · ${C.ffp ? t('перша площина — мітки вірні на будь-якій кратності')
+      : C.min === C.cal ? t('кратність одна — {n}×', { n: C.cal }) : t('друга площина — мітки вірні лише на {n}×', { n: C.cal })}</div>`);
     // Зона ураження — у подробицях (тап по зведенню), одразу під «Ціль»: видно, чи вистачить купчастості
     const zt = !ranging && zoneText(st.tgt, curFig(), null, d);
     if (zt) rows.push(`<div class="fx"><span class="k">${t(zt.name)}</span>${zt.size} = <span class="v">${zt.ang}</span></div>`);
-    if (!ranging && disp) rows.push(`<div class="fx"><span class="k">${t('Разброс {s} MOA', { s: $('s-disp').value })}</span>${t('группа ⌀{cm} см на {d} м — пунктирный круг', { cm: f(disp * (moa ? 2.9089 : 10) * d / 100, 0), d })}</div>`);
-    if (!C.ffp && m < C.cal) rows.push(`<div class="w"><span class="k">${t('Кратность {n}×', { n: fm(m) })}</span>${t('сетка ×{k} — мерь на {c}×', { k: f(C.cal / m, 2), c: C.cal })}</div>`);
+    if (!ranging && disp) rows.push(`<div class="fx"><span class="k">${t('Розкид {s} MOA', { s: $('s-disp').value })}</span>${t('група ⌀{cm} см на {d} м — пунктирне коло', { cm: f(disp * (moa ? 2.9089 : 10) * d / 100, 0), d })}</div>`);
+    if (!C.ffp && m < C.cal) rows.push(`<div class="w"><span class="k">${t('Кратність {n}×', { n: fm(m) })}</span>${t('сітка ×{k} — міряй на {c}×', { k: f(C.cal / m, 2), c: C.cal })}</div>`);
     // Коротко, щоб уміщалось в один рядок: стрілка замість «вгору/вниз», клацання — лише в одиницях сітки
     const ah = Math.abs(hold); const up = hold >= 0 ? '↑' : '↓';
     const cs = clickStep(L.ret, moa);
-    const clicks = cs ? t('{n} щелч. по {s}', { n: Math.round(ah * cs[0]), s: cs[1] }) : t('ACOG держат по рискам');
+    const clicks = cs ? t('{n} кл. по {s}', { n: Math.round(ah * cs[0]), s: cs[1] }) : t('ACOG тримають по рисках');
     rows.push(`<div><span class="k">${t('Вертикаль')}</span><span class="v">${up}${f(ah, moa ? 1 : 2)} ${u}</span> · ${clicks}</div>`);
     // Розмір зони ураження на цій дистанції — у кутових одиницях, щоб порівняти з купчастістю гвинтівки (1 MOA ≈ 2,9 см на 100 м)
-    if (C.marks) rows.push(`<div class="p"><span class="k">${C.ffp ? t('Где держать') : t('Где держать на {n}×', { n: C.cal })}</span>${bplexWhere(hold, C.marks, C.beyond)}${!C.ffp && m < C.cal ? t(' — на {n}× точки не совпадают', { n: fm(m) }) : ''}</div>`);
-    if (!ranging && w > 0 && share < 0.05) rows.push(`<div><span class="k">${t('Ветер {w} м/с с {h} ч', { w: fm(w), h: hour })}</span>${t('встречный или попутный: бокового сноса почти нет')}</div>`);
-    if (!ranging && w > 0 && share >= 0.05) rows.push(`<div><span class="k">${t('Ветер {w} м/с с {h} ч, {from}', { w: fm(w), h: hour, from: left ? t('слева') : t('справа') })}${share < 0.95 ? `<span class="fx"> · ${t('снос {p} % от бокового', { p: f(share * 100, 0) })}</span>` : ''}</span><span class="v">${left ? '←' : '→'}${f(wm, moa ? 1 : 2)} ${u}</span><span class="fx">: ${t('центр {side1} цели, цель на {v} {u} {side2} от центра', { side1: left ? t('левее') : t('правее'), v: f(wm * k, moa ? 1 : 2), u, side2: left ? t('справа') : t('слева') })}</span></div>`);
-    if (vt > 0) rows.push(`<div><span class="k">${t('Упреждение: цель идёт {v} м/с {dir}', { v: fm(vt), dir: goRight ? t('вправо') : t('влево') })}</span><span class="v">${goRight ? '→' : '←'}${f(lead, moa ? 1 : 2)} ${u}</span><span class="fx"> = ${fm(vt)} × ${f(tof, 2)} ${t('с')} × ${moa ? '3438' : '1000'} ÷ ${d} · ${t('центр на {v} {u} впереди цели по ходу движения', { v: f(lead * k, moa ? 1 : 2), u })}</span></div>`);
+    if (C.marks) rows.push(`<div class="p"><span class="k">${C.ffp ? t('Де тримати') : t('Де тримати на {n}×', { n: C.cal })}</span>${bplexWhere(hold, C.marks, C.beyond)}${!C.ffp && m < C.cal ? t(' — на {n}× точки не збігаються', { n: fm(m) }) : ''}</div>`);
+    if (!ranging && w > 0 && share < 0.05) rows.push(`<div><span class="k">${t('Вітер {w} м/с з {h} год', { w: fm(w), h: hour })}</span>${t('зустрічний чи попутний: бокового зносу майже немає')}</div>`);
+    if (!ranging && w > 0 && share >= 0.05) rows.push(`<div><span class="k">${t('Вітер {w} м/с з {h} год, {from}', { w: fm(w), h: hour, from: left ? t('ліворуч') : t('праворуч') })}${share < 0.95 ? `<span class="fx"> · ${t('знос {p} % від бокового', { p: f(share * 100, 0) })}</span>` : ''}</span><span class="v">${left ? '←' : '→'}${f(wm, moa ? 1 : 2)} ${u}</span><span class="fx">: ${t('центр {side1} цілі, ціль на {v} {u} {side2} від центру', { side1: left ? t('лівіше') : t('правіше'), v: f(wm * k, moa ? 1 : 2), u, side2: left ? t('праворуч') : t('ліворуч') })}</span></div>`);
+    if (vt > 0) rows.push(`<div><span class="k">${t('Упередження: ціль іде {v} м/с {dir}', { v: fm(vt), dir: goRight ? t('праворуч') : t('ліворуч') })}</span><span class="v">${goRight ? '→' : '←'}${f(lead, moa ? 1 : 2)} ${u}</span><span class="fx"> = ${fm(vt)} × ${f(tof, 2)} ${t('с')} × ${moa ? '3438' : '1000'} ÷ ${d} · ${t('центр на {v} {u} попереду цілі за ходом руху', { v: f(lead * k, moa ? 1 : 2), u })}</span></div>`);
     // Політ, швидкість і енергія на цій дистанції — одним рядком; швидкість з тієї ж таблиці часу (уже з поправкою на повітря)
     const kg = (M193_GR[mv] ?? L.gr ?? 0) * 6.479891e-5; const v0 = +mv; const vd = tb.T ? speedAt(tb.T, v0, d) : 0;
     const joule = (v) => Math.round((kg * v * v) / 2 / 10) * 10;
-    if (L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Поправки из твоей таблицы DOPE')}</span>${t('{n} — пристрелка, ствол, патрон и погода уже в ней; время полёта и скорость в таблице не записаны', { n: L.label })}</div>`);
+    if (L.my) rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Поправки з твоєї таблиці DOPE')}</span>${t('{n} — пристрілка, ствол, набій і погода вже в ній; часу польоту й швидкості в таблиці немає', { n: L.label })}</div>`);
     if (L.gun) {
-      const why = L.ammo ? t('свой расчёт: {m} {bc}, {v} м/с ({src}), прицел {sh} см над стволом{dflt}, погода — из панели', {
-        m: L.ammo.model, bc: f(L.ammo.bc, 3), v: L.ammo.mv, src: L.ammo.chrono ? t('хронограф') : t('из карточки патрона'), sh: fm(L.sh),
-        dflt: L.shSet ? '' : t(' (не указан в карточке)') })
-        : t('поправки — по набору «{k}»: свой патрон может лечь иначе, точно — по таблице DOPE этого оружия', { k: kitName(L.base) });
-      rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Своё оружие: {n}', { n: L.label })}</span>${why}</div>`);
+      const why = L.ammo ? t('свій розрахунок: {m} {bc}, {v} м/с ({src}), приціл {sh} см над стволом{dflt}, погода — з панелі', {
+        m: L.ammo.model, bc: f(L.ammo.bc, 3), v: L.ammo.mv, src: L.ammo.chrono ? t('хронограф') : t('з картки набою'), sh: fm(L.sh),
+        dflt: L.shSet ? '' : t(' (не вказано в картці)') })
+        : t('поправки — за набором «{k}»: свій набій може лягти інакше, точно — за таблицею DOPE цієї зброї', { k: kitName(L.base) });
+      rows.push(`<div class="fx" data-g="kit"><span class="k">${t('Своя зброя: {n}', { n: L.label })}</span>${why}</div>`);
     }
     // Політ на дистанції — трьома показниками з підписами
     const stat = (v, lab) => `<span class="st"><b>${v}</b><small>${t(lab)}</small></span>`;
-    if (!L.my) rows.push(`<div class="fx sts" data-g="fly"><span class="k">${t('На {d} м', { d })}${vd < 343 ? ` · ${t('дозвук')}` : ''}</span>${stat(`${f(tof, 2)} ${t('с')}`, 'время полёта')}${stat(`≈${Math.round(vd / 5) * 5} ${t('м/с')}`, 'скорость')}${L.gr ? stat(`≈${joule(vd)} ${t('Дж')}`, 'энергия') : ''}</div>`);
-    if (!L.my && Math.abs(air - 1) > 0.02) rows.push(`<div class="fx" data-g="fly"><span class="k">${t('Воздух {t} °C, {a} м', { t: tC > 0 ? `+${tC}` : tC, a: alt })}</span>${t('плотность {p} % от стандартной — пуля падает {more}; скорость от температуры пороха не учтена', { p: f(air * 100, 0), more: air > 1 ? t('больше') : t('меньше') })}</div>`);
+    if (!L.my) rows.push(`<div class="fx sts" data-g="fly"><span class="k">${t('На {d} м', { d })}${vd < 343 ? ` · ${t('дозвук')}` : ''}</span>${stat(`${f(tof, 2)} ${t('с')}`, 'час польоту')}${stat(`≈${Math.round(vd / 5) * 5} ${t('м/с')}`, 'швидкість')}${L.gr ? stat(`≈${joule(vd)} ${t('Дж')}`, 'енергія') : ''}</div>`);
+    if (!L.my && Math.abs(air - 1) > 0.02) rows.push(`<div class="fx" data-g="fly"><span class="k">${t('Повітря {t} °C, {a} м', { t: tC > 0 ? `+${tC}` : tC, a: alt })}</span>${t('щільність {p} % від стандартної — куля падає {more}; швидкість від температури пороху не враховано', { p: f(air * 100, 0), more: air > 1 ? t('більше') : t('менше') })}</div>`);
     if (d > L.lim) rows.push(`<div class="w" data-g="fly">${t(L.limTxt)}</div>`);
     // «Як пораховано» (лише в подробицях): кожна поправка — карткою з кроками на числах цього пострілу, як памятка у вправах
     if (!ranging) {
@@ -1795,34 +1792,34 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const cmOf = (v) => f(Math.abs(v) * (moa ? 2.9089 : 10) * d / 100, 0);
       const card = (title, steps, result) => rows.push(`<div class="fx cs" data-g="calc"><b class="cs-h">${title}</b><ol>${steps.filter(Boolean).map((x) => `<li>${x}</li>`).join('')}</ol>${result ? `<span class="cs-r">${result}</span>` : ''}</div>`);
       const arrowV = (v) => `${v >= 0 ? '↑' : '↓'}${f(Math.abs(v), dg)}${U}`;
-      if (L.my) card(t('Вертикаль'), [t('Из твоей таблицы DOPE на {d} м', { d: b(`${d} ${t('м')}`) })], `${arrowV(hold)} · ≈${cmOf(hold)} ${t('см')}`);
+      if (L.my) card(t('Вертикаль'), [t('З твоєї таблиці DOPE на {d} м', { d: b(`${d} ${t('м')}`) })], `${arrowV(hold)} · ≈${cmOf(hold)} ${t('см')}`);
       else {
         const h100 = holdAt(tb.H, d); const zsh = zeroShift(tb.H, z);
         card(t('Вертикаль'), [
-          t('Падение пули на {d} при пристрелке 100 м — {v}', { d: b(`${d} ${t('м')}`), v: b(f(h100, dg) + U) }),
-          z !== 100 ? t('Пристрелка {z} м поднимает траекторию: − {v}', { z, v: b(f(zsh, dg)) }) : null,
-          t('На цели это ≈ {cm} см · {c}', { cm: b(cmOf(hold)), c: clicks }),
+          t('Падіння кулі на {d} при пристрілці 100 м — {v}', { d: b(`${d} ${t('м')}`), v: b(f(h100, dg) + U) }),
+          z !== 100 ? t('Пристрілка {z} м піднімає траєкторію: − {v}', { z, v: b(f(zsh, dg)) }) : null,
+          t('На цілі це ≈ {cm} см · {c}', { cm: b(cmOf(hold)), c: clicks }),
         ], arrowV(hold));
       }
       if (wm > 0.005) {
         const w1 = at(tb.W, d);
-        card(t('Ветер'), [
-          t('Снос на 1 м/с на {d} — {v}', { d: b(`${d} ${t('м')}`), v: b(f(w1, dg + 1) + U) }),
-          t('× сила ветра {w} = {v}', { w: b(`${fm(w)} ${t('м/с')}`), v: b(f(w1 * w, dg)) }),
-          share < 0.97 ? t('× боковая доля с {h} ч — {p} % = {v}', { h: hour, p: Math.round(share * 100), v: b(f(wm, dg)) }) : null,
-          t(left ? 'Дует слева — держи левее' : 'Дует справа — держи правее'),
+        card(t('Вітер'), [
+          t('Знос на 1 м/с на {d} — {v}', { d: b(`${d} ${t('м')}`), v: b(f(w1, dg + 1) + U) }),
+          t('× сила вітру {w} = {v}', { w: b(`${fm(w)} ${t('м/с')}`), v: b(f(w1 * w, dg)) }),
+          share < 0.97 ? t('× бокова частка з {h} год — {p} % = {v}', { h: hour, p: Math.round(share * 100), v: b(f(wm, dg)) }) : null,
+          t(left ? 'Дме зліва — тримай лівіше' : 'Дме справа — тримай правіше'),
         ], `${left ? '←' : '→'}${f(wm, dg)}${U}`);
       }
       if (vt > 0) {
-        card(t('Движение'), [
-          t('Цель {v} × {s} полёта = {m} впереди', { v: b(`${fm(vt)} ${t('м/с')}`), s: b(`${f(tof, 2)} ${t('с')}`), m: b(`${f(vt * tof, 2)} ${t('м')}`) }),
+        card(t('Рух'), [
+          t('Ціль {v} × {s} польоту = {m} попереду', { v: b(`${fm(vt)} ${t('м/с')}`), s: b(`${f(tof, 2)} ${t('с')}`), m: b(`${f(vt * tof, 2)} ${t('м')}`) }),
           t('{m} на {d} = {v}', { m: b(`${f(vt * tof, 2)} ${t('м')}`), d: b(`${d} ${t('м')}`), v: b(f(lead, dg) + U) }),
-          t(goRight ? 'Цель идёт вправо — держи правее' : 'Цель идёт влево — держи левее'),
+          t(goRight ? 'Ціль іде вправо — тримай правіше' : 'Ціль іде вліво — тримай лівіше'),
         ], `${goRight ? '→' : '←'}${f(lead, dg)}${U}`);
       }
-      if (wm > 0.005 && vt > 0) card(t('Итого'), [`${t('ветер')} ${left ? '←' : '→'}${f(wm, dg)} + ${t('движение')} ${goRight ? '→' : '←'}${f(lead, dg)}`],
+      if (wm > 0.005 && vt > 0) card(t('Разом'), [`${t('вітер')} ${left ? '←' : '→'}${f(wm, dg)} + ${t('рух')} ${goRight ? '→' : '←'}${f(lead, dg)}`],
         `${arrowV(hold)} ${hx > 0 ? '←' : '→'}${f(Math.abs(hx), dg)}${U}`);
-      if (!L.my && Math.abs(air - 1) > 0.02) card(t('Воздух'), [t('Плотность {p} % от стандартной — уже учтена в цифрах выше', { p: f(air * 100, 0) })], '');
+      if (!L.my && Math.abs(air - 1) > 0.02) card(t('Повітря'), [t('Щільність {p} % від стандартної — уже врахована в цифрах вище', { p: f(air * 100, 0) })], '');
     }
     // Подробиці — трьома розділами: постріл, сітка й набій, політ кулі; у рядку підпис і значення окремими клітинками
     const groupOf = (r) => (r.match(/^<div[^>]*data-g="(\w+)"/) ?? [])[1] ?? 'shot';
@@ -1831,7 +1828,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Згорнуте — без подробиць: їх однаково не видно, а розбір цілої картки на кожен крок повзунка коштує; розгортання малює заново
     const out = $('sim-out'); const full = out.classList.contains('fx-on');
     for (const r of rows) if (full || !r.startsWith('<div class="fx')) parts[groupOf(r)].push(cell(r));
-    const HEAD = { shot: t('Выстрел'), calc: t('Как посчитано'), kit: t('Сетка и патрон'), fly: t('Полёт пули') };
+    const HEAD = { shot: t('Постріл'), calc: t('Як пораховано'), kit: t('Сітка й набій'), fly: t('Політ кулі') };
     const html = Object.entries(parts).filter(([, a]) => a.length)
       .map(([g, a]) => `<div class="ro-sec ro-${g}"><div class="ro-h">${HEAD[g]}</div>${a.join('')}</div>`).join('');
     if (outHtml !== html) { outHtml = html; out.innerHTML = html; }
@@ -1873,7 +1870,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const wdir = $('s-wdir');
   wdir.replaceChildren(...Array.from({ length: 12 }, (_, i) => {
     const op = document.createElement('option');
-    op.value = String(i + 1); op.textContent = t('с {n} ч', { n: i + 1 }); op.selected = i + 1 === 9;
+    op.value = String(i + 1); op.textContent = t('з {n} год', { n: i + 1 }); op.selected = i + 1 === 9;
     return op;
   }));
   paintWind = clockPicker?.(wdir, { speed: $('s-wind'), hideSpeed: true }) ?? null;
@@ -1942,10 +1939,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     return b;
   };
   // Подробиці вибраної цілі — одним рядком під стрічкою
-  const sceneNote = (sk) => [sceneName(sk), sceneCrew(sk), SCENES[sk].bg ? t('фон в масштабе прицела') : t('кадр без повторов до {d} м', { d: sceneFar(sk) })].join(' · ');
+  const sceneNote = (sk) => [sceneName(sk), sceneCrew(sk), SCENES[sk].bg ? t('тло в масштабі прицілу') : t('кадр без повторів до {d} м', { d: sceneFar(sk) })].join(' · ');
   const tgtNote = () => (st.real ? sceneNote(st.real) : t(TGT[st.tgt].label));
   // Опис плитки в рамці посередині стрічки
-  const chipNote = (b) => (b.dataset.scene ? sceneNote(b.dataset.scene) : b.dataset.tgt ? t(TGT[b.dataset.tgt].label) : t('Случайная цель и дистанция'));
+  const chipNote = (b) => (b.dataset.scene ? sceneNote(b.dataset.scene) : b.dataset.tgt ? t(TGT[b.dataset.tgt].label) : t('Випадкова ціль і дистанція'));
   // Вибір цілі: схема (real = null) чи сцена фото (real — ключ сцени); нова сцена — заново боєць і підсвітка
   const chooseTgt = (key, sk = null) => {
     if (st.real !== sk) { st.real = sk; st.scene = null; st.flashAt = performance.now(); paintInk(); }
@@ -1987,11 +1984,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     tgtView = v;
     if (kindBtn) {
       kindBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${KIND_ICON[v]}</svg>`;
-      const label = `${t(v === 'photo' ? 'Фото' : 'Схемы')} — ${t('показать')} ${t(v === 'photo' ? 'схемы' : 'фото')}`;
+      const label = `${t(v === 'photo' ? 'Фото' : 'Схеми')} — ${t('показати')} ${t(v === 'photo' ? 'схеми' : 'фото')}`;
       kindBtn.title = label; kindBtn.setAttribute('aria-label', label);
     }
     grid?.replaceChildren(
-      tile(dice(), null, t('Случайная цель и дистанция'), { random: '1' }, randomPick),
+      tile(dice(), null, t('Випадкова ціль і дистанція'), { random: '1' }, randomPick),
       ...(v === 'photo'
         ? Object.keys(SCENES).map((sk) => tile(sceneIcon(sk, 28), sceneName(sk), sceneName(sk), { scene: sk }, () => chooseTgt(sceneTgt(sk), sk)))
         : PICK.map((key) => tile(tgtIcon(key), t(TGT[key].short), t(TGT[key].label), { tgt: key }, () => chooseTgt(key)))),
@@ -2030,48 +2027,48 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // нова сходинка «різні цілі» має свій ключ varied, тож статистика старих серій не перемішується
   const LEVELS = {
     range: [
-      ['learn', 'Обучение', 'выбранная цель · скоба на цели и её размер в сетке · формула подсказана'],
-      ['pick', 'Совсем легко', 'выбранная цель · выбери из 4 ответов'],
-      ['easy', 'Легко', 'выбранная цель · размер подписан'],
-      ['normal', 'Нормально', 'выбранная цель · размер помнишь сам'],
-      ['varied', 'Трудно', 'разные цели · размер помнишь сам'],
-      ['hard', 'Очень трудно', 'разные цели · и кратность не та, и за бруствером'],
-      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · размер помнишь сам'],
+      ['learn', 'Навчання', 'вибрана ціль · скоба на цілі та її розмір у сітці · формула підказана'],
+      ['pick', 'Зовсім легко', 'вибрана ціль · обери з 4 відповідей'],
+      ['easy', 'Легко', 'вибрана ціль · розмір підписано'],
+      ['normal', 'Нормально', 'вибрана ціль · розмір пам’ятаєш сам'],
+      ['varied', 'Важко', 'різні цілі · розмір пам’ятаєш сам'],
+      ['hard', 'Дуже важко', 'різні цілі · і кратність не та, і за бруствером'],
+      ['near', 'Своя дистанція', 'вибрана ціль · «дист.» ± 100 м · розмір пам’ятаєш сам'],
     ],
     hold: [
-      ['learn', 'Обучение', 'выбранная цель · только дистанция · подсказка прямо на сетке'],
-      ['wind1', 'Ветер: основы', 'выбранная цель · ветер строго сбоку, 2–6 м/с · подсказка: вынос на дистанцию и на ветер отдельно'],
-      ['wind2', 'Ветер: угол', 'выбранная цель · ветер с любого часа · подсказка: какая доля ветра боковая'],
-      ['move1', 'Движение: основы', 'человек идёт или бежит, без ветра · подсказка: упреждение на сетке и расчёт'],
-      ['windmove', 'Ветер и движение', 'ветер с любого часа и движение · подсказка: вынос по частям'],
-      ['easy', 'Легко', 'выбранная цель · только дистанция'],
-      ['normal', 'Нормально', 'выбранная цель · и ветер'],
-      ['hard', 'Трудно', 'выбранная цель · ветер и движение'],
-      ['varied', 'Очень трудно', 'разные цели · ветер и движение'],
-      ['head', 'Голова', 'выбранная цель · ветер · до 400 м'],
-      ['signs', 'Ветер по приметам', 'выбранная цель · силу ветра оцени по приметам, бери середину ступени'],
-      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
-      ['timed', 'На время', 'разные цели · ветер и движение · 15 с на цель'],
-      ['search', 'Поиск', 'цель появляется на 5 с в случайном месте · найди и поставь на метку'],
-      ['searchMove', 'Поиск в движении', 'как «Поиск», но цель бывает и идёт или бежит'],
+      ['learn', 'Навчання', 'вибрана ціль · лише дистанція · підказка просто на сітці'],
+      ['wind1', 'Вітер: основи', 'вибрана ціль · вітер строго збоку, 2–6 м/с · підказка: винос на дистанцію й на вітер окремо'],
+      ['wind2', 'Вітер: кут', 'вибрана ціль · вітер з будь-якої години · підказка: яка частка вітру бокова'],
+      ['move1', 'Рух: основи', 'людина йде чи біжить, без вітру · підказка: упередження на сітці й розрахунок'],
+      ['windmove', 'Вітер і рух', 'вітер з будь-якої години й рух · підказка: винос частинами'],
+      ['easy', 'Легко', 'вибрана ціль · лише дистанція'],
+      ['normal', 'Нормально', 'вибрана ціль · і вітер'],
+      ['hard', 'Важко', 'вибрана ціль · вітер і рух'],
+      ['varied', 'Дуже важко', 'різні цілі · вітер і рух'],
+      ['head', 'Голова', 'вибрана ціль · вітер · до 400 м'],
+      ['signs', 'Вітер за ознаками', 'вибрана ціль · силу вітру оціни за ознаками, бери середину сходинки'],
+      ['near', 'Своя дистанція', 'вибрана ціль · «дист.» ± 100 м · і вітер'],
+      ['timed', 'На час', 'різні цілі · вітер і рух · 15 с на ціль'],
+      ['search', 'Пошук', 'ціль з’являється на 5 с у випадковому місці · знайди й постав на мітку'],
+      ['searchMove', 'Пошук у русі', 'як «Пошук», але ціль буває й іде чи біжить'],
     ],
     // Сходинка — як у «Виносі»: ті самі назви означають ті самі умови
     combo: [
-      ['easy', 'Легко', 'выбранная цель · только дистанция'],
-      ['normal', 'Нормально', 'выбранная цель · и ветер'],
-      ['hard', 'Трудно', 'выбранная цель · ветер и движение'],
-      ['varied', 'Очень трудно', 'разные цели · ветер и движение'],
-      ['near', 'Своя дистанция', 'выбранная цель · «дист.» ± 100 м · и ветер'],
-      ['timed', 'На время', 'разные цели · ветер и движение · 25 с на цель'],
+      ['easy', 'Легко', 'вибрана ціль · лише дистанція'],
+      ['normal', 'Нормально', 'вибрана ціль · і вітер'],
+      ['hard', 'Важко', 'вибрана ціль · вітер і рух'],
+      ['varied', 'Дуже важко', 'різні цілі · вітер і рух'],
+      ['near', 'Своя дистанція', 'вибрана ціль · «дист.» ± 100 м · і вітер'],
+      ['timed', 'На час', 'різні цілі · вітер і рух · 25 с на ціль'],
     ],
     wind: [
-      ['easy', 'Легко', 'две приметы на местности'],
-      ['normal', 'Нормально', 'одна примета, бывает и мираж'],
-      ['bracket', 'Вилкой', 'одна примета · ответ вилкой из 1–2 ступеней: узкая — 2 очка, широкая — 1'],
-      ['timed', 'На время', 'одна примета · 8 с на ответ'],
+      ['easy', 'Легко', 'дві ознаки на місцевості'],
+      ['normal', 'Нормально', 'одна ознака, буває й міраж'],
+      ['bracket', 'Вилкою', 'одна ознака · відповідь вилкою з 1–2 сходинок: вузька — 2 очки, широка — 1'],
+      ['timed', 'На час', 'одна ознака · 8 с на відповідь'],
     ],
   };
-  LEVELS.range.push(['timed', 'На время', 'разные цели · размер помнишь сам · 10 с на ответ']);
+  LEVELS.range.push(['timed', 'На час', 'різні цілі · розмір пам’ятаєш сам · 10 с на відповідь']);
   // «Своя дистанція» замінена рядком «Дистанції від–до», що діє на будь-якому рівні; у LEVELS лишилась для назв у статистиці старих серій
   const RETIRED = ['near'];
   // Куди треба влучити на кожному рівні. mix — голова до 300 м, якщо ціль стоїть, далі груди.
@@ -2080,7 +2077,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     hold: { learn: 'torso', wind1: 'torso', wind2: 'torso', move1: 'torso', windmove: 'torso', easy: 'torso', normal: 'chest', hard: 'chest', varied: 'mix', head: 'head', signs: 'chest', timed: 'chest', search: 'chest', searchMove: 'chest' },
     combo: { easy: 'torso', normal: 'chest', hard: 'chest', varied: 'chest', timed: 'chest' },
   };
-  const ZONE_NOTE = { torso: 'зона: весь торс', chest: 'зона: грудь', head: 'зона: голова', mix: 'зона: голова до 300 м, если цель стоит, дальше грудь' };
+  const ZONE_NOTE = { torso: 'зона: увесь торс', chest: 'зона: груди', head: 'зона: голова', mix: 'зона: голова до 300 м, якщо ціль стоїть, далі груди' };
   // Рівні, де голова чи весь торс мають сенс лише ближче: до 400 м
   const NEAR_MAX = { learn: 400, wind1: 500, wind2: 500, move1: 400, windmove: 500, easy: 400, head: 400 };
   // Навчальні рівні «Виносу»: підказка на сітці; вітрові — ще й розрахунок вітру під умовою
@@ -2089,14 +2086,14 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const LEVEL_MODES = ['timed', 'head', 'signs', 'search', 'searchMove', 'bracket'];
   // «Винос» — 15 рівнів трьома групами, у стрічці лише група вибраного: [ключ, назва, рівні, рівень при виборі групи]
   const LEVEL_GROUPS = {
-    hold: [['learn', 'Обучение', LEARN, 'learn'], ['ladder', 'Сложность', ['easy', 'normal', 'hard', 'varied'], 'normal'],
-      ['modes', 'Режимы', ['head', 'signs', 'timed', 'search', 'searchMove'], 'head']],
+    hold: [['learn', 'Навчання', LEARN, 'learn'], ['ladder', 'Складність', ['easy', 'normal', 'hard', 'varied'], 'normal'],
+      ['modes', 'Режими', ['head', 'signs', 'timed', 'search', 'searchMove'], 'head']],
   };
   const windLearn = () => ['wind1', 'wind2', 'windmove'].includes(quiz.level);
   const moveLearn = () => quiz.level === 'move1' || quiz.level === 'windmove';
   // Значок рівня: сходинки — «сигнал мережі» на 5 поділок за назвою (у вправах різні ключі, назви ті самі);
   // режими — свій значок: «Своя дистанція» — як на кнопці «дист.», «На час» — секундомір
-  const LEVEL_BARS = { 'Совсем легко': 1, 'Легко': 2, 'Нормально': 3, 'Трудно': 4, 'Очень трудно': 5 };
+  const LEVEL_BARS = { 'Зовсім легко': 1, 'Легко': 2, 'Нормально': 3, 'Важко': 4, 'Дуже важко': 5 };
   const MODE_ICON = {
     timed: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M12 2.5V6M18.5 6.5l1.5-1.5"/>',
     // ознаки на місцевості — дерево, а не значок вітру, як у самої вправи
@@ -2118,7 +2115,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const variedTargets = () => ['varied', 'timed'].includes(quiz.level) || (quiz.kind === 'range' && quiz.level === 'hard');
   const randomTarget = () => PICK[Math.floor(Math.random() * PICK.length)];
   const LEVEL_KEY = (kind) => `shooters-log:sim-level-${kind}`;
-  const KINDS = [['range', 'Дальность'], ['hold', 'Вынос'], ['combo', 'Выстрел'], ['wind', 'Ветер']];
+  const KINDS = [['range', 'Дальність'], ['hold', 'Винос'], ['combo', 'Постріл'], ['wind', 'Вітер']];
   // Що зараз на прицілі: у «Дальність + винос» спершу дальність, потім винос
   const phase = () => quiz.cur.phase ?? quiz.kind;
   // Ціль серії зарахована: дальність — у межах 10 %, вітер — точно, винос — у зону ураження
@@ -2154,18 +2151,18 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const buzz = (ok) => { if (!ok) navigator.vibrate?.(40); };
   // Ознаки сили вітру — як у таблиці розділу «Вітер»; міраж — з пояснень під нею
   const WIND_Q = [
-    ['0–1', ['дым поднимается почти вертикально', 'листья не шевелятся', 'вода гладкая, как зеркало'], 'мираж «кипит» строго вверх'],
-    ['1–2', ['ветер чувствуется лицом', 'дым заметно наклоняется', 'листья шевелятся', 'по гладкой воде бегут тёмные пятна ряби'], 'мираж кипит и чуть клонится, до ≈ 45°'],
-    ['2–4', ['листья и тонкие ветки в постоянном движении', 'лёгкий флаг развевается', 'листья переворачиваются светлой изнанкой'], 'мираж наклонён на ≈ 70°, почти не кипит'],
-    ['4–6', ['поднимает пыль и бумагу', 'двигаются небольшие ветки', 'трава ложится волнами'], 'мираж плоский, «хлёсткий», мельтешит'],
-    ['6–8', ['раскачиваются небольшие деревья', 'ветер мешает держать изготовку стоя'], null],
+    ['0–1', ['дим піднімається майже вертикально', 'листя не ворушиться', 'вода гладенька, як дзеркало'], 'міраж «кипить» строго вгору'],
+    ['1–2', ['вітер відчувається обличчям', 'дим помітно нахиляється', 'листя ворушиться', 'по гладкій воді біжать темні плями брижів'], 'міраж кипить і трохи хилиться, до ≈ 45°'],
+    ['2–4', ['листя й тонкі гілки в постійному русі', 'легкий прапор розвівається', 'листя перевертається світлим боком'], 'міраж нахилений на ≈ 70°, майже не кипить'],
+    ['4–6', ['піднімає пил і папір', 'рухаються невеликі гілки', 'трава лягає хвилями'], 'міраж плаский, «хльосткий», мерехтить'],
+    ['6–8', ['розгойдуються невеликі дерева', 'вітер заважає тримати положення стоячи'], null],
   ];
   // Середина сходинки вітру — її бере «Винос» на рівні «Вітер за ознаками»
   const WIND_MID = [0.5, 1.5, 3, 5, 7];
   // Вилка сходинок a…b одним підписом: «1–2» і «2–4» → «1–4»
   const bracketLabel = (a, b) => `${WIND_Q[a][0].split('–')[0]}–${WIND_Q[b][0].split('–')[1]}`;
   // Четверте — ті самі смуги для «Дистанції від–до» (кнопка «Потренувати» під слабким місцем)
-  const DIST_BANDS = [[0, 300, 'до 300 м', [100, 300]], [301, 500, '300–500 м', [300, 500]], [501, 1e4, 'дальше 500 м', [500, 800]]];
+  const DIST_BANDS = [[0, 300, 'до 300 м', [100, 300]], [301, 500, '300–500 м', [300, 500]], [501, 1e4, 'понад 500 м', [500, 800]]];
   // Історія серій — лише на цьому пристрої (localStorage). ponytail: перенести в базу, якщо захочеться бачити й на іншому
   const HIST = 'shooters-log:sim-history';
   const history = () => { try { return JSON.parse(localStorage.getItem(HIST)) ?? []; } catch { return []; } };
@@ -2209,7 +2206,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     ico.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>'
       + '<path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>'
       + '<circle class="quiz-ico-ring" cx="12" cy="12" r="2.4"/><circle class="quiz-ico-hit" cx="12" cy="12" r="1.6"/></svg>';
-    toggle.append(chev, ico, t('Проверь себя'), Object.assign(document.createElement('span'), { className: 'box-sum', id: 'sim-quiz-sum' }));
+    toggle.append(chev, ico, t('Перевір себе'), Object.assign(document.createElement('span'), { className: 'box-sum', id: 'sim-quiz-sum' }));
     toggle.addEventListener('click', () => quizFold(fs.classList.contains('closed')));
     const legend = document.createElement('legend'); legend.append(toggle);
     const body = Object.assign(document.createElement('div'), { className: 'box-body' });
@@ -2281,7 +2278,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const angles = Array.from({ length: 19 }, (_, i) => i * 5).filter((a) => a / 9 > lo && a / 9 < hi);
     if (angles.length && Math.random() < 0.3) {
       const flag = angles[Math.floor(Math.random() * angles.length)];
-      signs[signs.length - 1] = { k: 'флажок отклонился от древка на ≈ {a}°', p: { a: flag } };
+      signs[signs.length - 1] = { k: 'прапорець відхилився від древка на ≈ {a}°', p: { a: flag } };
       return { signs, flag };
     }
     return { signs };
@@ -2299,9 +2296,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const d = xs.reduce((a, x) => a + (x.guess - x.wind), 0) / xs.length;
     const near = xs.filter((x) => Math.abs(x.guess - x.wind) <= 1).length;
     const box = el('div', { className: 'quiz-hist quiz-journal-wind' });
-    box.append(el('span', {}, `${t('Из журнала: ветер на глаз, записей {n}', { n: xs.length })} · ${Math.abs(d) < 0.3 ? t('в среднем точно')
-      : t(d > 0 ? 'в среднем завышаешь на {v} м/с' : 'в среднем занижаешь на {v} м/с', { v: f(Math.abs(d), 1) })} · ${t('в пределах 1 м/с — {p}', { p: `${Math.round((near / xs.length) * 100)} %` })}`));
-    box.append(el('small', {}, t('Прогноз погоды меряет ветер на высоте 10 м, у земли он слабее — честнее сравнивать с прибором.')));
+    box.append(el('span', {}, `${t('З журналу: вітер на око, записів {n}', { n: xs.length })} · ${Math.abs(d) < 0.3 ? t('у середньому точно')
+      : t(d > 0 ? 'у середньому завищуєш на {v} м/с' : 'у середньому занижуєш на {v} м/с', { v: f(Math.abs(d), 1) })} · ${t('у межах 1 м/с — {p}', { p: `${Math.round((near / xs.length) * 100)} %` })}`));
+    box.append(el('small', {}, t('Прогноз погоди міряє вітер на висоті 10 м, біля землі він слабший — чесніше порівнювати з приладом.')));
     return box;
   };
 
@@ -2362,11 +2359,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
 
   // Легенда результату «куди тримати» — значками, як вони намальовані на сітці
   const LEG = [
-    ['<path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.8" fill="var(--accent)"/>', 'целился'],
-    ['<path d="M3 3l10 10M3 13L13 3" stroke="#ff4d4d" stroke-width="2.2" stroke-linecap="round"/>', 'попал'],
-    ['<circle cx="8" cy="8" r="5.5" fill="none" stroke="#4cc38a" stroke-width="2"/>', 'надо было целиться'],
+    ['<path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.8" fill="var(--accent)"/>', 'точка прицілу'],
+    ['<path d="M3 3l10 10M3 13L13 3" stroke="#ff4d4d" stroke-width="2.2" stroke-linecap="round"/>', 'влучання'],
+    ['<circle cx="8" cy="8" r="5.5" fill="none" stroke="#4cc38a" stroke-width="2"/>', 'треба було цілитись'],
     // Зона — та сама червона плита, що на цілі (plateD у полі 16 × 16)
-    [`<path d="${plateD(['p', 3, 1, 10, 14])}" fill="rgb(255 20 35 / .55)"/>`, 'зона попадания'],
+    [`<path d="${plateD(['p', 3, 1, 10, 14])}" fill="rgb(255 20 35 / .55)"/>`, 'зона влучання'],
   ];
   const legend = () => {
     const box = el('span', { className: 'quiz-legend' });
@@ -2391,7 +2388,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const dot = el('i', { className: `${i < quiz.errs.length ? (okAt(i) ? 'good' : nearAt(i) ? 'near' : 'bad') : i === n - 1 ? 'cur' : ''}${i === quiz.view ? ' picked' : ''}` });
       // Відповіданий кружечок — тап повертає до тієї цілі з її розбором
       if (i < quiz.done.length) {
-        dot.tabIndex = 0; dot.setAttribute('role', 'button'); dot.setAttribute('aria-label', t('Цель {n}: разбор', { n: i + 1 }));
+        dot.tabIndex = 0; dot.setAttribute('role', 'button'); dot.setAttribute('aria-label', t('Ціль {n}: розбір', { n: i + 1 }));
         const open = () => viewDone(i);
         dot.addEventListener('click', open);
         dot.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
@@ -2399,10 +2396,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       dots.append(dot);
     }
     const head = el('div', { className: 'quiz-n quiz-head' });
-    const step = q.phase ? ` · ${t(q.phase === 'range' ? 'шаг 1: дальность' : 'шаг 2: вынос')}` : '';
+    const step = q.phase ? ` · ${t(q.phase === 'range' ? 'крок 1: дальність' : 'крок 2: винос')}` : '';
     head.append(dots, el('span', {}, quiz.kind === 'wind'
-      ? t('Задание {n} из {total}', { n, total: quiz.total })
-      : `${t('Цель {n} из {total} · кратность {m}×', { n, total: quiz.total, m: fm(q.mag) })}${step}`));
+      ? t('Завдання {n} з {total}', { n, total: quiz.total })
+      : `${t('Ціль {n} з {total} · кратність {m}×', { n, total: quiz.total, m: fm(q.mag) })}${step}`));
     const search = isSearch();
     if ((quiz.level !== 'timed' && !search) || answered(q)) return head;
     const span = search ? SEARCH_MS : TIME[quiz.kind];
@@ -2467,11 +2464,11 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   // Після відповіді: «Далі» (у кінці серії — «Ще серія») і, якщо були помилки, «Повтори помилки»
   const nextBtns = (done) => {
     if (quiz.view != null) {
-      const back = iconBtn('quiz-go', 'next', t('К текущей цели'));
+      const back = iconBtn('quiz-go', 'next', t('До поточної цілі'));
       back.addEventListener('click', backToLive);
       return [back];
     }
-    const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ещё серия') : t('Дальше'));
+    const next = iconBtn('quiz-go', done ? 'again' : 'next', done ? t('Ще серія') : t('Далі'));
     next.addEventListener('click', () => {
       if (done) quiz = newQuiz(quiz.kind, quiz.level, null, quiz.dr);
       quiz.cur = nextTarget(); drawQuiz(); reveal();
@@ -2479,7 +2476,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     if (!done) return [next];
     const missed = quiz.done.filter((_, i) => !okAt(i));
     if (!missed.length) return [next];
-    const again = iconBtn('quiz-show quiz-rep', 'repeat', t('Повтори ошибки ({n})', { n: missed.length }));
+    const again = iconBtn('quiz-show quiz-rep', 'repeat', t('Повтори помилки ({n})', { n: missed.length }));
     again.addEventListener('click', () => {
       quiz = newQuiz(quiz.kind, quiz.level, missed.map(replay), quiz.dr);
       quiz.cur = nextTarget(); drawQuiz(); reveal();
@@ -2533,7 +2530,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const chips = [];
     if (quiz.kind === 'range') {
       const m = mean(idx.map((i) => (quiz.done[i].answer - quiz.done[i].dist) / quiz.done[i].dist * 100));
-      chips.push(Math.abs(m) < 3 ? t('дальность без перекоса') : t(m > 0 ? 'завышаешь дальность в среднем на {p} %' : 'занижаешь дальность в среднем на {p} %', { p: f(Math.abs(m), 0) }));
+      chips.push(Math.abs(m) < 3 ? t('дальність без перекосу') : t(m > 0 ? 'завищуєш дальність у середньому на {p} %' : 'занижуєш дальність у середньому на {p} %', { p: f(Math.abs(m), 0) }));
     } else {
       const pts = idx.map((i) => { const q = quiz.done[i]; return [i, q.answer[0] + q.hx, q.answer[1] + q.hy]; });
       const mx = mean(pts.map((x) => x[1])); const my = mean(pts.map((x) => x[2]));
@@ -2541,7 +2538,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const r = S * 0.05;
       const dots = pts.map(([i, x, y]) => `<circle data-i="${i}" cx="${x}" cy="${y}" r="${r}" class="${okAt(i) ? 'good' : nearAt(i) ? 'near' : 'bad'}"/>`).join('');
       const pic = el('div', { className: 'quiz-card-pic' });
-      pic.innerHTML = `<svg viewBox="${-S} ${-S} ${2 * S} ${2 * S}" role="img" aria-label="${t('Куда легли выстрелы серии')}">
+      pic.innerHTML = `<svg viewBox="${-S} ${-S} ${2 * S} ${2 * S}" role="img" aria-label="${t('Куди лягли постріли серії')}">
         <path d="M${-S} 0H${S}M0 ${-S}V${S}" class="ax"/><circle r="${S * 0.5}" class="ax"/>
         ${dots}<path d="M${mx - r * 1.6} ${my}H${mx + r * 1.6}M${mx} ${my - r * 1.6}V${my + r * 1.6}" class="mid"/></svg>`;
       pic.querySelectorAll('[data-i]').forEach((c) => c.addEventListener('click', () => viewDone(+c.dataset.i)));
@@ -2549,9 +2546,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const tol = moa ? 0.5 : 0.15; const n = pts.length; const most = Math.ceil(n / 2);
       const dir = (v, a, b) => (Math.abs(v) < tol ? '' : `${v > 0 ? a : b}${f(Math.abs(v), dg)}`);
       const ctr = [dir(my, '↓', '↑'), dir(mx, '→', '←')].filter(Boolean).join(' ');
-      chips.push(ctr ? t('центр серии {d} {u}', { d: ctr, u: C.u }) : t('центр серии на месте'));
-      for (const [cnt, key] of [[pts.filter((x) => x[2] > tol).length, 'ниже нужного: {n} из {total}'], [pts.filter((x) => x[2] < -tol).length, 'выше нужного: {n} из {total}'],
-        [pts.filter((x) => x[1] > tol).length, 'правее нужного: {n} из {total}'], [pts.filter((x) => x[1] < -tol).length, 'левее нужного: {n} из {total}']]) {
+      chips.push(ctr ? t('центр серії {d} {u}', { d: ctr, u: C.u }) : t('центр серії на місці'));
+      for (const [cnt, key] of [[pts.filter((x) => x[2] > tol).length, 'нижче потрібного: {n} з {total}'], [pts.filter((x) => x[2] < -tol).length, 'вище потрібного: {n} з {total}'],
+        [pts.filter((x) => x[1] > tol).length, 'правіше потрібного: {n} з {total}'], [pts.filter((x) => x[1] < -tol).length, 'лівіше потрібного: {n} з {total}']]) {
         if (cnt >= most && cnt >= 3) chips.push(t(key, { n: cnt, total: n }));
       }
     }
@@ -2561,9 +2558,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const xs = quiz.done.map((q, i) => [q.dist, i]).filter(([d]) => d >= a && d <= b).map(([, i]) => i);
       return [label, xs.length, xs.filter((i) => !okAt(i)).length];
     }).filter(([, n, m]) => n >= 2 && m / n >= 0.5 && m / n >= allMiss + 0.2).sort((a, b) => b[2] / b[1] - a[2] / a[1])[0];
-    if (worst) chips.push(t('хуже всего {b}: мимо {m} из {n}', { b: t(worst[0]), m: worst[2], n: worst[1] }));
+    if (worst) chips.push(t('найгірше {b}: повз {m} з {n}', { b: t(worst[0]), m: worst[2], n: worst[1] }));
     const tms = quiz.done.map((q) => q.tm).filter((x) => x != null);
-    if (tms.length) chips.push(t('в среднем {s} с на цель', { s: f(mean(tms), 1) }));
+    if (tms.length) chips.push(t('у середньому {s} с на ціль', { s: f(mean(tms), 1) }));
     const list = el('div', { className: 'quiz-card-chips' });
     list.append(...chips.map((c) => el('span', {}, c)));
     box.append(list);
@@ -2583,15 +2580,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const hidden = search && (Date.now() < q.appear || Date.now() >= q.vanish);
     const p = q.show ? [-q.hx, -q.hy] : q.answer ?? q.pending ?? [0, 0];
     // «Навчання»: на сітці стрілка до мітки виносу й що це за мітка
-    const vText = C.marks ? markShort(q.hy, C) : Math.abs(q.hy) < 0.05 ? t('центр сетки') : `↑${f(Math.abs(q.hy), moa ? 1 : 2)} ${C.u}`;
+    const vText = C.marks ? markShort(q.hy, C) : Math.abs(q.hy) < 0.05 ? t('центр сітки') : `↑${f(Math.abs(q.hy), moa ? 1 : 2)} ${C.u}`;
     let hint = null;
     if (LEARN.includes(quiz.level) && !answered(q)) {
       // Вертикаль, потім частина на вітер, потім на рух — кожна своєю стрілкою; підписи зі словами, коли частин дві
       const wx = q.wx ?? 0; const lx = q.hx - wx; const both = Math.abs(wx) > 0.03 && Math.abs(lx) > 0.03;
       const hp = (v, word) => `${v > 0 ? '←' : '→'}${f(Math.abs(v), moa ? 1 : 2)}${both ? ` ${t(word)}` : ''}`;
       hint = [{ from: [0, 0], to: [0, q.hy], text: vText, side: q.hx > 0 ? -1 : 1 }];
-      if (Math.abs(wx) > 0.03) hint.push({ from: [0, q.hy], to: [wx, q.hy], text: hp(wx, 'ветер') });
-      if (Math.abs(lx) > 0.03) hint.push({ from: [Math.abs(wx) > 0.03 ? wx : 0, q.hy], to: [q.hx, q.hy], text: hp(lx, 'движение'), below: both });
+      if (Math.abs(wx) > 0.03) hint.push({ from: [0, q.hy], to: [wx, q.hy], text: hp(wx, 'вітер') });
+      if (Math.abs(lx) > 0.03) hint.push({ from: [Math.abs(wx) > 0.03 ? wx : 0, q.hy], to: [q.hx, q.hy], text: hp(lx, 'рух'), below: both });
     }
     const shot = scope(svg, { ret: L.ret, mag: q.mag, dist: q.dist, tgt: q.tgt, mode: 'aim', hx: -p[0], hy: -p[1], noHold: true, zoom: st.zoom, ...realOf(q, q.tgt), ink: st.ink, flash: (q.at ??= performance.now()), flip: q.vt > 0 && !q.goRight,
       move: q.vt ? (q.goRight ? 1 : -1) : 0, hit: q.answer && !q.timeout ? [q.hx, q.hy] : null, sp: q.sp, disp: q.answer && !q.timeout ? q.disp : 0, zone: q.zone, hint, noTarget: hidden });
@@ -2626,10 +2623,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     // Навчальні рівні: розмір цілі в сітці на цій дистанції — «у сітці 5,23 MRAD» («Навчання» показує його окремим рядком)
     const fhNow = figH(q.tgt, qFig(q));
     const sizePart = LEARN.includes(quiz.level) && quiz.level !== 'learn' && !q.phase
-      ? `${t('в сетке')} ${f(C.size(fhNow, q.dist), moa ? 1 : 2)} ${C.u}` : null;
-    const facts = [t(TGT[q.tgt].short), q.phase ? t('Дистанция по твоей оценке {d} м', { d: q.guess ?? '?' }) : t('Дистанция {d} м', { d: q.dist }) + (sizePart ? ` — ${sizePart}` : ''),
-      q.signs ? t('ветер с {h} ч', { h: q.hour }) : q.wind ? t('ветер {w} м/с с {h} ч', { w: fm(q.wind), h: q.hour }) : null,
-      q.vt ? t('цель идёт {v} м/с {dir}', { v: fm(q.vt), dir: q.goRight ? t('вправо') : t('влево') }) : null].filter(Boolean).join(' · ');
+      ? `${t('у сітці')} ${f(C.size(fhNow, q.dist), moa ? 1 : 2)} ${C.u}` : null;
+    const facts = [t(TGT[q.tgt].short), q.phase ? t('Дистанція за твоєю оцінкою {d} м', { d: q.guess ?? '?' }) : t('Дистанція {d} м', { d: q.dist }) + (sizePart ? ` — ${sizePart}` : ''),
+      q.signs ? t('вітер з {h} год', { h: q.hour }) : q.wind ? t('вітер {w} м/с з {h} год', { w: fm(q.wind), h: q.hour }) : null,
+      q.vt ? t('ціль іде {v} м/с {dir}', { v: fm(q.vt), dir: q.goRight ? t('праворуч') : t('ліворуч') }) : null].filter(Boolean).join(' · ');
     // Числа умови — жирно й кольором, щоб дистанцію, вітер і швидкість видно було одразу (назву цілі не чіпаємо)
     // Кожна частина умови — плашкою (переноситься цілою), числа в ній крупно
     const factsEl = el('p', { className: 'quiz-facts quiz-chips' });
@@ -2643,9 +2640,9 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     if (quiz.level === 'learn') {
       const fh = figH(q.tgt, qFig(q));
       // Без повтору назви цілі: «Зріст 1,7 м → у сітці 4,53 MRAD», числа жирно — як в умові над ним
-      const what = t(MEAS[q.tgt]?.[0]?.[0] ?? 'высота').replace(/^./, (c) => c.toUpperCase());
+      const what = t(MEAS[q.tgt]?.[0]?.[0] ?? 'висота').replace(/^./, (c) => c.toUpperCase());
       const line = el('p', { className: 'quiz-facts quiz-size' });
-      line.append(`${what} `, el('b', {}, `${mFmt(fh)} ${t('м')}`), ` → ${t('в сетке')} `, el('b', {}, `${f(C.size(fh, q.dist), moa ? 1 : 2)} ${C.u}`));
+      line.append(`${what} `, el('b', {}, `${mFmt(fh)} ${t('м')}`), ` → ${t('у сітці')} `, el('b', {}, `${f(C.size(fh, q.dist), moa ? 1 : 2)} ${C.u}`));
       qBox.append(line);
     }
     // Памятка: як рахувати — кроками з числами цієї цілі, і табличка для набору; згорнута, розкрита лишається до наступного питання
@@ -2683,7 +2680,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const z = L.zero ?? +$('s-zero').value;
       const toCm = (v, d) => (moa ? v * 2.9089 * d / 100 : v * d / 10);
       const line = el('p', { className: 'quiz-facts quiz-size' });
-      if (Math.abs(q.hy) < 0.05) line.append(t('Поправки нет — целься центром сетки'));
+      if (Math.abs(q.hy) < 0.05) line.append(t('Поправки немає — цілься центром сітки'));
       else {
         line.append(`${t('Поправка')} `, B(`${q.hy > 0 ? '↑' : '↓'} ${f(Math.abs(q.hy), dg)} ${C.u}`));
         if (C.marks) line.append(` · ${markShort(q.hy, C)}`);
@@ -2692,63 +2689,63 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       // Сантиметри — з точністю, за якої «см → кут» дає ту саму поправку, що й рядок вище
       const cmDg = f(Math.round(Math.abs(toCm(q.hy, q.dist))) / toCm(1, q.dist), dg) === f(Math.abs(q.hy), dg) ? 0 : 1;
       const cm = f(Math.abs(toCm(q.hy, q.dist)), cmDg);
-      const steps = Math.abs(q.hy) < 0.05 ? [t('На дистанции пристрелки пуля приходит в точку прицеливания — поправка не нужна')] : [
-        t('По таблице патрона при пристрелке {z} м пуля на {d} м приходит на {cm} см {dir} точки прицеливания', { z, d: q.dist, cm, dir: t(q.hy > 0 ? 'ниже' : 'выше') }),
-        moa ? t('В MOA: {cm} см ÷ 2,91 × 100 ÷ {d} м = {v} MOA', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) })
-          : t('В милах: {cm} см × 10 ÷ {d} м = {v} MRAD', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) }),
-        t(q.hy > 0 ? 'Держи выше: на цель наводишь метку на {v} {u} ниже центра сетки' : 'Держи ниже: на цель наводишь метку на {v} {u} выше центра сетки', { v: f(Math.abs(q.hy), dg), u: C.u }),
+      const steps = Math.abs(q.hy) < 0.05 ? [t('На дистанції пристрілки куля приходить у точку прицілювання — поправка не потрібна')] : [
+        t('За таблицею набою при пристрілці {z} м куля на {d} м приходить на {cm} см {dir} точки прицілювання', { z, d: q.dist, cm, dir: t(q.hy > 0 ? 'нижче' : 'вище') }),
+        moa ? t('У MOA: {cm} см ÷ 2,91 × 100 ÷ {d} м = {v} MOA', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) })
+          : t('У мілах: {cm} см × 10 ÷ {d} м = {v} MRAD', { cm, d: q.dist, v: f(Math.abs(q.hy), dg) }),
+        t(q.hy > 0 ? 'Тримай вище: на ціль наводиш мітку на {v} {u} нижче центру сітки' : 'Тримай нижче: на ціль наводиш мітку на {v} {u} вище центру сітки', { v: f(Math.abs(q.hy), dg), u: C.u }),
       ];
       // Табличка — три сусідні сотні навколо цієї дистанції: видно, як поправка росте
       const d0 = Math.max(100, Math.round(q.dist / 100) * 100 - 100); const ds = [d0, d0 + 100, d0 + 200];
       const hyAt = (d) => holdAt(tbNow.H, d) - (L.my ? 0 : zeroShift(tbNow.H, z));
-      memos.push(memo(t('Как считать поправку'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
-        [[`${t('падение')}, ${t('см')}`, ...ds.map((d) => f(toCm(hyAt(d), d), 0))], [`${t('поправка')}, ${C.u}`, ...ds.map((d) => f(hyAt(d), dg))]]));
+      memos.push(memo(t('Як рахувати поправку'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
+        [[`${t('падіння')}, ${t('см')}`, ...ds.map((d) => f(toCm(hyAt(d), d), 0))], [`${t('поправка')}, ${C.u}`, ...ds.map((d) => f(hyAt(d), dg))]]));
     }
     // «Вітер»: розрахунок — знос на 1 м/с × сила (× частка бокового) = винос
     if (windLearn() && q.wind) {
       const share = Math.abs(Math.sin((q.hour * Math.PI) / 6));
       const wx = q.wx ?? q.hx;
-      qBox.append(eq([[`${fm(q.wind)} ${t('м/с')}`, t('ветер')], [f(q.w1, dg + 1), t('на 1 м/с')], ...(share < 0.97 ? [[f(share, 2), t('доля')]] : [])],
-        `${wx > 0 ? '←' : '→'}${f(Math.abs(wx), dg)} ${C.u}`, t(wx > 0 ? 'левее' : 'правее')));
+      qBox.append(eq([[`${fm(q.wind)} ${t('м/с')}`, t('вітер')], [f(q.w1, dg + 1), t('на 1 м/с')], ...(share < 0.97 ? [[f(share, 2), t('частка')]] : [])],
+        `${wx > 0 ? '←' : '→'}${f(Math.abs(wx), dg)} ${C.u}`, t(wx > 0 ? 'лівіше' : 'правіше')));
       // Правило: «сотні − 1 = десяті мілу» (MRAD) чи «сотні × 0,3» (MOA), якщо для набору воно в межах 20 %; інакше — свій множник за 500 м
       const rd = [300, 400, 500]; const rw = rd.map((d) => at(tbNow.W, d));
       let rule = moa ? (d) => d / 100 * 0.3 : (d) => (d / 100 - 1) * 0.1;
-      let ruleTxt = t(moa ? 'сотни метров × 0,3' : 'сотни метров минус один — в десятых мила');
+      let ruleTxt = t(moa ? 'сотні метрів × 0,3' : 'сотні метрів мінус один — у десятих мілу');
       if (!rd.every((d, n) => Math.abs(rule(d) - rw[n]) <= rw[n] * 0.2)) {
-        const k = Math.round(rw[2] / 5 * 100) / 100; rule = (d) => d / 100 * k; ruleTxt = t('сотни метров × {k}', { k: f(k, 2) });
+        const k = Math.round(rw[2] / 5 * 100) / 100; rule = (d) => d / 100 * k; ruleTxt = t('сотні метрів × {k}', { k: f(k, 2) });
       }
       // Рахунок іде від табличного зносу (як у рядку вище), правило — лише прикидка в голові
       const v1 = q.w1; const est = rule(q.dist);
       const ds = around(q.dist); const ws = ds.map((d) => at(tbNow.W, d));
       const steps = [
-        t('Снос на 1 м/с на {d} м — {v} {u} по таблице патрона', { d: q.dist, v: f(v1, dg + 1), u: C.u })
-          + '. ' + t('В уме: {r} ≈ {e} {u}', { r: ruleTxt, e: f(est, dg), u: C.u })
-          + (Math.abs(est - v1) > v1 * 0.1 ? ` — ${t(est < v1 ? 'здесь правило занижает, бери по таблице' : 'здесь правило завышает, бери по таблице')}` : ''),
-        t('× сила ветра {w} м/с ≈ {v} {u}', { w: fm(q.wind), v: f(v1 * q.wind, dg), u: C.u }),
-        ...(quiz.level !== 'wind1' ? [windClock(q.hour, t('× боковая доля: с {h} ч — {p} % ≈ {v} {u}', { h: q.hour, p: Math.round(share * 100), v: f(v1 * q.wind * share, dg), u: C.u }))] : []),
-        t('Выноси в ту сторону, откуда дует ветер'),
+        t('Знос на 1 м/с на {d} м — {v} {u} за таблицею набою', { d: q.dist, v: f(v1, dg + 1), u: C.u })
+          + '. ' + t('У голові: {r} ≈ {e} {u}', { r: ruleTxt, e: f(est, dg), u: C.u })
+          + (Math.abs(est - v1) > v1 * 0.1 ? ` — ${t(est < v1 ? 'тут правило занижує, бери за таблицею' : 'тут правило завищує, бери за таблицею')}` : ''),
+        t('× сила вітру {w} м/с ≈ {v} {u}', { w: fm(q.wind), v: f(v1 * q.wind, dg), u: C.u }),
+        ...(quiz.level !== 'wind1' ? [windClock(q.hour, t('× бокова частка: з {h} год — {p} % ≈ {v} {u}', { h: q.hour, p: Math.round(share * 100), v: f(v1 * q.wind * share, dg), u: C.u }))] : []),
+        t('Виноси в той бік, звідки дме вітер'),
       ];
-      const foot = WIND_DOTS[L.ret] ? t('Точки ветра сетки — {m} миль/ч ({ms} м/с) полного бокового ветра на дистанции своей риски', { m: WIND_DOTS[L.ret].join(' / '), ms: WIND_DOTS[L.ret].map((v) => f(v * 0.447, 1)).join(' / ') }) : null;
-      if (quiz.level !== 'windmove') memos.push(memo(t('Как считать ветер'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)], [[`${t('на 1 м/с')}, ${C.u}`, ...ws.map((w) => f(w, dg + 1))]], foot));
+      const foot = WIND_DOTS[L.ret] ? t('Точки вітру сітки — {m} миль/год ({ms} м/с) повного бокового вітру на дистанції своєї риски', { m: WIND_DOTS[L.ret].join(' / '), ms: WIND_DOTS[L.ret].map((v) => f(v * 0.447, 1)).join(' / ') }) : null;
+      if (quiz.level !== 'windmove') memos.push(memo(t('Як рахувати вітер'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)], [[`${t('на 1 м/с')}, ${C.u}`, ...ws.map((w) => f(w, dg + 1))]], foot));
     }
     // «Рух»: упередження — швидкість × час польоту = метри попереду, у кутових одиницях на цій дистанції
     if (moveLearn() && q.vt) {
       const ang = (m, d) => (m / d) * (moa ? 3437.75 : 1000);
       const leadM = q.vt * q.tof; const lx = q.hx - (q.wx ?? 0);
-      qBox.append(eq([[`${fm(q.vt)} ${t('м/с')}`, t('скорость')], [`${f(q.tof, 2)} ${t('с')}`, t('полёт')]],
-        `${lx > 0 ? '←' : '→'}${f(Math.abs(lx), dg)} ${C.u}`, `${f(leadM, 2)} ${t('м')} ${t('впереди')} · ${t(lx > 0 ? 'держи левее' : 'держи правее')}`));
+      qBox.append(eq([[`${fm(q.vt)} ${t('м/с')}`, t('швидкість')], [`${f(q.tof, 2)} ${t('с')}`, t('політ')]],
+        `${lx > 0 ? '←' : '→'}${f(Math.abs(lx), dg)} ${C.u}`, `${f(leadM, 2)} ${t('м')} ${t('попереду')} · ${t(lx > 0 ? 'тримай лівіше' : 'тримай правіше')}`));
       // Кут упередження майже сталий: час польоту росте разом із дистанцією — запам'ятати два числа (за 300 м)
       const ds = around(q.dist); const lead = (v, d) => ang(v * at(tbNow.T, d), d);
       // Правило — кут за 300 м; якщо на дистанції цілі він помітно інший, кажемо прямо, яке число брати
       const est = lead(q.vt, 300);
       const steps = [
-        t('Упреждение почти одинаковое на любой дистанции: шаг ≈ {a}, бег ≈ {b} {u}', { a: f(lead(1.4, 300), 1), b: f(lead(3.5, 300), 1), u: C.u })
-          + (Math.abs(est - Math.abs(lx)) > Math.abs(lx) * 0.1 ? `. ${t('На {d} м точнее {v} {u} — бери по таблице', { d: q.dist, v: f(Math.abs(lx), dg), u: C.u })}` : ''),
-        t('Держи впереди цели — в ту сторону, куда она идёт'),
+        t('Упередження майже однакове на будь-якій дистанції: крок ≈ {a}, біг ≈ {b} {u}', { a: f(lead(1.4, 300), 1), b: f(lead(3.5, 300), 1), u: C.u })
+          + (Math.abs(est - Math.abs(lx)) > Math.abs(lx) * 0.1 ? `. ${t('На {d} м точніше {v} {u} — бери за таблицею', { d: q.dist, v: f(Math.abs(lx), dg), u: C.u })}` : ''),
+        t('Тримай попереду цілі — у той бік, куди вона йде'),
         ...(MOVE_NOTE[L.ret] ? [t(MOVE_NOTE[L.ret])] : []),
       ];
-      if (quiz.level !== 'windmove') memos.push(memo(t('Как считать движение'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
-        [[`${t('шаг')}, ${C.u}`, ...ds.map((d) => f(lead(1.4, d), dg))], [`${t('бег')}, ${C.u}`, ...ds.map((d) => f(lead(3.5, d), dg))]]));
+      if (quiz.level !== 'windmove') memos.push(memo(t('Як рахувати рух'), steps, ['', ...ds.map((d) => `${d} ${t('м')}`)],
+        [[`${t('крок')}, ${C.u}`, ...ds.map((d) => f(lead(1.4, d), dg))], [`${t('біг')}, ${C.u}`, ...ds.map((d) => f(lead(3.5, d), dg))]]));
     }
     if (q.signs) {
       const signs = el('ul', { className: 'quiz-signs' });
@@ -2756,7 +2753,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       qBox.append(signs);
     }
     if (!answered(q)) {
-      const check = iconBtn('quiz-go', 'check', t('Проверить'));
+      const check = iconBtn('quiz-go', 'check', t('Перевірити'));
       // Без зсуву прицілу відповідь — центр сітки: ціль може вже стояти там, де треба
       check.disabled = hidden;
       check.addEventListener('click', () => {
@@ -2780,61 +2777,61 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         });
       });
       // «Перевірити» — над підказкою, щоб не гортати до неї
-      qBox.append(check, ...memos, el('p', {}, search && Date.now() < q.appear ? t('Ищи цель — появится где-то в прицеле на 5 секунд.')
-        : t('Наведи на цель метку сетки с учётом выноса: веди прицел пальцем, как винтовку (или тапни метку — цель встанет на неё); лупа — кнопкой над прицелом. Потом «Проверить».')));
+      qBox.append(check, ...memos, el('p', {}, search && Date.now() < q.appear ? t('Шукай ціль — з’явиться десь у прицілі на 5 секунд.')
+        : t('Наведи на ціль мітку сітки з урахуванням виносу: веди приціл пальцем, як гвинтівку (або тапни мітку — ціль стане на неї); лупа — кнопкою над прицілом. Потім «Перевірити».')));
     } else {
       const [ax, ay] = q.answer; const e = Math.hypot(ax + q.hx, ay + q.hy);
       const cm = moa ? e * 2.9089 * q.dist / 100 : e * q.dist / 10;
-      const BAND = { zone: ['good', 'В зону поражения'], body: ['ok', 'В цель, но мимо зоны поражения'], miss: ['bad', 'Мимо цели'] };
+      const BAND = { zone: ['good', 'У зону ураження'], body: ['ok', 'У ціль, але повз зону ураження'], miss: ['bad', 'Повз ціль'] };
       const [cls, said] = BAND[q.band ?? 'miss'];
       const res = el('div', { className: `quiz-res ${cls}` });
       const dir = (v, a, b) => (Math.abs(v) < 0.05 ? '' : `${v > 0 ? a : b} ${f(Math.abs(v), moa ? 1 : 2)}`);
       // Шапка: вердикт ліворуч, помилка крупно праворуч — головне видно без читання
       const tol = moa ? 0.3 : 0.1; const dg = moa ? 1 : 2; const ex = ax + q.hx; const ey = ay + q.hy;
       const head = el('div', { className: 'quiz-res-head' });
-      head.append(el('b', {}, q.timeout ? t('Не успел — выстрела не было') : t(said)));
+      head.append(el('b', {}, q.timeout ? t('Час вийшов, пострілу не було') : t(said)));
       if (!q.timeout) {
         const big = el('span', { className: 'quiz-res-err' });
-        big.append(el('strong', {}, `${f(e, dg)} ${C.u}`), el('small', {}, t('{cm} см на цели', { cm: f(cm, 0) })));
+        big.append(el('strong', {}, `${f(e, dg)} ${C.u}`), el('small', {}, t('{cm} см на цілі', { cm: f(cm, 0) })));
         head.append(big);
       }
       res.append(head);
       if (q.phase) {
         res.append(el('span', { className: `quiz-res-note${q.guessErr > 10 ? ' w' : ''}` }, q.guess
-          ? t('На самом деле {d} м, ты оценил {g} м — ошибка {p} %', { d: q.dist, g: q.guess, p: f(q.guessErr, 0) })
-          : t('На самом деле {d} м', { d: q.dist })));
+          ? t('Насправді {d} м, твоя оцінка {g} м — помилка {p} %', { d: q.dist, g: q.guess, p: f(q.guessErr, 0) })
+          : t('Насправді {d} м', { d: q.dist })));
       }
       // Винос таблицею: стовпці — висота й горизонталь, рядки «треба», «ти виніс» і помилка по кожній осі
       const calc = el('div', { className: 'quiz-calc quiz-calc3' });
       calc.append(el('span'), el('span', { className: 'h' }, `↕ ${t('вертикаль')}`), el('span', { className: 'h' }, `↔ ${t('горизонталь')}`));
-      for (const [name, y, x] of [['надо', dir(q.hy, '↑', '↓'), dir(q.hx, '←', '→')], ['ты вынес', dir(ay, '↓', '↑'), dir(ax, '→', '←')]]) {
+      for (const [name, y, x] of [['треба', dir(q.hy, '↑', '↓'), dir(q.hx, '←', '→')], ['твій винос', dir(ay, '↓', '↑'), dir(ax, '→', '←')]]) {
         calc.append(el('span', {}, t(name)), el('span', { className: 'n' }, y || '0'), el('span', { className: 'n' }, x || '0'));
       }
       // Помилка окремо по висоті й по горизонталі (вітер, упередження): видно, що саме не так
       if (!q.timeout) {
         const part = (v, lo, hi) => el('span', { className: `n ${Math.abs(v) < tol ? 'ok' : 'w'}` }, Math.abs(v) < tol ? t('точно') : `${v > 0 ? t(lo) : t(hi)} ${f(Math.abs(v), dg)}`);
-        calc.append(el('span', { className: 'e' }, t('ошибка')), part(ey, 'ниже', 'выше'), part(ex, 'правее', 'левее'));
+        calc.append(el('span', { className: 'e' }, t('помилка')), part(ey, 'нижче', 'вище'), part(ex, 'правіше', 'лівіше'));
       }
       const zt = zoneText(q.tgt, qFig(q), q.zone, q.dist);
       // Решта — рядками «назва — значення» (значення може бути в кілька рядків): зона, вітер за прикметами, розкид, час
       const kv = el('dl', { className: 'quiz-kv' });
       const add = (k, ...lines) => { const dd = el('dd'); lines.forEach((x) => dd.append(el('span', {}, x))); kv.append(el('dt', {}, k), dd); };
       if (zt) add(t(zt.name), `${zt.size} ${t('на {d} м', { d: q.dist })}`, zt.ang);
-      if (q.signs) add(t('Ветер по приметам'), t('{w} м/с — в расчёте середина ступени, {m} м/с', { w: WIND_Q[q.bucket][0], m: fm(q.wind) }));
-      if (q.sp) add(t('Разброс винтовки'), t('увёл пулю на {cm} см', { cm: f(Math.hypot(...q.sp) * (moa ? 2.9089 : 10) * q.dist / 100, 0) }));
-      if (q.tm != null) add(t('Время'), t('нашёл и выстрелил за {s} с', { s: f(q.tm, 1) }));
+      if (q.signs) add(t('Вітер за ознаками'), t('{w} м/с — у розрахунку середина сходинки, {m} м/с', { w: WIND_Q[q.bucket][0], m: fm(q.wind) }));
+      if (q.sp) add(t('Розкид гвинтівки'), t('відвів кулю на {cm} см', { cm: f(Math.hypot(...q.sp) * (moa ? 2.9089 : 10) * q.dist / 100, 0) }));
+      if (q.tm != null) add(t('Час'), t('на пошук і постріл — {s} с', { s: f(q.tm, 1) }));
       res.append(calc, ...(kv.childElementCount ? [kv] : []), legend());
       // «Далі» — над розбором, щоб не гортати до неї після кожної цілі
       const done = quiz.errs.length >= quiz.total;
       if (done) {
         // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в зону поражения {n} из {total}, в цель {b}, средняя ошибка {e} {u}', { n: r.good, total: quiz.total, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })
-          + (r.ra != null ? ` · ${t('ошибка дальности {p} %', { p: f(r.ra, 0) })}` : '')));
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серія: у зону ураження {n} з {total}, у ціль {b}, середня помилка {e} {u}', { n: r.good, total: quiz.total, b: r.body, e: f(r.avg, moa ? 1 : 2), u: C.u })
+          + (r.ra != null ? ` · ${t('помилка дальності {p} %', { p: f(r.ra, 0) })}` : '')));
         const card = seriesCard(); if (card) qBox.append(card);
       }
       const [next, again] = nextBtns(done);
-      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Мой ответ') : t('Как надо'));
+      const show = iconBtn('quiz-show', q.show ? 'mine' : 'show', q.show ? t('Моя відповідь') : t('Як треба'));
       show.addEventListener('click', () => { q.show = !q.show; drawQuiz(); });
       // «Далі» й «Як треба» — в одному рядку над розбором; «Повтори помилки» — під ними
       const row = el('div', { className: 'quiz-row quiz-acts' });
@@ -2845,7 +2842,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   };
 
   const stopBtn = () => {
-    const stop = iconBtn('quiz-stop', 'exit', t('Выйти из упражнения'));
+    const stop = iconBtn('quiz-stop', 'exit', t('Вийти з вправи'));
     stop.addEventListener('click', () => { clearTick(); const k = quiz.kind; quiz = null; simBox.classList.remove('quiz-on'); svg.style.touchAction = ''; renderStart(k); draw(); });
     return stop;
   };
@@ -2898,19 +2895,19 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     rangeScope();
     qBox.replaceChildren();
     qBox.append(quizHead(q));
-    qBox.append(el('p', {}, q.phase ? t('Сколько до цели? Потом вынос — по твоей оценке, настоящую дальность покажу после выстрела.')
-      : quiz.level === 'easy' || quiz.level === 'pick' || quiz.level === 'learn' ? t(T.label) : t('Сколько до цели? Размер вспомни сам.')));
+    qBox.append(el('p', {}, q.phase ? t('Скільки до цілі? Потім винос — за твоєю оцінкою, справжню дальність покажу після пострілу.')
+      : quiz.level === 'easy' || quiz.level === 'pick' || quiz.level === 'learn' ? t(T.label) : t('Скільки до цілі? Розмір пригадай сам.')));
     if (quiz.level === 'learn' && !answered(q)) {
       // Скоба на цілі — скільки поділок вона займає, і формула з цими числами; відповідь рахуєш сам
       const fh = figH(q.tgt, qFig(q)); const sz = C.size(fh, q.dist) * kOf(C, q.mag); const moa = C.u === 'MOA'; const sv = f(sz, moa ? 1 : 2);
-      const what = t(MEAS[q.tgt]?.[0]?.[0] ?? 'высота').replace(/^./, (c) => c.toUpperCase());
+      const what = t(MEAS[q.tgt]?.[0]?.[0] ?? 'висота').replace(/^./, (c) => c.toUpperCase());
       const B = (x) => el('b', {}, x);
       const line = el('p', { className: 'quiz-facts quiz-size' });
-      line.append(`${what} `, B(`${mFmt(fh)} ${t('м')}`), ` = `, B(`${sv} ${C.u}`), ` ${t('в сетке')}`);
+      line.append(`${what} `, B(`${mFmt(fh)} ${t('м')}`), ` = `, B(`${sv} ${C.u}`), ` ${t('у сітці')}`);
       const formula = el('p', { className: 'quiz-facts quiz-size' });
-      formula.append(`${t('дальность')} = `, B(moa ? `${f(fh * 100, 0)} ${t('см')}` : mFmt(fh)), moa ? ' × 34,38 ÷ ' : ' × 1000 ÷ ', B(sv));
+      formula.append(`${t('дальність')} = `, B(moa ? `${f(fh * 100, 0)} ${t('см')}` : mFmt(fh)), moa ? ' × 34,38 ÷ ' : ' × 1000 ÷ ', B(sv));
       qBox.append(line, formula);
-      if (RET_STADIA[L.ret]) qBox.append(el('p', { className: 'quiz-n' }, `${t('Шкала дальности')}: ${t(RET_STADIA[L.ret])}`));
+      if (RET_STADIA[L.ret]) qBox.append(el('p', { className: 'quiz-n' }, `${t('Шкала дальності')}: ${t(RET_STADIA[L.ret])}`));
     }
     const take = (a) => {
       // «Дальність + винос»: оцінку не розбираємо — з нею йдемо на винос
@@ -2939,8 +2936,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       }
       qBox.append(row);
     } else if (!answered(q)) {
-      const input = el('input', { type: 'number', inputMode: 'numeric', min: 1, step: 1, placeholder: t('Твой ответ, м') });
-      const check = iconBtn('quiz-go', 'check', t('Проверить'));
+      const input = el('input', { type: 'number', inputMode: 'numeric', min: 1, step: 1, placeholder: t('Твоя відповідь, м') });
+      const check = iconBtn('quiz-go', 'check', t('Перевірити'));
       const submit = () => {
         const a = Math.round(Number(String(input.value).replace(',', '.')));
         if (!(a > 0)) { input.focus(); return; }
@@ -2955,26 +2952,26 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     } else {
       const err = q.timeout ? 0 : q.answer - q.dist; const pct = q.timeout ? 100 : Math.abs(err) / q.dist * 100; const qh = figH(q.tgt, qFig(q)); const sz = C.size(qh, q.dist); const k = kOf(C, q.mag);
       const res = el('div', { className: `quiz-res ${pct <= 10 ? 'good' : pct <= 20 ? 'ok' : 'bad'}` });
-      res.append(el('b', {}, q.timeout ? `${t('Не успел')} · ${t('На самом деле {d} м', { d: q.dist })}` : t('На самом деле {d} м', { d: q.dist })),
-        q.timeout ? '' : el('span', {}, t('твой {a} м · ошибка {e} м · {p} %', { a: q.answer, e: `${err > 0 ? '+' : ''}${err}`, p: f(pct, 0) })));
+      res.append(el('b', {}, q.timeout ? `${t('Час вийшов')} · ${t('Насправді {d} м', { d: q.dist })}` : t('Насправді {d} м', { d: q.dist })),
+        q.timeout ? '' : el('span', {}, t('твоя {a} м · помилка {e} м · {p} %', { a: q.answer, e: `${err > 0 ? '+' : ''}${err}`, p: f(pct, 0) })));
       // Розрахунок таблицею: формула один раз над нею, рядок на кожен вимір (зріст, плечі, голова за бруствером)
       const dims = [...(T.skipH || q.hide ? [] : [[T.short, qh]]), ...(T.dims ?? []).filter(([n]) => !markOf(qFig(q))?.nm?.includes(n))];
       const calc = el('div', { className: 'quiz-calc' });
-      calc.append(el('i', {}, C.u === 'MOA' ? t('дальность = размер, см × 34,38 ÷ MOA') : t('дальность = размер × 1000 ÷ MRAD')));
+      calc.append(el('i', {}, C.u === 'MOA' ? t('дальність = розмір, см × 34,38 ÷ MOA') : t('дальність = розмір × 1000 ÷ MRAD')));
       for (const [name, size] of dims) calc.append(el('span', {}, t(name)), ...[`${f(size, 2)} ${t('м')}`, `${f(C.size(size, q.dist), 2)} ${C.u}`, `${q.dist} ${t('м')}`].map((s) => el('span', { className: 'n' }, s)));
       res.append(calc);
-      if (q.hide) res.append(el('span', { className: 'w' }, t('Цель за укрытием: рост мерить нельзя — мерь голову или плечи')));
+      if (q.hide) res.append(el('span', { className: 'w' }, t('Ціль за укриттям: зріст міряти не можна — міряй голову або плечі')));
       // Чутливість: наскільки зсуває дальність помилка читання сітки
       const base = T.skipH || q.hide ? C.size(T.dims[0][1], q.dist) : sz; const dlt = C.u === 'MOA' ? 0.25 : 0.1;
       const span = (n) => `${Math.round(q.dist * base / (base + n * dlt))}–${Math.round(q.dist * base / Math.max(0.01, base - n * dlt))} ${t('м')}`;
-      res.append(el('span', { className: 'quiz-sens' }, t('Ошибка чтения сетки:')),
+      res.append(el('span', { className: 'quiz-sens' }, t('Помилка читання сітки:')),
         ...[1, 2].map((n) => el('span', { className: 'quiz-sens' }, `±${f(n * dlt, 2)} ${C.u} → ${span(n)}`)));
-      if (!C.ffp && q.mag < C.cal) res.append(el('span', { className: 'w' }, t('Кратность была {m}× — по сетке видно {v} {u}, это нужно умножить на {c}, или поставь {cal}×', { m: fm(q.mag), v: f(sz * k, 1), u: C.u, c: f(1 / k, 2), cal: C.cal })));
+      if (!C.ffp && q.mag < C.cal) res.append(el('span', { className: 'w' }, t('Кратність була {m}× — по сітці видно {v} {u}, це треба помножити на {c} або поставити {cal}×', { m: fm(q.mag), v: f(sz * k, 1), u: C.u, c: f(1 / k, 2), cal: C.cal })));
       const done = quiz.errs.length >= quiz.total;
       if (done) {
         // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: средняя ошибка {p} %, в пределах 10 % — {n} из {total}', { p: f(r.avg, 0), n: r.good, total: quiz.total })));
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серія: середня помилка {p} %, у межах 10 % — {n} з {total}', { p: f(r.avg, 0), n: r.good, total: quiz.total })));
         const card = seriesCard(); if (card) qBox.append(card);
       }
       const row = el('div', { className: 'quiz-row quiz-acts' });
@@ -2991,7 +2988,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     qBox.replaceChildren(quizHead(q));
     const signs = el('ul', { className: 'quiz-signs' });
     q.signs.forEach((x) => signs.append(el('li', {}, signText(x))));
-    qBox.append(el('p', {}, t('Какая сила ветра, м/с?')), signs);
+    qBox.append(el('p', {}, t('Яка сила вітру, м/с?')), signs);
     if (!answered(q) && quiz.level === 'bracket') {
       // Вилка: тап — одна сходинка, тап по сусідній — вилка з двох, по іншій — заново
       const row = el('div', { className: 'seg quiz-opts quiz-opts5' });
@@ -3005,7 +3002,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         });
         row.append(b);
       });
-      const check = iconBtn('quiz-go', 'check', t('Проверить'));
+      const check = iconBtn('quiz-go', 'check', t('Перевірити'));
       check.disabled = !q.pick;
       check.addEventListener('click', () => fire(check, () => {
         if (answered(q) || quiz?.cur !== q) return;
@@ -3016,7 +3013,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         quiz.errs.push(inside ? 0 : Math.min(Math.abs(q.bucket - a), Math.abs(q.bucket - z)));
         scored(q, inside);
       }));
-      qBox.append(row, check, el('p', { className: 'quiz-n' }, t('Тапни ступень, тап по соседней — вилка из двух. Узкая верная вилка — 2 очка, широкая — 1.')));
+      qBox.append(row, check, el('p', { className: 'quiz-n' }, t('Тапни сходинку, тап по сусідній — вилка з двох. Вузька правильна вилка — 2 очки, широка — 1.')));
     } else if (!answered(q)) {
       const row = el('div', { className: 'seg quiz-opts quiz-opts5' });
       WIND_Q.forEach(([label], i) => {
@@ -3029,16 +3026,16 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const [label, land, mirage] = WIND_Q[q.bucket];
       const [a, z] = q.answer;
       const res = el('div', { className: `quiz-res ${q.pts === 2 ? 'good' : q.pts === 1 ? 'ok' : 'bad'}` });
-      res.append(el('b', {}, q.pts === 2 ? t('Верно: {w} м/с · 2 очка', { w: label })
-        : q.pts === 1 ? t('В вилке: {w} м/с · 1 очко — узкая вилка дала бы 2', { w: label })
-          : t('На самом деле {w} м/с, твоя вилка {a} м/с', { w: label, a: bracketLabel(a, z) })));
-      if (q.flag != null) res.append(el('span', {}, t('Флажок: угол ÷ 9 ≈ м/с, {a}° ≈ {v} м/с.', { a: q.flag, v: f(q.flag / 9, 1) })));
-      res.append(el('span', {}, `${t('Приметы {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
+      res.append(el('b', {}, q.pts === 2 ? t('Правильно: {w} м/с · 2 очки', { w: label })
+        : q.pts === 1 ? t('У вилці: {w} м/с · 1 очко — вузька вилка дала б 2', { w: label })
+          : t('Насправді {w} м/с, твоя вилка {a} м/с', { w: label, a: bracketLabel(a, z) })));
+      if (q.flag != null) res.append(el('span', {}, t('Прапорець: кут ÷ 9 ≈ м/с, {a}° ≈ {v} м/с.', { a: q.flag, v: f(q.flag / 9, 1) })));
+      res.append(el('span', {}, `${t('Ознаки {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
       const done = quiz.errs.length >= quiz.total;
       if (done) {
         // Серія пишеться в історію один раз, з очками вилки
         const r = (quiz.result ??= finishSeries());
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: в вилке {n} из {total}, очков {p} из {max}', { n: r.good, total: quiz.total, p: r.pts, max: quiz.total * 2 })));
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серія: у вилці {n} з {total}, очок {p} з {max}', { n: r.good, total: quiz.total, p: r.pts, max: quiz.total * 2 })));
       }
       const row = el('div', { className: 'quiz-row quiz-acts' });
       row.append(...nextBtns(done));
@@ -3047,15 +3044,15 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const [label, land, mirage] = WIND_Q[q.bucket];
       const e = q.timeout ? WIND_Q.length : Math.abs(q.answer - q.bucket);
       const res = el('div', { className: `quiz-res ${e === 0 ? 'good' : e === 1 ? 'ok' : 'bad'}` });
-      res.append(el('b', {}, q.timeout ? `${t('Не успел')} · ${t('ветер {w} м/с', { w: label })}`
-        : e === 0 ? t('Верно: {w} м/с', { w: label }) : t('На самом деле {w} м/с, твой ответ {a} м/с', { w: label, a: WIND_Q[q.answer][0] })));
-      if (q.flag != null) res.append(el('span', {}, t('Флажок: угол ÷ 9 ≈ м/с, {a}° ≈ {v} м/с.', { a: q.flag, v: f(q.flag / 9, 1) })));
-      res.append(el('span', {}, `${t('Приметы {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
+      res.append(el('b', {}, q.timeout ? `${t('Час вийшов')} · ${t('вітер {w} м/с', { w: label })}`
+        : e === 0 ? t('Правильно: {w} м/с', { w: label }) : t('Насправді {w} м/с, твоя відповідь {a} м/с', { w: label, a: WIND_Q[q.answer][0] })));
+      if (q.flag != null) res.append(el('span', {}, t('Прапорець: кут ÷ 9 ≈ м/с, {a}° ≈ {v} м/с.', { a: q.flag, v: f(q.flag / 9, 1) })));
+      res.append(el('span', {}, `${t('Ознаки {w} м/с', { w: label })}: ${[...land, ...(mirage ? [mirage] : [])].map((x) => t(x)).join('; ')}.`));
       const done = quiz.errs.length >= quiz.total;
       if (done) {
         // Серія пишеться в історію один раз: «Як треба» перемальовує той самий кінець серії
         const r = (quiz.result ??= finishSeries());
-        qBox.append(el('p', { className: 'quiz-sum' }, t('Серия: верно {n} из {total}', { n: r.good, total: quiz.total })));
+        qBox.append(el('p', { className: 'quiz-sum' }, t('Серія: правильно {n} з {total}', { n: r.good, total: quiz.total })));
       }
       const row = el('div', { className: 'quiz-row quiz-acts' });
       row.append(...nextBtns(done));
@@ -3112,7 +3109,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     };
     // Як стрічка цілей: плитки в один рядок, посередині — в рамці з описом під стрічкою, тап вибирає
     const strip = el('div', { className: 'tgt-grid quiz-level-strip', role: 'group' });
-    strip.setAttribute('aria-label', t('Сложность'));
+    strip.setAttribute('aria-label', t('Складність'));
     const note = el('p', { className: 'tgt-note quiz-level-note' });
     levels.forEach(([v], i) => {
       const [mark, name, what] = levelBody(i);
@@ -3143,7 +3140,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     };
     const easier = el('button', { type: 'button', className: 'quiz-level-nav', textContent: '‹' });
     const harder = el('button', { type: 'button', className: 'quiz-level-nav', textContent: '›' });
-    easier.setAttribute('aria-label', t('Легче')); harder.setAttribute('aria-label', t('Сложнее'));
+    easier.setAttribute('aria-label', t('Легше')); harder.setAttribute('aria-label', t('Складніше'));
     easier.addEventListener('click', () => step(-1)); harder.addEventListener('click', () => step(1));
     const level = el('div', { className: 'quiz-levels' });
     level.append(easier, strip, harder, note);
@@ -3170,7 +3167,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         return s;
       };
       const [a, b] = distPref();
-      const from = select(a, t('Дистанции от')); const to = select(b, t('Дистанции до'));
+      const from = select(a, t('Дистанції від')); const to = select(b, t('Дистанції до'));
       const note = el('small', { className: 'quiz-dist-note' });
       // Набій не дістає до вибраного: свій — лише в межах таблиці, вбудований — до краю повзунка «дист.»; «Голова» — до 400 м
       paintNote = () => {
@@ -3179,10 +3176,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         const head = kindNow === 'hold' && picked === 'head' && NEAR_MAX.head < table;
         const top = head ? NEAR_MAX.head : table;
         note.textContent = !dr || kindNow === 'range' ? ''
-          : dr[0] > top || dr[1] < lo ? (head ? t('«Голова» — до {d} м: цели будут на {a}–{d} м', { a: lo, d: top })
-            : t('У этого набора таблица {a}–{b} м — цели будут на всех её дистанциях', { a: lo, b: top }))
-            : dr[1] > top ? (head ? t('«Голова» — до {d} м: дальше это лотерея', { d: top })
-              : t('Вынос — до {d} м: дальше у набора нет таблицы', { d: top })) : '';
+          : dr[0] > top || dr[1] < lo ? (head ? t('«Голова» — до {d} м: цілі будуть на {a}–{d} м', { a: lo, d: top })
+            : t('У цього набору таблиця {a}–{b} м — цілі будуть на всіх її дистанціях', { a: lo, b: top }))
+            : dr[1] > top ? (head ? t('«Голова» — до {d} м: далі це лотерея', { d: top })
+              : t('Винос — до {d} м: далі в набору немає таблиці', { d: top })) : '';
         note.hidden = !note.textContent;
       };
       const change = (e) => {
@@ -3193,12 +3190,12 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         paintLevels(); paintAbout(); paintProg();
       };
       from.addEventListener('change', change); to.addEventListener('change', change);
-      distBox.append(el('span', { className: 'quiz-dist-label' }, t('Дистанции')), el('span', {}, t('от')), from, el('span', {}, t('до')), to,
+      distBox.append(el('span', { className: 'quiz-dist-label' }, t('Дистанції')), el('span', {}, t('від')), from, el('span', {}, t('до')), to,
         el('span', {}, t('м')), note);
       paintNote();
     }
     requestAnimationFrame(() => wheel.settle(strip.querySelector('[aria-pressed="true"]')));
-    const go = iconBtn('quiz-go', 'start', t('Начать серию из {n}', { n: SERIES }));
+    const go = iconBtn('quiz-go', 'start', t('Почати серію з {n}', { n: SERIES }));
     go.addEventListener('click', () => {
       quiz = newQuiz(kindNow, picked, null, kindNow === 'wind' ? null : distRange());
       quiz.cur = nextTarget();
@@ -3212,10 +3209,10 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const paintAbout = () => {
       const [a, b] = distRange() ?? DIST_ALL;
       aboutEl.textContent = {
-        hold: t('Дана дистанция (и ветер, и движение), поставь цель на метку сетки, которую наведёшь на неё с учётом выноса. Ошибка — в {u} и сантиметрах на цели.', { u }),
-        combo: t('Как в бою: сначала определи дальность по сетке, потом вынеси прицел по своей оценке. Ошибка в дальности сама превращается в промах — настоящую дальность покажу после выстрела.'),
-        wind: t('Приметы на местности и мираж — назови силу ветра. Шкала — как в таблице раздела «Ветер».'),
-      }[kindNow] ?? t('Цель на {a}–{b} м: прочитай её размер по сетке и назови дальность. Серия из {n} целей.', { a, b, n: SERIES });
+        hold: t('Дано дистанцію (і вітер, і рух), постав ціль на мітку сітки, яку наведеш на неї з урахуванням виносу. Помилка — в {u} і сантиметрах на цілі.', { u }),
+        combo: t('Як у бою: спершу визнач дальність по сітці, потім винеси приціл за своєю оцінкою. Помилка в дальності сама стає промахом — справжню дальність покажу після пострілу.'),
+        wind: t('Ознаки на місцевості й міраж — назви силу вітру. Шкала — як у таблиці розділу «Вітер».'),
+      }[kindNow] ?? t('Ціль на {a}–{b} м: прочитай її розмір по сітці й назви дальність. Серія з {n} цілей.', { a, b, n: SERIES });
     };
     paintAbout();
     // Прогрес на вибраному рівні: стовпчик — серія, вище — більше влучних; повтори помилок не рахуємо — там лише важкі цілі
@@ -3227,12 +3224,12 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const mine = own.filter((h) => h.level === picked && String(h.dr ?? '') === String(dr ?? ''));
       const past = mine.slice(-10);
       const name = t(levels.find(([v]) => v === picked)[1]);
-      const parts = [el('b', { className: 'quiz-hist-title' }, t('Твой прогресс · {l}', { l: dr ? `${name} · ${distLabel(dr)}` : name }))];
+      const parts = [el('b', { className: 'quiz-hist-title' }, t('Твій прогрес · {l}', { l: dr ? `${name} · ${distLabel(dr)}` : name }))];
       if (!past.length) {
-        parts.push(el('span', {}, own.length ? t('На этом уровне серий ещё нет.') : t('Пройди первую серию — здесь появится прогресс.')));
+        parts.push(el('span', {}, own.length ? t('На цьому рівні серій ще немає.') : t('Пройди першу серію — тут з’явиться прогрес.')));
       } else {
         const last = past.at(-1);
-        const crit = t({ range: 'в пределах 10 %', wind: 'точно' }[kindNow] ?? 'в зону поражения');
+        const crit = t({ range: 'у межах 10 %', wind: 'точно' }[kindNow] ?? 'у зону ураження');
         const bars = el('div', { className: 'quiz-bars', role: 'img' });
         bars.setAttribute('aria-label', past.map((h) => `${h.good}/${h.n}`).join(', '));
         past.forEach((h, i) => {
@@ -3242,8 +3239,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
           bars.append(b);
         });
         const best = past.reduce((a, b) => (b.good / b.n > a.good / a.n ? b : a));
-        parts.push(bars, el('small', {}, t('попаданий в каждой серии из {n}, яркий — последняя', { n: last.n })),
-          el('span', {}, t('Последняя: {g} из {n} {crit} · лучшая {b} из {bn} · серий {s}', { g: last.good, n: last.n, crit, b: best.good, bn: best.n, s: mine.length })));
+        parts.push(bars, el('small', {}, t('влучних у кожній серії з {n}, яскравий — остання', { n: last.n })),
+          el('span', {}, t('Остання: {g} з {n} {crit} · найкраща {b} з {bn} · серій {s}', { g: last.good, n: last.n, crit, b: best.good, bn: best.n, s: mine.length })));
         // Сусідній рівень на сходинці: дві серії поспіль від 80 % — важче, остання нижче 40 % — легше
         const rate = (h) => h.good / h.n;
         const ladder = (b) => (b && !LEVEL_MODES.includes(b.dataset.level) ? b : null);
@@ -3253,7 +3250,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         const to = up || down;
         if (to) {
           const b = el('button', { type: 'button', className: 'quiz-stop quiz-step' },
-            `${t(up ? 'Попробуй сложнее: {l}' : 'Попробуй полегче: {l}', { l: to.textContent })} →`);
+            `${t(up ? 'Спробуй складніше: {l}' : 'Спробуй легше: {l}', { l: to.textContent })} →`);
           b.addEventListener('click', () => to.click());
           parts.push(b);
         }
@@ -3262,16 +3259,16 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
           const same = mine.filter((h) => h.u === last.u);
           const avgOf = (xs) => xs.reduce((s, h) => s + h.avg, 0) / xs.length;
           const e = avgOf(same.slice(-5));
-          const txt = kindNow === 'range' ? t('Ошибка дальности в среднем {e} %', { e: f(e, 0) })
-            : t('Промах от нужной точки в среднем {e} {u}', { e: f(e, last.u === 'MOA' ? 1 : 2), u: last.u });
+          const txt = kindNow === 'range' ? t('Похибка дальності в середньому {e} %', { e: f(e, 0) })
+            : t('Промах від потрібної точки в середньому {e} {u}', { e: f(e, last.u === 'MOA' ? 1 : 2), u: last.u });
           let trend = '';
           if (same.length >= 6) {
             const a = avgOf(same.slice(-3)); const b = avgOf(same.slice(-6, -3));
-            trend = a < b * 0.9 ? t('становится лучше') : a > b * 1.1 ? t('стало хуже') : t('держится ровно');
+            trend = a < b * 0.9 ? t('стає краще') : a > b * 1.1 ? t('стало гірше') : t('тримається рівно');
           }
           parts.push(el('span', {}, trend ? `${txt} — ${trend}` : txt));
           const ra = same.filter((h) => h.ra != null).slice(-5);
-          if (ra.length) parts.push(el('span', {}, t('Ошибка дальности в среднем {e} %', { e: f(ra.reduce((s, h) => s + h.ra, 0) / ra.length, 0) })));
+          if (ra.length) parts.push(el('span', {}, t('Похибка дальності в середньому {e} %', { e: f(ra.reduce((s, h) => s + h.ra, 0) / ra.length, 0) })));
         }
       }
       const weak = weakSpot(kindNow, own);
@@ -3279,7 +3276,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         const w = el('span', { className: 'quiz-weak' }, weak.text);
         // Слабке місце — дистанції: кнопка сама виставляє їх у «Дистанції від–до»
         if (weak.band && String(weak.band) !== String(dr)) {
-          const train = el('button', { type: 'button', className: 'quiz-stop quiz-weak-go' }, `${t('Потренировать: {d}', { d: distLabel(weak.band) })} →`);
+          const train = el('button', { type: 'button', className: 'quiz-stop quiz-weak-go' }, `${t('Потренувати: {d}', { d: distLabel(weak.band) })} →`);
           train.addEventListener('click', () => { saveDist(weak.band); renderStart(kindNow); });
           w.append(' ', train);
         }
@@ -3287,7 +3284,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       }
       if (kindNow === 'wind') { const jw = journalWind(); if (jw) parts.push(jw); }
       if (history().length) {
-        const more = el('button', { type: 'button', className: 'quiz-stop' }, `${t('Вся статистика')} →`);
+        const more = el('button', { type: 'button', className: 'quiz-stop' }, `${t('Уся статистика')} →`);
         more.addEventListener('click', () => renderStats(kindNow));
         parts.push(more);
       }
@@ -3309,14 +3306,14 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     const miss = (xs) => xs.filter((s) => !shotOk(kind, s)).length / xs.length;
     const all = miss(shots);
     const groups = kind === 'wind'
-      ? WIND_Q.map(([label], i) => [t('ветер {w} м/с', { w: label }), shots.filter((s) => s[0] === i)])
+      ? WIND_Q.map(([label], i) => [t('вітер {w} м/с', { w: label }), shots.filter((s) => s[0] === i)])
       : [...DIST_BANDS.map(([a, b, label, band]) => [t(label), shots.filter((s) => s[0] >= a && s[0] <= b), band]),
         ...Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])];
     const worst = groups.filter(([, xs]) => xs.length >= 8).map(([what, xs, band]) => [what, miss(xs), band])
       .filter(([, m]) => m >= all * 1.5 && m - all >= 0.15).sort((a, b) => b[1] - a[1])[0];
     if (!worst) return null;
     const [what, m, band] = worst;
-    return { band, text: t('Слабое место — {what}: верно {p} %, а в среднем {p0} %. Потренируй это отдельно.', { what, p: Math.round((1 - m) * 100), p0: Math.round((1 - all) * 100) }) };
+    return { band, text: t('Слабке місце — {what}: правильно {p} %, а в середньому {p0} %. Потренуй це окремо.', { what, p: Math.round((1 - m) * 100), p0: Math.round((1 - all) * 100) }) };
   };
 
   // Статистика тренувань: окремо від журналу справжніх стрільб, лише з цього пристрою
@@ -3328,7 +3325,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       b.addEventListener('click', () => renderStats(v));
       tabs.append(b);
     });
-    const back = el('button', { type: 'button', className: 'quiz-stop' }, `← ${t('Назад к упражнению')}`);
+    const back = el('button', { type: 'button', className: 'quiz-stop' }, `← ${t('Назад до вправи')}`);
     back.addEventListener('click', () => renderStart(kindNow));
     // Повтори помилок не рахуємо: там лише важкі цілі, вони занизили б загальну картину
     const list = history().filter((h) => h.kind === kindNow && !h.rep);
@@ -3359,21 +3356,21 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
     };
     const parts = [tabs];
     if (!list.length) {
-      parts.push(el('p', { className: 'quiz-n' }, t('Ещё нет серий этого упражнения.')));
+      parts.push(el('p', { className: 'quiz-n' }, t('Ще немає серій цієї вправи.')));
     } else {
       const month = Date.now() - 30 * 864e5;
       const shots = list.flatMap((h) => h.sh ?? []);
-      parts.push(el('p', { className: 'quiz-facts' }, t('Серий {s} · целей {n} · за 30 дней {m}', { s: list.length, n: sum(list, 'n'), m: list.filter((h) => h.at >= month).length })));
+      parts.push(el('p', { className: 'quiz-facts' }, t('Серій {s} · цілей {n} · за 30 днів {m}', { s: list.length, n: sum(list, 'n'), m: list.filter((h) => h.at >= month).length })));
       const weak = weakSpot(kindNow, list);
       if (weak) parts.push(el('p', { className: 'quiz-weak' }, weak.text));
       const raTxt = (arr) => { const v = mean(arr, 'ra'); return v == null ? '—' : `${f(v, 0)} %`; };
       const combo = kindNow === 'combo';
-      const head = wind ? [t('Верно')] : hold ? [t('В зону'), t('В цель'), t('Ошибка'), ...(combo ? [t('Дальность')] : [])] : [t('В пределах 10 %'), t('Ошибка')];
+      const head = wind ? [t('Правильно')] : hold ? [t('У зону'), t('У ціль'), t('Похибка'), ...(combo ? [t('Дальність')] : [])] : [t('У межах 10 %'), t('Похибка')];
       const row = (arr) => (wind ? [hitTxt(arr)]
         : hold ? [hitTxt(arr), pct(sum(arr, 'body'), sum(arr, 'n')), errTxt(arr), ...(combo ? [raTxt(arr)] : [])] : [hitTxt(arr), errTxt(arr)]);
-      parts.push(table(t('Всего'), ['', ...head], [[t('все серии'), ...row(list)], ...(list.length > 10 ? [[t('последние 10'), ...row(list.slice(-10))]] : [])]));
+      parts.push(table(t('Загалом'), ['', ...head], [[t('усі серії'), ...row(list)], ...(list.length > 10 ? [[t('останні 10'), ...row(list.slice(-10))]] : [])]));
       const sp = sparkline(list.slice(-30).map((h) => -h.avg));
-      if (sp) { const w = el('div', { className: 'quiz-hist' }); w.append(el('small', {}, t('Ошибка по сериям, выше — лучше')), sp); parts.push(w); }
+      if (sp) { const w = el('div', { className: 'quiz-hist' }); w.append(el('small', {}, t('Похибка за серіями, вище — краще')), sp); parts.push(w); }
       // Тиждень за тижнем: частка влучних і (у «Пошуку») час на ціль — останні 8 тижнів, де були серії
       const weekOf = (at) => { const d = new Date(at); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
       const weeks = [...list.reduce((m, h) => m.set(weekOf(h.at), [...(m.get(weekOf(h.at)) ?? []), h]), new Map())].sort((a, b) => a[0] - b[0]).slice(-8);
@@ -3385,35 +3382,35 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
         weeks.forEach(([wk, a], i) => {
           const b = el('i', { className: i === weeks.length - 1 ? 'last' : '' }, String(Math.round(share(a) * 100)));
           b.style.height = `calc(16px + ${share(a)} * (100% - 16px))`;
-          b.title = `${new Date(wk).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}: ${hitTxt(a)} · ${t('серий')} ${a.length}`;
+          b.title = `${new Date(wk).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}: ${hitTxt(a)} · ${t('серій')} ${a.length}`;
           bars.append(b);
         });
         const tmw = weeks.map(([, a]) => mean(a, 'tm')).filter((x) => x != null);
-        w.append(el('small', {}, t('Верно по неделям, %, яркий — эта неделя')), bars,
-          ...(tmw.length ? [el('small', {}, tmw.length > 1 ? t('Поиск: время на цель {a} с → {b} с', { a: f(tmw[0], 1), b: f(tmw.at(-1), 1) })
-            : t('Поиск: время на цель {a} с', { a: f(tmw[0], 1) }))] : []));
+        w.append(el('small', {}, t('Влучно по тижнях, %, яскравий — цей тиждень')), bars,
+          ...(tmw.length ? [el('small', {}, tmw.length > 1 ? t('Пошук: час на ціль {a} с → {b} с', { a: f(tmw[0], 1), b: f(tmw.at(-1), 1) })
+            : t('Пошук: час на ціль {a} с', { a: f(tmw[0], 1) }))] : []));
         parts.push(w);
       }
-      parts.push(table(t('По сложности'), ['', t('Серий'), ...head],
+      parts.push(table(t('За складністю'), ['', t('Серій'), ...head],
         LEVELS[kindNow].map(([v, name]) => [t(name), list.filter((h) => h.level === v)]).filter(([, a]) => a.length).map(([l, a]) => [l, a.length, ...row(a)])));
       if (wind) {
         parts.push(journalWind());
-        parts.push(table(t('По силе ветра'), ['', t('Заданий'), t('Верно')], WIND_Q.map(([label], i) => [`${label} ${t('м/с')}`, shots.filter((s) => s[0] === i)])
+        parts.push(table(t('За силою вітру'), ['', t('Завдань'), t('Правильно')], WIND_Q.map(([label], i) => [`${label} ${t('м/с')}`, shots.filter((s) => s[0] === i)])
           .filter(([, xs]) => xs.length).map(([l, xs]) => [l, xs.length, pct(xs.filter((s) => s[1] === 0).length, xs.length)])));
       } else {
         // За дистанцією й ціллю — з покрокових записів (є в серіях, зіграних після оновлення)
         const shotRow = (xs) => (hold
           ? [xs.length, pct(xs.filter((s) => s[3] === 'zone').length, xs.length), pct(xs.filter((s) => s[3] && s[3] !== 'miss').length, xs.length)]
           : [xs.length, pct(xs.filter((s) => s[1] <= 10).length, xs.length), `${f(xs.reduce((a, s) => a + s[1], 0) / xs.length, 0)} %`]);
-        const shotHead = hold ? [t('Целей'), t('В зону'), t('В цель')] : [t('Целей'), t('В пределах 10 %'), t('Ошибка')];
-        parts.push(table(t('По дистанции'), ['', ...shotHead], DIST_BANDS.map(([a, b, l]) => [t(l), shots.filter((s) => s[0] >= a && s[0] <= b)])
+        const shotHead = hold ? [t('Цілей'), t('У зону'), t('У ціль')] : [t('Цілей'), t('У межах 10 %'), t('Похибка')];
+        parts.push(table(t('За дистанцією'), ['', ...shotHead], DIST_BANDS.map(([a, b, l]) => [t(l), shots.filter((s) => s[0] >= a && s[0] <= b)])
           .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
-        parts.push(table(t('По цели'), ['', ...shotHead], Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])
+        parts.push(table(t('За ціллю'), ['', ...shotHead], Object.keys(TGT).map((k) => [t(TGT[k].short), shots.filter((s) => s[2] === k)])
           .filter(([, xs]) => xs.length).map(([l, xs]) => [l, ...shotRow(xs)])));
-        if (!shots.length) parts.push(el('p', { className: 'quiz-n' }, t('Разбивка по дистанции и цели появится после новых серий.')));
+        if (!shots.length) parts.push(el('p', { className: 'quiz-n' }, t('Розбивка за дистанцією й ціллю з’явиться після нових серій.')));
       }
     }
-    parts.push(el('p', { className: 'quiz-n' }, t('Хранится только на этом устройстве.')), back);
+    parts.push(el('p', { className: 'quiz-n' }, t('Зберігається лише на цьому пристрої.')), back);
     qBox.replaceChildren(...parts.filter(Boolean));
   };
   renderStart();
@@ -3445,7 +3442,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const paintInk = () => {
     if (!inkBtn) return;
     const ink = inkNow() ?? 'auto'; inkBtn.setAttribute('data-ink', ink);
-    inkBtn.setAttribute('aria-label', `${t('Цвет сетки')}: ${t({ black: 'чёрная', white: 'белая', auto: 'как у темы' }[ink])}`);
+    inkBtn.setAttribute('aria-label', `${t('Колір сітки')}: ${t({ black: 'чорна', white: 'біла', auto: 'як у теми' }[ink])}`);
   };
   inkBtn?.addEventListener('click', () => {
     const cur = inkNow() ?? (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light' || ['dark', 'phosphor', 'amber', 'white'].includes(document.documentElement.dataset.theme) ? 'white' : 'black');
@@ -3684,13 +3681,13 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   document.addEventListener('click', closePops, true);
   const help = $('sim-help'); const info = $('sim-i');
   root.querySelector('.ctl').prepend(markBar);
-  const markOn = markBtn(t('Разметка сцен'), () => {
+  const markOn = markBtn(t('Розмітка сцен'), () => {
     st.edit = true; st.mode = 'aim';
     $('m-aim').setAttribute('aria-pressed', 'true'); $('m-range').setAttribute('aria-pressed', 'false');
     help.hidden = true; info.setAttribute('aria-expanded', 'false'); draw();
   }, 'mark-on');
   // «Розмітка сцен» — угорі довідки, щоб не гортати до неї
-  help.prepend(Object.assign(document.createElement('p'), { className: 'muted', textContent: t('Если зона на фото-сцене легла мимо груди или головы, поправьте её сами:') }), markOn);
+  help.prepend(Object.assign(document.createElement('p'), { className: 'muted', textContent: t('Якщо зона на фото-сцені лягла повз груди чи голову, поправте її самі:') }), markOn);
   info?.addEventListener('click', () => {
     help.hidden = !help.hidden;
     info.setAttribute('aria-expanded', String(!help.hidden));

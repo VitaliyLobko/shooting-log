@@ -39,7 +39,7 @@ export function draw(src, max) {
 
 function jpeg(canvas, quality) {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(t('Не удалось обработать фото')))), 'image/jpeg', quality);
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(t('Не вдалося обробити фото')))), 'image/jpeg', quality);
   });
 }
 
@@ -49,7 +49,7 @@ export async function prepare(file, { max = FULL, studio: lay = false } = {}) {
   try {
     src = await decode(file);
   } catch {
-    throw new Error(t('Формат фото не поддерживается'));
+    throw new Error(t('Формат фото не підтримується'));
   }
   const full = lay && isCutout(src) ? laid(src) : draw(src, max);
   src.close?.();
@@ -88,7 +88,7 @@ function transform(source, { rot, flip, angle }) {
 }
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-const ASPECTS = [['free', 'Свободно'], ['1:1', '1:1'], ['4:3', '4:3'], ['16:9', '16:9']];
+const ASPECTS = [['free', 'Вільно'], ['1:1', '1:1'], ['4:3', '4:3'], ['16:9', '16:9']];
 const MIN_CROP = 0.05;
 
 /**
@@ -100,7 +100,7 @@ export async function editPhoto(blob, { square = false } = {}) {
   try {
     src = await decode(blob);
   } catch {
-    throw new Error(t('Формат фото не поддерживается'));
+    throw new Error(t('Формат фото не підтримується'));
   }
   const preview = draw(src, 1000);
   return new Promise((done) => {
@@ -113,7 +113,7 @@ export async function editPhoto(blob, { square = false } = {}) {
     const stage = h('div', { class: 'editor-stage' }, box);
     const angleValue = h('span', { class: 'editor-angle' }, '0°');
     const slider = h('input', {
-      type: 'range', min: -45, max: 45, step: 0.5, value: 0, 'aria-label': t('Выравнивание'),
+      type: 'range', min: -45, max: 45, step: 0.5, value: 0, 'aria-label': t('Вирівнювання'),
       oninput: (e) => { st.angle = Number(e.target.value); paint(); },
     });
 
@@ -229,25 +229,25 @@ export async function editPhoto(blob, { square = false } = {}) {
       out.getContext('2d').drawImage(full, Math.round(c.x * full.width), Math.round(c.y * full.height), out.width, out.height, 0, 0, out.width, out.height);
       close(await pack(out));
     };
-    const saveBtn = h('button', { type: 'button', class: 'btn primary', onclick: save }, t('Сохранить'));
+    const saveBtn = h('button', { type: 'button', class: 'btn primary', onclick: save }, t('Зберегти'));
 
     const root = h('div', { class: 'viewer editor', role: 'dialog', 'aria-label': t('Редактор фото') },
       h('header', { class: 'viewer-head' }, h('span', {}, t('Редактор фото')),
-        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: cancel }, '✕')),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрити'), onclick: cancel }, '✕')),
       stage,
       h('div', { class: 'editor-tools' },
         h('div', { class: 'editor-row' },
-          tool('⟲', t('Повернуть влево'), () => turn(-1)),
-          tool('⟳', t('Повернуть вправо'), () => turn(1)),
-          tool('⇋', t('Отразить по горизонтали'), () => { st.flip = !st.flip; paint(); }),
-          tool('↺', t('Сбросить'), () => {
+          tool('⟲', t('Повернути ліворуч'), () => turn(-1)),
+          tool('⟳', t('Повернути праворуч'), () => turn(1)),
+          tool('⇋', t('Віддзеркалити по горизонталі'), () => { st.flip = !st.flip; paint(); }),
+          tool('↺', t('Скинути'), () => {
             Object.assign(st, { rot: 0, flip: false, angle: 0 });
             slider.value = 0;
             paint(true);
           })),
-        h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Выравнивание')), slider, angleValue),
+        h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Вирівнювання')), slider, angleValue),
         square ? null : aspectChips),
-      h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Отмена')), saveBtn));
+      h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: cancel }, t('Скасувати')), saveBtn));
 
     document.getElementById('layer').append(root);
     const unlayer = backLayer(cancel);
@@ -295,11 +295,11 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
   };
   const root = h('div', { class: 'viewer', role: 'dialog', 'aria-label': t('Фото') },
     h('header', { class: 'viewer-head' }, counter,
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: close }, '✕')),
+      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрити'), onclick: close }, '✕')),
     h('div', { class: 'viewer-stage' },
-      h('button', { type: 'button', class: 'viewer-nav prev', 'aria-label': t('Предыдущее'), onclick: () => go(-1) }, '‹'),
+      h('button', { type: 'button', class: 'viewer-nav prev', 'aria-label': t('Попереднє'), onclick: () => go(-1) }, '‹'),
       img,
-      h('button', { type: 'button', class: 'viewer-nav next', 'aria-label': t('Следующее'), onclick: () => go(1) }, '›'),
+      h('button', { type: 'button', class: 'viewer-nav next', 'aria-label': t('Наступне'), onclick: () => go(1) }, '›'),
       note),
     onCover || onEdit || onStudio || onDelete ? h('footer', { class: 'viewer-actions' }, onCover ? coverBtn : null,
       onEdit ? h('button', {
@@ -310,7 +310,7 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
           list[i] = fresh;
           show();
         },
-      }, t('✎ Изменить')) : null,
+      }, t('✎ Змінити')) : null,
       // Студійне фото додається поруч, оригінал лишається
       onStudio ? h('button', {
         type: 'button', class: 'btn',
@@ -321,7 +321,7 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
           i += 1;
           show();
         },
-      }, t('✨ Студия')) : null,
+      }, t('✨ Студія')) : null,
       onDelete ? h('button', {
         type: 'button', class: 'btn danger',
         onclick: async () => {
@@ -332,7 +332,7 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
           i = Math.min(i, list.length - 1);
           show();
         },
-      }, t('Удалить')) : null) : null);
+      }, t('Видалити')) : null) : null);
 
   // Свайп: фото йде за пальцем; далі ніж на 50 px — наступне, інакше повертається на місце
   let drag = null;
@@ -361,7 +361,7 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
     counter.textContent = list.length > 1 ? `${i + 1} / ${list.length}` : '';
     root.classList.toggle('single', list.length < 2);
     const cover = Boolean(isCover?.(p));
-    coverBtn.textContent = cover ? t('★ Главное фото') : t('☆ Сделать главным');
+    coverBtn.textContent = cover ? t('★ Головне фото') : t('☆ Зробити головним');
     coverBtn.disabled = cover;
     note.textContent = '';
     img.src = p.thumb;
@@ -373,7 +373,7 @@ export function viewer(photos, index, { isCover = null, onCover = null, onDelete
       url = URL.createObjectURL(blob);
       img.src = url;
     } else {
-      note.textContent = t('Полное фото появится после синхронизации');
+      note.textContent = t('Повне фото з’явиться після синхронізації');
     }
   }
 

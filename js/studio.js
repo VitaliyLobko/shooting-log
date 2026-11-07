@@ -20,7 +20,7 @@ function takeKey() {
   if (!key) return;
   try { localStorage.setItem(OWNER, key); } catch { /* приватне вікно */ }
   history.replaceState(null, '', location.pathname + location.search);
-  setTimeout(() => toast(t('Студия без лимитов на этом устройстве')), 1500);
+  setTimeout(() => toast(t('Студія без лімітів на цьому пристрої')), 1500);
 }
 takeKey();
 window.addEventListener('hashchange', takeKey);
@@ -32,10 +32,10 @@ function keyHeaders() {
 }
 
 const REASONS = {
-  mine: 'Ваши студийные фото на этот месяц закончились — новые будут с 1-го числа',
-  day: 'Сегодня лимит студийных фото исчерпан — попробуйте завтра',
-  busy: 'Сегодня студийных фото уже слишком много — попробуйте завтра',
-  month: 'Лимит студийных фото на этот месяц исчерпан',
+  mine: 'Ваші студійні фото на цей місяць закінчились — нові будуть з 1-го числа',
+  day: 'Сьогодні ліміт студійних фото вичерпано — спробуйте завтра',
+  busy: 'Сьогодні студійних фото вже забагато — спробуйте завтра',
+  month: 'Ліміт студійних фото на цей місяць вичерпано',
 };
 
 /** Еліптичний градієнт від центру (cx, cy частками кадру) з радіусами sx, sy. */
@@ -83,15 +83,15 @@ function grid(g, w, hh) {
  * і тінь по краях кадру за замовчуванням (shade, 0–1 — її змінює повзунок «Тінь»).
  */
 export const BACKDROPS = [
-  { id: 'graphite', name: 'Графит', swatch: 'rgb(48 53 62)', shadow: 'rgb(0 0 0 / .55)', shade: 0.25,
+  { id: 'graphite', name: 'Графіт', swatch: 'rgb(48 53 62)', shadow: 'rgb(0 0 0 / .55)', shade: 0.25,
     paint: (g, w, hh) => radial(g, w, hh, 'rgb(62 68 78)', 'rgb(22 24 29)') },
-  { id: 'light', name: 'Светлый каталог', swatch: 'rgb(214 216 221)', shadow: 'rgb(0 0 0 / .5)', depth: 1.3, shade: 0.75,
+  { id: 'light', name: 'Світлий каталог', swatch: 'rgb(214 216 221)', shadow: 'rgb(0 0 0 / .5)', depth: 1.3, shade: 0.75,
     paint: (g, w, hh) => radial(g, w, hh, 'rgb(242 243 245)', 'rgb(128 132 140)') },
   { id: 'olive', name: 'Олива', swatch: 'rgb(62 69 47)', shadow: 'rgb(0 0 0 / .7)', depth: 1.4, shade: 0.7,
     paint: (g, w, hh) => radial(g, w, hh, 'rgb(84 92 64)', 'rgb(18 20 13)') },
   { id: 'coyote', name: 'Койот', swatch: 'rgb(160 135 96)', shadow: 'rgb(30 18 2 / .65)', depth: 1.4, shade: 0.72,
     paint: (g, w, hh) => radial(g, w, hh, 'rgb(198 172 130)', 'rgb(72 55 32)') },
-  { id: 'blueprint', name: 'Чертёж', swatch: 'rgb(24 46 78)', shadow: 'rgb(0 0 0 / .65)', depth: 1.4, shade: 0.72,
+  { id: 'blueprint', name: 'Креслення', swatch: 'rgb(24 46 78)', shadow: 'rgb(0 0 0 / .65)', depth: 1.4, shade: 0.72,
     paint: (g, w, hh) => { radial(g, w, hh, 'rgb(30 58 96)', 'rgb(6 13 26)'); grid(g, w, hh); } },
   { id: 'softbox', name: 'Софтбокс', swatch: 'rgb(12 12 14)', shadow: 'rgb(0 0 0 / .7)', shade: 0.2,
     paint: (g, w, hh) => {
@@ -303,13 +303,13 @@ async function cutout(blob) {
   try {
     body = await forUpload(blob);
   } catch {
-    throw new Error(t('Не удалось прочитать фото'));
+    throw new Error(t('Не вдалося прочитати фото'));
   }
   let res;
   try {
     res = await fetch(`${STUDIO_URL}/cutout`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg', ...keyHeaders() }, body });
   } catch {
-    throw new Error(t('Нет связи: фон вырезается на сервере'));
+    throw new Error(t('Немає зв’язку: фон вирізається на сервері'));
   }
   if (res.ok) {
     if (res.headers.get('X-Owner') === '1') return { blob: await res.blob(), month: { owner: true } };
@@ -318,16 +318,16 @@ async function cutout(blob) {
     return { blob: await res.blob(), month: left === null ? null : { left: Number(left), limit: Number(limit) } };
   }
   const { reason } = await res.json().catch(() => ({}));
-  throw new Error(t(REASONS[reason] ?? 'Не удалось вырезать фон'));
+  throw new Error(t(REASONS[reason] ?? 'Не вдалося вирізати фон'));
 }
 
 /** Підпис залишку: «Цього місяця ще 12 з 30»; з ключем власника — «Без ліміту». */
 export function quotaText(month) {
   if (!month) return '';
-  if (month.owner) return t('Без лимита');
+  if (month.owner) return t('Без ліміту');
   return month.left > 0
-    ? t('В этом месяце ещё {n} из {limit}', { n: month.left, limit: month.limit })
-    : t('Студийные фото на этот месяц закончились');
+    ? t('Цього місяця ще {n} з {limit}', { n: month.left, limit: month.limit })
+    : t('Студійні фото на цей місяць закінчились');
 }
 
 /**
@@ -335,15 +335,15 @@ export function quotaText(month) {
  * Повертає canvas 1600×900 або null; помилку сервера віддає в onError і повертає null.
  */
 export async function studioPhoto(blob, { onError } = {}) {
-  const root = h('div', { class: 'viewer editor', role: 'dialog', 'aria-label': t('Студийное фото') });
-  const stage = h('div', { class: 'editor-stage' }, h('p', { class: 'studio-status' }, t('Вырезаю фон…')));
+  const root = h('div', { class: 'viewer editor', role: 'dialog', 'aria-label': t('Студійне фото') });
+  const stage = h('div', { class: 'editor-stage' }, h('p', { class: 'studio-status' }, t('Вирізаю фон…')));
   let close = null;
   const done = new Promise((resolve) => { close = resolve; });
   const unlayer = backLayer(() => close(null));
   const onKey = (e) => { if (e.key === 'Escape') close(null); };
   root.append(
-    h('header', { class: 'viewer-head' }, h('span', {}, t('Студийное фото')),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: () => close(null) }, '✕')),
+    h('header', { class: 'viewer-head' }, h('span', {}, t('Студійне фото')),
+      h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрити'), onclick: () => close(null) }, '✕')),
     stage);
   document.getElementById('layer').append(root);
   document.addEventListener('keydown', onKey);
@@ -387,14 +387,14 @@ export async function studioPhoto(blob, { onError } = {}) {
   const sign = (v) => `${v > 0 ? '+' : ''}${v}°`;
   const value = h('span', { class: 'editor-angle' }, sign(st.tilt));
   const slider = h('input', {
-    type: 'range', min: -45, max: 45, step: 1, value: st.tilt, 'aria-label': t('Наклон'),
+    type: 'range', min: -45, max: 45, step: 1, value: st.tilt, 'aria-label': t('Нахил'),
     oninput: (e) => { st.tilt = Number(e.target.value); value.textContent = sign(st.tilt); paint(); },
   });
   const setTilt = (v) => { slider.value = v; slider.dispatchEvent(new Event('input')); };
   const pct = (v) => `${Math.round(v * 100)}%`;
   const shadeValue = h('span', { class: 'editor-angle' }, pct(st.shade));
   const shadeSlider = h('input', {
-    type: 'range', min: 0, max: 100, step: 1, value: Math.round(st.shade * 100), 'aria-label': t('Тень по краям'),
+    type: 'range', min: 0, max: 100, step: 1, value: Math.round(st.shade * 100), 'aria-label': t('Тінь по краях'),
     oninput: (e) => { st.shade = Number(e.target.value) / 100; shadeValue.textContent = pct(st.shade); paint(); },
   });
   const setShade = (v) => { shadeSlider.value = Math.round(v * 100); shadeSlider.dispatchEvent(new Event('input')); };
@@ -443,19 +443,19 @@ export async function studioPhoto(blob, { onError } = {}) {
   const saveBtn = h('button', {
     type: 'button', class: 'btn primary',
     onclick: () => { saveBtn.disabled = true; close(compose(turned(item, st), W, H, backdrop, st)); },
-  }, t('Сохранить'));
-  stage.replaceChildren(view, h('p', { class: 'studio-hint' }, t('Двигайте пальцем, двумя — размер; двойной тап — в центр')));
+  }, t('Зберегти'));
+  stage.replaceChildren(view, h('p', { class: 'studio-hint' }, t('Рухайте пальцем, двома — розмір; подвійний дотик — у центр')));
   root.append(
     h('div', { class: 'editor-tools' },
       h('div', { class: 'editor-row studio-swatches', role: 'group', 'aria-label': t('Фон') }, swatches),
       h('div', { class: 'editor-row' },
-        tool('⇋', t('Отразить по горизонтали'), () => { st.flip = !st.flip; setTilt(-st.tilt); }),
-        tool('—', t('Ровно'), () => setTilt(0)),
-        tool('⟋', t('Наискосок, как в каталоге'), () => setTilt((auto || TILT) * (st.flip ? -1 : 1)))),
-      h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Наклон')), slider, value),
-      h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Тень')), shadeSlider, shadeValue),
+        tool('⇋', t('Віддзеркалити по горизонталі'), () => { st.flip = !st.flip; setTilt(-st.tilt); }),
+        tool('—', t('Рівно'), () => setTilt(0)),
+        tool('⟋', t('Навскіс, як у каталозі'), () => setTilt((auto || TILT) * (st.flip ? -1 : 1)))),
+      h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Нахил')), slider, value),
+      h('label', { class: 'editor-row editor-straighten' }, h('span', {}, t('Тінь')), shadeSlider, shadeValue),
       month ? h('p', { class: 'studio-quota' }, quotaText(month)) : null),
-    h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => close(null) }, t('Отмена')), saveBtn));
+    h('footer', { class: 'viewer-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => close(null) }, t('Скасувати')), saveBtn));
   paint();
   return finish(await done);
 }

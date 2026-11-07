@@ -606,13 +606,30 @@ function fir(x, y, h) {
   return out;
 }
 
-/** Людина живого ланцюга: голова, пальто, ноги, шарф синій чи жовтий. */
-function person(x, y, i) {
-  return `<circle cx="${x.toFixed(1)}" cy="${(y - 17).toFixed(1)}" r="2.8" fill="#e9d2b8"/>`
-    + `<path d="M${(x - 2.6).toFixed(1)} ${(y - 14.6).toFixed(1)}h5.2v1.6h-5.2z" fill="#151c2e"/>`
-    + `<path d="M${(x - 3.2).toFixed(1)} ${(y - 13).toFixed(1)}h6.4l1.3 9h-9z" fill="#26304a"/>`
-    + `<path d="M${(x - 3.2).toFixed(1)} ${(y - 13.2).toFixed(1)}h6.4v2h-6.4z" fill="${SCARF[i % 2]}"/>`
-    + `<path d="M${(x - 1.8).toFixed(1)} ${(y - 4).toFixed(1)}v4M${(x + 1.8).toFixed(1)} ${(y - 4).toFixed(1)}v4" stroke="#151c2e" stroke-width="1.8" stroke-linecap="round"/>`;
+// Люди живого ланцюга — різні: шапка з помпоном, берет і довге волосся, капюшон, дитина, червона хустка
+const COATS = ['#26304a', '#3d2f48', '#2f4038', '#4a3328', '#2b3d57', '#45384a'];
+const SKIN = ['#ecd2b8', '#e2bf9c', '#f0d9c4', '#d9b08e'];
+const HATS = ['#c8343c', '#2f6fd0', '#e8b23a', '#3d8a5a', '#e6e2d8'];
+
+/** Людина живого ланцюга, стопи в (x, y): вигляд за номером n — щоб сусіди відрізнялися. */
+function person(x, y, n) {
+  const kind = (n * 7 + 3) % 5, kid = kind === 3, coat = COATS[n % COATS.length], skin = SKIN[(n * 3) % SKIN.length];
+  const hat = HATS[(n * 2 + 1) % HATS.length], scarf = SCARF[n % 2];
+  const back = kind === 1 ? '<path d="M-3.4-18.5q-.6 6 .4 8.5h6q1-2.5.4-8.5z" fill="#6b4226"/>'
+    : kind === 2 ? `<circle cx="0" cy="-16.9" r="3.9" fill="${coat}"/>` : '';
+  const top = kind === 0 || kind === 3 ? `<path d="M-3-17.4a3 3 0 0 1 6 0z" fill="${hat}"/><path d="M-3.1-17.6h6.2v1.1h-6.2z" fill="#f2efe6" opacity=".85"/><circle cx="0" cy="-20.8" r="1.2" fill="#f2efe6"/>`
+    : kind === 1 ? `<ellipse cx=".6" cy="-19.4" rx="3.4" ry="1.3" fill="${hat}"/>`
+      : kind === 4 ? '<path d="M-3.4-16.2Q0-22.6 3.4-16.2L2.7-13.8H-2.7Z" fill="#c8343c"/><circle cx="-1.2" cy="-17.8" r=".45" fill="#f2efe6"/><circle cx="1.3" cy="-18.4" r=".45" fill="#f2efe6"/><circle cx=".2" cy="-15.6" r=".45" fill="#f2efe6"/>'
+        : '';
+  const coatPath = kind === 1 || kind === 4 ? 'M-3.2-13h6.4l2 11h-10.4z' : 'M-3.2-13h6.4l1.3 9h-9z';
+  const legsY = kind === 1 || kind === 4 ? -2 : -4;
+  return `<g transform="translate(${f1(x)} ${f1(y)})${kid ? ' scale(.76)' : ''}">${back}`
+    + `<path d="M-1.8 ${legsY}V-.6M1.8 ${legsY}V-.6" stroke="#151c2e" stroke-width="1.8" stroke-linecap="round"/>`
+    + '<path d="M-3-.8h2.6v1.3h-2.6zM.6-.8h2.6v1.3h-2.6z" fill="#0d1220"/>'
+    + `<path d="${coatPath}" fill="${coat}"/><path d="M0-12.6v${kind === 1 || kind === 4 ? 10 : 8}" stroke="#000" stroke-opacity=".25" stroke-width=".6"/>`
+    + `<circle cx="0" cy="-16.8" r="${kind === 2 ? 2.5 : 2.8}" fill="${skin}"/><circle cx="1.6" cy="-16" r=".7" fill="#e58a8a" opacity=".6"/>`
+    + `<path d="M-3.2-13.2h6.4v2h-6.4z" fill="${scarf}"/><path d="M1.2-11.4l.9 3.2h1.2l-.6-3.2z" fill="${scarf}"/>`
+    + `${top}</g>`;
 }
 
 function sobornist() {
@@ -632,18 +649,36 @@ function sobornist() {
     snow += `<circle cx="${(rnd() * 360).toFixed(0)}" cy="-10" r="${(1 + rnd() * 1.4).toFixed(1)}" `
       + `style="animation-duration:${(5 + rnd() * 4).toFixed(1)}s;animation-delay:-${(rnd() * 8).toFixed(1)}s"/>`;
   }
-  for (let j = 0; j < 16; j++) {
-    const a = -Math.PI / 2 + (rnd() - 0.5) * 2.6, r = 22 + rnd() * 34;
+  for (let j = 0; j < 34; j++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 3, r = 26 + rnd() * 70;
     drops += `<circle cx="196" cy="${ICE}" r="${(1.2 + rnd()).toFixed(1)}" style="--dx:${(Math.cos(a) * r).toFixed(1)}px;`
       + `--dy:${(Math.sin(a) * r).toFixed(1)}px;animation-delay:${(1.5 + rnd() * 0.1).toFixed(2)}s"/>`;
   }
   for (const dir of [-1, 1]) {
-    for (const dy of [-6, 5]) {
+    for (const dy of [-7, -2, 3, 8]) {
       let d = `M196 ${ICE}`, x = 196, y = ICE;
-      for (let s = 0; s < 6; s++) { x += dir * (10 + rnd() * 8); y += dy * 0.45 + (rnd() - 0.5) * 6; d += `L${x.toFixed(1)} ${y.toFixed(1)}`; }
+      for (let s = 0; s < 14; s++) {
+        x += dir * (11 + rnd() * 10); y += dy * 0.5 + (rnd() - 0.5) * 7;
+        d += `L${x.toFixed(1)} ${y.toFixed(1)}`;
+        if (s % 4 === 2) cracks += `<path pathLength="1" d="M${x.toFixed(1)} ${y.toFixed(1)}l${(dir * (8 + rnd() * 10)).toFixed(1)} ${((rnd() - 0.5) * 22).toFixed(1)}"/>`;
+      }
       cracks += `<path pathLength="1" d="${d}"/>`;
     }
   }
+  let feathers = '';
+  for (let j = 0; j < 14; j++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 3.4, r = 24 + rnd() * 46;
+    feathers += `<ellipse cx="196" cy="404" rx="3.2" ry="1.2" transform="rotate(${(rnd() * 180).toFixed(0)} 196 404)" `
+      + `style="--dx:${(Math.cos(a) * r).toFixed(1)}px;--dy:${(Math.sin(a) * r).toFixed(1)}px;animation-delay:${(1.27 + rnd() * 0.1).toFixed(2)}s"/>`;
+  }
+  const wing = '<path d="M-5-20Q-16-27-24-40L-23-31-30-34-25-25-32-24-26-17-31-14-21-11Q-12-11-5-11Z"/>';
+  const head = '<path d="M-3-22Q-6-28-9-31"  stroke="#6b5212" stroke-width="3.2" fill="none" stroke-linecap="round"/>'
+    + '<circle cx="-10.5" cy="-33" r="3.3"/><path d="M-13.5-33.5l-4 1.8 4 1.2z" fill="#e2b04a"/>'
+    + '<path d="M-13-36.4h5l-.8-3.4-1.2 1.6-1-1.8-1 1.8-1.2-1.6z"/>';
+  const eagle = `<g transform="translate(196 418)" fill="#b8902c" stroke="#5a4510" stroke-width=".7" stroke-linejoin="round">`
+    + `${wing}<g transform="scale(-1 1)">${wing}</g>${head}<g transform="scale(-1 1)">${head}</g>`
+    + '<ellipse cx="0" cy="-15" rx="7" ry="10.5"/><path d="M-6-7L0 4 6-7z"/>'
+    + '<path d="M-3.5-6l-1 7M3.5-6l1 7" stroke="#3a2c0a" stroke-width="1.6" stroke-linecap="round"/></g>';
   // лівий берег Дніпра — багатоповерхівки з вікнами, що світяться
   for (let x = 262; x < 400; x += 14 + Math.floor(rnd() * 8)) {
     const h = 26 + rnd() * 46, w = 10 + rnd() * 5;
@@ -670,7 +705,7 @@ function sobornist() {
       const [x, y] = onBridge(t);
       const [nx, ny] = onBridge(i === N - 1 ? 0.5 : side ? t - 0.066 : t + 0.066);
       const go = (2.8 + i * 0.1).toFixed(2);
-      people += `<g class="sc-man" style="animation-delay:${go}s">${person(x, y, i + side)}</g>`;
+      people += `<g class="sc-man" style="animation-delay:${go}s">${person(x, y, i * 2 + side * 5)}</g>`;
       hands += `<path d="M${x.toFixed(1)} ${(y - 10).toFixed(1)}L${nx.toFixed(1)} ${(ny - 10).toFixed(1)}" style="animation-delay:${(+go + 0.08).toFixed(2)}s"/>`;
     }
   }
@@ -688,8 +723,9 @@ function sobornist() {
     <radialGradient id="sc-sob-moon"><stop offset=".3" stop-color="#fffbe8"/><stop offset=".45" stop-color="#e8eefc" stop-opacity=".35"/><stop offset="1" stop-color="#e8eefc" stop-opacity="0"/></radialGradient>
     <clipPath id="sc-half-l"><rect x="-90" y="-10" width="90" height="250"/></clipPath>
     <clipPath id="sc-half-r"><rect x="0" y="-10" width="90" height="250"/></clipPath>
-    <clipPath id="sc-above-ice"><rect x="0" y="0" width="360" height="${ICE + 1}"/></clipPath>
+    <clipPath id="sc-above-ice"><rect x="-400" y="-700" width="1160" height="${ICE + 701}"/></clipPath>
   </defs>
+  <g class="sc-sobcam"><g class="sc-shake">
   <rect x="-400" y="-400" width="1160" height="830" fill="url(#sc-sob-night)"/>
   <rect class="sc-dawn" x="-400" y="-400" width="1160" height="830" fill="url(#sc-sob-dawn)"/>
   <g class="sc-stars" fill="#d6def0">
@@ -700,9 +736,12 @@ function sobornist() {
   <rect x="-400" y="404" width="1160" height="110" fill="url(#sc-sob-ice)"/>
   <path class="sc-moonpath" d="M282 410h36M276 424h48M286 440h30M280 458h40" stroke="#e8eefc" stroke-width="2.5" stroke-linecap="round" opacity=".35"/>
   <path d="M-40 452q40-6 80 0t70 2M120 492q50-6 100 0M232 448q40-5 90 1" stroke="#dfe8f2" stroke-width="3" stroke-linecap="round" opacity=".45" fill="none"/>
+  <g class="sc-bank-r">
   <g class="sc-city">${blocks}<g class="sc-windows" fill="#ffd27a">${windows}</g></g>
   <path d="M236 418Q252 402 284 400H760V420H236Z" fill="#1a2338"/>
   <path d="M236 418Q252 402 284 400H760" fill="none" stroke="#dfe8f2" stroke-width="2.5" opacity=".75"/>
+  </g>
+  <g class="sc-bank-l">
   <g class="sc-sophia">
     <rect x="2" y="268" width="50" height="40" fill="#ebe6d8"/><rect x="2" y="268" width="11" height="40" fill="#cbc4b2"/>
     <path d="M18 300v-12a3 3 0 0 1 6 0v12zM30 300v-12a3 3 0 0 1 6 0v12zM42 300v-9a2.5 2.5 0 0 1 5 0v9z" fill="#3a4766"/>
@@ -717,7 +756,11 @@ function sobornist() {
   <path d="M-400 640V300H40Q96 300 120 350Q140 396 166 418Q178 430 198 436V446H-400Z" fill="#1a2338"/>
   <path d="M-400 300H40Q96 300 120 350Q140 396 166 418Q178 430 198 436" fill="none" stroke="#e4ecf6" stroke-width="3" opacity=".85"/>
   ${firs}
-  <g class="sc-cracks" fill="none" stroke="#2f4f78" stroke-width="1.6" stroke-linecap="round">${cracks}</g>
+  </g>
+  <g class="sc-cracks" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#0a1424" stroke-width="3">${cracks}</g>
+    <g stroke="#e4eef8" stroke-width=".8" opacity=".7" transform="translate(0 1.6)">${cracks}</g>
+  </g>
   <ellipse class="sc-hole" cx="196" cy="${ICE}" rx="16" ry="4.5" fill="#0a1220"/>
   <g class="sc-bridge">
     <path d="M150 ${ICE - 54}Q198 384 250 ${ICE - 56}" fill="none" stroke="#1f2942" stroke-width="5"/>
@@ -728,25 +771,28 @@ function sobornist() {
   </g>
   <g class="sc-hands" stroke="#ffd56b" stroke-width="1.6" stroke-linecap="round">${hands}</g>
   <g class="sc-people">${people}</g>
-  <g clip-path="url(#sc-above-ice)"><g class="sc-stake">
+  <g clip-path="url(#sc-above-ice)"><g class="sc-fall"><g class="sc-stake">
     <rect x="193" y="420" width="6" height="${ICE - 420 + 2}" fill="#6b4a32"/><path d="M193 ${ICE + 2}l3 4 3-4z" fill="#6b4a32"/>
     <path d="M194 426v36" stroke="#8a5a2e" stroke-width="1.2" opacity=".6"/>
     <g class="sc-rag"><rect x="199" y="422" width="26" height="5" fill="#e6e2d8"/><rect x="199" y="427" width="26" height="5" fill="#2b4d9a"/><rect x="199" y="432" width="26" height="5" fill="#b8322a"/></g>
-  </g></g>
+    ${eagle}
+  </g></g></g>
+  <g class="sc-feathers" fill="#c9a23a">${feathers}</g>
   <g class="sc-splash" fill="#cfe2f5">${drops}</g>
   <path d="M-400 514Q-100 500 60 512T360 508T760 512V1040H-400Z" fill="#141c2e"/>
   <path d="M-400 514Q-100 500 60 512T360 508T760 512" fill="none" stroke="#dfe8f2" stroke-width="2" opacity=".45"/>
   <path d="M14 520l-4-26M22 520l2-30M30 520l-6-20M330 516l4-24M340 516l-2-30M348 516l6-18" stroke="#2c3550" stroke-width="2" stroke-linecap="round"/>
-  <g class="sc-grow" style="transform-origin:180px 224px"><g transform="translate(180 190)">
-    <g class="sc-half" style="--fx:-108px;--fy:-40px"><g transform="scale(.42)">${half('l')}</g></g>
-    <g class="sc-half" style="--fx:108px;--fy:-40px"><g transform="scale(.42)">${half('r')}</g></g>
-    <g class="sc-whole" transform="scale(.42)">
+  <g transform="translate(196 278)">
+    <g class="sc-half" style="--fx:-135px;--fy:-96px"><g transform="scale(.3)">${half('l')}</g></g>
+    <g class="sc-half" style="--fx:135px;--fy:-96px"><g transform="scale(.3)">${half('r')}</g></g>
+    <g class="sc-whole" transform="scale(.3)">
       <path d="${COA_SHIELD}" fill="#005bbb" stroke="#ffd500" stroke-width="5"/>
       <g fill="#ffd500"><path d="${COA_MID}"/><path d="${COA_SIDE}"/><path d="${COA_SIDE}" transform="scale(-1 1)"/></g>
     </g>
     <circle class="sc-click" cx="0" cy="34" r="12" fill="#fff4dc"/>
-  </g></g>
+  </g>
   <g class="sc-snow" fill="#e8eef8">${snow}</g>
+  </g></g>
   ${RETICLE}
 </svg>`;
 }
@@ -954,33 +1000,642 @@ function defendersHome() {
 </svg>`;
 }
 
+// Секретна сценка (≈1 з 30 запусків): печиво з передбаченням на мішенній поличці — постріл, печиво розколюється,
+// вилітає папірець зі щасливими числами (калібри), передбачення — у підписі
+const FORTUNES = [
+  'Сьогодні всі кулі ляжуть в одну дірку',
+  'Сьогодні дихатимеш рівно, і група збереться',
+  'Цинк сам себе не розстріляє. Час на стрільбище',
+  'Незабаром у сейфі доведеться посунутись',
+  'Твоя наступна група буде менша за монету',
+  'Не вір першому пострілу — вір групі',
+  'Холодний ствол сьогодні не підведе',
+  'Сьогодні гонг задзвенить з першого разу',
+  'Удача любить тих, хто перевіряє нуль',
+  'Мішень боїться тебе більше, ніж ти її',
+  'Найкращий постріл ще попереду. Набій для нього вже купено',
+  'На тебе чекає приємний сюрприз. Можливо, в коробці з набоями',
+  'Повільно — це плавно. Плавно — це швидко',
+  'Незабаром прийде несподівана посилка. Сподіваємось, з капсулями',
+  'Удача тобі всміхнеться. Вітер — ні',
+  'Чудовий день, щоб нарешті почистити ствол',
+  'Купчастість любить тих, хто чекає, поки ствол охолоне',
+  'Усе, що пішло в молоко, повернеться досвідом',
+  'Допомога прийде, звідки не чекаєш. З таблиці DOPE',
+  'У твоєму сейфі незабаром з’явиться хтось важливий',
+  'Ти знайдеш ту саму гільзу',
+  'Не все, що блищить, — латунь. Але все одно підбери',
+  'Останнім сміється той, хто пристрілявся',
+  'Промах — теж дані. Запиши його',
+  'Друзі тебе цінують. Особливо коли в тебе зайвий цинк',
+  'Зорі сьогодні на твоєму боці. Марево — ні',
+  'Шлях у тисячу метрів починається з пристрілки на сто',
+  'Гроші прийдуть до тебе. І одразу підуть на набої',
+  'Ти на правильному шляху. Поправка: два кліки праворуч',
+  'Усе буде добре. Особливо СТВ',
+  'Хронограф знає більше, ніж це печиво',
+  'Рятуйте, мене тримають у цеху спорядження набоїв',
+  'На тебе чекає далека дорога. На стрільбище',
+  'Спуск сьогодні буде м’якший, ніж зазвичай',
+  'Набоїв на полиці менше, ніж ти думаєш. Перерахуй',
+  'Твоя впертість незабаром окупиться. Десяткою',
+  'Навушники сьогодні не забудеш. Ми нагадали',
+  'Сьогодні краще стріляти, ніж сперечатися про калібри',
+  'Промаху не було. Мішень просто зсунулась',
+  'Хто не записав постріл — той не стріляв',
+  'Хтось на рубежі спитає твій рецепт. Не кажи',
+  'Сьогодні мушка дружитиме з ціликом',
+  'Незабаром дізнаєшся, куди зникають усі набої. На стрільбищі',
+  'Не квап спуск — він сам знає коли',
+  'Чистий ствол — чиста совість',
+  'Вітер зміниться на твою користь. Ненадовго',
+  'Сьогодні в приціл побачиш пробоїну там, куди цілишся',
+  'Вдих. Пауза. Постріл. Повтори',
+  'На тебе чекає зустріч зі старим другом. Шомполом',
+  'Порахуй кліки двічі. Промахів буде менше',
+  'Сьогодні мішень здасться без бою',
+  'Твоя купчастість викличе заздрість сусіда по рубежу',
+  'Незабаром тобі запропонують обмін. Не міняй свій ствол',
+  'Мудрість приходить з досвідом. Досвід — з набоями',
+  'Сьогодні рука не здригнеться',
+  'Удача ближче, ніж здається. Приблизно на сто метрів',
+  'Незабаром ти купиш ще один приціл. Так написано',
+  'Не шукай винних — шукай СТВ',
+  'Сьогодні твоя мішень буде як решето. У доброму сенсі',
+  'Рік буде багатий на гільзи',
+  'Великі стрільці теж починали з молока',
+  'Сьогодні всі магазини повернуться додому',
+  'Ключ від сейфа сьогодні знайдеться з першого разу',
+  'Сусід по рубежу позичить тобі шомпол і забуде забрати',
+  'У кишені старої куртки чекають забуті набої',
+  'У цьому печиві немає пороху. Перевірено',
+  'Добра новина: сьогодні все в межах MOA',
+  'Хронограф незабаром скаже тобі щось приємне',
+  'Мішень пам’ятає кожного. Тебе — з повагою',
+  'Сусідня мішень сьогодні виглядатиме гірше за твою',
+  'Безпека понад усе. Навіть понад передбачення',
+  'Сьогодні кліки на барабанчику зійдуться з таблицею',
+  'У цьому печиві захований 25-й кадр. Тобі вже хочеться почистити ствол',
+  '25-го кадру тут немає. Просто сходи на стрільбище. Сходи. На стрільбище',
+  'Оптика сьогодні не поцілує тебе в брову. Тримай відстань',
+  'Сошки стануть рівно з першої спроби. Навіть на камінні',
+  'Тобі дістанеться остання пачка капсулів у магазині',
+  'Гвинти кріплень тримають момент. Динамометрична викрутка тобою пишається',
+  'Тебе спитають: MOA чи MRAD? Не відповідай, тікай',
+  'Набивач магазинів знайдеться в першій же кишені',
+  'Ціна набоїв не зміниться. Ти просто не дивитимешся',
+  'Дробовик буде слухняний. Плече подякує ввечері',
+  'Глушник буде тихіший за твої думки про новий приціл',
+  'Пристрілка займе три постріли. Ну, п’ять',
+  'Порох у банці скінчиться рівно на останньому набої партії',
+  'Потрібний шестигранник виявиться в кишені',
+  'Хтось на рубежі попросить сфотографувати твою мішень',
+  'Сусід по рубежу принесе каву. На двох',
+  'Захисні окуляри не запітніють. Цього разу',
+];
+// печиво спереду: два рум'яні пелюстки, загнуті до середини, між ними — складка в тіні; світло зліва
+const COOKIE_ART = '<path d="M180 334Q148 329 139 349Q133 366 145 374Q158 363 172 367Q177 350 180 334Z" fill="url(#sc-fc-ckl)"/>'
+  + '<path d="M180 334Q212 329 221 349Q227 366 215 374Q202 363 188 367Q183 350 180 334Z" fill="url(#sc-fc-ckr)"/>'
+  + '<path d="M172 367Q176 350 180 334Q184 350 188 367Q180 373 172 367Z" fill="url(#sc-fc-ckm)"/>'
+  + '<path d="M145 374Q133 366 139 349Q148 329 180 334Q212 329 221 349Q227 366 215 374" fill="none" stroke="#a0621c" stroke-width="1.6" opacity=".6"/>'
+  + '<path d="M145 374Q158 363 172 367M188 367Q202 363 215 374" fill="none" stroke="#b5732a" stroke-width="1.2" opacity=".7"/>'
+  + '<path d="M172 367Q176 350 180 334Q184 350 188 367" fill="none" stroke="#8a5216" stroke-width="1.1" opacity=".8"/>'
+  + '<path d="M144 352Q151 337 170 336" stroke="#fff3cf" stroke-width="3.2" fill="none" stroke-linecap="round" opacity=".85"/>'
+  + '<path d="M148 362Q150 356 154 352" stroke="#fff3cf" stroke-width="2" fill="none" stroke-linecap="round" opacity=".5"/>'
+  + '<path d="M194 338Q209 340 214 349" stroke="#fde1a2" stroke-width="2" fill="none" stroke-linecap="round" opacity=".55"/>'
+  + '<g fill="#a8681f" opacity=".35"><circle cx="152" cy="346" r=".8"/><circle cx="160" cy="352" r=".7"/><circle cx="148" cy="365" r=".8"/>'
+  + '<circle cx="165" cy="342" r=".6"/><circle cx="163" cy="359" r=".7"/><circle cx="198" cy="347" r=".8"/><circle cx="206" cy="355" r=".7"/>'
+  + '<circle cx="212" cy="364" r=".8"/><circle cx="200" cy="360" r=".6"/><circle cx="208" cy="343" r=".6"/></g>';
+
+// Передбачення з власного журналу (app.js підставляє: стволи, настріл, чистки, БК) — уже перекладені рядки
+let fortuneSource = () => [];
+export function setFortuneSource(fn) { fortuneSource = fn; }
+
+/** Усі передбачення для перегляду в панелі сценок: звичайні, золоті й ті, що зараз складаються з журналу. */
+export function fortuneList() {
+  return { plain: FORTUNES.map((x) => t(x)), gold: GOLD_FORTUNES.map((x) => t(x)), own: fortuneSource() };
+}
+
+// Золоте печиво — рідкісне (≈ 1 з 20), свої передбачення
+const GOLD_FORTUNES = [
+  'Золоте печиво! Сьогодні кожна куля — в десятку',
+  'Рідкісна удача: сьогодні жодної осічки',
+  'Одне на двадцять. Як і твій найкращий постріл',
+  'Сфотографуй це печиво. Без фото ніхто не повірить',
+  'Сьогодні можна все. Крім поспіху',
+  'Сьогодні навіть перший постріл з холодного ствола ляже в центр',
+  'Удача вже заряджена. Лишилося натиснути на спуск',
+  'Цього разу печиво пригощає: наступний цинк знайдеться дешевше',
+  'Купи сьогодні лотерейний квиток. А краще цинк',
+];
+const SEASONS = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter'];
+
+/** Печиво на цей показ; ?gold=1 ?own=1 ?season=winter ?tod=night — для перегляду. */
+function fortuneParams() {
+  const q = new URLSearchParams(location.search), h = new Date().getHours();
+  const gold = q.has('gold') ? q.get('gold') === '1' : Math.random() < 1 / 20;
+  const mine = gold ? [] : fortuneSource();
+  const own = mine.length && (q.get('own') === '1' || Math.random() < 0.4) ? mine[Math.floor(Math.random() * mine.length)] : null;
+  return {
+    gold, own, i: Math.floor(Math.random() * (gold ? GOLD_FORTUNES : FORTUNES).length), n: 1 + Math.floor(Math.random() * 1e6),
+    season: q.get('season') ?? SEASONS[new Date().getMonth()],
+    tod: q.get('tod') ?? (h >= 21 || h < 5 ? 'night' : h < 9 ? 'morning' : h < 17 ? 'day' : 'evening'),
+  };
+}
+
+function fortuneText(p) {
+  const list = p.gold ? GOLD_FORTUNES : FORTUNES;
+  return p.own ?? t(list[(p.i ?? 0) % list.length]);
+}
+
+const LUCKY = ['.22', '5,45', '5,56', '6,5', '7,62', '7,92', '9', '.308', '.338', '.45', '12', '12,7', '14,5', '16', '20', '30-06'];
+
+function fortuneCookie(p = {}) {
+  const rnd = seeded(77), pick = seeded(p.n ?? 1), season = p.season ?? 'spring', gold = !!p.gold;
+  // час доби: небо, озеро, вулкан, хмари; сонце вдень, низьке сонце ввечері, місяць уночі; ліхтарик світить сильніше в темряві
+  const PAL = {
+    day: { sky: ['#e4cfae', '#f0bf92', '#f5d6a2'], lake: ['#b9bfc6', '#8c9db3', '#6c7f9a'], fuji: ['#5d6f96', '#8fa0bc'], cloud: '#fbf1de', sun: [238, 214, 66, '#d9442e'], glow: 0.22, shade: 0 },
+    morning: { sky: ['#cdd8e6', '#f1d5c6', '#f8e4c8'], lake: ['#d4dbe3', '#adbbcc', '#8a9bb3'], fuji: ['#7a8bab', '#b3c0d4'], cloud: '#ffffff', sun: [238, 290, 48, '#ee7a54'], glow: 0.18, shade: 0 },
+    evening: { sky: ['#4b3a6e', '#c96a7a', '#f2a46a'], lake: ['#c08a8c', '#7d6b8f', '#4f4a6e'], fuji: ['#463f68', '#7f6f92'], cloud: '#f5b896', sun: [240, 330, 58, '#e9573a'], glow: 0.4, shade: 0.16 },
+    night: { sky: ['#131b3e', '#2b3668', '#4a548c'], lake: ['#46547c', '#323d62', '#222a48'], fuji: ['#6a78a8', '#56628e'], cloud: '#5d669a', sun: [252, 160, 30, '#f3ecd0'], glow: 0.6, shade: 0.24 },
+  };
+  const tod = PAL[p.tod] ? p.tod : 'day', pal = PAL[tod], night = tod === 'night', [sunX, sunY, sunR, sunC] = pal.sun;
+  let stars = '';
+  if (night) {
+    for (let j = 0; j < 200; j++) stars += `<circle cx="${f1(-700 + rnd() * 1760)}" cy="${f1(-380 + rnd() * 700)}" r="${f1(0.4 + rnd() * 0.9)}" opacity="${f1(0.4 + rnd() * 0.6)}"/>`;
+  }
+  const lucky = [...LUCKY].sort(() => pick() - 0.5).slice(0, 4)
+    .sort((a, b) => parseFloat(a.replace(',', '.').replace(/^\./, '0.')) * (a.startsWith('.') ? 25.4 : 1)
+      - parseFloat(b.replace(',', '.').replace(/^\./, '0.')) * (b.startsWith('.') ? 25.4 : 1));
+  let crumbs = '', trees = '', twinkles = '';
+  for (let j = 0; j < 16; j++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 3.6, r = 30 + rnd() * 60;
+    crumbs += `<circle cx="180" cy="360" r="${f1(1.2 + rnd() * 2)}" style="--dx:${f1(Math.cos(a) * r)}px;--dy:${f1(Math.sin(a) * r)}px;animation-delay:${(0.1 + rnd() * 0.08).toFixed(2)}s"/>`;
+  }
+  // японські сосни — пласкі хмаринки хвої на обрії
+  for (let x = -1400; x < 1760; x += 18 + rnd() * 22) {
+    const w = 10 + rnd() * 10, y = 420 - rnd() * 6;
+    trees += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(w)}" ry="${f1(w * 0.42)}" fill="#3a4632"/>`
+      + `<ellipse cx="${f1(x + w * 0.4)}" cy="${f1(y - w * 0.5)}" rx="${f1(w * 0.6)}" ry="${f1(w * 0.3)}" fill="#46543b"/>`;
+  }
+  // гілка сакури з кутка: квіти по п'ять пелюсток; пелюстки летять униз скісно
+  const bloom = (x, y, r) => [0, 1, 2, 3, 4].map((k) => {
+    const a = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
+    return `<circle cx="${f1(x + Math.cos(a) * r)}" cy="${f1(y + Math.sin(a) * r)}" r="${f1(r * 0.75)}"/>`;
+  }).join('') + `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r * 0.45)}" fill="#d9577a"/>`;
+  // гілка сакури виходить з-під стріхи в лівому куті (не з краю малюнка — на широкому екрані край посеред вікна): стовбур ламається зигзагом і тоншає, бічні пагони під різними кутами, трохи никнуть;
+  // цвіт — гронами на кінчиках і поодинці вздовж тонких гілок
+  const sk = seeded(5), twigs = [], flowers = [], buds = [];
+  const grow = (x, y, a, len, w, depth, max) => {
+    const ex = x + Math.cos(a) * len, ey = y + Math.sin(a) * len, bend = (sk() - 0.5) * len * 0.4;
+    const mx = (x + ex) / 2 - Math.sin(a) * bend, my = (y + ey) / 2 + Math.cos(a) * bend;
+    const at = (t) => [(1 - t) ** 2 * x + 2 * (1 - t) * t * mx + t * t * ex, (1 - t) ** 2 * y + 2 * (1 - t) * t * my + t * t * ey];
+    twigs.push([`M${f1(x)} ${f1(y)}Q${f1(mx)} ${f1(my)} ${f1(ex)} ${f1(ey)}`, w]);
+    for (let k = depth >= 1 ? 3 + Math.floor(sk() * 3) : 1; k > 0; k--) {
+      const [px, py] = at(0.15 + sk() * 0.8);
+      flowers.push([px + (sk() - 0.5) * 13, py + (sk() - 0.5) * 13, 3.6 + sk() * 1.8]);
+    }
+    if (depth >= max || ex > 205 || ey > 200) {
+      for (let k = 8 + Math.floor(sk() * 4); k > 0; k--) flowers.push([ex + (sk() - 0.5) * 30, ey + (sk() - 0.5) * 26, 3.8 + sk() * 2.2]);
+      if (sk() < 0.7) buds.push([ex + Math.cos(a) * 9, ey + Math.sin(a) * 9]);
+      return;
+    }
+    // бічні пагони — з різних місць гілки, по черзі в різні боки
+    let side = sk() < 0.5 ? -1 : 1;
+    for (let n = depth === 0 ? 2 : depth < 3 ? 1 : 0; n > 0; n--, side = -side) {
+      const t = 0.35 + sk() * 0.5, [sx, sy] = at(t);
+      grow(sx, sy, a + side * (0.55 + sk() * 0.5) + 0.12, len * (0.45 + sk() * 0.25), w * 0.55, depth + 1, max);
+    }
+    grow(ex, ey, a + (sk() - 0.5) * 0.7 + 0.1, len * (0.72 + sk() * 0.15), w * 0.7, depth + 1, max);
+  };
+  grow(4, -14, 0.72, 78, 8.5, 0, 4);
+  grow(-6, -14, 1.3, 58, 6, 1, 4);
+  let blossoms = '', petals = '';
+  const open = flowers.filter(([, y]) => y > 26);
+  // пора року: весна — сакура, літо — зелене листя, осінь — червоний клен, зима — сніг на гілках і рідкі червоні квіти сливи
+  const PINK = ['#f6c1cf', '#fbdde6', '#f3a9c0', '#f8cad6'], GREEN = ['#5f9a4a', '#7bb35c', '#4a7f3a'], MAPLE = ['#d9452b', '#e8732c', '#f0a030', '#b8322a'];
+  const LEAF = {
+    spring: (x, y, r, i) => `<g fill="${PINK[(i * 7) % 4]}">${bloom(x, y, r)}</g>`,
+    summer: (x, y, r, i) => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(r * 1.5)}" ry="${f1(r * 0.65)}" transform="rotate(${(i * 47) % 180} ${f1(x)} ${f1(y)})" fill="${GREEN[i % 3]}"/>`,
+    autumn: (x, y, r, i) => `<path d="${star(x, y, r * 1.5, r * 0.75)}" fill="${MAPLE[(i * 5) % 4]}"/>`,
+    winter: (x, y, r, i) => (i % 6 === 0 ? `<g fill="#d8364a">${bloom(x, y, r * 0.8)}</g>`
+      : `<ellipse cx="${f1(x)}" cy="${f1(y - r * 0.3)}" rx="${f1(r * 1.2)}" ry="${f1(r * 0.6)}" fill="#f4f7fb"/>`),
+  };
+  const leaf = LEAF[season] ?? LEAF.spring;
+  // що летить униз: пелюстки, листя, сніжинки (влітку — кілька листків)
+  const FALL = {
+    spring: (x, y) => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="2.6" ry="1.5" fill="#f6b3c6"`,
+    summer: (x, y) => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="3" ry="1.4" fill="#6fa852"`,
+    autumn: (x, y, j) => `<path d="${star(x, y, 3.6, 1.8)}" fill="${MAPLE[j % 4]}"`,
+    winter: (x, y, j) => `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(1.4 + (j % 3) * 0.5)}" fill="#ffffff"`,
+  };
+  // золоте печиво: замість пелюсток і листя з гілки сиплються золоті пластівці
+  const GOLDS = ['#f3c93e', '#ffe27a', '#d9a520'];
+  const fall = gold ? (x, y, j) => `<path d="M${f1(x)} ${f1(y - 2.6)}l2 2.6-2 2.6-2-2.6z" fill="${GOLDS[j % 3]}"` : FALL[season] ?? FALL.spring;
+  open.forEach(([x, y, r], i) => { blossoms += leaf(x, y, r, i); });
+  // світлячки — літнього вечора й уночі
+  let fireflies = '';
+  if (season === 'summer' && (night || tod === 'evening')) {
+    for (let j = 0; j < 16; j++) fireflies += `<circle cx="${f1(-20 + rnd() * 400)}" cy="${f1(300 + rnd() * 160)}" r="1.6" style="animation-delay:-${(rnd() * 3).toFixed(2)}s;animation-duration:${(2 + rnd() * 2).toFixed(1)}s"/>`;
+  }
+  // від тапу гілка струшує пелюстки — скінченна анімація, стоїть на паузі разом зі сценкою
+  let gust = '';
+  for (let j = 0; j < 18; j++) {
+    const [px, py] = open[Math.floor(rnd() * open.length)];
+    gust += `${fall(px, py, j)} style="--dx:${f1(40 + rnd() * 140)}px;--dy:${f1(60 + rnd() * 220)}px;animation-delay:${(0.02 + rnd() * 0.25).toFixed(2)}s"/>`;
+  }
+  for (let j = 0; j < (season === 'summer' && !gold ? 6 : 30); j++) {
+    // пелюстки (листя, сніг) обсипаються з гілки
+    const [px, py] = open[Math.floor(rnd() * open.length)];
+    petals += `${fall(px, py, j)} `
+      + `style="animation-duration:${(6 + rnd() * 4).toFixed(1)}s;animation-delay:-${(rnd() * 9).toFixed(1)}s"/>`;
+  }
+  // стовпчики з кроком 116 по всій ширині; біля чашки чаю крок ширший (112 → 248), як було
+  const posts = [...Array.from({ length: 9 }, (_, k) => -1396 + k * 116), -352, -236, -120, -4, 112,
+    ...Array.from({ length: 14 }, (_, k) => 248 + k * 116)]
+    .map((x) => `<rect x="${x - 5}" y="396" width="10" height="170" fill="#3b2418"/><rect x="${x - 5}" y="396" width="3" height="170" fill="#5a3a26"/>`).join('');
+  // крокви під стріхою — на високому екрані там видно стелю веранди
+  let rafters = '';
+  for (let x = -1400; x < 1760; x += 22) rafters += `<path d="M${x} -400V0" stroke="#35241f" stroke-width="7"/><rect x="${x - 3.5}" y="-4" width="7" height="8" rx="1" fill="#5a3d2c"/>`;
+  // журавлі над озером: летять через небо, махають крилами
+  const crane = (x, y, d) => `<g transform="translate(${x} ${y})"><path class="sc-fc-wing" d="M-9 0Q-4-5 0 0Q4-5 9 0" style="animation-delay:-${d}s"/><path d="M0 0l3.5 1" stroke-width="1.2"/></g>`;
+  // передбачення на папірці — рядками до ~24 літер; щасливі числа дрібно внизу
+  const lines = [];
+  for (const w of fortuneText(p).split(' ')) {
+    if (lines.length && (lines[lines.length - 1] + ' ' + w).length <= 24) lines[lines.length - 1] += ' ' + w;
+    else lines.push(w);
+  }
+  const slipH = 16 + lines.length * 13 + 20, top = -slipH / 2;
+  const slipText = lines.map((l, k) => `<text y="${f1(top + 17 + k * 13)}">${l}</text>`).join('');
+  // пагода на пагорбі праворуч: три дахи з загнутими краями
+  let pagoda = '';
+  for (let i = 0; i < 3; i++) {
+    const y = 404 - i * 15, w = 17 - i * 3.5;
+    pagoda += `<rect x="${f1(306 - w * 0.55)}" y="${y}" width="${f1(w * 1.1)}" height="12" fill="${night ? '#7a2e26' : '#b03a2a'}"/>`
+      + `<path d="M${f1(306 - w - 5)} ${y - 1}Q306 ${y - 8} ${f1(306 + w + 5)} ${y - 1}L${f1(306 + w)} ${y + 2}Q306 ${y - 3} ${f1(306 - w)} ${y + 2}Z" fill="#2b1d1c"/>`;
+  }
+  for (let j = 0; j < 6; j++) {
+    const a = (j / 6 + 1 / 12) * 2 * Math.PI;
+    twinkles += `<path d="${star(Math.cos(a) * 104, Math.sin(a) * (slipH / 2 + 12), 4, 1.4)}" style="animation-delay:-${(j * 0.27).toFixed(2)}s"/>`;
+  }
+  // далекі хребти в серпанку обабіч Фудзі — видно лише на широкому екрані (на телефоні x 0…360);
+  // свій генератор, щоб не зсунути решту випадкового малюнка
+  const rr = seeded(9);
+  // вершини через 80, згладжені через середини; down — з якого боку хребет плавно сходить до води (біля Фудзі)
+  const ridge = (from, to, y0, amp, down) => {
+    const pts = [];
+    for (let x = from; x <= to; x += 80) pts.push([x, y0 + rr() * amp]);
+    const n = pts.length - 1, fade = 4;
+    pts.forEach((pt, i) => {
+      const k = down === 'right' ? (n - i) / fade : i / fade;
+      if (k < 1) pt[1] = 424 - (424 - pt[1]) * Math.max(0, k);
+    });
+    let d = `M${from} 424L${pts[0][0]} ${f1(pts[0][1])}`;
+    for (let i = 1; i <= n; i++) {
+      const [x0, y1] = pts[i - 1], [x1, y2] = pts[i];
+      d += `Q${x0} ${f1(y1)} ${(x0 + x1) / 2} ${f1((y1 + y2) / 2)}`;
+    }
+    return `${d}L${to} ${f1(pts[n][1])}V424Z`;
+  };
+  const ranges = `<g fill="${pal.fuji[1]}" opacity=".3"><path d="${ridge(-1400, 40, 336, 40, 'right')}"/><path d="${ridge(280, 1760, 332, 40, 'left')}"/></g>`
+    + `<g fill="${pal.fuji[0]}" opacity=".42"><path d="${ridge(-1400, 0, 380, 22, 'right')}"/><path d="${ridge(320, 1760, 378, 22, 'left')}"/></g>`;
+  // ліхтарик і фурін — функціями від x: такі самі висять обабіч на широкому екрані; top — звідки звисає шнурок
+  const lantern = (cx, top = 16) => `<circle cx="${cx}" cy="62" r="${night ? 70 : 48}" fill="url(#sc-fc-glow)" opacity="${f1(Math.min(1, pal.glow * 1.6))}"/>
+    <path d="M${cx} ${top}V34" stroke="#221a18" stroke-width="1.5"/>
+    <ellipse cx="${cx}" cy="62" rx="17" ry="24" fill="${night || tod === 'evening' ? '#f0582f' : '#d23c2c'}"/>
+    <path d="M${cx - 16} 50Q${cx} 46 ${cx + 16} 50M${cx - 17} 62h34M${cx - 16} 74Q${cx} 78 ${cx + 16} 74" stroke="#a42a1f" stroke-width="1.2" fill="none"/>
+    <ellipse cx="${cx - 7}" cy="57" rx="4.5" ry="12" fill="${night ? '#ffd27a' : '#ff9a6a'}" opacity="${night ? 0.7 : 0.4}"/>
+    <rect x="${cx - 9}" y="34" width="18" height="6" rx="1.5" fill="#221a18"/><rect x="${cx - 9}" y="84" width="18" height="6" rx="1.5" fill="#221a18"/>
+    <path d="M${cx} 90v12" stroke="#e8b23a" stroke-width="2.2" stroke-linecap="round"/>`;
+  const furin = (cx, top = 20) => `<path d="M${cx} ${top}V34M${cx} 44v18" stroke="#3a2a22" stroke-width=".8"/>
+    <path d="M${cx - 11} 46Q${cx - 11} 32 ${cx} 32Q${cx + 11} 32 ${cx + 11} 46Z" fill="#bfe2f4" opacity=".85"/><path d="M${cx - 9} 44Q${cx - 8} 36 ${cx - 2} 34" stroke="#fff" stroke-width="1.4" fill="none" opacity=".8"/>
+    <path d="M${cx - 5} 41q3-3 6 0q-3 3-6 0zM${cx + 1} 41l3-2v4z" fill="#d23c2c"/>
+    <rect x="${cx - 4}" y="62" width="8" height="24" fill="#fff5d8"/><path d="M${cx - 4} 62h8" stroke="#d23c2c" stroke-width="2"/>`;
+  // [x, звідки шнурок]: на краях стріхи її нижній край вище (рівна частина)
+  const sideLanterns = [[-110, 12], [720, 12]].map(([cx, tp], k) => `<g class="sc-fc-blow-lantern" style="transform-origin:${cx}px 16px">`
+    + `<g class="sc-fc-lantern" style="transform-origin:${cx}px 16px;animation-delay:-${1.1 + k}s">${lantern(cx, tp)}</g></g>`).join('');
+  const sideFurin = [[-330, 12], [520, 12]].map(([cx, tp], k) => `<g class="sc-fc-blow-furin" style="transform-origin:${cx}px 20px">`
+    + `<g class="sc-fc-chime" style="transform-origin:${cx}px 20px;animation-delay:-${0.7 + k * 1.3}s">${furin(cx, tp)}</g></g>`).join('');
+  // бамбукові вітряні дзвіночки: п'ять трубок з колінцями від довгої (соль) до короткої (мі) і калатало з вітрилом;
+  // на розлам кожна трубка здригається тоді ж, коли звучить її нота (KNOCKS — нижче, біля звуку)
+  const hits = {};
+  for (const [at, note] of gold ? KNOCKS_GOLD : KNOCKS) hits[Math.min(note, 4)] ??= at;
+  const tubes = [34, 31, 28, 25, 22].map((len, k) => {
+    const x = f1(229.2 + k * 5.4);
+    const knee = (p) => `<rect x="${f1(x - 1.8)}" y="${f1(34 + len * p)}" width="3.6" height=".9" rx=".4" fill="#6f6a2c"/>`;
+    return `<path d="M${x} 30v4" stroke="#3a2a22" stroke-width=".6"/><g class="sc-fc-tube" style="${hits[k] == null ? 'animation:none' : `animation-delay:${(hits[k] + 0.02).toFixed(2)}s`}">`
+      + `<rect x="${f1(x - 1.6)}" y="34" width="3.2" height="${len}" rx=".6" fill="url(#sc-fc-tubeg)"/>${knee(0.36)}${knee(0.74)}</g>`;
+  }).join('');
+  // торії в озері праворуч — на широкому екрані; з відображенням
+  const toriiArt = (red) => `<g fill="${red}"><rect x="-17" y="-44" width="4" height="44"/><rect x="13" y="-44" width="4" height="44"/>`
+    + '<rect x="-23" y="-35" width="46" height="3.2"/><rect x="-25" y="-45" width="50" height="3.4"/><rect x="-1.4" y="-42" width="2.8" height="7"/></g>'
+    + '<path d="M-31-45.5Q0-41 31-45.5L33-50Q0-45-33-50Z" fill="#2b1d1c"/>';
+  const torii = `<g transform="translate(538 456)">${toriiArt(night ? '#9a3a2e' : '#c8402c')}`
+    + `<g transform="scale(1 -1)" opacity=".28">${toriiArt('#c8402c')}</g><path d="M-26 1.5h52" stroke="#eef2f6" stroke-width="1" opacity=".5"/></g>`;
+  // кола на воді — ніби плеснув короп; два кільця одне за одним
+  const koi = [[96, 512, 0], [300, 456, 2.6], [-160, 500, 5.1], [470, 532, 1.3], [-430, 466, 3.9], [720, 490, 6.2]]
+    .map(([x, y, d]) => `<g transform="translate(${x} ${y})"><ellipse rx="15" ry="3.4" style="animation-delay:-${d}s"/><ellipse rx="15" ry="3.4" style="animation-delay:-${f1(d + 7.55)}s"/></g>`).join('');
+  // доріжка сонця чи місяця на воді: риски звужуються донизу й мерехтять кожна у своєму ритмі
+  const gl = seeded(13);
+  let glints = '';
+  for (let j = 0; j < 11; j++) {
+    const w = 26 - j * 1.6, off = (gl() - 0.5) * 10;
+    glints += `<path d="M${f1(238 + off - w)} ${432 + j * 12}h${f1(2 * w)}" stroke-width="${f1(3 - j * 0.12)}" style="animation-delay:-${(gl() * 1.6).toFixed(2)}s"/>`;
+  }
+  // на воді — те, що впало з гілки: пелюстки, листя чи золото; повільно дрейфують
+  const fl = seeded(21);
+  let afloat = '';
+  for (let j = 0; j < (season === 'winter' && !gold ? 0 : 9); j++) {
+    const x = -260 + fl() * 820, y = 440 + fl() * 110;
+    afloat += `${fall(x, y, j)} style="animation-delay:-${(fl() * 6).toFixed(1)}s"/>`;
+  }
+  // золоте печиво: віяло променів з-за печива, лише над поручнями
+  const rays = gold ? `<g clip-path="url(#sc-fc-rayclip)"><g class="sc-fc-rays-in"><g class="sc-fc-rays" fill="url(#sc-fc-ray)">${
+    Array.from({ length: 18 }, (_, k) => `<path d="M177 362L169 172H191L183 362Z" transform="rotate(${k * 20} 180 362)"/>`).join('')}</g></g></g>` : '';
+  return `
+<svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <defs>
+    <linearGradient id="sc-fc-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.sky[0]}"/><stop offset=".6" stop-color="${pal.sky[1]}"/><stop offset="1" stop-color="${pal.sky[2]}"/></linearGradient>
+    <linearGradient id="sc-fc-lake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.lake[0]}"/><stop offset=".5" stop-color="${pal.lake[1]}"/><stop offset="1" stop-color="${pal.lake[2]}"/></linearGradient>
+    <linearGradient id="sc-fc-fuji" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.fuji[0]}"/><stop offset="1" stop-color="${pal.fuji[1]}"/></linearGradient>
+    <linearGradient id="sc-fc-ckl" x1="0" y1="0" x2=".5" y2="1">${gold ? '<stop offset="0" stop-color="#fff4b8"/><stop offset=".55" stop-color="#f3c93e"/><stop offset="1" stop-color="#c4921a"/>' : '<stop offset="0" stop-color="#fcdc96"/><stop offset=".55" stop-color="#eaad50"/><stop offset="1" stop-color="#c88430"/>'}</linearGradient>
+    <linearGradient id="sc-fc-ckr" x1="1" y1="0" x2=".5" y2="1">${gold ? '<stop offset="0" stop-color="#fbe07a"/><stop offset=".55" stop-color="#dcac28"/><stop offset="1" stop-color="#a57a0e"/>' : '<stop offset="0" stop-color="#f0bf68"/><stop offset=".55" stop-color="#d4943c"/><stop offset="1" stop-color="#ad6e24"/>'}</linearGradient>
+    <linearGradient id="sc-fc-ckm" x1="0" y1="0" x2="0" y2="1">${gold ? '<stop offset="0" stop-color="#c9961a"/><stop offset="1" stop-color="#7f5c08"/>' : '<stop offset="0" stop-color="#c47f2c"/><stop offset="1" stop-color="#8c5418"/>'}</linearGradient>
+    <clipPath id="sc-fc-l"><rect x="0" y="300" width="180" height="100"/></clipPath>
+    <radialGradient id="sc-fc-glow"><stop offset="0" stop-color="#ffb070"/><stop offset="1" stop-color="#ffb070" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-fc-gglow"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-fc-mglow"><stop offset=".4" stop-color="#f3ecd0"/><stop offset="1" stop-color="#f3ecd0" stop-opacity="0"/></radialGradient>
+    <clipPath id="sc-fc-under"><rect x="-1400" y="16" width="3160" height="1000"/></clipPath>
+    <clipPath id="sc-fc-r"><rect x="180" y="300" width="180" height="100"/></clipPath>
+    <linearGradient id="sc-fc-tubeg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a7f3a"/><stop offset=".35" stop-color="#e6d68e"/><stop offset=".7" stop-color="#bfa95a"/><stop offset="1" stop-color="#7a6c2e"/></linearGradient>
+    <linearGradient id="sc-fc-ray" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3b8" stop-opacity=".85"/><stop offset=".6" stop-color="#ffe27a" stop-opacity=".2"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></linearGradient>
+    <clipPath id="sc-fc-rayclip"><rect x="-200" y="-200" width="760" height="586"/></clipPath>
+  </defs>
+  <g class="sc-fc-far">
+  <rect x="-1400" y="-400" width="3160" height="830" fill="url(#sc-fc-sky)"/>
+  <g fill="#fff6dc">${stars}</g>
+  <circle cx="${sunX}" cy="${sunY}" r="${sunR}" fill="${sunC}"/>${night ? `<circle cx="${sunX}" cy="${sunY}" r="${sunR * 2.6}" fill="url(#sc-fc-mglow)" opacity=".3"/><circle cx="${sunX - 9}" cy="${sunY - 6}" r="6" fill="#e2d8b6"/><circle cx="${sunX + 8}" cy="${sunY + 9}" r="4" fill="#e2d8b6"/><circle cx="${sunX + 10}" cy="${sunY - 10}" r="2.6" fill="#e2d8b6"/>` : ''}
+  ${ranges}
+  <path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="url(#sc-fc-fuji)"/>
+  <path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/>
+  ${night ? '<path d="M138 304Q150 310 160 320L268 424H232L152 326Z" fill="#9fb0de" opacity=".35"/><path d="M160 320L268 424" stroke="#c9d4f2" stroke-width="1.6" opacity=".6"/>' : ''}
+  <g class="sc-fc-cranes" fill="none" stroke="#2b1d1c" stroke-width="1.6" stroke-linecap="round">
+    ${crane(0, 150, 0)}${crane(-22, 162, 0.3)}${crane(-40, 146, 0.55)}
+  </g>
+  <g class="sc-fc-clouds" fill="${pal.cloud}">
+    <rect x="30" y="232" width="150" height="10" rx="5"/><rect x="62" y="246" width="96" height="8" rx="4"/>
+    <rect x="176" y="268" width="170" height="10" rx="5"/><rect x="216" y="282" width="110" height="7" rx="3.5"/>
+    <rect x="-30" y="344" width="140" height="9" rx="4.5"/>
+  </g>
+  <path d="M262 424Q290 396 330 398T400 412Q480 418 760 420V424Z" fill="#5a6a4a"/>
+  <path d="M-400 424Q-300 404-200 410T-30 418V424Z" fill="#5a6a4a"/>
+  <path d="M-1400 418H-400V424H-1400ZM760 418H1760V424H760Z" fill="#5a6a4a"/>
+  ${pagoda}<path d="M306 359v-12" stroke="#2b1d1c" stroke-width="1.6"/>
+  ${trees}
+  <rect x="-1400" y="423" width="3160" height="620" fill="url(#sc-fc-lake)"/>
+  <g opacity=".3" transform="translate(0 848) scale(1 -1)"><path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="#5d6f96"/><path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/></g>
+  <g opacity=".22" transform="translate(0 848) scale(1 -1)">${pagoda}</g>
+  <g transform="translate(${sunX - 238} 0)"><g class="sc-fc-ripple" stroke="${night ? '#f3ecd0' : tod === 'evening' ? '#ffc08a' : '#fff0d0'}" stroke-linecap="round" opacity=".55">${glints}</g></g>
+  </g>
+  <g class="sc-fc-mid">
+  ${torii}
+  <g class="sc-fc-koi" fill="none" stroke="#eef3f8" stroke-width="1.1">${koi}</g>
+  ${afloat ? `<g class="sc-fc-afloat">${afloat}</g>` : ''}
+  <path d="M-20 452q10-6 20 0t20 0M84 478q10-6 20 0t20 0M286 446q10-6 20 0t20 0M140 504q10-6 20 0t20 0t20 0M296 514q10-6 20 0t20 0M10 530q10-6 20 0t20 0M190 540q10-6 20 0t20 0" stroke="#e6ecf2" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".5"/>
+  <g class="sc-fc-boat" transform="translate(52 452)">
+    <path d="M-22 0Q0 8 24 0L20-4Q0 1-18-4Z" fill="#2b1d1c"/><path d="M-22 6Q0 12 24 6" stroke="#eef2f6" stroke-width="1" opacity=".5" fill="none"/>
+    <path d="M2-4v-10" stroke="#2b1d1c" stroke-width="3" stroke-linecap="round"/><path d="M-5-14h14l-7-6z" fill="#c9a24a"/>
+    <path d="M6-10L22 10" stroke="#2b1d1c" stroke-width="1.3"/>
+  </g>
+  ${tod === 'morning' ? '<g class="sc-fc-mist" fill="#ffffff" opacity=".6"><rect x="-1400" y="418" width="1640" height="9" rx="4.5"/><rect x="40" y="432" width="1720" height="7" rx="3.5"/><rect x="-1400" y="446" width="1620" height="6" rx="3"/></g>' : ''}
+  ${fireflies ? `<g class="sc-fc-ff" fill="#fff7a0">${fireflies}</g>` : ''}
+  </g>
+  ${posts}
+  <rect x="-1400" y="474" width="3160" height="7" fill="#3b2418"/><rect x="-1400" y="474" width="3160" height="2" fill="#5a3a26"/>
+  <rect x="-1400" y="562" width="3160" height="480" fill="#2a1a12"/>
+  <path d="M-1400 563H1760" stroke="#5a3a26" stroke-width="3"/>
+  <path d="M-1400 590H1760M-1400 624H1760M-1400 666H1760M-1400 716H1760" stroke="#1c100a" stroke-width="2"/>
+  <path d="M-1400 388H1760V399H-1400Z" fill="#4a2e1f"/><path d="M-1400 388H1760V391H-1400Z" fill="#6b4630"/><path d="M-1400 400H1760" stroke="#22140c" stroke-width="2"/>
+  ${season === 'winter' ? '<path d="M-400 389V385Q-300 381-200 385T0 385T200 385T400 385T600 385T760 385V389Z" fill="#f4f7fb"/><path d="M-1400 385H-400V389H-1400ZM760 385H1760V389H760Z" fill="#f4f7fb"/><path d="M-400 563V559Q-200 556 0 559T400 559T760 559V563Z" fill="#e8eef6"/><path d="M-1400 559H-400V563H-1400ZM760 559H1760V563H760Z" fill="#e8eef6"/>' : ''}
+  ${pal.shade ? `<rect x="-1400" y="384" width="3160" height="660" fill="#0b0f2a" opacity="${pal.shade}"/>` : ''}
+  <path d="M-1400-400H1760V6H760Q180 24-400 6H-1400Z" fill="#2b1d1c"/>${rafters}<path d="M-1400 6H-400Q180 24 760 6H1760V12H760Q180 30-400 12H-1400Z" fill="#4a2e22"/>${season === 'winter' ? '<path d="M-1400 11H-400Q180 29 760 11H1760V15H760Q180 33-400 15H-1400Z" fill="#f4f7fb"/>' : ''}
+  ${sideFurin}${sideLanterns}
+  <g class="sc-fc-blow-tubes"><g class="sc-fc-tubes">
+    <path d="M240 20v9M240 30v46" stroke="#3a2a22" stroke-width=".7"/>
+    ${tubes}
+    <ellipse cx="240" cy="30" rx="13" ry="2.6" fill="#4a2e22"/><ellipse cx="240" cy="29" rx="11" ry="1.2" fill="#6b4630"/>
+    <ellipse cx="240" cy="50" rx="4.5" ry="1.5" fill="#5a3d2c"/>
+    <rect x="236.5" y="76" width="7" height="14" fill="#fff5d8"/><path d="M236.5 76h7" stroke="#d23c2c" stroke-width="2"/>
+  </g></g>
+  <g class="sc-fc-blow-lantern"><g class="sc-fc-lantern">${lantern(326)}</g></g>
+  <g clip-path="url(#sc-fc-under)"><g class="sc-fc-near"><g class="sc-fc-blow-branch">
+    <g class="sc-branch" stroke="#3a2622" fill="none" stroke-linecap="round">${twigs.map(([d, w]) => `<path d="${d}" stroke-width="${f1(w)}"/>`).join('')}</g>
+    ${season === 'winter' ? `<g stroke="#f4f7fb" fill="none" stroke-linecap="round" transform="translate(0 -1.6)">${twigs.filter(([, w]) => w > 1.6).map(([d, w]) => `<path d="${d}" stroke-width="${f1(w * 0.45)}"/>`).join('')}</g>` : ''}
+    ${blossoms}
+    <g fill="#e98aa6">${(season === 'spring' ? buds : []).map(([x, y]) => `<circle cx="${f1(x)}" cy="${f1(y)}" r="2.3"/>`).join('')}</g>
+  </g></g></g>
+  <g class="sc-fc-near"><g class="sc-petals">${petals}</g></g>
+  <g class="sc-fc-gust">${gust}</g>
+  <g class="sc-fc-wind" fill="none" stroke="${night ? '#c9d4f2' : '#fffaf0'}" stroke-width="2" stroke-linecap="round">
+    <path pathLength="100" d="M-140 128C-40 112 60 144 160 124S330 104 420 126q22 8 12 20q-10 8-18-2"/>
+    <path pathLength="100" d="M-160 204C-60 190 40 220 140 200S300 184 400 204q18 8 8 18q-10 6-16-4" style="animation-delay:.12s"/>
+    <path pathLength="100" d="M-120 300C-20 288 80 314 180 296S340 282 440 300" style="animation-delay:.24s"/>
+  </g>
+  <g class="sc-fc-tea" transform="translate(30 0)">
+    <path d="M232 389L231 374Q240 371 249 374L248 389Q240 391 232 389Z" fill="#7d9c86"/><path d="M231 374Q240 371 249 374Q240 377 231 374Z" fill="#4f6b58"/>
+    <path d="M232 380Q240 382 248 380" stroke="#e8ecd8" stroke-width="1.6" fill="none"/>
+    <path class="sc-fc-steam" d="M237 368q-3-5 0-10t0-10" stroke="#fff8ea" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path class="sc-fc-steam" d="M243 368q3-5 0-10t0-10" stroke="#fff8ea" stroke-width="1.6" fill="none" stroke-linecap="round" style="animation-delay:-1.2s"/>
+  </g>
+  ${pal.glow > 0.3 ? `<ellipse cx="326" cy="392" rx="90" ry="9" fill="url(#sc-fc-glow)" opacity="${f1(pal.glow)}"/>` : ''}
+  ${rays}
+  ${gold ? `<circle cx="180" cy="356" r="64" fill="url(#sc-fc-gglow)" opacity=".75"/><g class="sc-fc-gold" fill="#fff3b0">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => `<path d="${star(180 + Math.cos(k * 0.785) * 52, 356 + Math.sin(k * 0.785) * 34, 4, 1.4)}" style="animation-delay:-${(k * 0.2).toFixed(1)}s"/>`).join('')}</g>` : ''}
+  <ellipse cx="180" cy="385" rx="34" ry="5.5" fill="#f2efe6"/><ellipse cx="180" cy="384" rx="26" ry="3.4" fill="#dcd6c8"/>
+  <ellipse cx="180" cy="381" rx="30" ry="2.6" fill="#6b4a2a" opacity=".3"/>
+  <g class="sc-cookie">
+    <g class="sc-ck-l"><g clip-path="url(#sc-fc-l)">
+      ${COOKIE_ART}
+    </g></g>
+    <g class="sc-ck-r"><g clip-path="url(#sc-fc-r)">
+      ${COOKIE_ART}
+    </g></g>
+    <path class="sc-crease" d="M180 370Q179 352 180 336" stroke="#7a4612" stroke-width="1" fill="none" opacity=".6"/>
+    <path class="sc-tip" d="M172 368.5l14-1.6 1 6.2-14 1.6z" fill="#fffdf5"/><path class="sc-tip" d="M172 368.5l14-1.6" stroke="#d9cdb2" stroke-width=".6"/>
+  </g>
+  <g class="sc-crumbs" fill="#d9a050">${crumbs}</g>
+  <g class="sc-hint"><g class="sc-hint-in">
+    <rect x="48" y="412" width="264" height="36" rx="18" fill="#22140c" opacity=".78"/>
+    <text x="180" y="436" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#fff6e0">${t('Торкніться, щоб розламати')}</text>
+  </g></g>
+  <g transform="translate(180 250)"><g class="sc-slip">
+    <g class="sc-twinkles" fill="#fff1c4">${twinkles}</g>
+    <rect x="-88" y="${f1(top)}" width="176" height="${f1(slipH)}" rx="2" fill="#fffdf5"${gold ? ' stroke="#d9a520" stroke-width="2"' : ''}/>
+    <path d="M-88 ${f1(top)}h176" stroke="#e8e0cc" stroke-width="1"/>
+    <g text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#3a2a1c">${slipText}</g>
+    <path d="M-60 ${f1(top + slipH - 19)}h120" stroke="#eadfc8" stroke-width=".8"/>
+    <text y="${f1(top + slipH - 7)}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="6.5" font-weight="700" fill="#b8322a" letter-spacing=".04em">${t('Щасливі числа').toUpperCase()}: <tspan font-family="ui-monospace, monospace" fill="#3a2a1c">${lucky.join(' · ')}</tspan></text>
+  </g></g>
+</svg>`;
+}
+
 const SCENES = {
-  defenders: { svg: defendersHome, text: () => t('С Днём защитников и защитниц!\nНам тепло дома — потому что вы на посту') },
-  sobornist: { svg: sobornist, text: () => t('С Днём Соборности!\nВместе — несокрушимы') },
+  defenders: { svg: defendersHome, text: () => t('З Днем захисників і захисниць!\nНам тепло вдома — бо ви на варті') },
+  // params — передбачення обирається раз на показ: «Повторити» показує те саме
+  fortune: { svg: fortuneCookie, tap: true, params: fortuneParams, onTap: (p = {}) => crackFeedback(p.gold), mount: fortuneTilt,
+    text: (p = {}) => `${t(p.gold ? 'Золоте печиво' : 'Печиво з передбаченням')}\n${fortuneText(p)}` },
+  sobornist: { svg: sobornist, text: () => t('З Днем Соборності!\nРазом — незламні') },
   birthday: {
     svg: birthday,
-    text: (p = {}) => [t('С днём рождения, {name}!', { name: p.name ?? '' }), [p.age, p.shots].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
+    text: (p = {}) => [t('З днем народження, {name}!', { name: p.name ?? '' }), [p.age, p.shots].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
   },
-  independence: { svg: independence, text: () => t('С Днём Независимости!\nСлава Украине!') },
-  halloween: { svg: halloween, text: () => t('Счастливого Хэллоуина!') },
-  snowman: { svg: snowman, text: () => t('Встречаем {year}!\nВыстоим!', { year: comingYear() }) },
-  newyear: { svg: newYear, text: () => (isNewYearDay() ? t('С Новым годом!') : t('Встречаем {year}!', { year: comingYear() })) },
+  independence: { svg: independence, text: () => t('З Днем Незалежності!\nСлава Україні!') },
+  halloween: { svg: halloween, text: () => t('З Гелловіном!') },
+  snowman: { svg: snowman, text: () => t('Зустрічаємо {year}!\nВистоїмо!', { year: comingYear() }) },
+  newyear: { svg: newYear, text: () => (isNewYearDay() ? t('З Новим роком!') : t('Зустрічаємо {year}!', { year: comingYear() })) },
 };
 
 /** Програти сценку name; повертає false, якщо такої нема. */
+// Розлам печива: бамбукові вітряні дзвіночки — трубки від подуву стукаються одна об одну, — і вібрація;
+// золоте — довший перестук, що йде вгору. Звук синтезується тут же, без файлів; грає лише після дотику — браузер раніше й не дасть.
+export const SCENE_SOUND_OFF = 'shooters-log:scene-sound-off';
+let audio = null;
+let noise = null;
+
+// Пентатоніка G4 A4 C5 D5 E5 (бамбук звучить нижче за метал); удар — [час, нота, сила]; парами — трубки стукаються двічі
+const KNOCK_NOTES = [392, 440, 523.3, 587.3, 659.3];
+const KNOCKS = [[0, 2, 1], [0.06, 3, 0.55], [0.2, 1, 0.75], [0.27, 4, 0.45], [0.46, 0, 0.6], [0.53, 2, 0.35], [0.78, 3, 0.3]];
+const KNOCKS_GOLD = [[0, 0, 1], [0.07, 1, 0.8], [0.14, 2, 0.85], [0.22, 3, 0.8], [0.27, 2, 0.45],
+  [0.36, 4, 0.85], [0.44, 3, 0.5], [0.56, 5, 0.8], [0.63, 4, 0.45], [0.84, 5, 0.55]];
+
+function crackFeedback(gold) {
+  navigator.vibrate?.(gold ? [16, 50, 16, 50, 30] : [20, 60, 14]);
+  try {
+    if (localStorage.getItem(SCENE_SOUND_OFF) === '1') return;
+  } catch { /* сховище недоступне — звук як за замовчуванням */ }
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  try {
+    audio ??= new Ctx();
+    if (audio.state === 'suspended') audio.resume();
+    const out = audio.createGain();
+    out.gain.value = 0.2;
+    out.connect(audio.destination);
+    const t0 = audio.currentTime + 0.02;
+    // нота 5 — ля октавою вище: золотий перестук закінчується вище, ніж почався
+    for (const [at, note, vel] of gold ? KNOCKS_GOLD : KNOCKS) {
+      knock(note === 5 ? KNOCK_NOTES[1] * 2 : KNOCK_NOTES[note], t0 + at, vel, out);
+    }
+  } catch { /* без звуку — вібрації досить */ }
+}
+
+/** Шум для «стуку» — один на весь звук, 60 мс. */
+function noiseBuffer() {
+  if (noise?.sampleRate === audio.sampleRate) return noise;
+  noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.06), audio.sampleRate);
+  const d = noise.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return noise;
+}
+
+/**
+ * Удар бамбукової трубки: порожниста дерев'яна нота гасне за пів секунди, вищі тони — швидше;
+ * на початку — короткий стук (шум у резонансі трубки) і ледь вищий тон, що одразу сідає.
+ */
+function knock(freq, at, vel, out) {
+  for (const [ratio, level, decay] of [[1, 0.8, 0.5], [2.01, 0.22, 0.22], [3.03, 0.08, 0.1]]) {
+    const osc = audio.createOscillator();
+    const g = audio.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq * ratio;
+    osc.frequency.setValueAtTime(freq * ratio * 1.035, at);
+    osc.frequency.exponentialRampToValueAtTime(freq * ratio, at + 0.04);
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(level * vel, at + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+    osc.connect(g).connect(out);
+    osc.start(at);
+    osc.stop(at + decay + 0.05);
+  }
+  for (const [ratio, q, level, decay] of [[1, 6, 0.6, 0.06], [2.5, 3, 0.25, 0.025]]) {
+    const src = audio.createBufferSource();
+    const bp = audio.createBiquadFilter();
+    const g = audio.createGain();
+    src.buffer = noiseBuffer();
+    bp.type = 'bandpass';
+    bp.frequency.value = freq * ratio;
+    bp.Q.value = q;
+    g.gain.setValueAtTime(level * vel, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+    src.connect(bp).connect(g).connect(out);
+    src.start(at);
+    src.stop(at + decay + 0.01);
+  }
+}
+
+/**
+ * Печиво: об'єм від нахилу телефона (на комп'ютері — від миші). Веранда — вісь: далеке й середнє зсуваються
+ * в один бік (далеке сильніше), гілка й пелюстки попереду — у протилежний.
+ * Лише CSS-змінні --tx/--ty на сценці — «Повторити» перемальовує svg, а зсув лишається. Повертає прибирання.
+ */
+function fortuneTilt(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
+  let base = null;
+  let frame = 0;
+  let last = 0;
+  const cur = { x: 0, y: 0 };
+  const goal = { x: 0, y: 0 };
+  const clamp = (v) => Math.max(-1, Math.min(1, v));
+  // датчик шле десятки подій на секунду й тремтить — зсув щокадру лише наздоганяє ціль, тож рух плавний;
+  // крок за часом, а не за кадром: на 60 і 120 Гц однаково (≈0,15 с на дві третини шляху)
+  const step = (now) => {
+    const k = 1 - Math.exp(-Math.min(now - (last || now - 16), 100) / 150);
+    last = now;
+    cur.x += (goal.x - cur.x) * k;
+    cur.y += (goal.y - cur.y) * k;
+    const done = Math.abs(goal.x - cur.x) < 0.002 && Math.abs(goal.y - cur.y) < 0.002;
+    if (done) Object.assign(cur, goal);
+    el.style.setProperty('--tx', cur.x.toFixed(3));
+    el.style.setProperty('--ty', cur.y.toFixed(3));
+    frame = done ? 0 : requestAnimationFrame(step);
+    if (done) last = 0;
+  };
+  const aim = (x, y) => {
+    goal.x = -clamp(x);
+    goal.y = -clamp(y);
+    frame ||= requestAnimationFrame(step);
+  };
+  // нахил уперед-назад рахуємо від того, як телефон тримали на початку
+  const onTilt = (e) => {
+    if (e.gamma == null || e.beta == null) return;
+    base ??= e.beta;
+    aim(Math.abs(e.gamma) < 1.5 ? 0 : e.gamma / 22, (e.beta - base) / 22);
+  };
+  const onMove = (e) => { if (e.pointerType === 'mouse') aim((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1); };
+  addEventListener('deviceorientation', onTilt);
+  el.addEventListener('pointermove', onMove);
+  return () => {
+    cancelAnimationFrame(frame);
+    removeEventListener('deviceorientation', onTilt);
+    el.removeEventListener('pointermove', onMove);
+  };
+}
+
 export function playScene(name, params) {
   const s = SCENES[name];
   if (!s) return false;
+  // свої params сценки (випадкові) + передані ззовні (?i= для перегляду, дані дня народження)
+  params = s.params ? { ...s.params(), ...params } : params;
   const el = document.createElement('div');
   el.className = `scene scene-${name}`;
   const stage = document.createElement('div');
   const button = (label, kind, onclick) => Object.assign(document.createElement('button'), { type: 'button', className: `btn ${kind}`, textContent: label, onclick });
   const bar = document.createElement('div');
   bar.className = 'scene-bar';
-  bar.append(button(t('Повторить'), '', () => play()), button(t('Закрыть'), 'primary', () => close()));
+  // «Повторити» — те саме печиво й те саме передбачення: перебрати всі, тапаючи «ще раз», не можна
+  bar.append(button(t('Повторити'), '', () => play()), button(t('Закрити'), 'primary', () => close()));
   el.append(stage, bar);
   // скінченні анімації кадру; нескінченні (сніг, крила) лишаються жити й на останньому кадрі
-  const finite = () => el.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+  const finite = () => el.getAnimations({ subtree: true }).filter(isFinite);
   let run = 0;
   const end = () => {
     el.classList.add('done');
@@ -996,20 +1651,38 @@ export function playScene(name, params) {
     // кожен рядок — окремий span, щоб сценка могла показати наступний рядок пізніше
     cap.append(...s.text(params).split('\n').map((line) => Object.assign(document.createElement('span'), { textContent: line })));
     stage.append(cap);
+    // сценка з tap (печиво) стоїть на паузі, доки людина сама не торкнеться — не мультик, а дія
+    if (s.tap) {
+      el.classList.add('wait');
+      stage.getAnimations({ subtree: true }).filter(isFinite).forEach((a) => a.pause());
+    }
     Promise.all(finite().map((a) => a.finished)).then(() => id === run && end(), () => {});
   };
-  // Сама не закривається: тап по сцені — одразу останній кадр, далі лише «Закрити»
-  stage.addEventListener('pointerdown', () => finite().forEach((a) => a.finish()));
+  const isFinite = (a) => a.effect?.getComputedTiming().endTime !== Infinity;
+  const start = () => {
+    el.classList.remove('wait');
+    if (s.onTap) s.onTap(params);
+    else navigator.vibrate?.(18);
+    stage.getAnimations({ subtree: true }).forEach((a) => a.play());
+  };
+  // Сама не закривається: перший тап по сценці з tap — запуск, далі тап — одразу останній кадр, потім лише «Закрити»
+  stage.addEventListener('pointerdown', () => (el.classList.contains('wait') ? start() : finite().forEach((a) => a.finish())));
   const close = () => {
     if (el.classList.contains('out')) return;
     run++;
     el.classList.add('out');
+    unmount?.();
     document.removeEventListener('keydown', onKey);
     setTimeout(() => el.remove(), 400);
   };
-  const onKey = (e) => e.key === 'Escape' && close();
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+    else if ((e.key === 'Enter' || e.key === ' ') && el.classList.contains('wait')) { e.preventDefault(); start(); }
+  };
   document.addEventListener('keydown', onKey);
   document.body.append(el);
+  // живе поза кадром (нахил, миша) — одне на всю сценку, прибирається в close
+  const unmount = s.mount?.(el);
   play();
   return true;
 }

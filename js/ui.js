@@ -35,7 +35,7 @@ export const fmt = {
   // Гривня — у самому форматері: інакше валюту довелося б дописувати в кожному рядку.
   money: (n) => `${nf(MONEY).format(Number(n) || 0)} грн`,
   signed: (n) => (n > 0 ? `+${nf(NUM).format(n)}` : nf(NUM).format(n)),
-  date: (iso) => (iso ? iso.split('-').reverse().join('.') : t('без даты')),
+  date: (iso) => (iso ? iso.split('-').reverse().join('.') : t('без дати')),
   time: (ms) => new Date(ms).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }),
 };
 
@@ -150,7 +150,11 @@ export function goTab(hash) {
  * full — на весь екран (картка з великим фото), а не до 92% висоти.
  */
 /** lead — кнопка ліворуч від заголовка, окремо від решти (видалення: щоб не натиснути випадково). */
-/** dirty — чи є що втратити: тоді фон, ✕, Escape і «Назад» спершу питають (кнопка «Скасувати» закриває одразу). */
+/**
+ * dirty — чи є що втратити: тоді фон, ✕, Escape і «Назад» спершу питають (кнопка «Скасувати» закриває одразу).
+ * Без dirty шторка з кнопками сама порівнює поля зі знімком при відкритті — питає, лише якщо людина щось змінила;
+ * dirty: false — не питати ніколи (фільтр, де закрити = скасувати).
+ */
 export function sheet(title, body, { actions = [], onClose, live, tools = [], lead = null, full = false, dirty = null } = {}) {
   const layer = document.getElementById('layer');
   const opener = document.activeElement;
@@ -172,7 +176,7 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
   const ask = () => {
     if (closed) return;
     if (!dirty?.()) { close(); return; }
-    confirmSheet(t('Выйти без сохранения?'), t('Введённое не сохранится.'), t('Выйти'), close);
+    confirmSheet(t('Вийти без збереження?'), t('Введене не збережеться.'), t('Вийти'), close);
   };
   // «Назад» уже забрав запис шторки: є що втратити — повертаємо запис і питаємо
   const onBack = () => {
@@ -203,9 +207,22 @@ export function sheet(title, body, { actions = [], onClose, live, tools = [], le
       left.length ? h('div', { class: 'sheet-lead' }, left) : null,
       h('h2', {}, title),
       h('div', { class: 'sheet-tools' }, rest,
-        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрыть'), onclick: ask }, '✕'))),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('Закрити'), onclick: ask }, '✕'))),
     h('div', { class: 'sheet-body' }, body),
     actions.length ? h('footer', { class: 'sheet-actions' }, actions) : null);
+  if (dirty === null && actions.length) {
+    const body = panel.querySelector('.sheet-body');
+    const snap = () => [...body.querySelectorAll('input, select, textarea, .chips')]
+      .map((el) => (el.matches('.chips') ? String(el.value) : el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value)).join('\u0001');
+    // знімок — коли форма вже домальована; зміни з коду (автопідстановка) без дотику людини не рахуються
+    let base = null, touched = false;
+    requestAnimationFrame(() => { base = snap(); });
+    const touch = (e) => { if (e.isTrusted) touched = true; };
+    body.addEventListener('input', touch);
+    body.addEventListener('change', touch);
+    body.addEventListener('click', (e) => { if (e.target.closest('.chips button')) touch(e); });
+    dirty = () => touched && base !== null && snap() !== base;
+  }
   // Закривати лише якщо й натиск почався на фоні: інакше на сенсорному екрані «фантомний» клік
   // після тапу по картці падає на щойно відкритий фон і одразу закриває шторку.
   let downOnBackdrop = false;
@@ -316,7 +333,7 @@ let undoBtn = null;
 /** «Скасувати» в шапці: без таймера, живе до наступної зміни даних. */
 export function setUndo(label, fn) {
   if (!undoBtn) {
-    undoBtn = h('button', { type: 'button', class: 'undo-btn', hidden: true }, h('span', { 'aria-hidden': 'true' }, '↶'), h('span', {}, t('Отменить')));
+    undoBtn = h('button', { type: 'button', class: 'undo-btn', hidden: true }, h('span', { 'aria-hidden': 'true' }, '↶'), h('span', {}, t('Скасувати')));
     undoBtn.addEventListener('click', async () => {
       const run = undoFn;
       clearUndo();
@@ -327,7 +344,7 @@ export function setUndo(label, fn) {
   }
   undoFn = fn;
   undoBtn.title = label;
-  undoBtn.setAttribute('aria-label', `${t('Отменить')}: ${label}`);
+  undoBtn.setAttribute('aria-label', `${t('Скасувати')}: ${label}`);
   undoBtn.hidden = false;
 }
 
@@ -412,7 +429,7 @@ export function pickTime(value, title) {
       mBtn.textContent = pad2(mm);
       hBtn.classList.toggle('on', mode === 'h');
       mBtn.classList.toggle('on', mode === 'm');
-      dial.setAttribute('aria-label', mode === 'h' ? t('Час') : t('Минуты'));
+      dial.setAttribute('aria-label', mode === 'h' ? t('Година') : t('Хвилини'));
       const nums = [];
       let handI;
       let handR = 0.8;
@@ -461,7 +478,7 @@ export function pickTime(value, title) {
     const close = sheet(title, h('div', { class: 'tp' },
       h('p', { class: 'tp-now' }, hBtn, h('span', { 'aria-hidden': 'true' }, ':'), mBtn), dial), {
       actions: [
-        value ? h('button', { type: 'button', class: 'btn', onclick: () => done('') }, t('Без времени')) : null,
+        value ? h('button', { type: 'button', class: 'btn', onclick: () => done('') }, t('Без часу')) : null,
         h('button', { type: 'button', class: 'btn primary', onclick: () => done(`${pad2(hh)}:${pad2(mm)}`) }, t('Готово')),
       ].filter(Boolean),
       onClose: () => resolve(result),
@@ -568,7 +585,7 @@ export function dmyToIso(text) {
  * Крапки ставляться самі: 03112026 → 03.11.2026; рік можна двома цифрами.
  */
 function dmyInput(iso) {
-  const input = h('input', { type: 'text', inputmode: 'numeric', placeholder: t('ДД.ММ.ГГГГ'), maxlength: 10, autocomplete: 'off', class: 'dmy' });
+  const input = h('input', { type: 'text', inputmode: 'numeric', placeholder: t('ДД.ММ.РРРР'), maxlength: 10, autocomplete: 'off', class: 'dmy' });
   input.value = isoToDmy(iso);
   input.addEventListener('input', () => {
     // Частина перед роздільником завершена: «3.» — це день 03, а не початок «31»
@@ -765,7 +782,7 @@ export function toolBtn(icon, label, onclick, cls = '') {
 export function confirmSheet(title, text, okLabel, onOk) {
   const close = sheet(title, h('p', {}, text), {
     actions: [
-      h('button', { type: 'button', class: 'btn', onclick: () => close() }, t('Отмена')),
+      h('button', { type: 'button', class: 'btn', onclick: () => close() }, t('Скасувати')),
       h('button', { type: 'button', class: 'btn danger', onclick: () => { close(); onOk(); } }, okLabel),
     ],
   });

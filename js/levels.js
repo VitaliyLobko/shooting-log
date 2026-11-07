@@ -75,10 +75,10 @@ const crateSvg = (x, y, sc = 1) => `<g transform="translate(${x} ${y}) scale(${s
 
 // Запас БК: від порожньої коробки до арсеналу. Силует простий, деталей мінімум — значок працює і в 30 px.
 const AMMO = [
-  { max: 0, name: 'Пусто. Совсем', art: () => '<rect x="26" y="26" width="44" height="30" rx="3" fill="none" stroke="#8c958a" stroke-width="2.4" stroke-dasharray="5 4"/>'
+  { max: 0, name: 'Порожньо. Зовсім', art: () => '<rect x="26" y="26" width="44" height="30" rx="3" fill="none" stroke="#8c958a" stroke-width="2.4" stroke-dasharray="5 4"/>'
     + '<path d="M38 41h20" stroke="#8c958a" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>' },
-  { max: 25, name: 'Россыпь', art: () => roundSvg(28, 28, -14, 1.5) + roundSvg(46, 24, 6, 1.5) + roundSvg(62, 30, 20, 1.5) },
-  { max: 100, name: 'Пара пачек', art: () => [0, 1, 2, 3, 4].map((i) => roundSvg(27 + i * 8, 16, 0, 0.72)).join('')
+  { max: 25, name: 'Розсип', art: () => roundSvg(28, 28, -14, 1.5) + roundSvg(46, 24, 6, 1.5) + roundSvg(62, 30, 20, 1.5) },
+  { max: 100, name: 'Пара пачок', art: () => [0, 1, 2, 3, 4].map((i) => roundSvg(27 + i * 8, 16, 0, 0.72)).join('')
     + '<rect x="24" y="30" width="44" height="26" rx="2.5" fill="url(#lv-card)"/>'
     + '<rect x="24" y="38" width="44" height="8" fill="#c0392b"/>'
     + '<rect x="24" y="30" width="44" height="26" rx="2.5" fill="none" stroke="#8a6534" stroke-width="1.2"/>' },
@@ -89,17 +89,17 @@ const AMMO = [
     + '<circle cx="33" cy="26" r="3" fill="none" stroke="#596254" stroke-width="1.6"/>' },
   { max: 1000, name: 'Ящик', art: () => crateSvg(29, 26, 1.1) },
   { max: 3000, name: 'Склад', art: () => crateSvg(12, 38, 0.78) + crateSvg(50, 38, 0.78) + crateSvg(31, 18, 0.78) },
-  { max: Infinity, name: 'Хомяк уровня «арсенал»', art: () => crateSvg(8, 46, 0.62) + crateSvg(34, 46, 0.62) + crateSvg(60, 46, 0.62)
+  { max: Infinity, name: 'Хом’як рівня «арсенал»', art: () => crateSvg(8, 46, 0.62) + crateSvg(34, 46, 0.62) + crateSvg(60, 46, 0.62)
     + crateSvg(21, 30, 0.62) + crateSvg(47, 30, 0.62) + crateSvg(34, 14, 0.62) },
 ];
 
 const SHOTS = [
-  { max: 0, name: 'Всё впереди', art: () => chevrons(null, 0) },
-  { max: 199, name: 'Пристрелка', art: () => chevrons('bronze', 1) },
-  { max: 749, name: 'Стрелок', art: () => chevrons('bronze', 2) },
-  { max: 1999, name: 'Опытный', art: () => chevrons('silver', 3) },
+  { max: 0, name: 'Усе попереду', art: () => chevrons(null, 0) },
+  { max: 199, name: 'Пристрілка', art: () => chevrons('bronze', 1) },
+  { max: 749, name: 'Стрілець', art: () => chevrons('bronze', 2) },
+  { max: 1999, name: 'Досвідчений', art: () => chevrons('silver', 3) },
   { max: 4999, name: 'Ветеран', art: () => chevrons('silver', 3, { stars: 1 }) },
-  { max: 9999, name: 'Мастер', art: () => chevrons('gold', 3, { stars: 3 }) },
+  { max: 9999, name: 'Майстер', art: () => chevrons('gold', 3, { stars: 3 }) },
   { max: Infinity, name: 'Легенда', art: () => chevrons('gold', 3, { stars: 3, wreath: true }) },
 ];
 

@@ -24,7 +24,7 @@ export async function runTour(steps, { onClose } = {}) {
   const card = el('div', 'tour-card');
   card.setAttribute('role', 'dialog'); card.setAttribute('aria-live', 'polite');
   const count = el('div', 'tour-count'); const title = el('h3'); const text = el('p');
-  const skip = el('button', 'tour-skip', t('Пропустить'));
+  const skip = el('button', 'tour-skip', t('Пропустити'));
   const back = el('button', 'tour-skip', t('Назад'));
   const next = el('button', 'btn primary tour-next');
   skip.type = 'button'; back.type = 'button'; next.type = 'button';
@@ -49,9 +49,16 @@ export async function runTour(steps, { onClose } = {}) {
   };
   let raf = 0;
   const follow = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
+  // Екран під туром перемалювали — шукаємо елементи кроку знову; зникли зовсім (закрили редактор, «Назад») — тур закривається
+  const watch = new MutationObserver(() => {
+    if (busy || i < 0 || nodes.every((n) => n.isConnected)) return;
+    const found = steps[i].sel.flatMap((s) => [...document.querySelectorAll(s)]).filter(visible);
+    if (found.length) { nodes = found; follow(); } else close(false);
+  });
   const close = (done) => {
     window.removeEventListener('scroll', follow, true); window.removeEventListener('resize', follow);
     document.removeEventListener('keydown', onKey, true);
+    watch.disconnect();
     shield.remove(); hole.remove(); card.remove();
     onClose?.(done);
   };
@@ -68,9 +75,9 @@ export async function runTour(steps, { onClose } = {}) {
       i = j; nodes = found;
       count.textContent = `${j + 1} / ${steps.length}`;
       title.textContent = t(step.title); text.textContent = t(step.text);
-      next.textContent = j === steps.length - 1 ? t('Понятно') : t('Дальше');
+      next.textContent = j === steps.length - 1 ? t('Зрозуміло') : t('Далі');
       back.hidden = j === 0;
-      if (!card.isConnected) document.body.append(shield, hole, card);
+      if (!card.isConnected) { document.body.append(shield, hole, card); watch.observe(document.body, { childList: true, subtree: true }); }
       nodes[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
       card.classList.remove('in'); void card.offsetWidth; card.classList.add('in');
       place(); setTimeout(place, 350);

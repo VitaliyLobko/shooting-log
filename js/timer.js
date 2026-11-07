@@ -9,8 +9,8 @@ const BEEP = 0.25; // с — стартовий гудок
 const PAR_BEEP = 0.15; // с — гудок пар-тайму
 const SILENCE_STOP = 10; // с без пострілів — серія закінчилась
 const MAX_RUN = 180; // с — запобіжник, якщо забули зупинити
-const DELAYS = [['random', 'Случайная 2–4 с'], ['3', '3 с'], ['0', 'Без задержки']];
-const TRIGGERS = [['button', 'Кнопкой'], ['sound', 'По звуку']];
+const DELAYS = [['random', 'Випадкова 2–4 с'], ['3', '3 с'], ['0', 'Без затримки']];
+const TRIGGERS = [['button', 'Кнопкою'], ['sound', 'За звуком']];
 
 function recall(key, fallback) {
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
@@ -129,13 +129,13 @@ function buildPanel(source, pickWeapon) {
   let stopTimer = 0;
 
   const time = h('div', { class: 'tm-time' }, num(0, 2));
-  const status = h('div', { class: 'tm-status muted' }, t('Нажмите «Старт» и ждите сигнал'));
+  const status = h('div', { class: 'tm-status muted' }, t('Натисніть «Старт» і чекайте сигналу'));
   const face = h('div', { class: 'tm-face' }, time, status);
   // Поки мікрофон слухає — у кутку циферблата блимає червона точка, як при записі
   const listening = (on) => face.classList.toggle('live', on);
   const fill = h('div', { class: 'tm-level-fill' });
   const mark = h('div', { class: 'tm-level-mark' });
-  const sens = h('input', { type: 'range', min: 0, max: 100, step: 1, class: 'tm-sens', 'aria-label': t('Чувствительность') });
+  const sens = h('input', { type: 'range', min: 0, max: 100, step: 1, class: 'tm-sens', 'aria-label': t('Чутливість') });
   sens.value = recall('shooters-log:timer-sens', '40');
   const placeMark = () => {
     mark.style.left = `${levelPos(thresholdOf(Number(sens.value))) * 100}%`;
@@ -156,19 +156,19 @@ function buildPanel(source, pickWeapon) {
   par.value = recall('shooters-log:timer-par', '');
   par.addEventListener('input', () => remember('shooters-log:timer-par', par.value));
   const weapon = h('select', { class: 'tm-weapon' });
-  const note = h('input', { type: 'text', placeholder: t('Упражнение: «Билл-дрил», 2 цели…'), autocomplete: 'off', class: 'tm-note' });
+  const note = h('input', { type: 'text', placeholder: t('Вправа: «Білл-дрил», 2 цілі…'), autocomplete: 'off', class: 'tm-note' });
 
   const list = h('div', { class: 'tm-shots' });
   const startBtn = h('button', { type: 'button', class: 'btn primary tm-start' }, t('Старт'));
-  const checkBtn = h('button', { type: 'button', class: 'btn' }, t('Проверить микрофон'));
-  const saveBtn = h('button', { type: 'button', class: 'btn primary' }, t('Сохранить серию'));
-  const resetBtn = h('button', { type: 'button', class: 'btn' }, t('Сбросить'));
+  const checkBtn = h('button', { type: 'button', class: 'btn' }, t('Перевірити мікрофон'));
+  const saveBtn = h('button', { type: 'button', class: 'btn primary' }, t('Зберегти серію'));
+  const resetBtn = h('button', { type: 'button', class: 'btn' }, t('Скинути'));
   const after = h('div', { class: 'btn-row', hidden: true }, resetBtn, saveBtn);
 
   engine.on('level', (a) => { fill.style.width = `${levelPos(a) * 100}%`; });
   engine.on('shot', (at) => {
     if (mode === 'check') {
-      status.textContent = t('Слышу выстрел — так и оставьте');
+      status.textContent = t('Чую постріл — так і залиште');
       fill.classList.add('hit');
       setTimeout(() => fill.classList.remove('hit'), 300);
       return;
@@ -190,20 +190,20 @@ function buildPanel(source, pickWeapon) {
     list.replaceChildren(...shots.map((x, i) => h('div', { class: `tm-shot ${i === 0 ? 'first' : ''}` },
       h('span', { class: 'tm-n' }, String(i + 1)),
       h('span', { class: 'tm-at' }, num(x, 2)),
-      h('span', { class: 'tm-split muted' }, i ? `+${num(x - shots[i - 1], 2)}` : t('первый')),
+      h('span', { class: 'tm-split muted' }, i ? `+${num(x - shots[i - 1], 2)}` : t('перший')),
       // Чужий постріл із сусідньої лінії — прибрати
-      mode === 'done' ? h('button', { type: 'button', class: 'icon-btn tm-del', 'aria-label': t('Удалить'), onclick: () => { shots.splice(i, 1); drawShots(); } }, '✕') : null)));
+      mode === 'done' ? h('button', { type: 'button', class: 'icon-btn tm-del', 'aria-label': t('Видалити'), onclick: () => { shots.splice(i, 1); drawShots(); } }, '✕') : null)));
     if (mode === 'done' || mode === 'run') {
       status.textContent = shots.length
-        ? `${shots.length} ${plural(shots.length, [t('выстрел'), t('выстрела'), t('выстрелов')])}${s.avg ? ` · ${t('сплит')} ${num(s.avg, 2)}` : ''}`
-        : t('Выстрелов не услышал');
+        ? `${shots.length} ${plural(shots.length, [t('постріл'), t('постріли'), t('пострілів')])}${s.avg ? ` · ${t('спліт')} ${num(s.avg, 2)}` : ''}`
+        : t('Пострілів не чути');
     }
     after.hidden = mode !== 'done' || !shots.length;
   }
 
   function tick() {
     const el = engine.now() - t0;
-    if (mode === 'wait' && el >= 0) { mode = 'run'; status.textContent = t('Огонь!'); status.classList.add('fire'); }
+    if (mode === 'wait' && el >= 0) { mode = 'run'; status.textContent = t('Вогонь!'); status.classList.add('fire'); }
     time.textContent = mode === 'wait' ? '—' : num(Math.max(0, el), 2);
     time.classList.toggle('over', mode === 'run' && parValue() !== null && el > parValue());
     if (mode === 'run' && el > MAX_RUN) { stop(); return; }
@@ -225,7 +225,7 @@ function buildPanel(source, pickWeapon) {
       placeMark();
       return true;
     } catch (err) {
-      toast(err?.name === 'NotAllowedError' ? t('Нет доступа к микрофону — разрешите его в настройках браузера') : t('Микрофон недоступен: {e}', { e: err?.message ?? err }));
+      toast(err?.name === 'NotAllowedError' ? t('Немає доступу до мікрофона — дозвольте його в налаштуваннях браузера') : t('Мікрофон недоступний: {e}', { e: err?.message ?? err }));
       return false;
     } finally {
       opening = false;
@@ -249,7 +249,7 @@ function buildPanel(source, pickWeapon) {
     mode = 'armed';
     listening(true);
     time.textContent = num(0, 2);
-    status.textContent = t('Скажите «старт» или хлопните');
+    status.textContent = t('Скажіть «старт» або плесніть');
     startBtn.textContent = t('Стоп');
     startBtn.classList.add('stop');
     checkBtn.hidden = true;
@@ -269,11 +269,11 @@ function buildPanel(source, pickWeapon) {
     mode = 'wait';
     listening(true);
     status.classList.remove('fire');
-    status.textContent = t('Приготовьтесь…');
+    status.textContent = t('Приготуйтеся…');
     startBtn.textContent = t('Стоп');
     startBtn.classList.add('stop');
     checkBtn.hidden = true;
-    checkBtn.textContent = t('Проверить микрофон');
+    checkBtn.textContent = t('Перевірити мікрофон');
     drawShots();
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(tick);
@@ -297,7 +297,7 @@ function buildPanel(source, pickWeapon) {
     startBtn.classList.remove('stop');
     checkBtn.hidden = false;
     fill.style.width = '0';
-    if (mode === 'idle') { time.textContent = num(0, 2); status.textContent = t('Остановлено до сигнала'); }
+    if (mode === 'idle') { time.textContent = num(0, 2); status.textContent = t('Зупинено до сигналу'); }
     else time.textContent = num(shots.at(-1) ?? 0, 2);
     drawShots();
   }
@@ -307,24 +307,24 @@ function buildPanel(source, pickWeapon) {
       mode = 'idle';
       listening(false);
       engine.release();
-      checkBtn.textContent = t('Проверить микрофон');
+      checkBtn.textContent = t('Перевірити мікрофон');
       fill.style.width = '0';
-      status.textContent = t('Нажмите «Старт» и ждите сигнал');
+      status.textContent = t('Натисніть «Старт» і чекайте сигналу');
       return;
     }
     if (!(await openAudio())) return;
     engine.reset();
     mode = 'check';
     listening(true);
-    checkBtn.textContent = t('Закончить проверку');
-    status.textContent = t('Хлопните или щёлкните спуском: красная метка — порог, выстрел должен заходить за неё');
+    checkBtn.textContent = t('Закінчити перевірку');
+    status.textContent = t('Плесніть або клацніть спуском: червона мітка — поріг, постріл має заходити за неї');
   }
 
   function reset() {
     mode = 'idle';
     shots = [];
     time.textContent = num(0, 2);
-    status.textContent = t('Нажмите «Старт» и ждите сигнал');
+    status.textContent = t('Натисніть «Старт» і чекайте сигналу');
     note.value = '';
     drawShots();
   }
@@ -356,16 +356,16 @@ function buildPanel(source, pickWeapon) {
     startBtn,
     list,
     after,
-    h('fieldset', { class: 'box' }, h('legend', {}, t('Настройки таймера')),
+    h('fieldset', { class: 'box' }, h('legend', {}, t('Налаштування таймера')),
       h('div', { class: 'tm-set' },
         h('span', { class: 'field-label' }, t('Запуск')), triggerChips,
-        h('small', { class: 'muted' }, t('«По звуку» — серия начнётся от команды «старт» или хлопка: руки остаются на оружии.')),
-        h('span', { class: 'field-label' }, t('Задержка сигнала')), delayChips,
+        h('small', { class: 'muted' }, t('«За звуком» — серія почнеться від команди «старт» або плеску: руки лишаються на зброї.')),
+        h('span', { class: 'field-label' }, t('Затримка сигналу')), delayChips,
         h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Пар-тайм, с')), par,
-          h('small', { class: 'muted' }, t('Второй сигнал — уложиться до него'))),
-        h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Оружие')), weapon),
-        h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Примечание')), note),
-        h('span', { class: 'field-label' }, t('Чувствительность')),
+          h('small', { class: 'muted' }, t('Другий сигнал — вкластися до нього'))),
+        h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Зброя')), weapon),
+        h('label', { class: 'tm-row' }, h('span', { class: 'field-label' }, t('Примітка')), note),
+        h('span', { class: 'field-label' }, t('Чутливість')),
         h('div', { class: 'tm-level' }, fill, mark), sens, checkBtn)));
   placeMark();
   // Ствол — тим самим вибором, що й у формах; список стволів оновлює update()
@@ -381,7 +381,7 @@ function buildPanel(source, pickWeapon) {
     update(opts) {
       onSave = opts.onSave;
       const keep = weapon.value || recall('shooters-log:timer-weapon', '');
-      weapon.replaceChildren(...[['', t('— не указывать —')], ...opts.weapons].map(([id, name]) => h('option', { value: id, selected: id === keep }, name)));
+      weapon.replaceChildren(...[['', t('— не вказувати —')], ...opts.weapons].map(([id, name]) => h('option', { value: id, selected: id === keep }, name)));
       paintWeapon();
     },
   };

@@ -14,22 +14,22 @@ import { collate } from './i18n.js';
 
 export const KINDS = {
   buy: 'Покупка',
-  shot: 'Стрельба',
-  reload: 'Снаряжение',
-  consume: 'Расход компонента',
-  adjust: 'Корректировка',
+  shot: 'Стрільба',
+  reload: 'Спорядження',
+  consume: 'Витрата компонента',
+  adjust: 'Коригування',
   clean: 'Чистка',
-  collect: 'Сбор гильз',
+  collect: 'Збір гільз',
 };
 
 export const COMPONENT_KINDS = {
-  bullet: 'Пуля',
+  bullet: 'Куля',
   powder: 'Порох',
-  primer: 'Капсюль',
-  case: 'Гильза',
-  shot: 'Дробь / картечь',
-  wad: 'Пыж / прокладка',
-  other: 'Другое',
+  primer: 'Капсуль',
+  case: 'Гільза',
+  shot: 'Дріб / картеч',
+  wad: 'Пиж / прокладка',
+  other: 'Інше',
 };
 
 export function sumBy(movements, pred) {

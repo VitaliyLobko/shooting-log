@@ -58,7 +58,6 @@ const ASSETS = [
   './js/usd.js',
   './js/usd-rates.js',
   './js/lock.js',
-  './guide/marksman.html',
   './guide/marksman.uk.html',
   './guide/reloading.uk.html',
   './guide/img/prone-bipod.jpg',

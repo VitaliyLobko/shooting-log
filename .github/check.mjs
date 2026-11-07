@@ -50,6 +50,14 @@ for (const path of ['demo.json', 'manifest.webmanifest']) {
   try { JSON.parse(read(path)); } catch (e) { errors.push(`${path}: ${e.message}`); }
 }
 
+// Інтерфейс український: літер ы э ъ ё в українській немає — це залишок російського тексту.
+// Свідомий виняток (розбір того, що ввела людина) позначається коментарем i18n-ok.
+for (const path of [...readdirSync('js').filter((f) => f.endsWith('.js')).map((f) => `js/${f}`), 'index.html', 'demo.json']) {
+  read(path).split('\n').forEach((line, i) => {
+    if (/[ыэъёЫЭЪЁ]/.test(line) && !line.includes('i18n-ok')) errors.push(`${path}:${i + 1}: російський текст — ${line.trim().slice(0, 80)}`);
+  });
+}
+
 // CSS-анімації: кожна названа анімація має @keyframes, і жодних двох @keyframes з одним ім'ям —
 // інакше елемент з opacity: 0 тихо не з'являється (так у 0.7.102 зникли іскри чотирьох сценок)
 {
@@ -75,7 +83,7 @@ try {
   await changelog.evaluate();
   const [top] = changelog.namespace.CHANGES;
   if (top?.v !== self.APP_VERSION) errors.push(`js/changelog.js: немає запису для ${self.APP_VERSION} (зверху ${top?.v})`);
-  else if (!top.uk?.length || top.uk.length !== top.ru?.length) errors.push(`js/changelog.js: ${top.v} — uk і ru мають бути з однаковою кількістю пунктів`);
+  else if (!top.uk?.length || top.ru) errors.push(`js/changelog.js: ${top.v} — потрібні пункти uk (ru більше не пишемо)`);
 } catch (e) {
   errors.push(`js/changelog.js: ${e.message}`);
 }

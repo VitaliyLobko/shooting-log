@@ -244,7 +244,7 @@ export async function alignTarget(file, { max, again = false, original = false }
   try {
     src = await decode(file);
   } catch {
-    throw new Error(t('Формат фото не поддерживается'));
+    throw new Error(t('Формат фото не підтримується'));
   }
   let work = draw(src, WORK);
   src.close?.();
@@ -421,14 +421,14 @@ export async function alignTarget(file, { max, again = false, original = false }
         sheetChips.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.currentTarget));
       },
     }, t(label))));
-    const sheetRow = h('div', { class: 'align-sheet' }, h('span', {}, t('Размер листа')), sheetChips);
+    const sheetRow = h('div', { class: 'align-sheet' }, h('span', {}, t('Розмір листа')), sheetChips);
     const hint = h('p', { class: 'align-hint' });
     // Без обрізання рамку можна ставити на будь-який прямокутник сітки; розмір листа тоді ні до чого.
     const showCrop = () => {
       hint.classList.remove('warn');
       hint.textContent = crop
-        ? t('Перетащите углы рамки на углы листа — фото выпрямится по ним.')
-        : t('Поставьте углы на любой прямоугольник сетки — выпрямится всё фото, без обрезки.');
+        ? t('Перетягніть кути рамки на кути листа — фото випрямиться за ними.')
+        : t('Поставте кути на будь-який прямокутник сітки — випрямиться все фото, без обрізання.');
       sheetRow.hidden = !crop;
       paint();
     };
@@ -456,12 +456,12 @@ export async function alignTarget(file, { max, again = false, original = false }
       // Один раз попереджаємо; друге «Готово» — свідомо (лист і справді по рамці)
       if (!again && crop && sheetKey && !moved && !warned) {
         warned = true;
-        hint.textContent = t('Углы рамки не на листе — размер листа ляжет на рамку, и всё выйдет меньше. Перетащите углы на углы листа или нажмите «Готово» ещё раз.');
+        hint.textContent = t('Кути рамки не на листі — розмір листа ляже на рамку, і все вийде меншим. Перетягніть кути на кути листа або натисніть «Готово» ще раз.');
         hint.classList.add('warn');
         return;
       }
       doneBtn.disabled = true;
-      doneBtn.textContent = t('Обработка…');
+      doneBtn.textContent = t('Обробка…');
       // дати кнопці перемалюватися: далі кілька сотень мілісекунд рахунку
       await new Promise((r) => { requestAnimationFrame(() => setTimeout(r, 0)); });
       const sw = work.width;
@@ -491,22 +491,22 @@ export async function alignTarget(file, { max, again = false, original = false }
     const tool = (label, title, onclick) => h('button', { type: 'button', class: 'editor-tool', title, 'aria-label': title, onclick }, label);
     const doneBtn = h('button', { type: 'button', class: 'btn primary', onclick: finish }, `✓ ${t('Готово')}`);
 
-    const root = h('div', { class: 'viewer editor align', role: 'dialog', 'aria-label': t('Выровнять мишень') },
+    const root = h('div', { class: 'viewer editor align', role: 'dialog', 'aria-label': t('Вирівняти мішень') },
       h('header', { class: 'viewer-head' },
-        h('button', { type: 'button', class: 'icon-btn', title: t('Закрыть'), 'aria-label': t('Закрыть'), onclick: cancel }, '✕'),
-        h('span', {}, t('Выровнять мишень')),
+        h('button', { type: 'button', class: 'icon-btn', title: t('Закрити'), 'aria-label': t('Закрити'), onclick: cancel }, '✕'),
+        h('span', {}, t('Вирівняти мішень')),
         h('div', { class: 'editor-row' },
-          tool('⟲', t('Повернуть влево'), () => turn(-1)),
-          tool('⟳', t('Повернуть вправо'), () => turn(1)),
-          tool('?', t('Подсказки'), () => tours().then((m) => m.alignTour())))),
+          tool('⟲', t('Повернути ліворуч'), () => turn(-1)),
+          tool('⟳', t('Повернути праворуч'), () => turn(1)),
+          tool('?', t('Підказки'), () => tours().then((m) => m.alignTour())))),
       stage,
       h('div', { class: 'editor-tools' },
         hint,
-        h('label', { class: 'align-crop' }, cropBox, h('span', {}, t('Обрезать по рамке'))),
+        h('label', { class: 'align-crop' }, cropBox, h('span', {}, t('Обрізати по рамці'))),
         sheetRow),
       h('footer', { class: 'viewer-actions' },
-        original ? h('button', { type: 'button', class: 'btn', title: t('Вернуть фото, каким оно было до выравнивания'), onclick: () => close({ original: true }) }, t('Оригинал')) : null,
-        h('button', { type: 'button', class: 'btn', onclick: skip }, t('Пропустить')), doneBtn));
+        original ? h('button', { type: 'button', class: 'btn', title: t('Повернути фото, яким воно було до вирівнювання'), onclick: () => close({ original: true }) }, t('Оригінал')) : null,
+        h('button', { type: 'button', class: 'btn', onclick: skip }, t('Пропустити')), doneBtn));
 
     document.getElementById('layer').append(root);
     const unlayer = backLayer(cancel);

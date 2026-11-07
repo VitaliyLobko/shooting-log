@@ -18,7 +18,7 @@ class AuthError extends Error {}
 
 class ApiError extends Error {
   constructor(status) {
-    super(t('Google Диск ответил {n}', { n: status }));
+    super(t('Google Диск відповів {n}', { n: status }));
     this.status = status;
   }
 }
@@ -75,7 +75,7 @@ function loadGis() {
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => { gisLoading = null; reject(new Error(t('Нет связи с Google'))); };
+    script.onerror = () => { gisLoading = null; reject(new Error(t('Немає зв’язку з Google'))); };
     document.head.append(script);
   });
   return gisLoading;
@@ -101,7 +101,7 @@ function client() {
       save();
       finishAuth();
     },
-    error_callback: (err) => finishAuth(new Error(err?.type === 'popup_closed' ? t('Вход отменён') : (err?.message || t('Ошибка входа в Google')))),
+    error_callback: (err) => finishAuth(new Error(err?.type === 'popup_closed' ? t('Вхід скасовано') : (err?.message || t('Помилка входу в Google')))),
   });
   return tokenClient;
 }
@@ -118,7 +118,7 @@ export async function connect() {
     const c = client();
     if (!c) {
       preload();
-      throw new Error(t('Google ещё загружается — нажмите ещё раз через секунду'));
+      throw new Error(t('Google ще завантажується — натисніть ще раз за секунду'));
     }
     await new Promise((resolve, reject) => {
       authWaiter = { resolve, reject };
@@ -148,12 +148,12 @@ function refreshOnSave() {
   new Promise((resolve, reject) => {
     authWaiter = { resolve, reject };
     c.requestAccessToken({ prompt: '', hint: conf.email || undefined });
-  }).then(syncNow, () => set('auth', t('Нажмите, чтобы войти в Google')));
+  }).then(syncNow, () => set('auth', t('Натисніть, щоб увійти в Google')));
 }
 
 export function disconnect() {
   // Вхід у Google не відкликаємо: він спільний з іншими застосунками автора — відключається лише цей
-  // Незроблене лишаємо: фото, видалені тут, ще треба прибрати з Диска, а «Заменить всё» — донести до файлу
+  // Незроблене лишаємо: фото, видалені тут, ще треба прибрати з Диска, а «Замінити все» — донести до файлу
   const { trash, restoreAt } = conf;
   conf = { ...(trash?.length ? { trash } : {}), ...(restoreAt ? { restoreAt } : {}) };
   save();
@@ -168,7 +168,7 @@ async function api(url, options = {}) {
     dropSharedToken(conf.token);
     conf.token = null;
     save();
-    throw new AuthError(t('Сессия Google истекла'));
+    throw new AuthError(t('Сесія Google закінчилася'));
   }
   if (!res.ok) throw new ApiError(res.status);
   return res;
@@ -311,7 +311,7 @@ export function merge(local, remote) {
 }
 
 /**
- * Після «Заменить всё» правдою стає копія: запис, найновіша версія якого (тут чи на Диску) старша
+ * Після «Замінити все» правдою стає копія: запис, найновіша версія якого (тут чи на Диску) старша
  * за момент відновлення, видаляється. Надгробки кладемо на бік Диска — тоді localChanges запише їх
  * і сюди, а інші пристрої отримають їх із файлу. Відновлені записи мають рівно restoreAt — їх не чіпає.
  */
@@ -361,7 +361,7 @@ export async function syncNow() {
   if (!conf.enabled) { set('off'); return; }
   if (!navigator.onLine) { set('offline'); return; }
   // Вікно входу вже відкрите (оновлення по збереженню) — синхронізація піде, щойно прийде ключ
-  if (!tokenValid()) { if (!authWaiter) set('auth', t('Нажмите, чтобы войти в Google')); return; }
+  if (!tokenValid()) { if (!authWaiter) set('auth', t('Натисніть, щоб увійти в Google')); return; }
   if (running) { again = true; return; }
   running = true;
   set('syncing');
@@ -393,7 +393,7 @@ export async function syncNow() {
     set('idle');
     if (changes || pushed || pulled) window.dispatchEvent(new CustomEvent('sync-applied', { detail: { remote: !!changes } }));
   } catch (err) {
-    if (err instanceof AuthError) set('auth', t('Нажмите, чтобы войти в Google'));
+    if (err instanceof AuthError) set('auth', t('Натисніть, щоб увійти в Google'));
     else set(navigator.onLine ? 'error' : 'offline', err.message);
   } finally {
     running = false;

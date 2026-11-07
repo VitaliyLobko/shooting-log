@@ -4,5 +4,7 @@
 !demo.json
 *.xlsx
 *.csv
+# кадри сценок для перевірки (tools/pw/scene-shot.mjs) — робочі, не для репозиторію
+shots/
 .DS_Store
 Thumbs.db
