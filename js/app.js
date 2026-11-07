@@ -2102,6 +2102,22 @@ function priceRow(title, sub, price, onclick, icon = null, iso = null, rate = nu
     priceOf(price) ? h('span', { class: 'row-qty' }, tileMoney(priceOf(price), usdSum([[price, iso, rate]]))) : null);
 }
 
+/** Кнопки посилань на сторінку товару: по одному в рядку, лише http(s); підпис — домен магазину. */
+function shopLinks(text) {
+  const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return null; } };
+  const urls = String(text ?? '').split(/\s+/).filter((s) => /^https?:\/\//i.test(s) && host(s));
+  if (!urls.length) return null;
+  const seen = {};
+  return h('div', { class: 'shop-links' }, urls.map((u) => {
+    const d = host(u);
+    // Кілька посилань на один магазин (набір) — нумеруємо, щоб кнопки розрізнялись
+    const n = urls.filter((x) => host(x) === d).length > 1 ? ` · ${(seen[d] = (seen[d] ?? 0) + 1)}` : '';
+    return h('a', { class: 'btn mini shop-link', href: u, target: '_blank', rel: 'noopener noreferrer', title: u }, `🔗 ${d}${n}`);
+  }));
+}
+
+const linksField = (value) => ({ name: 'links', label: t('Посилання на товар'), type: 'textarea', rows: 2, value, placeholder: t('https://… — кожне з нового рядка'), wide: true });
+
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
 function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null, mounted = false }) {
   // preset — незбережена чернетка (повернулись із пошуку фото): лише значення полів, без «Видалити»/«Продав»
@@ -2113,6 +2129,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     { name: 'date', label: t('Дата покупки'), type: 'date', value: src?.date ?? M.today(), half: true },
     rateField('usdRate', src?.usdRate),
     { name: 'place', label: t('Де куплено'), value: src?.place, placeholder: t('Магазин, сайт, з рук…'), wide: true },
+    linksField(src?.links),
     // Вага — у «Габарити й вага» ствола складається вага з усім, що стоїть на ньому
     { name: 'weight', label: t('Вага, г'), type: 'number', step: 'any', min: 0, value: src?.weight, half: true },
     mounted ? { name: 'on', label: t('Зараз на стволі'), type: 'select', value: src?.on ? '1' : '', options: [['', t('не стоїть')], ['1', t('стоїть')]], half: true } : null,
@@ -2154,7 +2171,7 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
   const body = h('div', { class: 'weapon-form' },
     pick?.el,
     box(t('Основне'), formPart(f, ['name', 'kind', 'note', 'on'], onSwitch)),
-    formBox(t('Покупка'), formPart(f, ['price', 'date', 'usdRate', 'place']), buySum, { open: !item }),
+    formBox(t('Покупка'), formPart(f, ['price', 'date', 'usdRate', 'place', 'links']), buySum, { open: !item }),
     formBox(f.inputs.specs ? t('Вага й характеристики') : t('Вага'), formPart(f, ['weight', 'specs'], specsFind), specSum));
   // Продати й кошик — ліворуч від заголовка; внизу лише «Скасувати» і «Зберегти»
   const close = sheet(title, body, {
@@ -2189,7 +2206,8 @@ function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove, extra = nu
     h('div', { class: 'stats even' },
       stat(t('сплачено'), money(paid, item.date, item.usdRate), 'accent'),
       stat(t('Дата покупки'), item.date ? fmt.date(item.date) : '—')),
-    kv([item.weight ? [t('Вага'), grams(item.weight)] : null, item.place ? [t('Де куплено'), item.place] : null, item.note ? [t('Примітка'), item.note] : null]),
+    kv([item.weight ? [t('Вага'), grams(item.weight)] : null, item.place ? [t('Де куплено'), item.place] : null,
+      shopLinks(item.links) ? [t('Посилання'), shopLinks(item.links)] : null, item.note ? [t('Примітка'), item.note] : null]),
     isSold(item) ? box(t('Продаж'), [
       h('div', { class: 'stats even' },
         stat(t('продано за'), money(got, item.soldDate, item.soldUsdRate)),
@@ -2724,6 +2742,7 @@ function buyBox(w, close) {
       bought ? priceRow(t('Покупка'), placeLine(w.buyDate, w.buyPlace), w.buyPrice, () => { close(); weaponForm(w); }, null, gunDay(w), w.usdRate, 'gun') : null,
       mods.map(modRow),
       isSold(w) ? priceRow(t('Продаж'), placeLine(w.soldDate, w.soldPlace), w.soldPrice, () => sellWeapon(w), null, w.soldDate, w.soldUsdRate) : null),
+    shopLinks(w.links),
     h('div', { class: 'btn-row' },
       btn(t('+ тюнінг'), () => modForm(w), 'mini'),
       isSold(w) ? null : btn(t('Продати ствол'), () => sellWeapon(w), 'mini quiet')),
@@ -2903,11 +2922,12 @@ function weaponForm(w = null, back = null) {
     { name: 'buyDate', label: t('Дата покупки'), type: 'date', value: w?.buyDate, half: true },
     rateField('usdRate', w?.usdRate),
     { name: 'buyPlace', label: t('Де куплено'), value: w?.buyPlace, placeholder: t('Магазин, сайт, з рук…'), wide: true },
+    linksField(w?.links),
   ].filter(Boolean));
   rateHint(f, 'usdRate', 'buyDate');
   // Розділи: основне й приціли — завжди відкриті, решта згорнута з коротким підсумком у назві
   const life = formPart(f, ['initialShots', 'barrelLife']);
-  const buy = formPart(f, ['buyPrice', 'buyDate', 'usdRate', 'buyPlace']);
+  const buy = formPart(f, ['buyPrice', 'buyDate', 'usdRate', 'buyPlace', 'links']);
   barrelHint(f);
   const remind = cleanReminderBox(w);
   const choke = chokeField(w, f.inputs.caliber);

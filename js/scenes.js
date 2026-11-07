@@ -1236,7 +1236,11 @@ function fortuneCookie(p = {}) {
   // світлячки — літнього вечора й уночі
   let fireflies = '';
   if (season === 'summer' && (night || tod === 'evening')) {
-    for (let j = 0; j < 16; j++) fireflies += `<circle cx="${f1(-20 + rnd() * 400)}" cy="${f1(300 + rnd() * 160)}" r="1.6" style="animation-delay:-${(rnd() * 3).toFixed(2)}s;animation-duration:${(2 + rnd() * 2).toFixed(1)}s"/>`;
+    for (let j = 0; j < 16; j++) {
+      const x = f1(-20 + rnd() * 400), y = f1(300 + rnd() * 160);
+      // ореол — градієнт, а не CSS-фільтр: фільтр на кожному кадрі перемальовується й гальмує слабкі телефони
+      fireflies += `<g style="animation-delay:-${(rnd() * 3).toFixed(2)}s;animation-duration:${(2 + rnd() * 2).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="5" fill="url(#sc-fc-ffglow)"/><circle cx="${x}" cy="${y}" r="1.6"/></g>`;
+    }
   }
   // від тапу гілка струшує пелюстки — скінченна анімація, стоїть на паузі разом зі сценкою
   let gust = '';
@@ -1244,7 +1248,8 @@ function fortuneCookie(p = {}) {
     const [px, py] = open[Math.floor(rnd() * open.length)];
     gust += `${fall(px, py, j)} style="--dx:${f1(40 + rnd() * 140)}px;--dy:${f1(60 + rnd() * 220)}px;animation-delay:${(0.02 + rnd() * 0.25).toFixed(2)}s"/>`;
   }
-  for (let j = 0; j < (season === 'summer' && !gold ? 6 : 30); j++) {
+  // 20, а не 30: пелюстки — найдорожча анімація сценки, а густоти вистачає
+  for (let j = 0; j < (season === 'summer' && !gold ? 6 : 20); j++) {
     // пелюстки (листя, сніг) обсипаються з гілки
     const [px, py] = open[Math.floor(rnd() * open.length)];
     petals += `${fall(px, py, j)} `
@@ -1267,13 +1272,16 @@ function fortuneCookie(p = {}) {
   }
   const slipH = 16 + lines.length * 13 + 20, top = -slipH / 2;
   const slipText = lines.map((l, k) => `<text y="${f1(top + 17 + k * 13)}">${l}</text>`).join('');
-  // пагода на пагорбі праворуч: три дахи з загнутими краями
+  // пагода на пагорбі праворуч: п'ять дахів з загнутими краями — верхні три видно над поручнями
   let pagoda = '';
-  for (let i = 0; i < 3; i++) {
-    const y = 404 - i * 15, w = 17 - i * 3.5;
-    pagoda += `<rect x="${f1(306 - w * 0.55)}" y="${y}" width="${f1(w * 1.1)}" height="12" fill="${night ? '#7a2e26' : '#b03a2a'}"/>`
+  const tiers = 5;
+  for (let i = 0; i < tiers; i++) {
+    const y = 404 - i * 16, w = 19 - i * 3;
+    pagoda += `<rect x="${f1(306 - w * 0.55)}" y="${y}" width="${f1(w * 1.1)}" height="13" fill="${night ? '#7a2e26' : '#b03a2a'}"/>`
       + `<path d="M${f1(306 - w - 5)} ${y - 1}Q306 ${y - 8} ${f1(306 + w + 5)} ${y - 1}L${f1(306 + w)} ${y + 2}Q306 ${y - 3} ${f1(306 - w)} ${y + 2}Z" fill="#2b1d1c"/>`;
   }
+  const spireTop = 404 - (tiers - 1) * 16 - 6;
+  pagoda += `<path d="M306 ${spireTop}v-16" stroke="#2b1d1c" stroke-width="1.6"/><circle cx="306" cy="${spireTop - 8}" r="1.6" fill="#2b1d1c"/>`;
   for (let j = 0; j < 6; j++) {
     const a = (j / 6 + 1 / 12) * 2 * Math.PI;
     twinkles += `<path d="${star(Math.cos(a) * 104, Math.sin(a) * (slipH / 2 + 12), 4, 1.4)}" style="animation-delay:-${(j * 0.27).toFixed(2)}s"/>`;
@@ -1352,8 +1360,13 @@ function fortuneCookie(p = {}) {
   // золоте печиво: віяло променів з-за печива, лише над поручнями
   const rays = gold ? `<g clip-path="url(#sc-fc-rayclip)"><g class="sc-fc-rays-in"><g class="sc-fc-rays" fill="url(#sc-fc-ray)">${
     Array.from({ length: 18 }, (_, k) => `<path d="M177 362L169 172H191L183 362Z" transform="rotate(${k * 20} 180 362)"/>`).join('')}</g></g></g>` : '';
+  // Шари — окремі svg з тим самим viewBox: нерухомий шар браузер малює раз, а нахил лише зсуває готові шари
+  // (data-dx/dy — зсув у px за повного нахилу, fortuneTilt). В одному svg будь-яка пелюстка чи нахил
+  // перемальовували всю сцену — на слабкому телефоні це 3–10 кадрів на секунду.
+  const layer = (cls, dx, dy) => `<svg class="sc-fc-layer ${cls}"${dx == null ? '' : ` data-dx="${dx}" data-dy="${dy}"`} viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">`;
+  const FAR = [28, 10], MID = [14, 5], NEAR = [-15, -5.5];
   return `
-<svg viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+${layer('sc-fc-far', ...FAR)}
   <defs>
     <linearGradient id="sc-fc-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.sky[0]}"/><stop offset=".6" stop-color="${pal.sky[1]}"/><stop offset="1" stop-color="${pal.sky[2]}"/></linearGradient>
     <linearGradient id="sc-fc-lake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${pal.lake[0]}"/><stop offset=".5" stop-color="${pal.lake[1]}"/><stop offset="1" stop-color="${pal.lake[2]}"/></linearGradient>
@@ -1364,6 +1377,7 @@ function fortuneCookie(p = {}) {
     <clipPath id="sc-fc-l"><rect x="0" y="300" width="180" height="100"/></clipPath>
     <radialGradient id="sc-fc-glow"><stop offset="0" stop-color="#ffb070"/><stop offset="1" stop-color="#ffb070" stop-opacity="0"/></radialGradient>
     <radialGradient id="sc-fc-gglow"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="sc-fc-ffglow"><stop offset=".3" stop-color="#fff38a" stop-opacity=".8"/><stop offset="1" stop-color="#fff38a" stop-opacity="0"/></radialGradient>
     <radialGradient id="sc-fc-mglow"><stop offset=".4" stop-color="#f3ecd0"/><stop offset="1" stop-color="#f3ecd0" stop-opacity="0"/></radialGradient>
     <clipPath id="sc-fc-under"><rect x="-1400" y="16" width="3160" height="1000"/></clipPath>
     <clipPath id="sc-fc-r"><rect x="180" y="300" width="180" height="100"/></clipPath>
@@ -1371,7 +1385,6 @@ function fortuneCookie(p = {}) {
     <linearGradient id="sc-fc-ray" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3b8" stop-opacity=".85"/><stop offset=".6" stop-color="#ffe27a" stop-opacity=".2"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></linearGradient>
     <clipPath id="sc-fc-rayclip"><rect x="-200" y="-200" width="760" height="586"/></clipPath>
   </defs>
-  <g class="sc-fc-far">
   <rect x="-1400" y="-400" width="3160" height="830" fill="url(#sc-fc-sky)"/>
   <g fill="#fff6dc">${stars}</g>
   <circle cx="${sunX}" cy="${sunY}" r="${sunR}" fill="${sunC}"/>${night ? `<circle cx="${sunX}" cy="${sunY}" r="${sunR * 2.6}" fill="url(#sc-fc-mglow)" opacity=".3"/><circle cx="${sunX - 9}" cy="${sunY - 6}" r="6" fill="#e2d8b6"/><circle cx="${sunX + 8}" cy="${sunY + 9}" r="4" fill="#e2d8b6"/><circle cx="${sunX + 10}" cy="${sunY - 10}" r="2.6" fill="#e2d8b6"/>` : ''}
@@ -1379,6 +1392,16 @@ function fortuneCookie(p = {}) {
   <path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="url(#sc-fc-fuji)"/>
   <path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/>
   ${night ? '<path d="M138 304Q150 310 160 320L268 424H232L152 326Z" fill="#9fb0de" opacity=".35"/><path d="M160 320L268 424" stroke="#c9d4f2" stroke-width="1.6" opacity=".6"/>' : ''}
+  <path d="M262 424Q290 396 330 398T400 412Q480 418 760 420V424Z" fill="#5a6a4a"/>
+  <path d="M-400 424Q-300 404-200 410T-30 418V424Z" fill="#5a6a4a"/>
+  <path d="M-1400 418H-400V424H-1400ZM760 418H1760V424H760Z" fill="#5a6a4a"/>
+  ${pagoda}
+  ${trees}
+  <rect x="-1400" y="423" width="3160" height="620" fill="url(#sc-fc-lake)"/>
+  <g opacity=".3" transform="translate(0 848) scale(1 -1)"><path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="#5d6f96"/><path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/></g>
+  <g opacity=".22" transform="translate(0 848) scale(1 -1)">${pagoda}</g>
+</svg>
+${layer('sc-fc-far sc-fc-far-fx', ...FAR)}
   <g class="sc-fc-cranes" fill="none" stroke="#2b1d1c" stroke-width="1.6" stroke-linecap="round">
     ${crane(0, 150, 0)}${crane(-22, 162, 0.3)}${crane(-40, 146, 0.55)}
   </g>
@@ -1387,17 +1410,9 @@ function fortuneCookie(p = {}) {
     <rect x="176" y="268" width="170" height="10" rx="5"/><rect x="216" y="282" width="110" height="7" rx="3.5"/>
     <rect x="-30" y="344" width="140" height="9" rx="4.5"/>
   </g>
-  <path d="M262 424Q290 396 330 398T400 412Q480 418 760 420V424Z" fill="#5a6a4a"/>
-  <path d="M-400 424Q-300 404-200 410T-30 418V424Z" fill="#5a6a4a"/>
-  <path d="M-1400 418H-400V424H-1400ZM760 418H1760V424H760Z" fill="#5a6a4a"/>
-  ${pagoda}<path d="M306 359v-12" stroke="#2b1d1c" stroke-width="1.6"/>
-  ${trees}
-  <rect x="-1400" y="423" width="3160" height="620" fill="url(#sc-fc-lake)"/>
-  <g opacity=".3" transform="translate(0 848) scale(1 -1)"><path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="#5d6f96"/><path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/></g>
-  <g opacity=".22" transform="translate(0 848) scale(1 -1)">${pagoda}</g>
   <g transform="translate(${sunX - 238} 0)"><g class="sc-fc-ripple" stroke="${night ? '#f3ecd0' : tod === 'evening' ? '#ffc08a' : '#fff0d0'}" stroke-linecap="round" opacity=".55">${glints}</g></g>
-  </g>
-  <g class="sc-fc-mid">
+</svg>
+${layer('sc-fc-mid', ...MID)}
   ${torii}
   <g class="sc-fc-koi" fill="none" stroke="#eef3f8" stroke-width="1.1">${koi}</g>
   ${afloat ? `<g class="sc-fc-afloat">${afloat}</g>` : ''}
@@ -1409,7 +1424,8 @@ function fortuneCookie(p = {}) {
   </g>
   ${tod === 'morning' ? '<g class="sc-fc-mist" fill="#ffffff" opacity=".6"><rect x="-1400" y="418" width="1640" height="9" rx="4.5"/><rect x="40" y="432" width="1720" height="7" rx="3.5"/><rect x="-1400" y="446" width="1620" height="6" rx="3"/></g>' : ''}
   ${fireflies ? `<g class="sc-fc-ff" fill="#fff7a0">${fireflies}</g>` : ''}
-  </g>
+</svg>
+${layer('sc-fc-base')}
   ${posts}
   <rect x="-1400" y="474" width="3160" height="7" fill="#3b2418"/><rect x="-1400" y="474" width="3160" height="2" fill="#5a3a26"/>
   <rect x="-1400" y="562" width="3160" height="480" fill="#2a1a12"/>
@@ -1419,6 +1435,8 @@ function fortuneCookie(p = {}) {
   ${season === 'winter' ? '<path d="M-400 389V385Q-300 381-200 385T0 385T200 385T400 385T600 385T760 385V389Z" fill="#f4f7fb"/><path d="M-1400 385H-400V389H-1400ZM760 385H1760V389H760Z" fill="#f4f7fb"/><path d="M-400 563V559Q-200 556 0 559T400 559T760 559V563Z" fill="#e8eef6"/><path d="M-1400 559H-400V563H-1400ZM760 559H1760V563H760Z" fill="#e8eef6"/>' : ''}
   ${pal.shade ? `<rect x="-1400" y="384" width="3160" height="660" fill="#0b0f2a" opacity="${pal.shade}"/>` : ''}
   <path d="M-1400-400H1760V6H760Q180 24-400 6H-1400Z" fill="#2b1d1c"/>${rafters}<path d="M-1400 6H-400Q180 24 760 6H1760V12H760Q180 30-400 12H-1400Z" fill="#4a2e22"/>${season === 'winter' ? '<path d="M-1400 11H-400Q180 29 760 11H1760V15H760Q180 33-400 15H-1400Z" fill="#f4f7fb"/>' : ''}
+</svg>
+${layer('sc-fc-hang')}
   ${sideFurin}${sideLanterns}
   <g class="sc-fc-blow-tubes"><g class="sc-fc-tubes">
     <path d="M240 20v9M240 30v46" stroke="#3a2a22" stroke-width=".7"/>
@@ -1428,13 +1446,19 @@ function fortuneCookie(p = {}) {
     <rect x="236.5" y="76" width="7" height="14" fill="#fff5d8"/><path d="M236.5 76h7" stroke="#d23c2c" stroke-width="2"/>
   </g></g>
   <g class="sc-fc-blow-lantern"><g class="sc-fc-lantern">${lantern(326)}</g></g>
-  <g clip-path="url(#sc-fc-under)"><g class="sc-fc-near"><g class="sc-fc-blow-branch">
+</svg>
+${layer('sc-fc-near', ...NEAR)}
+  <g clip-path="url(#sc-fc-under)"><g class="sc-fc-blow-branch">
     <g class="sc-branch" stroke="#3a2622" fill="none" stroke-linecap="round">${twigs.map(([d, w]) => `<path d="${d}" stroke-width="${f1(w)}"/>`).join('')}</g>
     ${season === 'winter' ? `<g stroke="#f4f7fb" fill="none" stroke-linecap="round" transform="translate(0 -1.6)">${twigs.filter(([, w]) => w > 1.6).map(([d, w]) => `<path d="${d}" stroke-width="${f1(w * 0.45)}"/>`).join('')}</g>` : ''}
     ${blossoms}
     <g fill="#e98aa6">${(season === 'spring' ? buds : []).map(([x, y]) => `<circle cx="${f1(x)}" cy="${f1(y)}" r="2.3"/>`).join('')}</g>
-  </g></g></g>
-  <g class="sc-fc-near"><g class="sc-petals">${petals}</g></g>
+  </g></g>
+</svg>
+${layer('sc-fc-near', ...NEAR)}
+  <g class="sc-petals">${petals}</g>
+</svg>
+${layer('sc-fc-top')}
   <g class="sc-fc-gust">${gust}</g>
   <g class="sc-fc-wind" fill="none" stroke="${night ? '#c9d4f2' : '#fffaf0'}" stroke-width="2" stroke-linecap="round">
     <path pathLength="100" d="M-140 128C-40 112 60 144 160 124S330 104 420 126q22 8 12 20q-10 8-18-2"/>
@@ -1575,8 +1599,11 @@ function knock(freq, at, vel, out) {
 /**
  * Печиво: об'єм від нахилу телефона (на комп'ютері — від миші). Веранда — вісь: далеке й середнє зсуваються
  * в один бік (далеке сильніше), гілка й пелюстки попереду — у протилежний.
- * Лише CSS-змінні --tx/--ty на сценці — «Повторити» перемальовує svg, а зсув лишається. Повертає прибирання.
+ * Зсуваються цілі шари-svg (transform на елементі — його робить відеокарта, без перемальовування);
+ * «Повторити» малює шари наново — зсув тут же ставиться й на нові. Повертає прибирання.
+ * Без руху (prefers-reduced-motion) шари не зсуваються й не збільшуються — CSS лишає їх розміром з екран.
  */
+const FIT_PAD = 40;
 function fortuneTilt(el) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
   let base = null;
@@ -1584,26 +1611,45 @@ function fortuneTilt(el) {
   let last = 0;
   const cur = { x: 0, y: 0 };
   const goal = { x: 0, y: 0 };
+  const layers = el.getElementsByClassName('sc-fc-layer');
   const clamp = (v) => Math.max(-1, Math.min(1, v));
+  // рухомий шар на 40px (FIT_PAD, як у CSS) більший за екран з кожного боку — розширюємо й viewBox на стільки ж
+  // одиниць малюнка, тоді масштаб і центр збігаються з нерухомими шарами
+  const fit = () => {
+    const pad = FIT_PAD / Math.min((el.clientWidth || innerWidth) / 360, (el.clientHeight || innerHeight) / 640);
+    if (!Number.isFinite(pad)) return;
+    const box = `${f1(-pad)} ${f1(-pad)} ${f1(360 + 2 * pad)} ${f1(640 + 2 * pad)}`;
+    for (const l of layers) if (l.dataset.dx) l.setAttribute('viewBox', box);
+  };
+  const apply = () => {
+    for (const l of layers) {
+      if (l.dataset.dx) l.style.transform = `translate3d(${(cur.x * l.dataset.dx).toFixed(2)}px, ${(cur.y * l.dataset.dy).toFixed(2)}px, 0)`;
+    }
+  };
   // датчик шле десятки подій на секунду й тремтить — зсув щокадру лише наздоганяє ціль, тож рух плавний;
-  // крок за часом, а не за кадром: на 60 і 120 Гц однаково (≈0,15 с на дві третини шляху)
+  // крок за часом, а не за кадром: на 60 і 120 Гц однаково (≈0,25 с на дві третини шляху)
   const step = (now) => {
-    const k = 1 - Math.exp(-Math.min(now - (last || now - 16), 100) / 150);
+    const k = 1 - Math.exp(-Math.min(now - (last || now - 16), 100) / 250);
     last = now;
     cur.x += (goal.x - cur.x) * k;
     cur.y += (goal.y - cur.y) * k;
     const done = Math.abs(goal.x - cur.x) < 0.002 && Math.abs(goal.y - cur.y) < 0.002;
     if (done) Object.assign(cur, goal);
-    el.style.setProperty('--tx', cur.x.toFixed(3));
-    el.style.setProperty('--ty', cur.y.toFixed(3));
+    apply();
     frame = done ? 0 : requestAnimationFrame(step);
     if (done) last = 0;
   };
+  // тремтіння руки (менше ≈0,7°) ціль не зсуває: спокійно тримаєш — сцена теж стоїть
   const aim = (x, y) => {
-    goal.x = -clamp(x);
-    goal.y = -clamp(y);
+    const nx = -clamp(x), ny = -clamp(y);
+    if (Math.abs(nx - goal.x) < 0.03 && Math.abs(ny - goal.y) < 0.03) return;
+    goal.x = nx;
+    goal.y = ny;
     frame ||= requestAnimationFrame(step);
   };
+  const redraw = new MutationObserver(() => { fit(); apply(); });
+  redraw.observe(el.firstElementChild ?? el, { childList: true });
+  addEventListener('resize', fit);
   // нахил уперед-назад рахуємо від того, як телефон тримали на початку
   const onTilt = (e) => {
     if (e.gamma == null || e.beta == null) return;
@@ -1615,6 +1661,8 @@ function fortuneTilt(el) {
   el.addEventListener('pointermove', onMove);
   return () => {
     cancelAnimationFrame(frame);
+    redraw.disconnect();
+    removeEventListener('resize', fit);
     removeEventListener('deviceorientation', onTilt);
     el.removeEventListener('pointermove', onMove);
   };

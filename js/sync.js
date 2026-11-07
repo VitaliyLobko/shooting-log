@@ -13,6 +13,10 @@ const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const KEY = 'shooters-log:sync';
 const PHOTO_PREFIX = 'shooters-log-photo-';
+// Усі файли застосунку — в одній папці на Диску, а не в корені
+const FOLDER_NAME = 'Shooter’s Log';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const TIDY_EVERY = 24 * 3600_000;   // стара версія на іншому пристрої ще кладе файли в корінь — підбираємо раз на добу
 
 class AuthError extends Error {}
 
@@ -174,6 +178,52 @@ async function api(url, options = {}) {
   return res;
 }
 
+/** Папка застосунку: збережена, знайдена за назвою (найстаріша, якщо два пристрої створили одночасно) або нова. */
+async function ensureFolder() {
+  if (conf.folderId) {
+    try {
+      const meta = await (await api(`${DRIVE}/files/${conf.folderId}?fields=id,trashed`)).json();
+      if (!meta.trashed) return conf.folderId;
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+    }
+  }
+  const q = encodeURIComponent(`name='${FOLDER_NAME.replace(/'/g, "\\'")}' and mimeType='${FOLDER_MIME}' and trashed=false`);
+  const { files } = await (await api(`${DRIVE}/files?q=${q}&spaces=drive&orderBy=createdTime&fields=files(id)`)).json();
+  conf.folderId = files?.[0]?.id ?? (await (await api(`${DRIVE}/files?fields=id`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: FOLDER_NAME, mimeType: FOLDER_MIME, description: 'Shooter’s Log' }),
+  })).json()).id;
+  save();
+  return conf.folderId;
+}
+
+/** Перенести в папку файли застосунку, що лежать поза нею (створені до папки або старою версією). */
+async function tidy(folderId) {
+  if (conf.tidied === folderId && Date.now() - (conf.tidyAt ?? 0) < TIDY_EVERY) return;
+  const q = encodeURIComponent(`(name='${FILE_NAME}' or name='${OLD_FILE_NAME}' or name contains '${PHOTO_PREFIX}') and trashed=false`);
+  let pageToken = '';
+  do {
+    const page = await (await api(`${DRIVE}/files?q=${q}&spaces=drive&pageSize=1000&fields=nextPageToken,files(id,parents)${pageToken ? `&pageToken=${pageToken}` : ''}`)).json();
+    for (const f of page.files ?? []) {
+      const parents = f.parents ?? [];
+      if (parents.includes(folderId)) continue;
+      try {
+        await api(`${DRIVE}/files/${f.id}?addParents=${folderId}${parents.length ? `&removeParents=${parents.join(',')}` : ''}&fields=id`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        });
+      } catch (err) {
+        if (err instanceof AuthError) throw err;
+        return;   // решту перенесемо наступного разу, синхронізацію не блокуємо
+      }
+    }
+    pageToken = page.nextPageToken ?? '';
+  } while (pageToken);
+  conf.tidied = folderId;
+  conf.tidyAt = Date.now();
+  save();
+}
+
 async function findFile() {
   if (conf.fileId) {
     try {
@@ -190,7 +240,7 @@ async function findFile() {
   return conf.fileId;
 }
 
-async function upload(fileId, data) {
+async function upload(fileId, data, folderId) {
   const content = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data });
   if (fileId) {
     await api(`${UPLOAD}/files/${fileId}?uploadType=media`, {
@@ -201,7 +251,7 @@ async function upload(fileId, data) {
   const boundary = `sl${Date.now()}`;
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '',
-    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooter’s Log' }),
+    JSON.stringify({ name: FILE_NAME, mimeType: 'application/json', description: 'Shooter’s Log', parents: [folderId] }),
     `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`,
   ].join('\r\n');
   const created = await (await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, {
@@ -237,9 +287,9 @@ async function emptyTrash() {
   }
 }
 
-async function uploadPhoto(id, blob) {
+async function uploadPhoto(id, blob, folderId) {
   const boundary = `sl${Date.now()}`;
-  const meta = { name: `${PHOTO_PREFIX}${id}.jpg`, mimeType: 'image/jpeg', appProperties: { app: 'shooters-log', photoId: id } };
+  const meta = { name: `${PHOTO_PREFIX}${id}.jpg`, mimeType: 'image/jpeg', parents: [folderId], appProperties: { app: 'shooters-log', photoId: id } };
   const body = new Blob([
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
     `--${boundary}\r\nContent-Type: image/jpeg\r\n\r\n`, blob, `\r\n--${boundary}--`,
@@ -251,7 +301,7 @@ async function uploadPhoto(id, blob) {
 }
 
 /** Вивантажити нові фото цього пристрою. Повертає кількість. */
-async function pushPhotos() {
+async function pushPhotos(folderId) {
   const { photos = [] } = await db.loadAll();
   const have = new Set(await db.blobKeys());
   let count = 0;
@@ -259,7 +309,7 @@ async function pushPhotos() {
     if (p.driveId || !have.has(p.id)) continue;
     const blob = await db.getBlob(p.id);
     if (!blob) continue;
-    const driveId = await uploadPhoto(p.id, blob);
+    const driveId = await uploadPhoto(p.id, blob, folderId);
     if (await db.patch('photos', p.id, { driveId })) count += 1;
     else trashPhoto(driveId);
   }
@@ -376,7 +426,9 @@ export async function syncNow() {
       save();
     }
     await emptyTrash();
-    const pushed = await pushPhotos();
+    const folderId = await ensureFolder();
+    await tidy(folderId);
+    const pushed = await pushPhotos(folderId);
     // Відновлення посеред цього проходу застосує наступний (again) — тут уже прочитано старі дані
     const { restoreAt } = conf;
     const local = await db.loadAll();
@@ -385,7 +437,7 @@ export async function syncNow() {
     const merged = merge(local, restoreAt ? bury(local, remote, restoreAt) : remote);
     const changes = localChanges(local, merged);
     if (changes) await db.writeMerged(changes);
-    if (!fileId || fingerprint(remote) !== fingerprint(merged)) await upload(fileId, merged);
+    if (!fileId || fingerprint(remote) !== fingerprint(merged)) await upload(fileId, merged, folderId);
     if (restoreAt && conf.restoreAt === restoreAt) delete conf.restoreAt;
     const pulled = await pullPhotos(merged.photos);
     conf.lastSync = Date.now();

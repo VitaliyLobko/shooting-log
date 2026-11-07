@@ -1525,6 +1525,10 @@ button.gun-stat { cursor: pointer; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 .kv { align-items: center; }
+.shop-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.box .shop-links { margin-top: 10px; }
+.kv .shop-links { margin-top: 0; }
+.shop-link { display: inline-flex; align-items: center; max-width: 100%; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inline-select {
   width: 100%;
   min-height: 40px;
@@ -3500,7 +3504,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene-fortune .sc-fc-steam { opacity: 0; animation: sc-fc-steam 2.4s ease-out infinite; }
 @keyframes sc-fc-steam { 20% { opacity: .7; } 100% { transform: translateY(-14px); opacity: 0; } }
 /* світлячки (літо, вечір і ніч), ранковий туман, іскри золотого печива */
-.scene-fortune .sc-fc-ff circle { filter: drop-shadow(0 0 3px #fff38a); animation: sc-fc-ff ease-in-out infinite; }
+.scene-fortune .sc-fc-ff > g { opacity: 0; animation: sc-fc-ff ease-in-out infinite; }
 @keyframes sc-fc-ff { 0%, 100% { opacity: 0; } 50% { opacity: 1; transform: translate(6px, -8px); } }
 .scene-fortune .sc-fc-mist { animation: sc-fc-drift 9s ease-in-out infinite alternate-reverse; }
 .scene-fortune .sc-fc-gold path { transform-box: fill-box; transform-origin: center; animation: sc-twinkle 1.6s ease-in-out infinite; }
@@ -3561,12 +3565,15 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 @keyframes sc-fc-koi { 0% { transform: scale(.15); opacity: 0; } 3% { opacity: .85; } 30%, 100% { transform: scale(1.5); opacity: 0; } }
 .scene-fortune .sc-fc-afloat > * { animation: sc-fc-float 6s ease-in-out infinite alternate; }
 @keyframes sc-fc-float { to { transform: translate(10px, 1.5px); } }
-/* об'єм: веранда й печиво — вісь; далеке й середнє зсуваються в один бік, гілка й пелюстки попереду — у протилежний.
-   Плавність дає fortuneTilt (наздоганяє ціль щокадру), тож transition тут не потрібен */
-.scene-fortune .sc-fc-far { transform: translate(calc(var(--tx, 0) * 26px), calc(var(--ty, 0) * 9px)); }
-.scene-fortune .sc-fc-mid { transform: translate(calc(var(--tx, 0) * 13px), calc(var(--ty, 0) * 4.5px)); }
-.scene-fortune .sc-fc-near { transform: translate(calc(var(--tx, 0) * -14px), calc(var(--ty, 0) * -5px)); }
-@media (prefers-reduced-motion: reduce) { .scene-fortune :is(.sc-fc-far, .sc-fc-mid, .sc-fc-near) { transform: none; } }
+/* шари печива: рухомі (data-dx — далеке, середнє, гілка, пелюстки) — окремими шарами відеокарти, нахил (fortuneTilt)
+   лише зсуває готову картинку. Шар обрізано до екрана + 40px з кожного боку (більше за найбільший зсув 28px):
+   без обрізання він тягнувся б на всю ширину під широкий монітор, відеопам'яті не вистачало б, і текст передбачення
+   мутнів. viewBox рухомих шарів fortuneTilt розширює на ті ж 40px — масштаб лишається як у нерухомих.
+   Нерухомі (веранда, підвіски, печиво з запискою) малюються звичайно, у повній чіткості */
+.scene-fortune .sc-fc-layer { overflow: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .scene-fortune .sc-fc-layer[data-dx] { inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); will-change: transform; }
+}
 /* День народження ствола: приціл на полум'я свічки, постріл гасить — дим, конфеті, гірлянда засвічується */
 .scene-birthday { --ax: 180px; --ay: 266px; }
 /* підпис на плашці: довга назва ствола переноситься й лягає на торт — без плашки й зі світінням губилася */
