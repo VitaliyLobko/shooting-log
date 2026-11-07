@@ -419,6 +419,9 @@ export function striletsDope(table) {
     unit, rows, windSpeed: wind ? speed : null, note: note ? `Стрілець: ${note}` : 'Стрілець',
     // чому вітер не перенесено — щоб людина знала, що порахувати в «Стрільці» інакше
     windSkipped: side >= 0 && !wind ? (derivation ? 'derivation' : speed > 0 ? 'angle' : 'calm') : null, windAngle: dir,
+    // Умови таблиці: температура, висота прицілу (см) і пристрілка — рядок з нульовою поправкою
+    tC: number(meta(/Температура/i)), sh: number(meta(/Висота оптичного/i)) || null,
+    zero: rows.find((r) => r.distance > 0 && r.value === 0)?.distance ?? null,
   };
 }
 

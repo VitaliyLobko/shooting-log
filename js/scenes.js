@@ -1130,20 +1130,62 @@ const GOLD_FORTUNES = [
 ];
 const SEASONS = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter'];
 
-/** Печиво на цей показ; ?gold=1 ?own=1 ?season=winter ?tod=night — для перегляду. */
-function fortuneParams() {
+// Метеорит — рідкісний, в середньому раз на ~40 показів (золоте — раз на 20): не раніше METEOR_GAP показів після
+// попереднього (і від першого показу), далі шанс METEOR_CHANCE щоразу. Удар в озеро о METEOR_HIT с, ударна хвиля
+// змітає веранду й печиво, лишаються палаюче небо й земля; о METEOR_SLIP с з вогню спускається записка
+// (ці ж часи — в css/app.css біля .sc-fc-m)
+const METEOR_KEY = 'shooters-log:meteor';
+const METEOR_GAP = 10, METEOR_CHANCE = 1 / 30;
+const METEOR_HIT = 0.95, METEOR_SLIP = 3.4;
+// записка після метеорита — одна з цих навмання; [текст, щасливі числа]: роки пророцтв, у динозаврів — їхні роки
+const METEOR_TEXTS = [
+  ['Майя просили передати: календар продовжувати не будуть', ['1555', '1999', '2012']],
+  ['Пророцтво 1999 року доставлено. Із запізненням', ['1555', '1999', '2012']],
+  ['Цього разу всі пророки мали рацію одночасно', ['1555', '1999', '2012']],
+  ['Динозаври теж не вірили в передбачення', ['66 000 000']],
+  ['Прогноз на завтра: завтра не буде', ['1555', '1999', '2012']],
+  ['Беріть парасольку. Сьогодні метеоритні опади', ['1555', '1999', '2012']],
+  ['Плани на вихідні можна не скасовувати. Їх скасовано', ['1555', '1999', '2012']],
+];
+
+/** Чи падає метеорит на цьому показі; ?meteor=1 — для перегляду, без ліку. */
+function rollMeteor(q) {
+  if (q.has('meteor')) return q.get('meteor') === '1';
+  // перегляд через ?scene= не рахується; без руху (prefers-reduced-motion) — без спалаху на весь екран
+  if (q.has('scene') || matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  try {
+    // n — покази з попереднього метеорита; due — випав, але ще не торкнулися печива: впаде й наступного разу
+    const s = JSON.parse(localStorage.getItem(METEOR_KEY) ?? 'null') ?? { n: 0 };
+    s.n = (s.n ?? 0) + 1;
+    s.due ||= s.n > METEOR_GAP && Math.random() < METEOR_CHANCE;
+    localStorage.setItem(METEOR_KEY, JSON.stringify(s));
+    return !!s.due;
+  } catch { return false; }
+}
+
+/** Метеорит показано: лік починається знову (закрили, не торкнувшись, — впаде наступного разу). */
+function meteorSeen() {
+  if (new URLSearchParams(location.search).has('meteor')) return;
+  try { localStorage.setItem(METEOR_KEY, JSON.stringify({ n: 0 })); } catch { /* сховище недоступне — нехай упаде ще раз */ }
+}
+
+/** Печиво на цей показ; ?gold=1 ?own=1 ?season=winter ?tod=night ?meteor=1 — для перегляду. */
+function fortuneParams(ext = {}) {
   const q = new URLSearchParams(location.search), h = new Date().getHours();
-  const gold = q.has('gold') ? q.get('gold') === '1' : Math.random() < 1 / 20;
-  const mine = gold ? [] : fortuneSource();
+  // обране з «Усіх передбачень» (meteor: false) — не показ навмання: не рахуємо
+  const meteor = ext.meteor !== false && rollMeteor(q);
+  const gold = !meteor && (q.has('gold') ? q.get('gold') === '1' : Math.random() < 1 / 20);
+  const mine = gold || meteor ? [] : fortuneSource();
   const own = mine.length && (q.get('own') === '1' || Math.random() < 0.4) ? mine[Math.floor(Math.random() * mine.length)] : null;
   return {
-    gold, own, i: Math.floor(Math.random() * (gold ? GOLD_FORTUNES : FORTUNES).length), n: 1 + Math.floor(Math.random() * 1e6),
+    meteor, gold, own, i: Math.floor(Math.random() * (meteor ? METEOR_TEXTS : gold ? GOLD_FORTUNES : FORTUNES).length), n: 1 + Math.floor(Math.random() * 1e6),
     season: q.get('season') ?? SEASONS[new Date().getMonth()],
     tod: q.get('tod') ?? (h >= 21 || h < 5 ? 'night' : h < 9 ? 'morning' : h < 17 ? 'day' : 'evening'),
   };
 }
 
 function fortuneText(p) {
+  if (p.meteor) return t(METEOR_TEXTS[(p.i ?? 0) % METEOR_TEXTS.length][0]);
   const list = p.gold ? GOLD_FORTUNES : FORTUNES;
   return p.own ?? t(list[(p.i ?? 0) % list.length]);
 }
@@ -1198,13 +1240,16 @@ function fortuneCookie(p = {}) {
   if (night) {
     for (let j = 0; j < 200; j++) stars += `<circle cx="${f1(-700 + rnd() * 1760)}" cy="${f1(-380 + rnd() * 700)}" r="${f1(0.4 + rnd() * 0.9)}" opacity="${f1(0.4 + rnd() * 0.6)}"/>`;
   }
-  const lucky = [...LUCKY].sort(() => pick() - 0.5).slice(0, 4)
+  // метеорит: «щасливі» числа — роки пророцтв про кінець світу
+  // CRACK — коли розламується печиво: від метеорита — ударною хвилею, о 1,6 с (як .sc-ck-l у css)
+  const meteor = !!p.meteor, HIT = meteor ? METEOR_HIT : 0, CRACK = meteor ? 1.6 : 0;
+  const lucky = meteor ? METEOR_TEXTS[(p.i ?? 0) % METEOR_TEXTS.length][1] : [...LUCKY].sort(() => pick() - 0.5).slice(0, 4)
     .sort((a, b) => parseFloat(a.replace(',', '.').replace(/^\./, '0.')) * (a.startsWith('.') ? 25.4 : 1)
       - parseFloat(b.replace(',', '.').replace(/^\./, '0.')) * (b.startsWith('.') ? 25.4 : 1));
   let crumbs = '', trees = '', twinkles = '';
   for (let j = 0; j < 16; j++) {
     const a = -Math.PI / 2 + (rnd() - 0.5) * 3.6, r = 30 + rnd() * 60;
-    crumbs += `<circle cx="180" cy="360" r="${f1(1.2 + rnd() * 2)}" style="--dx:${f1(Math.cos(a) * r)}px;--dy:${f1(Math.sin(a) * r)}px;animation-delay:${(0.1 + rnd() * 0.08).toFixed(2)}s"/>`;
+    crumbs += `<circle cx="180" cy="360" r="${f1(1.2 + rnd() * 2)}" style="--dx:${f1(Math.cos(a) * r)}px;--dy:${f1(Math.sin(a) * r)}px;animation-delay:${(0.1 + CRACK + rnd() * 0.08).toFixed(2)}s"/>`;
   }
   // японські сосни — пласкі хмаринки хвої на обрії
   for (let x = -1400; x < 1760; x += 18 + rnd() * 22) {
@@ -1280,7 +1325,7 @@ function fortuneCookie(p = {}) {
   let gust = '';
   for (let j = 0; j < 18; j++) {
     const [px, py] = open[Math.floor(rnd() * open.length)];
-    gust += `${fall(px, py, j)} style="--dx:${f1(40 + rnd() * 140)}px;--dy:${f1(60 + rnd() * 220)}px;animation-delay:${(0.02 + rnd() * 0.25).toFixed(2)}s"/>`;
+    gust += `${fall(px, py, j)} style="--dx:${f1(40 + rnd() * 140)}px;--dy:${f1(60 + rnd() * 220)}px;animation-delay:${(0.02 + HIT + rnd() * 0.25).toFixed(2)}s"/>`;
   }
   // 20, а не 30: пелюстки — найдорожча анімація сценки, а густоти вистачає
   for (let j = 0; j < (season === 'summer' && !gold ? 6 : 20); j++) {
@@ -1302,6 +1347,23 @@ function fortuneCookie(p = {}) {
   const lines = fortuneLines(fortuneText(p));
   const slipH = 16 + lines.length * 13 + 20, top = -slipH / 2;
   const slipText = lines.map((l, k) => `<text y="${f1(top + 17 + k * 13)}">${l}</text>`).join('');
+  // метеорит: записка падає, догоряючи: обвуглені край і кути, жар по краю, язики полум'я зверху (вогонь іде вгору,
+  // поки папірець падає); до приземлення гасне, лишаються дві цівки диму
+  let slipBurn = '';
+  if (meteor) {
+    const sb = seeded(41);
+    let tongues = '';
+    for (let k = 0; k < 8; k++) {
+      const x = -80 + k * 22.8 + (sb() - 0.5) * 6, h = 8 + sb() * 9;
+      tongues += `<path d="M${f1(x - 6)} ${f1(top + 1)}Q${f1(x - 5)} ${f1(top - h * 0.5)} ${f1(x)} ${f1(top - h)}Q${f1(x + 4)} ${f1(top - h * 0.45)} ${f1(x + 6)} ${f1(top + 1)}Z" style="animation-delay:-${(sb() * 0.35).toFixed(2)}s"/>`;
+    }
+    const corners = `<path d="M-88 ${f1(top)}h16q-4 6-9 7q-2 7-7 9z"/><path d="M88 ${f1(top)}h-22q5 5 10 6q3 8 12 12z"/>`;
+    slipBurn = `<g fill="#2a140b">${corners}</g>`
+      + `<g class="sc-fc-sburn"><g fill="none" stroke="#ff8a2a" stroke-width="1.2"><rect x="-88" y="${f1(top)}" width="176" height="${f1(slipH)}" rx="2"/>${corners}</g>`
+      + `<g class="sc-fc-stongues" fill="url(#sc-fc-spotg)">${tongues}</g></g>`
+      + `<g class="sc-fc-swisp" fill="none" stroke="#9a8a80" stroke-width="1.4" stroke-linecap="round"><path class="sc-fc-steam" d="M-76 ${f1(top + 4)}q-3-5 0-10t0-10"/>`
+      + `<path class="sc-fc-steam" d="M78 ${f1(top + 6)}q3-5 0-10t0-10" style="animation-delay:-1.2s"/></g>`;
+  }
   // пагода на пагорбі праворуч: п'ять дахів з загнутими краями — верхні три видно над поручнями
   let pagoda = '';
   const tiers = 5;
@@ -1357,10 +1419,11 @@ function fortuneCookie(p = {}) {
   // металеві вітряні дзвіночки: п'ять трубок від довгої (до) до короткої (ля) і калатало з вітрилом;
   // на розлам кожна трубка здригається тоді ж, коли звучить її нота (CHIMES — нижче, біля звуку)
   const hits = {};
-  for (const [at, note] of gold ? CHIMES_GOLD : CHIMES) hits[Math.min(note, 4)] ??= at;
+  // метеорит: дзвіночки розгойдує ударна хвиля — довгий каскад, як у золотого
+  for (const [at, note] of gold || meteor ? CHIMES_GOLD : CHIMES) hits[Math.min(note, 4)] ??= at;
   const tubes = [34, 31, 28, 25, 22].map((len, k) => {
     const x = 230 + k * 5;
-    return `<path d="M${x} 30v4" stroke="#3a2a22" stroke-width=".6"/><g class="sc-fc-tube" style="${hits[k] == null ? 'animation:none' : `animation-delay:${(hits[k] + 0.02).toFixed(2)}s`}">`
+    return `<path d="M${x} 30v4" stroke="#3a2a22" stroke-width=".6"/><g class="sc-fc-tube" style="${hits[k] == null ? 'animation:none' : `animation-delay:${(hits[k] + 0.02 + HIT).toFixed(2)}s`}">`
       + `<rect x="${x - 1.3}" y="34" width="2.6" height="${len}" rx="1" fill="url(#sc-fc-tubeg)"/></g>`;
   }).join('');
   // торії в озері праворуч — на широкому екрані; з відображенням
@@ -1392,8 +1455,85 @@ function fortuneCookie(p = {}) {
   // Шари — окремі svg з тим самим viewBox: нерухомий шар браузер малює раз, а нахил лише зсуває готові шари
   // (data-dx/dy — зсув у px за повного нахилу, fortuneTilt). В одному svg будь-яка пелюстка чи нахил
   // перемальовували всю сцену — на слабкому телефоні це 3–10 кадрів на секунду.
-  const layer = (cls, dx, dy) => `<svg class="sc-fc-layer ${cls}"${dx == null ? '' : ` data-dx="${dx}" data-dy="${dy}"`} viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">`;
+  // sc-fc-m — метеорит: CSS зсуває розлам печива на пізніше, а порив вітру — на мить удару
+  const layer = (cls, dx, dy) => `<svg class="sc-fc-layer ${cls}${meteor ? ' sc-fc-m' : ''}"${dx == null ? '' : ` data-dx="${dx}" data-dy="${dy}"`} viewBox="0 0 360 640" preserveAspectRatio="xMidYMid meet" aria-hidden="true">`;
   const FAR = [28, 10], MID = [14, 5], NEAR = [-15, -5.5];
+  // Метеорит: летить з-під стріхи праворуч майже прямовисно й падає в озеро в (IX, IY) — між стовпчиками, під печивом
+  // (ці ж координати — у transform-origin в css/app.css)
+  const IX = 210, IY = 436;
+  let meteorArt = '', fire = '';
+  if (meteor) {
+    // хвіст уздовж -x, поворот — напрям польоту (зсув на старті в CSS: 120, -476 — виринає з-під стріхи над пагодою)
+    // величезний: вогняна куля з плазмою, всередині — темна брила, хвіст на пів неба
+    meteorArt = `<g class="sc-fc-meteor"><g class="sc-fc-meteor-in"><g transform="translate(${IX} ${IY}) rotate(104.1)">`
+      + '<path d="M14-34L-420-6V6L14 34Z" fill="url(#sc-fc-trail)"/><path d="M8-16L-260-2V2L8 16Z" fill="#fff3c4" opacity=".55"/>'
+      + '<circle r="64" fill="url(#sc-fc-mhalo)"/><circle r="24" fill="#fff6d0"/>'
+      + '<path d="M14-6L6-15L-6-14L-14-4L-11 9L0 15L11 10Z" fill="#4a2a1a" stroke="#ff8a2a" stroke-width="2.5"/></g></g></g>';
+    const fr = seeded(31);
+    // уламки — метеоритний дощ: падають навскіс по всьому небу, на землі — спалах
+    let frags = '';
+    for (let j = 0; j < 12; j++) {
+      const x = -60 + fr() * 480, y = 404 + fr() * 40, dx = 60 + fr() * 140, dy = 460 + fr() * 120;
+      const rot = f1((Math.atan2(dy, -dx) * 180) / Math.PI), at = (1.15 + j * 0.2 + fr() * 0.15).toFixed(2), r = f1(1 + fr() * 0.8);
+      frags += `<g transform="translate(${f1(x)} ${f1(y)})"><g class="sc-fc-frag" style="--fx:${f1(dx)}px;--fy:${f1(-dy)}px;animation-delay:${at}s">`
+        + `<g transform="rotate(${rot}) scale(${r})"><path d="M3-5L-90-1V1L3 5Z" fill="url(#sc-fc-ftrail)"/><circle r="9" fill="url(#sc-fc-mhalo)"/><circle r="3" fill="#fffbea"/></g></g>`
+        + `<circle class="sc-fc-fboom" r="${f1(9 * r)}" fill="url(#sc-fc-domeg)" style="animation-delay:${(Number(at) + 0.62).toFixed(2)}s"/></g>`;
+    }
+    // хвиля від удару котиться озером до веранди: гребінь підсвічений пожежею
+    // пологий схил до гребеня, а далі круто вниз — хвиля похилена вперед, до глядача
+    let wave = 'M-1400 1100V480';
+    for (let x = -1400; x < 1760; x += 180) {
+      const top = f1(424 - fr() * 22), cx = x + 120 + fr() * 20;
+      wave += `C${x + 50} 478 ${f1(cx - 50)} ${top} ${f1(cx)} ${top}Q${f1(cx + 26)} ${top} ${f1(cx + 34)} 462L${x + 180} 480`;
+    }
+    wave += 'V1100Z';
+    // коли веранду знесло — горить уся земля до самого низу: вогнища, ближчі — більші; ширше за телефон — для широкого екрана
+    let spots = '';
+    for (let j = 0; j < 16; j++) {
+      const y = 470 + fr() * 170, sc = f1(0.6 + ((y - 470) / 170) * 1.2);
+      spots += `<g transform="translate(${f1(-330 + j * 62 + fr() * 30)} ${f1(y)}) scale(${sc})"><ellipse rx="26" ry="5" fill="#ff6a1e" opacity=".35"/>`
+        + `<path d="M-18 0Q-16-14-8-22Q-6-12 0-32Q6-14 10-22Q16-10 18 0Z" fill="url(#sc-fc-spotg)" style="animation-delay:-${(fr() * 0.4).toFixed(2)}s"/></g>`;
+    }
+    // язики полум'я на обрії: вершина, западина, вершина…
+    const tongues = (lo, hi, step) => {
+      let d = 'M-1400 428';
+      for (let x = -1400; x < 1760; x += step) d += `L${x + step / 2} ${f1(426 - lo - fr() * (hi - lo))}L${x + step} ${f1(426 - fr() * 3)}`;
+      return `${d}L1760 428Z`;
+    };
+    // стовп диму — клуби один над одним, угорі ширші й відносить вітром (lean); y0 — звідки йде
+    const column = (x, y0, lean, n, r0) => {
+      let c = '';
+      for (let k = 0; k < n; k++) c += `<circle cx="${f1(x + (lean * k * k) / (n * n) + (fr() - 0.5) * 6)}" cy="${f1(y0 - k * 28)}" r="${f1(r0 + k * 4.5 + fr() * 4)}"/>`;
+      return c;
+    };
+    // стовпи диму з-за обрію — горить усе довкола; два на телефоні, решта видно на широкому екрані
+    const smoke = [[40, 1.5], [300, 1.8], [-240, 1.6], [600, 1.9], [-560, 2.1], [880, 1.7]]
+      .map(([x, d]) => `<g style="transform-origin:${x}px 426px;animation-delay:${d}s">${column(x, 426, 50, 9, 7)}</g>`).join('');
+    // гриб від удару: ніжка й шапка з клубів; знизу підсвічений вогнем (градієнт)
+    const cap = [[-52, 8, 22], [-30, -8, 28], [0, -16, 32], [30, -8, 28], [52, 8, 22], [-24, 14, 24], [22, 14, 24], [0, 6, 30]]
+      .map(([dx, dy, r]) => `<circle cx="${IX + dx}" cy="${214 + dy}" r="${r}"/>`).join('');
+    let embers = '';
+    for (let j = 0; j < 20; j++) {
+      embers += `<circle cx="${f1(-20 + fr() * 400)}" cy="${f1(404 + fr() * 36)}" r="${f1(0.9 + fr() * 1.3)}" style="--dx:${f1((fr() - 0.3) * 70)}px;animation-duration:${(2.6 + fr() * 2.4).toFixed(1)}s;animation-delay:-${(fr() * 5).toFixed(1)}s"/>`;
+    }
+    // окремий шар над середнім (озеро, човен): заграва затягує небо й воду, полум'я на обрії, гриб від удару,
+    // вивергається Фудзі, вгору летять жарини. Глибина — як у далекого: полум'я тримається обрію при нахилі
+    fire = `${layer('sc-fc-fire', ...FAR)}
+  <rect class="sc-fc-doom" x="-1400" y="-400" width="3160" height="1440" fill="url(#sc-fc-doomg)"/>
+  <g class="sc-fc-smoke" fill="#1d0f0d" opacity=".6">${smoke}</g>
+  <ellipse class="sc-fc-vglow" cx="118" cy="303" rx="26" ry="9" fill="url(#sc-fc-domeg)"/>
+  <path class="sc-fc-lava" d="M110 302Q104 318 92 334M118 302Q120 322 114 344M126 302Q134 316 146 330" pathLength="100" stroke="#ff7a2a" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <g class="sc-fc-vsmoke" fill="#2a1512" opacity=".8">${column(118, 290, -40, 7, 6)}</g>
+  <g class="sc-fc-flames"><path class="sc-fc-flame" d="${tongues(10, 30, 14)}" fill="url(#sc-fc-flameg)"/><path class="sc-fc-flame sc-fc-flame-f" d="${tongues(4, 14, 10)}" fill="url(#sc-fc-flameg2)"/></g>
+  <g class="sc-fc-shock" fill="none" stroke="#ffe7b0" stroke-width="2"><ellipse cx="${IX}" cy="${IY + 2}" rx="20" ry="3.5" vector-effect="non-scaling-stroke"/><ellipse cx="${IX}" cy="${IY + 2}" rx="20" ry="3.5" vector-effect="non-scaling-stroke" style="animation-delay:${(HIT + 0.25).toFixed(2)}s"/></g>
+  <g class="sc-fc-plume"><g fill="url(#sc-fc-plumeg)"><path d="M${IX - 18} ${IY}C${IX - 8} 380 ${IX - 12} 300 ${IX - 10} 230H${IX + 10}C${IX + 12} 300 ${IX + 8} 380 ${IX + 18} ${IY}Z"/>${cap}</g></g>
+  <path class="sc-fc-dome" d="M${IX - 46} ${IY}A46 40 0 0 1 ${IX + 46} ${IY}Z" fill="url(#sc-fc-domeg)"/>
+  <path class="sc-fc-wave" d="${wave}" fill="url(#sc-fc-waveg)" stroke="#ffd08a" stroke-width="1.5"/>
+  <g class="sc-fc-spots">${spots}</g>
+  ${frags}
+  <g class="sc-fc-embers" fill="#ffb347">${embers}</g>
+</svg>`;
+  }
   return `
 ${layer('sc-fc-far', ...FAR)}
   <defs>
@@ -1413,6 +1553,16 @@ ${layer('sc-fc-far', ...FAR)}
     <linearGradient id="sc-fc-tubeg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c8079"/><stop offset=".35" stop-color="#eef0ea"/><stop offset=".7" stop-color="#a7aba3"/><stop offset="1" stop-color="#666a63"/></linearGradient>
     <linearGradient id="sc-fc-ray" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3b8" stop-opacity=".85"/><stop offset=".6" stop-color="#ffe27a" stop-opacity=".2"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></linearGradient>
     <clipPath id="sc-fc-rayclip"><rect x="-200" y="-200" width="760" height="586"/></clipPath>
+    ${meteor ? `<linearGradient id="sc-fc-trail" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-420" y2="0"><stop offset="0" stop-color="#fff3c4"/><stop offset=".25" stop-color="#ffb347" stop-opacity=".85"/><stop offset="1" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>
+    <linearGradient id="sc-fc-ftrail" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="-90" y2="0"><stop offset="0" stop-color="#fff3c4"/><stop offset=".3" stop-color="#ffb347" stop-opacity=".8"/><stop offset="1" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>
+    <linearGradient id="sc-fc-waveg" gradientUnits="userSpaceOnUse" x1="0" y1="430" x2="0" y2="560"><stop offset="0" stop-color="#ffcf8a"/><stop offset=".25" stop-color="#b8471e"/><stop offset=".6" stop-color="#4a1a10"/><stop offset="1" stop-color="#1d0c08"/></linearGradient>
+    <linearGradient id="sc-fc-spotg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3d12" stop-opacity="0"/><stop offset=".35" stop-color="#ff5a1e" stop-opacity=".9"/><stop offset="1" stop-color="#ffd27a"/></linearGradient>
+    <radialGradient id="sc-fc-mhalo"><stop offset=".2" stop-color="#fff6d0"/><stop offset=".5" stop-color="#ffb347" stop-opacity=".6"/><stop offset="1" stop-color="#ff6a1e" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sc-fc-doomg" gradientUnits="userSpaceOnUse" x1="0" y1="-400" x2="0" y2="1040"><stop offset="0" stop-color="#160a09" stop-opacity=".94"/><stop offset=".347" stop-color="#2a100b" stop-opacity=".9"/><stop offset=".486" stop-color="#6a1e0e" stop-opacity=".8"/><stop offset=".559" stop-color="#ff6a1e" stop-opacity=".55"/><stop offset=".576" stop-color="#d9431a" stop-opacity=".6"/><stop offset=".64" stop-color="#3a120a" stop-opacity=".85"/><stop offset="1" stop-color="#160807" stop-opacity=".92"/></linearGradient>
+    <linearGradient id="sc-fc-flameg" gradientUnits="userSpaceOnUse" x1="0" y1="396" x2="0" y2="426"><stop offset="0" stop-color="#ff3d12" stop-opacity="0"/><stop offset=".35" stop-color="#ff4a14" stop-opacity=".85"/><stop offset="1" stop-color="#ffb347"/></linearGradient>
+    <linearGradient id="sc-fc-flameg2" gradientUnits="userSpaceOnUse" x1="0" y1="408" x2="0" y2="426"><stop offset="0" stop-color="#ff8a2a" stop-opacity="0"/><stop offset=".4" stop-color="#ffb347" stop-opacity=".9"/><stop offset="1" stop-color="#fff0b0"/></linearGradient>
+    <linearGradient id="sc-fc-plumeg" gradientUnits="userSpaceOnUse" x1="0" y1="${IY}" x2="0" y2="160"><stop offset="0" stop-color="#ffc35a"/><stop offset=".15" stop-color="#e0561e"/><stop offset=".4" stop-color="#5a2214"/><stop offset="1" stop-color="#2a1512"/></linearGradient>
+    <radialGradient id="sc-fc-domeg" cx=".5" cy="1" r="1"><stop offset="0" stop-color="#fffbe0"/><stop offset=".35" stop-color="#ffc35a"/><stop offset=".75" stop-color="#ff5a1e" stop-opacity=".85"/><stop offset="1" stop-color="#ff3d12" stop-opacity="0"/></radialGradient>` : ''}
   </defs>
   <rect x="-1400" y="-400" width="3160" height="830" fill="url(#sc-fc-sky)"/>
   <g fill="#fff6dc">${stars}</g>
@@ -1424,11 +1574,11 @@ ${layer('sc-fc-far', ...FAR)}
   <path d="M262 424Q290 396 330 398T400 412Q480 418 760 420V424Z" fill="#5a6a4a"/>
   <path d="M-400 424Q-300 404-200 410T-30 418V424Z" fill="#5a6a4a"/>
   <path d="M-1400 418H-400V424H-1400ZM760 418H1760V424H760Z" fill="#5a6a4a"/>
-  ${pagoda}
+  ${meteor ? '' : pagoda}
   ${trees}
   <rect x="-1400" y="423" width="3160" height="620" fill="url(#sc-fc-lake)"/>
   <g opacity=".3" transform="translate(0 848) scale(1 -1)"><path d="M-30 424L76 320Q98 300 118 300Q138 300 160 320L268 424Z" fill="#5d6f96"/><path d="M76 320Q98 300 118 300Q138 300 160 320L152 326L142 318L132 330L122 320L112 331L102 319L92 329L84 322Z" fill="#fbf6ee"/></g>
-  <g opacity=".22" transform="translate(0 848) scale(1 -1)">${pagoda}</g>
+  ${meteor ? '' : `<g opacity=".22" transform="translate(0 848) scale(1 -1)">${pagoda}</g>`}
 </svg>
 ${layer('sc-fc-far sc-fc-far-fx', ...FAR)}
   <g class="sc-fc-cranes" fill="none" stroke="#2b1d1c" stroke-width="1.6" stroke-linecap="round">
@@ -1440,6 +1590,8 @@ ${layer('sc-fc-far sc-fc-far-fx', ...FAR)}
     <rect x="-30" y="344" width="140" height="9" rx="4.5"/>
   </g>
   <g transform="translate(${sunX - 238} 0)"><g class="sc-fc-ripple" stroke="${night ? '#f3ecd0' : tod === 'evening' ? '#ffc08a' : '#fff0d0'}" stroke-linecap="round" opacity=".55">${glints}</g></g>
+  ${meteor ? `<g class="sc-fc-topple">${pagoda}</g><g opacity=".22" transform="translate(0 848) scale(1 -1)"><g class="sc-fc-topple">${pagoda}</g></g>` : ''}
+  ${meteorArt}
 </svg>
 ${layer('sc-fc-mid', ...MID)}
   ${torii}
@@ -1454,6 +1606,7 @@ ${layer('sc-fc-mid', ...MID)}
   ${tod === 'morning' ? '<g class="sc-fc-mist" fill="#ffffff" opacity=".6"><rect x="-1400" y="418" width="1640" height="9" rx="4.5"/><rect x="40" y="432" width="1720" height="7" rx="3.5"/><rect x="-1400" y="446" width="1620" height="6" rx="3"/></g>' : ''}
   ${fireflies ? `<g class="sc-fc-ff" fill="#fff7a0">${fireflies}</g>` : ''}
 </svg>
+${fire}
 ${layer('sc-fc-base')}
   ${posts}
   <rect x="-1400" y="474" width="3160" height="7" fill="#3b2418"/><rect x="-1400" y="474" width="3160" height="2" fill="#5a3a26"/>
@@ -1490,10 +1643,11 @@ ${layer('sc-fc-near', ...NEAR)}
 ${layer('sc-fc-top')}
   <g class="sc-fc-gust">${gust}</g>
   <g class="sc-fc-wind" fill="none" stroke="${night ? '#c9d4f2' : '#fffaf0'}" stroke-width="2" stroke-linecap="round">
-    <path pathLength="100" d="M-140 128C-40 112 60 144 160 124S330 104 420 126q22 8 12 20q-10 8-18-2"/>
-    <path pathLength="100" d="M-160 204C-60 190 40 220 140 200S300 184 400 204q18 8 8 18q-10 6-16-4" style="animation-delay:.12s"/>
-    <path pathLength="100" d="M-120 300C-20 288 80 314 180 296S340 282 440 300" style="animation-delay:.24s"/>
+    <path pathLength="100" d="M-140 128C-40 112 60 144 160 124S330 104 420 126q22 8 12 20q-10 8-18-2" style="animation-delay:${HIT.toFixed(2)}s"/>
+    <path pathLength="100" d="M-160 204C-60 190 40 220 140 200S300 184 400 204q18 8 8 18q-10 6-16-4" style="animation-delay:${(HIT + 0.12).toFixed(2)}s"/>
+    <path pathLength="100" d="M-120 300C-20 288 80 314 180 296S340 282 440 300" style="animation-delay:${(HIT + 0.24).toFixed(2)}s"/>
   </g>
+  <g class="sc-fc-table">
   <g class="sc-fc-tea" transform="translate(30 0)">
     <path d="M232 389L231 374Q240 371 249 374L248 389Q240 391 232 389Z" fill="#7d9c86"/><path d="M231 374Q240 371 249 374Q240 377 231 374Z" fill="#4f6b58"/>
     <path d="M232 380Q240 382 248 380" stroke="#e8ecd8" stroke-width="1.6" fill="none"/>
@@ -1516,26 +1670,33 @@ ${layer('sc-fc-top')}
     <path class="sc-tip" d="M172 368.5l14-1.6 1 6.2-14 1.6z" fill="#fffdf5"/><path class="sc-tip" d="M172 368.5l14-1.6" stroke="#d9cdb2" stroke-width=".6"/>
   </g>
   <g class="sc-crumbs" fill="#d9a050">${crumbs}</g>
+  </g>
   <g class="sc-hint"><g class="sc-hint-in">
     <rect x="48" y="412" width="264" height="36" rx="18" fill="#22140c" opacity=".78"/>
     <text x="180" y="436" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" font-weight="700" fill="#fff6e0">${t('Торкніться, щоб розламати')}</text>
   </g></g>
   <g transform="translate(180 250)"><g class="sc-slip">
-    <g class="sc-twinkles" fill="#fff1c4">${twinkles}</g>
-    <rect x="-88" y="${f1(top)}" width="176" height="${f1(slipH)}" rx="2" fill="#fffdf5"${gold ? ' stroke="#d9a520" stroke-width="2"' : ''}/>
+    ${meteor ? '' : `<g class="sc-twinkles" fill="#fff1c4">${twinkles}</g>`}
+    <rect x="-88" y="${f1(top)}" width="176" height="${f1(slipH)}" rx="2" fill="${meteor ? '#f6e9cf' : '#fffdf5'}"${gold ? ' stroke="#d9a520" stroke-width="2"' : meteor ? ' stroke="#6b3418" stroke-width="2"' : ''}/>
     <path d="M-88 ${f1(top)}h176" stroke="#e8e0cc" stroke-width="1"/>
     <g text-anchor="middle" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#3a2a1c">${slipText}</g>
     <path d="M-60 ${f1(top + slipH - 19)}h120" stroke="#eadfc8" stroke-width=".8"/>
     <text y="${f1(top + slipH - 7)}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="6.5" font-weight="700" fill="#b8322a" letter-spacing=".04em">${t('Щасливі числа').toUpperCase()}: <tspan font-family="ui-monospace, monospace" fill="#3a2a1c">${lucky.join(' · ')}</tspan></text>
+    ${slipBurn}
   </g></g>
+  ${meteor ? '<rect class="sc-fc-flash" x="-1400" y="-400" width="3160" height="1440" fill="#fff4d8"/>' : ''}
 </svg>`;
 }
 
 const SCENES = {
   defenders: { svg: defendersHome, text: () => t('З Днем захисників і захисниць!\nНам тепло вдома — бо ви на варті') },
   // params — передбачення обирається раз на показ: «Повторити» показує те саме
-  fortune: { svg: fortuneCookie, tap: true, params: fortuneParams, onTap: (p = {}) => crackFeedback(p.gold), mount: fortuneTilt,
-    text: (p = {}) => `${t(p.gold ? 'Золоте печиво' : 'Печиво з передбаченням')}\n${fortuneText(p)}` },
+  fortune: {
+    svg: fortuneCookie, tap: true, params: fortuneParams, mount: fortuneTilt,
+    onTap: (p = {}) => (p.meteor ? (meteorSeen(), meteorFeedback()) : crackFeedback(p.gold)),
+    // метеорит — без заголовка: лише записка
+    text: (p = {}) => `${p.meteor ? '' : t(p.gold ? 'Золоте печиво' : 'Печиво з передбаченням')}\n${fortuneText(p)}`,
+  },
   sobornist: { svg: sobornist, text: () => t('З Днем Соборності!\nРазом — незламні') },
   birthday: {
     svg: birthday,
@@ -1561,22 +1722,86 @@ const CHIMES_GOLD = [[0, 0, 1], [0.09, 2, 0.85], [0.18, 1, 0.8], [0.29, 3, 0.8],
 
 function crackFeedback(gold) {
   navigator.vibrate?.(gold ? [16, 50, 16, 50, 30] : [20, 60, 14]);
+  const out = chimeOut();
+  if (!out) return;
   try {
-    if (localStorage.getItem(SCENE_SOUND_OFF) === '1') return;
+    chimes(gold ? CHIMES_GOLD : CHIMES, audio.currentTime + 0.02, 1, out);
+  } catch { /* без звуку — вібрації досить */ }
+}
+
+/** Вихід для звуку сценки (гучність дзвіночків) або null: звук вимкнено чи браузер не вміє. */
+function chimeOut() {
+  try {
+    if (localStorage.getItem(SCENE_SOUND_OFF) === '1') return null;
   } catch { /* сховище недоступне — звук як за замовчуванням */ }
   const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return;
+  if (!Ctx) return null;
   try {
     audio ??= new Ctx();
     if (audio.state === 'suspended') audio.resume();
     const out = audio.createGain();
     out.gain.value = 0.12;
     out.connect(audio.destination);
-    const t0 = audio.currentTime + 0.02;
-    // нота 5 — ля октавою вище: золотий каскад закінчується вище, ніж почався
-    for (const [at, note, vel] of gold ? CHIMES_GOLD : CHIMES) {
-      strike(note === 5 ? CHIME_NOTES[4] * 2 : CHIME_NOTES[note], t0 + at, vel, out);
-    }
+    return out;
+  } catch { return null; }
+}
+
+/** Каскад ударів [час, нота, сила] від t0; нота 5 — ля октавою вище: золотий каскад закінчується вище, ніж почався. */
+function chimes(list, t0, vel, out) {
+  for (const [at, note, v] of list) strike(note === 5 ? CHIME_NOTES[4] * 2 : CHIME_NOTES[note], t0 + at, v * vel, out);
+}
+
+/**
+ * Метеорит: свист падіння, о METEOR_HIT — глухий удар (шум крізь фільтр, що закривається, і низький гул),
+ * дзвіночки від ударної хвилі; о METEOR_SLIP — тихі дзвіночки, коли спускається записка. Вібрація — удар і відлуння, потім записка.
+ */
+function meteorFeedback() {
+  const hit = METEOR_HIT * 1000, slip = METEOR_SLIP * 1000;
+  navigator.vibrate?.([1, hit - 1, 420, 70, 200, 70, 110, slip - hit - 870, 20, 60, 14]);
+  const out = chimeOut();
+  if (!out) return;
+  try {
+    const t0 = audio.currentTime + 0.02, hitAt = t0 + METEOR_HIT, rate = audio.sampleRate;
+    const buf = audio.createBuffer(1, Math.ceil(rate * 3.5), rate), data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const loud = audio.createGain();
+    loud.gain.value = 0.5;
+    loud.connect(audio.destination);
+    // шум крізь фільтр: частота від f0 до f1, гучність — за кривою env(gain)
+    const noise = (at, dur, type, f0, f1, env) => {
+      const src = audio.createBufferSource(), filter = audio.createBiquadFilter(), g = audio.createGain();
+      src.buffer = buf;
+      filter.type = type;
+      filter.frequency.setValueAtTime(f0, at);
+      filter.frequency.exponentialRampToValueAtTime(f1, at + dur);
+      env(g.gain);
+      src.connect(filter).connect(g).connect(loud);
+      src.start(at);
+      src.stop(at + dur + 0.05);
+    };
+    // свист: наростає й падає тоном, обривається в мить удару
+    noise(t0, METEOR_HIT, 'bandpass', 2600, 500, (g) => {
+      g.setValueAtTime(0.0001, t0);
+      g.exponentialRampToValueAtTime(0.35, hitAt - 0.03);
+      g.linearRampToValueAtTime(0, hitAt);
+    });
+    noise(hitAt, 3, 'lowpass', 1200, 70, (g) => {
+      g.setValueAtTime(0, hitAt);
+      g.linearRampToValueAtTime(1, hitAt + 0.006);
+      g.exponentialRampToValueAtTime(0.0001, hitAt + 3);
+    });
+    const sub = audio.createOscillator(), sg = audio.createGain();
+    sub.frequency.value = 60;
+    sub.frequency.setValueAtTime(60, hitAt);
+    sub.frequency.exponentialRampToValueAtTime(28, hitAt + 2.2);
+    sg.gain.setValueAtTime(0, hitAt);
+    sg.gain.linearRampToValueAtTime(0.7, hitAt + 0.01);
+    sg.gain.exponentialRampToValueAtTime(0.0001, hitAt + 2.4);
+    sub.connect(sg).connect(loud);
+    sub.start(hitAt);
+    sub.stop(hitAt + 2.5);
+    chimes(CHIMES_GOLD, hitAt + 0.02, 0.7, out);
+    chimes(CHIMES, t0 + METEOR_SLIP, 0.7, out);
   } catch { /* без звуку — вібрації досить */ }
 }
 
@@ -1673,7 +1898,7 @@ export function playScene(name, params) {
   const s = SCENES[name];
   if (!s) return false;
   // свої params сценки (випадкові) + передані ззовні (?i= для перегляду, дані дня народження)
-  params = s.params ? { ...s.params(), ...params } : params;
+  params = s.params ? { ...s.params(params), ...params } : params;
   const el = document.createElement('div');
   el.className = `scene scene-${name}`;
   const stage = document.createElement('div');
