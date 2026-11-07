@@ -1354,15 +1354,14 @@ function fortuneCookie(p = {}) {
     + `<g class="sc-fc-lantern" style="transform-origin:${cx}px 16px;animation-delay:-${1.1 + k}s">${lantern(cx, tp)}</g></g>`).join('');
   const sideFurin = [[-330, 12], [520, 12]].map(([cx, tp], k) => `<g class="sc-fc-blow-furin" style="transform-origin:${cx}px 20px">`
     + `<g class="sc-fc-chime" style="transform-origin:${cx}px 20px;animation-delay:-${0.7 + k * 1.3}s">${furin(cx, tp)}</g></g>`).join('');
-  // бамбукові вітряні дзвіночки: п'ять трубок з колінцями від довгої (соль) до короткої (мі) і калатало з вітрилом;
-  // на розлам кожна трубка здригається тоді ж, коли звучить її нота (KNOCKS — нижче, біля звуку)
+  // металеві вітряні дзвіночки: п'ять трубок від довгої (до) до короткої (ля) і калатало з вітрилом;
+  // на розлам кожна трубка здригається тоді ж, коли звучить її нота (CHIMES — нижче, біля звуку)
   const hits = {};
-  for (const [at, note] of gold ? KNOCKS_GOLD : KNOCKS) hits[Math.min(note, 4)] ??= at;
+  for (const [at, note] of gold ? CHIMES_GOLD : CHIMES) hits[Math.min(note, 4)] ??= at;
   const tubes = [34, 31, 28, 25, 22].map((len, k) => {
-    const x = f1(229.2 + k * 5.4);
-    const knee = (p) => `<rect x="${f1(x - 1.8)}" y="${f1(34 + len * p)}" width="3.6" height=".9" rx=".4" fill="#6f6a2c"/>`;
+    const x = 230 + k * 5;
     return `<path d="M${x} 30v4" stroke="#3a2a22" stroke-width=".6"/><g class="sc-fc-tube" style="${hits[k] == null ? 'animation:none' : `animation-delay:${(hits[k] + 0.02).toFixed(2)}s`}">`
-      + `<rect x="${f1(x - 1.6)}" y="34" width="3.2" height="${len}" rx=".6" fill="url(#sc-fc-tubeg)"/>${knee(0.36)}${knee(0.74)}</g>`;
+      + `<rect x="${x - 1.3}" y="34" width="2.6" height="${len}" rx="1" fill="url(#sc-fc-tubeg)"/></g>`;
   }).join('');
   // торії в озері праворуч — на широкому екрані; з відображенням
   const toriiArt = (red) => `<g fill="${red}"><rect x="-17" y="-44" width="4" height="44"/><rect x="13" y="-44" width="4" height="44"/>`
@@ -1411,7 +1410,7 @@ ${layer('sc-fc-far', ...FAR)}
     <radialGradient id="sc-fc-mglow"><stop offset=".4" stop-color="#f3ecd0"/><stop offset="1" stop-color="#f3ecd0" stop-opacity="0"/></radialGradient>
     <clipPath id="sc-fc-under"><rect x="-1400" y="16" width="3160" height="1000"/></clipPath>
     <clipPath id="sc-fc-r"><rect x="180" y="300" width="180" height="100"/></clipPath>
-    <linearGradient id="sc-fc-tubeg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a7f3a"/><stop offset=".35" stop-color="#e6d68e"/><stop offset=".7" stop-color="#bfa95a"/><stop offset="1" stop-color="#7a6c2e"/></linearGradient>
+    <linearGradient id="sc-fc-tubeg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c8079"/><stop offset=".35" stop-color="#eef0ea"/><stop offset=".7" stop-color="#a7aba3"/><stop offset="1" stop-color="#666a63"/></linearGradient>
     <linearGradient id="sc-fc-ray" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3b8" stop-opacity=".85"/><stop offset=".6" stop-color="#ffe27a" stop-opacity=".2"/><stop offset="1" stop-color="#ffe27a" stop-opacity="0"/></linearGradient>
     <clipPath id="sc-fc-rayclip"><rect x="-200" y="-200" width="760" height="586"/></clipPath>
   </defs>
@@ -1549,17 +1548,16 @@ const SCENES = {
 };
 
 /** Програти сценку name; повертає false, якщо такої нема. */
-// Розлам печива: бамбукові вітряні дзвіночки — трубки від подуву стукаються одна об одну, — і вібрація;
-// золоте — довший перестук, що йде вгору. Звук синтезується тут же, без файлів; грає лише після дотику — браузер раніше й не дасть.
+// Розлам печива: металеві вітряні дзвіночки, ніби від подуву вітру, і вібрація; золоте — довший каскад, що йде вгору.
+// Звук синтезується тут же, без файлів; грає лише після дотику — браузер раніше й не дасть.
 export const SCENE_SOUND_OFF = 'shooters-log:scene-sound-off';
 let audio = null;
-let noise = null;
 
-// Пентатоніка G4 A4 C5 D5 E5 (бамбук звучить нижче за метал); удар — [час, нота, сила]; парами — трубки стукаються двічі
-const KNOCK_NOTES = [392, 440, 523.3, 587.3, 659.3];
-const KNOCKS = [[0, 2, 1], [0.06, 3, 0.55], [0.2, 1, 0.75], [0.27, 4, 0.45], [0.46, 0, 0.6], [0.53, 2, 0.35], [0.78, 3, 0.3]];
-const KNOCKS_GOLD = [[0, 0, 1], [0.07, 1, 0.8], [0.14, 2, 0.85], [0.22, 3, 0.8], [0.27, 2, 0.45],
-  [0.36, 4, 0.85], [0.44, 3, 0.5], [0.56, 5, 0.8], [0.63, 4, 0.45], [0.84, 5, 0.55]];
+// Пентатоніка C6 D6 E6 G6 A6; удар — [час, нота, сила]
+const CHIME_NOTES = [1046.5, 1174.7, 1318.5, 1568, 1760];
+const CHIMES = [[0, 2, 1], [0.12, 4, 0.7], [0.31, 1, 0.55], [0.56, 3, 0.4]];
+const CHIMES_GOLD = [[0, 0, 1], [0.09, 2, 0.85], [0.18, 1, 0.8], [0.29, 3, 0.8], [0.41, 2, 0.6],
+  [0.54, 5, 0.75], [0.72, 3, 0.5], [0.93, 5, 0.45]];
 
 function crackFeedback(gold) {
   navigator.vibrate?.(gold ? [16, 50, 16, 50, 30] : [20, 60, 14]);
@@ -1572,57 +1570,30 @@ function crackFeedback(gold) {
     audio ??= new Ctx();
     if (audio.state === 'suspended') audio.resume();
     const out = audio.createGain();
-    out.gain.value = 0.2;
+    out.gain.value = 0.12;
     out.connect(audio.destination);
     const t0 = audio.currentTime + 0.02;
-    // нота 5 — ля октавою вище: золотий перестук закінчується вище, ніж почався
-    for (const [at, note, vel] of gold ? KNOCKS_GOLD : KNOCKS) {
-      knock(note === 5 ? KNOCK_NOTES[1] * 2 : KNOCK_NOTES[note], t0 + at, vel, out);
+    // нота 5 — ля октавою вище: золотий каскад закінчується вище, ніж почався
+    for (const [at, note, vel] of gold ? CHIMES_GOLD : CHIMES) {
+      strike(note === 5 ? CHIME_NOTES[4] * 2 : CHIME_NOTES[note], t0 + at, vel, out);
     }
   } catch { /* без звуку — вібрації досить */ }
 }
 
-/** Шум для «стуку» — один на весь звук, 60 мс. */
-function noiseBuffer() {
-  if (noise?.sampleRate === audio.sampleRate) return noise;
-  noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.06), audio.sampleRate);
-  const d = noise.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  return noise;
-}
-
-/**
- * Удар бамбукової трубки: порожниста дерев'яна нота гасне за пів секунди, вищі тони — швидше;
- * на початку — короткий стук (шум у резонансі трубки) і ледь вищий тон, що одразу сідає.
- */
-function knock(freq, at, vel, out) {
-  for (const [ratio, level, decay] of [[1, 0.8, 0.5], [2.01, 0.22, 0.22], [3.03, 0.08, 0.1]]) {
+/** Удар трубки: обертони вільного стрижня (1 : 2,76 : 5,40 : 8,93), вищі гаснуть швидше. */
+function strike(freq, at, vel, out) {
+  for (const [ratio, level, decay] of [[1, 0.7, 2.8], [2.76, 0.35, 1.4], [5.4, 0.18, 0.6], [8.93, 0.08, 0.25]]) {
+    if (freq * ratio > 18000) continue;
     const osc = audio.createOscillator();
     const g = audio.createGain();
     osc.type = 'sine';
     osc.frequency.value = freq * ratio;
-    osc.frequency.setValueAtTime(freq * ratio * 1.035, at);
-    osc.frequency.exponentialRampToValueAtTime(freq * ratio, at + 0.04);
     g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(level * vel, at + 0.003);
+    g.gain.linearRampToValueAtTime(level * vel, at + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
     osc.connect(g).connect(out);
     osc.start(at);
     osc.stop(at + decay + 0.05);
-  }
-  for (const [ratio, q, level, decay] of [[1, 6, 0.6, 0.06], [2.5, 3, 0.25, 0.025]]) {
-    const src = audio.createBufferSource();
-    const bp = audio.createBiquadFilter();
-    const g = audio.createGain();
-    src.buffer = noiseBuffer();
-    bp.type = 'bandpass';
-    bp.frequency.value = freq * ratio;
-    bp.Q.value = q;
-    g.gain.setValueAtTime(level * vel, at);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
-    src.connect(bp).connect(g).connect(out);
-    src.start(at);
-    src.stop(at + decay + 0.01);
   }
 }
 
