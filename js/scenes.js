@@ -1148,6 +1148,40 @@ function fortuneText(p) {
   return p.own ?? t(list[(p.i ?? 0) % list.length]);
 }
 
+/**
+ * Рядки записки: кожне речення — з нового рядка (у «фраза. Несподіваний хвіст» хвіст читається окремо);
+ * довге речення — на стільки рядків, скільки треба для ~24 літер, але слова розкладено рівно, без самотнього
+ * слова в кінці. Прийменник чи сполучник (до 2 літер) не лишається в кінці рядка, тире — на початку.
+ */
+function fortuneLines(text) {
+  const MAX = 24;
+  const greedy = (words) => words.reduce((out, w) => {
+    if (out.length && `${out[out.length - 1]} ${w}`.length <= MAX) out[out.length - 1] += ` ${w}`;
+    else out.push(w);
+    return out;
+  }, []).length;
+  const glue = (words) => words.reduce((out, w) => {
+    const prev = out[out.length - 1];
+    if (prev && (/^[—–-]$/.test(w) || (/^\p{L}{1,2}$/u.test(prev.split(' ').pop()) && !/[.,!?…:;]$/.test(prev)))) out[out.length - 1] = `${prev} ${w}`;
+    else out.push(w);
+    return out;
+  }, []);
+  const widest = (ls) => Math.max(...ls.map((l) => l.length));
+  const split = (words, k) => {
+    if (k <= 1) return [words.join(' ')];
+    let best = null;
+    for (let i = 1; i <= words.length - k + 1; i++) {
+      const cand = [words.slice(0, i).join(' '), ...split(words.slice(i), k - 1)];
+      if (!best || widest(cand) < widest(best)) best = cand;
+    }
+    return best;
+  };
+  return text.split(/(?<=[.!?…])\s+(?=[«"А-ЯІЇЄҐA-Z])/u).flatMap((s) => {
+    const words = glue(s.split(' '));
+    return split(words, Math.min(greedy(s.split(' ')), words.length));
+  });
+}
+
 const LUCKY = ['.22', '5,45', '5,56', '6,5', '7,62', '7,92', '9', '.308', '.338', '.45', '12', '12,7', '14,5', '16', '20', '30-06'];
 
 function fortuneCookie(p = {}) {
@@ -1264,12 +1298,8 @@ function fortuneCookie(p = {}) {
   for (let x = -1400; x < 1760; x += 22) rafters += `<path d="M${x} -400V0" stroke="#35241f" stroke-width="7"/><rect x="${x - 3.5}" y="-4" width="7" height="8" rx="1" fill="#5a3d2c"/>`;
   // журавлі над озером: летять через небо, махають крилами
   const crane = (x, y, d) => `<g transform="translate(${x} ${y})"><path class="sc-fc-wing" d="M-9 0Q-4-5 0 0Q4-5 9 0" style="animation-delay:-${d}s"/><path d="M0 0l3.5 1" stroke-width="1.2"/></g>`;
-  // передбачення на папірці — рядками до ~24 літер; щасливі числа дрібно внизу
-  const lines = [];
-  for (const w of fortuneText(p).split(' ')) {
-    if (lines.length && (lines[lines.length - 1] + ' ' + w).length <= 24) lines[lines.length - 1] += ' ' + w;
-    else lines.push(w);
-  }
+  // передбачення на папірці; щасливі числа дрібно внизу
+  const lines = fortuneLines(fortuneText(p));
   const slipH = 16 + lines.length * 13 + 20, top = -slipH / 2;
   const slipText = lines.map((l, k) => `<text y="${f1(top + 17 + k * 13)}">${l}</text>`).join('');
   // пагода на пагорбі праворуч: п'ять дахів з загнутими краями — верхні три видно над поручнями
