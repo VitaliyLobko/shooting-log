@@ -151,11 +151,18 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     ${zero <= xMax ? `<circle class="tr-zero" cx="${xs(zero)}" cy="${ys(0)}" r="3.5"/>` : ''}
     ${alt && alt.zero <= xMax ? `<circle class="tr-zero alt" cx="${xs(alt.zero)}" cy="${ys(0)}" r="3.5"/>` : ''}
     <line class="tr-cursor" x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/>
+    <circle class="tr-dot" r="5" visibility="hidden"/>${alt ? '<circle class="tr-dot alt" r="5" visibility="hidden"/>' : ''}
   </svg>`;
   const plot = h('div', { class: 'tr-plot' });
   plot.innerHTML = svg;
   const cursor = plot.querySelector('.tr-cursor');
-  const read = h('p', { class: 'muted small tr-read' }, t('Торкніться графіка — покаже висоту кулі на дистанції'));
+  const dot = plot.querySelector('.tr-dot:not(.alt)'); const altDot = plot.querySelector('.tr-dot.alt');
+  // Над графіком, а не під ним: рука, що веде пальцем, закриває те, що нижче
+  const read = h('div', { class: 'tr-read' }, h('span', { class: 'muted small' }, t('Ведіть пальцем по графіку — покаже, де куля на кожній дистанції')));
+  const cmShort = (v) => fmt.num(Math.abs(v) >= 20 ? Math.round(Math.abs(v)) : Math.round(Math.abs(v) * 10) / 10);
+  const chip = (cls, label, v) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
+    h('b', {}, Math.abs(v) < 0.5 ? t('у точку') : `${v > 0 ? '↑' : '↓'} ${cmShort(v)} ${t('см')}`),
+    h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
   const pick = (e) => {
     const box = plot.firstElementChild.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * W;
@@ -163,12 +170,13 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     const cm = heightAt(pts, d);
     if (cm === null) return;
     cursor.setAttribute('x1', xs(d)); cursor.setAttribute('x2', xs(d)); cursor.setAttribute('visibility', 'visible');
-    const say = (v) => (Math.abs(v) < 0.5 ? t('у точці прицілювання') : t('{cm} см {side}', { cm: fmt.num(Math.abs(v) >= 20 ? Math.round(Math.abs(v)) : Math.round(Math.abs(v) * 10) / 10), side: v > 0 ? t('вище') : t('нижче') }));
+    const place = (el, v) => { el.setAttribute('cx', xs(d)); el.setAttribute('cy', Math.min(H - B, Math.max(T, ys(v)))); el.setAttribute('visibility', 'visible'); };
+    place(dot, cm);
     const ac = alt ? heightAt(alt.pts, d) : null;
-    read.textContent = ac !== null
-      ? t('{d} м: пристрілка {z} м — {a}; на {z2} м — {b}', { d, z: zero, a: say(cm), z2: alt.zero, b: say(ac) })
-      : Math.abs(cm) < 0.5 ? t('{d} м: куля в точці прицілювання', { d })
-        : t('{d} м: куля на {cm} см {side} точки прицілювання', { d, cm: fmt.num(Math.abs(cm) >= 20 ? Math.round(Math.abs(cm)) : Math.round(Math.abs(cm) * 10) / 10), side: cm > 0 ? t('вище') : t('нижче') });
+    if (ac !== null) place(altDot, ac);
+    read.replaceChildren(...[h('span', { class: 'tr-read-d' }, `${d} ${t('м')}`),
+      chip('main', t('пристрілка {z} м', { z: zero }), cm),
+      ac !== null ? chip('alt', t('пристрілка {z} м', { z: alt.zero }), ac) : null].filter(Boolean));
   };
   plot.addEventListener('pointerdown', pick);
   plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e); });
@@ -178,7 +186,7 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
   const altNote = alt ? h('p', { class: 'small tr-alt-note' }, [t('Пунктир — пристрілка {z} м', { z: alt.zero }),
     (() => { const { up, down } = zeros(alt.pts); return up !== null && down !== null ? t('нулі на {a} і {b} м', { a: round5(up), b: round5(down) }) : null; })(),
     t('±{r} см: {a}–{b} м', { r, a: round5(alt.span[0]), b: round5(alt.span[1]) })].filter(Boolean).join(' · ')) : null;
-  return h('div', { class: 'tr' }, plot, altNote, read, legend);
+  return h('div', { class: 'tr' }, read, plot, altNote, legend);
 }
 
 /**
@@ -208,26 +216,34 @@ export function fullChart({ H, W, V, T, step, wind = 0 }) {
     <polyline class="tr-curve" points="${poly(H)}"/>
     ${wind > 0 ? `<polyline class="tr-curve wind" points="${poly(wd)}"/>` : ''}
     <line class="tr-cursor" x1="0" x2="0" y1="${T_}" y2="${H_ - B}" visibility="hidden"/>
+    <circle class="tr-dot" r="5" visibility="hidden"/>${wind > 0 ? '<circle class="tr-dot wind" r="5" visibility="hidden"/>' : ''}
   </svg>`;
   const plot = h('div', { class: 'tr-plot' });
   plot.innerHTML = svg;
   const cursor = plot.querySelector('.tr-cursor');
-  const read = h('p', { class: 'small tr-read' }, t('Торкніться графіка — поправки на дистанції'));
+  const dot = plot.querySelector('.tr-dot:not(.wind)'); const windDot = plot.querySelector('.tr-dot.wind');
+  const read = h('div', { class: 'tr-read' }, h('span', { class: 'muted small' }, t('Ведіть пальцем по графіку — покаже поправки на кожній дистанції')));
   const at = (arr, d) => { const i = d / step - 1; if (i < 0) return arr === V ? null : 0; const a = Math.floor(i); const b = Math.min(n - 1, a + 1); return arr[a] + (arr[b] - arr[a]) * (i - a); };
   const pick = (e) => {
     const box = plot.firstElementChild.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * W_;
     const d = Math.max(50, Math.min(xMax, Math.round((((x - L) / (W_ - L - R)) * xMax) / 10) * 10));
     cursor.setAttribute('x1', xs(d)); cursor.setAttribute('x2', xs(d)); cursor.setAttribute('visibility', 'visible');
-    const mr = (v) => fmt.num(Math.round(v * 10) / 10);
-    read.replaceChildren(h('b', {}, `${d} ${t('м')}: `), h('span', { class: 'tr-up' }, `↑ ${mr(at(H, d))} MRAD`),
-      wind > 0 ? h('span', { class: 'tr-wind' }, ` · ↔ ${mr(at(wd, d))} MRAD`) : null,
-      h('span', { class: 'muted' }, ` · ${Math.round(at(V, d))} ${t('м/с')} · ${fmt.num(Math.round(at(T, d) * 100) / 100)} ${t('с')}`));
+    const place = (el, v) => { el.setAttribute('cx', xs(d)); el.setAttribute('cy', Math.min(H_ - B, Math.max(T_, ys(v)))); el.setAttribute('visibility', 'visible'); };
+    const up = at(H, d); const side = at(wd, d); const v = at(V, d);
+    place(dot, up);
+    if (windDot) place(windDot, side);
+    const mr = (x) => fmt.num(Math.round(x * 10) / 10);
+    const chip = (cls, label, main, sub) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label), h('b', {}, main), sub ? h('span', { class: 'tr-chip-sub' }, sub) : null);
+    read.replaceChildren(...[h('span', { class: 'tr-read-d' }, `${d} ${t('м')}`),
+      chip('main', t('вертикаль'), `${up >= 0 ? '↑' : '↓'} ${mr(Math.abs(up))} MRAD`),
+      wind > 0 ? chip('wind', t('вітер'), `↔ ${mr(side)} MRAD`) : null,
+      chip('info', t('куля'), `${Math.round(v)} ${t('м/с')}`, `${fmt.num(Math.round(at(T, d) * 100) / 100)} ${t('с')}${v < 343 ? ` · ${t('дозвук')}` : ''}`)].filter(Boolean));
   };
   plot.addEventListener('pointerdown', pick);
   plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e); });
   const legend = h('p', { class: 'muted small tr-legend' }, [t('Ліворуч — поправка в MRAD, внизу — метри (від 50 м)'), t('Помаранчева — вертикаль'),
     wind > 0 ? t('блакитна — знос вітром {w} м/с збоку', { w: fmt.num(Math.round(wind * 10) / 10) }) : t('вітер не задано'),
     subD ? t('після {d} м куля дозвукова — точність падає', { d: subD }) : null].filter(Boolean).join(' · '));
-  return h('div', { class: 'tr' }, plot, read, legend);
+  return h('div', { class: 'tr' }, read, plot, legend);
 }

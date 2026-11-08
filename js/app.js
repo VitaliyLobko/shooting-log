@@ -4103,7 +4103,9 @@ function dopeForm(w, d = null) {
     setup = { zero: s.zero ?? 100, sh: s.sh ?? 6, mv: s.mv };
     f.inputs.condT.value = String(tC);
     f.inputs.condAlt.value = String(alt);
-    if (!f.inputs.note.value.trim()) {
+    // Примітку, що її написав попередній розрахунок, переписуємо: інакше погода в ній розійдеться з рядками
+    const note = f.inputs.note.value.trim();
+    if (!note || note.startsWith(`${t('Розрахунок')}: `)) {
       f.inputs.note.value = [`${t('Розрахунок')}: ${calcText(s)}`, `${tC > 0 ? '+' : ''}${fmt.num(tC)} °C`, `${fmt.num(alt)} ${t('м')}`, forecastNote || null]
         .filter(Boolean).join(' · ');
     }
