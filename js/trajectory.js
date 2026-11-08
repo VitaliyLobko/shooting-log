@@ -135,52 +135,98 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
   // full — уся траєкторія до кінця таблиці: униз до найнижчої точки (на 800 м куля на метри нижче лінії прицілу)
   const far = Math.max(spans.length ? spans[spans.length - 1][1] : zero, alt?.span[1] ?? 0);
   const xMax = full ? pts[pts.length - 1].d : Math.min(pts[pts.length - 1].d, Math.max(300, Math.ceil((Math.max(far, zero) * 1.35 + 30) / 100) * 100));
-  const yHi = Math.max(r, apex.cm, ...(alt ? alt.pts.filter((p) => p.d <= xMax).map((p) => p.cm) : [])) + 3;
-  const lowest = Math.min(...pts.filter((p) => p.d <= xMax).map((p) => p.cm), ...(alt ? alt.pts.filter((p) => p.d <= xMax).map((p) => p.cm) : []));
-  const yLo = full ? Math.min(-3 * r, lowest * 1.05) : -Math.max(3 * r, pts[0].cm * -1 + 2);
-  const xs = (d) => L + ((W - L - R) * d) / xMax;
-  const ys = (cm) => T + ((H - T - B) * (yHi - cm)) / (yHi - yLo);
-  const shown = pts.filter((p) => p.d <= xMax);
-  const poly = (list) => list.filter((p) => p.d <= xMax).map((p) => `${xs(p.d).toFixed(1)},${ys(p.cm).toFixed(1)}`).join(' ');
-  const line = poly(shown);
-  const xTicks = Array.from({ length: Math.floor(xMax / 100) + 1 }, (_, i) => i * 100).filter((d) => !full || xMax <= 500 || d % 200 === 0);
-  // Підписи кратні r; високий пунктир (25/300) — підписи й угорі, але не густіше ніж 7
-  // Уся траєкторія — круглі кроки (50, 100, 200 см…); прямий постріл — кратні r
-  const nice = [10, 20, 50, 100, 200, 500, 1000].find((v) => (yHi - yLo) / v <= 7) ?? 2000;
-  const tick = full ? nice : r * Math.max(1, Math.ceil((yHi - yLo) / r / 7));
-  const yTicks = Array.from({ length: Math.floor((yHi - yLo) / tick) + 2 }, (_, i) => Math.floor(yLo / tick) * tick + i * tick).filter((v) => v <= yHi && v >= yLo);
-  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t('Траєкторія відносно лінії прицілу')}">
+  const curves = alt ? [pts, alt.pts] : [pts];
+  // Видиме вікно дистанцій [x0, x1]: щипок, Ctrl+коліщатко чи кнопки «+»/«−» — ближче; висота підлаштовується під видиме
+  let x0 = 0; let x1 = xMax;
+  const MIN_W = 30;
+  const zoomed = () => x0 > 0.5 || x1 < xMax - 0.5;
+  // Масштаб осей для поточного вікна: без наближення — як було (смуга, лінія прицілу); з наближенням — під видимі криві
+  const scale = () => {
+    const vis = curves.flatMap((list) => [x0, x1, ...list.filter((p) => p.d > x0 && p.d < x1).map((p) => p.d)].map((d) => heightAt(list, d)))
+      .filter((v) => v !== null);
+    let yHi; let yLo;
+    if (!zoomed()) {
+      const lowest = Math.min(...vis);
+      yHi = Math.max(r, apex.cm, ...vis) + 3;
+      yLo = full ? Math.min(-3 * r, lowest * 1.05) : -Math.max(3 * r, pts[0].cm * -1 + 2);
+    } else {
+      const lo = Math.min(...vis); const hi = Math.max(...vis); const pad = Math.max(1, (hi - lo) * 0.12);
+      yHi = hi + pad; yLo = lo - pad;
+    }
+    const span = yHi - yLo;
+    const tick = !zoomed() && !full ? r * Math.max(1, Math.ceil(span / r / 7)) : [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find((v) => span / v <= 7) ?? 2000;
+    const xStep = [5, 10, 25, 50, 100, 200, 500].find((v) => (x1 - x0) / v <= 5);
+    return { yHi, yLo, tick, xStep };
+  };
+  let xs; let ys;
+  const plot = h('div', { class: 'tr-plot' });
+  // Усі нулі кривої — крапки на лінії прицілу з підписом метрів: помаранчевої під лінією, пунктиру над нею
+  // (на всій траєкторії над лінією місця немає — другим рядком під). Нулі ближче 10 м — це один, як у кнопках схем
+  const zeroMarks = (list, z, cls, ly) => {
+    const { up, down } = zeros(list);
+    const ds = (up !== null && down !== null && round5(down) - round5(up) >= 10 ? [up, down] : [z]).filter((d) => d >= x0 && d <= x1);
+    const dots = ds.map((d) => `<circle class="tr-zero ${cls}" cx="${xs(d).toFixed(1)}" cy="${ys(0).toFixed(1)}" r="3.5"/>`).join('');
+    // Близькі нулі — одним підписом посередині, щоб числа не налазили одне на одне
+    const labels = ds.length === 2 && xs(ds[1]) - xs(ds[0]) < 26 ? [[(ds[0] + ds[1]) / 2, `${round5(ds[0])}/${round5(ds[1])}`]]
+      : ds.map((d) => [d, String(round5(d))]);
+    return dots + labels.map(([d, txt]) => `<text class="tr-txt tr-zero-txt ${cls}" x="${xs(d).toFixed(1)}" y="${(ys(0) + ly).toFixed(1)}" text-anchor="middle">${txt}</text>`).join('');
+  };
+  const draw = () => {
+    const { yHi, yLo, tick, xStep } = scale();
+    xs = (d) => L + ((W - L - R) * (d - x0)) / (x1 - x0);
+    ys = (cm) => T + ((H - T - B) * (yHi - cm)) / (yHi - yLo);
+    // Точки кривої у вікні й по одній за його краями — щоб лінія доходила до рамки
+    const poly = (list) => list.filter((p, i) => (p.d >= x0 && p.d <= x1) || list[i + 1]?.d > x0 && p.d < x0 || list[i - 1]?.d < x1 && p.d > x1)
+      .map((p) => `${xs(p.d).toFixed(1)},${ys(p.cm).toFixed(1)}`).join(' ');
+    const xTicks = Array.from({ length: Math.floor(x1 / xStep) - Math.ceil(x0 / xStep) + 1 }, (_, i) => (Math.ceil(x0 / xStep) + i) * xStep);
+    const yTicks = Array.from({ length: Math.floor((yHi - yLo) / tick) + 2 }, (_, i) => Math.floor(yLo / tick) * tick + i * tick).filter((v) => v <= yHi && v >= yLo);
+    const seg = ([a, b], y, cls) => (b < x0 || a > x1 ? '' : `<line class="tr-span ${cls}" x1="${xs(Math.max(a, x0))}" x2="${xs(Math.min(b, x1))}" y1="${y}" y2="${y}"/>`);
+    // Лінія прицілу за межами видимої висоти (наблизили далеку ділянку) — ні її, ні нулів не малюємо
+    const los = yLo <= 0 && yHi >= 0;
+    plot.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t('Траєкторія відносно лінії прицілу')}">
     <defs><clipPath id="tr-clip"><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></clipPath></defs>
     ${xTicks.map((d) => `<line class="tr-grid" x1="${xs(d)}" x2="${xs(d)}" y1="${T}" y2="${H - B}"/><text class="tr-txt" x="${xs(d)}" y="${H - 6}" text-anchor="middle">${d}</text>`).join('')}
     ${yTicks.map((v) => `<text class="tr-txt" x="${L - 4}" y="${ys(v) + 3}" text-anchor="end">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}</text>`).join('')}
-    <rect class="tr-band" x="${L}" y="${ys(r)}" width="${W - L - R}" height="${ys(-r) - ys(r)}"/>
-    ${spans.filter(([a]) => a <= xMax).map(([a, b]) => `<line class="tr-span" x1="${xs(a)}" x2="${xs(Math.min(b, xMax))}" y1="${H - B}" y2="${H - B}"/>`).join('')}
-    <line class="tr-los" x1="${L}" x2="${W - R}" y1="${ys(0)}" y2="${ys(0)}"/>
-    ${alt ? `<line class="tr-span alt" x1="${xs(alt.span[0])}" x2="${xs(Math.min(alt.span[1], xMax))}" y1="${H - B - 6}" y2="${H - B - 6}"/>` : ''}
-    <g clip-path="url(#tr-clip)"><polyline class="tr-curve" points="${line}"/>${alt ? `<polyline class="tr-curve alt" points="${poly(alt.pts)}"/>` : ''}</g>
-    ${zero <= xMax ? `<circle class="tr-zero" cx="${xs(zero)}" cy="${ys(0)}" r="3.5"/>` : ''}
-    ${alt && alt.zero <= xMax ? `<circle class="tr-zero alt" cx="${xs(alt.zero)}" cy="${ys(0)}" r="3.5"/>` : ''}
+    <g clip-path="url(#tr-clip)"><rect class="tr-band" x="${L}" y="${ys(r)}" width="${W - L - R}" height="${ys(-r) - ys(r)}"/>
+    ${los ? `<line class="tr-los" x1="${L}" x2="${W - R}" y1="${ys(0)}" y2="${ys(0)}"/>` : ''}
+    <polyline class="tr-curve" points="${poly(pts)}"/>${alt ? `<polyline class="tr-curve alt" points="${poly(alt.pts)}"/>` : ''}</g>
+    ${spans.map((s) => seg(s, H - B, '')).join('')}
+    ${alt ? seg(alt.span, H - B - 6, 'alt') : ''}
+    ${los ? zeroMarks(pts, zero, '', 12) : ''}
+    ${alt && los ? zeroMarks(alt.pts, alt.zero, 'alt', full ? 23 : -6) : ''}
     <line class="tr-cursor" x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/>
     <circle class="tr-dot" r="5" visibility="hidden"/>${alt ? '<circle class="tr-dot alt" r="5" visibility="hidden"/>' : ''}
   </svg>`;
-  const plot = h('div', { class: 'tr-plot' });
-  plot.innerHTML = svg;
-  const cursor = plot.querySelector('.tr-cursor');
-  const dot = plot.querySelector('.tr-dot:not(.alt)'); const altDot = plot.querySelector('.tr-dot.alt');
+    zoomBar.hidden = false;
+    for (const b of [resetBtn, leftBtn, rightBtn]) b.hidden = !zoomed();
+    outBtn.disabled = !zoomed();
+    inBtn.disabled = x1 - x0 <= MIN_W + 0.5;
+    if (lastD !== null && lastD >= x0 && lastD <= x1) show(lastD);
+  };
   // Над графіком, а не під ним: рука, що веде пальцем, закриває те, що нижче
-  const read = h('div', { class: 'tr-read' }, h('span', { class: 'muted small' }, t('Ведіть пальцем по графіку — покаже, де куля на кожній дистанції')));
+  const read = h('div', { class: 'tr-read' }, h('span', { class: 'muted small' }, t('Ведіть пальцем по графіку — покаже, де куля на кожній дистанції. Двома пальцями — ближче чи далі')));
   const cmShort = (v) => fmt.num(Math.abs(v) >= 20 ? Math.round(Math.abs(v)) : Math.round(Math.abs(v) * 10) / 10);
   // Біля дула куля нижче лінії прицілу на висоту прицілу — це не промах, кажемо прямо
-  const chip = (cls, label, v, d) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
+  const chip = (cls, label, v, d, vs = null) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
     h('b', {}, Math.abs(v) < 0.5 ? t('у точку') : `${v > 0 ? '↑' : '↓'} ${cmShort(v)} ${t('см')}`),
     d === 0 ? h('span', { class: 'tr-chip-sub' }, t('дуло: приціл на {n} см вище ствола', { n: cmShort(v) }))
-      : full ? null : h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
-  const pick = (e) => {
+      // Уся траєкторія: криві на шкалі в метри майже зливаються — різницю з помаранчевою кажемо числом
+      : full ? (vs === null || Math.abs(v - vs) < 0.5 ? null : h('span', { class: 'tr-chip-sub' },
+        t(v > vs ? 'на {n} см вище за помаранчеву' : 'на {n} см нижче за помаранчеву', { n: cmShort(v - vs) }))) : h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
+  let lastD = null;
+  // Дистанція під пальцем: крок 5 м, на близькому плані (вікно до 100 м) — 1 м
+  const distAt = (clientX) => {
     const box = plot.firstElementChild.getBoundingClientRect();
-    const x = ((e.clientX - box.left) / box.width) * W;
-    const d = Math.max(0, Math.min(xMax, Math.round((((x - L) / (W - L - R)) * xMax) / 5) * 5));
+    const f = (((clientX - box.left) / box.width) * W - L) / (W - L - R);
+    const k = x1 - x0 <= 100 ? 1 : 5;
+    return Math.max(x0, Math.min(x1, Math.round((x0 + f * (x1 - x0)) / k) * k));
+  };
+  const show = (d) => {
     const cm = heightAt(pts, d);
     if (cm === null) return;
+    lastD = d;
+    const cursor = plot.querySelector('.tr-cursor');
+    const dot = plot.querySelector('.tr-dot:not(.alt)'); const altDot = plot.querySelector('.tr-dot.alt');
     cursor.setAttribute('x1', xs(d)); cursor.setAttribute('x2', xs(d)); cursor.setAttribute('visibility', 'visible');
     const place = (el, v) => { el.setAttribute('cx', xs(d)); el.setAttribute('cy', Math.min(H - B, Math.max(T, ys(v)))); el.setAttribute('visibility', 'visible'); };
     place(dot, cm);
@@ -188,20 +234,66 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     if (ac !== null) place(altDot, ac);
     read.replaceChildren(...[h('span', { class: 'tr-read-d' }, `${d} ${t('м')}`),
       chip('main', t('пристрілка {z} м', { z: zero }), cm, d),
-      ac !== null ? chip('alt', t('пристрілка {z} м', { z: alt.zero }), ac, d) : null].filter(Boolean));
+      ac !== null ? chip('alt', t('пристрілка {z} м', { z: alt.zero }), ac, d, full ? cm : null) : null].filter(Boolean));
   };
-  plot.addEventListener('pointerdown', pick);
-  plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e); });
-  const legend = h('p', { class: 'muted small tr-legend' }, full
-    ? t('Ліворуч — сантиметри над лінією прицілу (мінус — нижче), внизу — метри. Без поправки барабаном куля йде так; крапка — пристрілка.')
-    : t('Ліворуч — сантиметри над лінією прицілу, внизу — метри. Смуга — ±{r} см, крапка — пристрілка, риска внизу — де барабан крутити не треба.', { r }));
+  /** Нове вікно шириною w, щоб дистанція d лишилась у тій самій частці f ширини графіка. */
+  const zoomTo = (w, d, f) => {
+    w = Math.max(MIN_W, Math.min(xMax, w));
+    x0 = Math.max(0, Math.min(xMax - w, d - f * w)); x1 = x0 + w;
+    draw();
+  };
+  const centerD = () => (lastD !== null && lastD >= x0 && lastD <= x1 ? lastD : (x0 + x1) / 2);
+  const centerF = (d) => (d - x0) / (x1 - x0);
+  const zbtn = (label, title, on) => h('button', { type: 'button', class: 'tr-zoom-btn', title, 'aria-label': title, onclick: on }, label);
+  const inBtn = zbtn('+', t('Ближче'), () => { const d = centerD(); zoomTo((x1 - x0) / 2, d, centerF(d)); });
+  const outBtn = zbtn('−', t('Далі'), () => { const d = centerD(); zoomTo((x1 - x0) * 2, d, centerF(d)); });
+  const leftBtn = zbtn('‹', t('Ближчі дистанції'), () => zoomTo(x1 - x0, x0 - (x1 - x0) / 2, 0));
+  const rightBtn = zbtn('›', t('Дальші дистанції'), () => zoomTo(x1 - x0, x1 + (x1 - x0) / 2, 1));
+  const resetBtn = zbtn('↺', t('Увесь графік'), () => { x0 = 0; x1 = xMax; draw(); });
+  const zoomBar = h('div', { class: 'tr-zoom', hidden: true }, leftBtn, outBtn, inBtn, rightBtn, resetBtn);
+  // Один палець — підпис під пальцем; два — щипок: ширина вікна обернено до відстані між пальцями, середина тримає свою дистанцію
+  const touches = new Map();
+  let pinch = null;
+  plot.addEventListener('pointerdown', (e) => {
+    touches.set(e.pointerId, e.clientX);
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = { gap: Math.max(10, Math.abs(a - b)), w: x1 - x0, d: distAt((a + b) / 2) };
+    } else if (touches.size === 1) show(distAt(e.clientX));
+  });
+  plot.addEventListener('pointermove', (e) => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, e.clientX);
+    if (pinch && touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      const box = plot.firstElementChild.getBoundingClientRect();
+      const f = Math.max(0, Math.min(1, ((((a + b) / 2 - box.left) / box.width) * W - L) / (W - L - R)));
+      zoomTo(pinch.w * pinch.gap / Math.max(10, Math.abs(a - b)), pinch.d, f);
+      return;
+    }
+    if (e.pointerType === 'mouse' || e.buttons) show(distAt(e.clientX));
+  });
+  const lift = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+  plot.addEventListener('pointerup', lift);
+  plot.addEventListener('pointercancel', lift);
+  plot.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') lift(e); });
+  // Щипок на тачпаді й Ctrl+коліщатко приходять як wheel з ctrlKey; звичайне коліщатко гортає сторінку, як і було
+  plot.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const d = distAt(e.clientX);
+    zoomTo((x1 - x0) * Math.exp(e.deltaY * 0.01), d, centerF(d));
+  }, { passive: false });
+  draw();
+  // Пояснення осей — лише для всієї траєкторії; у прямому пострілі все видно з плиток і підписів кривих
+  const legend = full ? h('p', { class: 'muted small tr-legend' },
+    t('Ліворуч — сантиметри над лінією прицілу (мінус — нижче), внизу — метри. Без поправки барабаном куля йде так; крапка — пристрілка.')) : null;
   const altNote = alt ? h('p', { class: 'small tr-alt-note' }, [t('Пунктир — пристрілка {z} м', { z: alt.zero }),
     // Два нулі — одна траєкторія: пристрілювати можна на будь-якому, зручніше — на ближньому
     (() => { const { up, down } = zeros(alt.pts); return up !== null && down !== null && round5(down) - round5(up) >= 10 ? t('нулі на {a} і {b} м — пристрілювати можна на будь-якому', { a: round5(up), b: round5(down) }) : null; })(),
     t('±{r} см: {a}–{b} м', { r, a: round5(alt.span[0]), b: round5(alt.span[1]) })].filter(Boolean).join(' · ')) : null;
   // Підпис основної кривої: яка це пристрілка й звідки вона
   const mainNote = h('p', { class: 'small tr-main-note' }, [t('Помаранчева — пристрілка {z} м', { z: zero }), zeroNote].filter(Boolean).join(' · '));
-  return h('div', { class: 'tr' }, read, plot, mainNote, altNote, legend);
+  return h('div', { class: 'tr' }, ...[read, zoomBar, plot, mainNote, altNote, legend].filter(Boolean));
 }
 
 /**

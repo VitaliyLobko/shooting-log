@@ -4019,6 +4019,13 @@ button.now-tile.best.on::after { content: '✓ пунктир на графік�
 :root[data-theme="light"] .tr-zero.alt { fill: #1f8a55; }
 .tr-main-note { margin: 4px 0 0; color: var(--accent); font-weight: 600; }
 .tr-alt-note { margin: 4px 0 0; color: #3fbf7f; font-weight: 600; }
+.tr-zero-txt { fill: var(--accent); font-weight: 700; }
+.tr-zoom { display: flex; justify-content: flex-end; gap: 6px; margin: 0 0 4px; }
+.tr-zoom-btn { min-width: 40px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; }
+.tr-zoom-btn:disabled { opacity: .35; cursor: default; }
+.tr-zoom-btn[hidden] { display: none; }
+.tr-zero-txt.alt { fill: #3fbf7f; }
+:root[data-theme="light"] .tr-zero-txt.alt { fill: #1f8a55; }
 .form > .dope-scope-info { grid-column: 1 / -1; margin: -4px 0 0; }
 /* Цифра в плитці — за шириною плитки: на телефоні дві плитки вузькі, «↑ 0,5 MRAD» не вилазить за край */
 .now-tile .now-main { font-size: clamp(18px, 15cqi, 30px); }

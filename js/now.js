@@ -368,38 +368,10 @@ export function nowSheet(ctx) {
     const pts = trajectoryPoints(m.now.H, 10, m.sh);
     const zeroNote = m.sc?.zero > 0 ? t('з картки прицілу') : t('у прицілі не вказано — рахуємо від 100 м');
     const pb = pointBlank(pts, pbR);
-    if (pbMode === 'all') {
-      const v = Number(speed.value.replace(',', '.')) || 0;
-      const cross = v * M.windShare(Number(clock.value));
-      pbSum.textContent = t('до {d} м', { d: m.now.H.length * 10 });
-      const views = chips([['mrad', t('Поправки')], ['cm', t('Висота кулі')]], allView, (k) => { allView = k; paintTraj(model()); });
-      views.classList.add('segmented');
-      trajBox.replaceChildren(modes, views, allView === 'cm'
-        ? trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, full: true, zeroNote })
-        : fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross, tC: m.air.tC, arrow: Number(clock.value) < 6 ? '→' : '←' }));
-      return;
-    }
-    const near = pb.spans[0];
-    pbSum.textContent = near ? `${t('до {d} м', { d: fmt.num(Math.round(near[1] / 5) * 5) })} · ±${pbR} ${t('см')}` : '';
-    const radius = chips([5, 10, 15].map((r) => [String(r), `±${r} ${t('см')}`]), String(pbR), (r) => {
-      pbR = Number(r); write('shooters-log:pb-r', pbR); paintTraj(model());
-    });
-    radius.classList.add('segmented');
-    // Головне крупно: від–до, де барабан не крутити; і порада, якщо інша пристрілка дає помітно далі (від 15 м)
     const r5 = (d) => Math.round(d / 5) * 5;
-    const cur = pb.spans.find(([a, b]) => m.zero >= a && m.zero <= b) ?? near;
     const best = bestZero(pts, pbR);
-    const better = best && cur && best.zero !== m.zero && best.span[1] - cur[1] >= 15 ? best : null;
     const bestZ = best?.zero ?? null;
     const bestKey = bestZ ? String(bestZ) : '';
-    const tiles = cur ? h('div', { class: 'now-tiles' },
-      h('div', { class: 'now-tile elev' }, h('div', { class: 'now-tile-label' }, t('Барабан не крутити')),
-        h('div', { class: 'now-main' }, `${fmt.num(r5(cur[0]))}–${fmt.num(r5(cur[1]))} ${t('м')}`),
-        h('div', { class: 'now-sub' }, t('пристрілка {z} м · цільтесь у центр', { z: fmt.num(m.zero) }))),
-      better ? h('button', { type: 'button', class: `now-tile best ${pbAlt === bestKey ? 'on' : ''}`, 'aria-pressed': String(pbAlt === bestKey),
-        title: t('Показати на графіку'), onclick: () => { pbAlt = pbAlt === bestKey ? '' : bestKey; paintTraj(model()); } }, h('div', { class: 'now-tile-label' }, t('Якщо пристріляти на {z} м', { z: fmt.num(better.zero) })),
-        h('div', { class: 'now-main' }, `${fmt.num(r5(better.span[0]))}–${fmt.num(r5(better.span[1]))} ${t('м')}`),
-        h('div', { class: 'now-sub' }, t('+{n} м', { n: fmt.num(r5(better.span[1]) - r5(cur[1])) }))) : null) : null;
     // Інша пристрілка — та сама траєкторія, повернута на кут y(z)/z. Різниця менша за клік 0,1 мрад — це та сама
     // траєкторія (виставити різницю барабаном не вийде): такі кнопки склеюємо, «Найкраща» має перевагу;
     // траєкторію поточної пристрілки не пропонуємо. Zion з M855: 25 і 300 м — 0,09 мрад (одна), 50 і 200 — 0,17 (різні)
@@ -433,6 +405,36 @@ export function nowSheet(ctx) {
       return down !== null && Math.abs(r5(down) - far) >= 15
         ? h('p', { class: 'muted small pb-known' }, t('Схема «{n}»: з цим набоєм і прицілом дальній нуль виходить на {b} м, а не на {c}.', { n: name, b: r5(down), c: far })) : null;
     })() : null;
+    if (pbMode === 'all') {
+      const v = Number(speed.value.replace(',', '.')) || 0;
+      const cross = v * M.windShare(Number(clock.value));
+      pbSum.textContent = t('до {d} м', { d: m.now.H.length * 10 });
+      const views = chips([['mrad', t('Поправки')], ['cm', t('Висота кулі')]], allView, (k) => { allView = k; paintTraj(model()); });
+      views.classList.add('segmented');
+      // «Висота кулі»: та сама інша пристрілка пунктиром — видно, наскільки розходяться криві на 400–800 м.
+      // У поправках інша пристрілка — лише зсув на сталий кут, друга крива там нічого не додає
+      trajBox.replaceChildren(...(allView === 'cm'
+        ? [modes, views, schemeRow, known, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt, full: true, zeroNote })]
+        : [modes, views, fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross, tC: m.air.tC, arrow: Number(clock.value) < 6 ? '→' : '←' })]).filter(Boolean));
+      return;
+    }
+    const near = pb.spans[0];
+    pbSum.textContent = near ? `${t('до {d} м', { d: fmt.num(Math.round(near[1] / 5) * 5) })} · ±${pbR} ${t('см')}` : '';
+    const radius = chips([5, 10, 15].map((r) => [String(r), `±${r} ${t('см')}`]), String(pbR), (r) => {
+      pbR = Number(r); write('shooters-log:pb-r', pbR); paintTraj(model());
+    });
+    radius.classList.add('segmented');
+    // Головне крупно: від–до, де барабан не крутити; і порада, якщо інша пристрілка дає помітно далі (від 15 м)
+    const cur = pb.spans.find(([a, b]) => m.zero >= a && m.zero <= b) ?? near;
+    const better = best && cur && best.zero !== m.zero && best.span[1] - cur[1] >= 15 ? best : null;
+    const tiles = cur ? h('div', { class: 'now-tiles' },
+      h('div', { class: 'now-tile elev' }, h('div', { class: 'now-tile-label' }, t('Барабан не крутити')),
+        h('div', { class: 'now-main' }, `${fmt.num(r5(cur[0]))}–${fmt.num(r5(cur[1]))} ${t('м')}`),
+        h('div', { class: 'now-sub' }, t('пристрілка {z} м · цільтесь у центр', { z: fmt.num(m.zero) }))),
+      better ? h('button', { type: 'button', class: `now-tile best ${pbAlt === bestKey ? 'on' : ''}`, 'aria-pressed': String(pbAlt === bestKey),
+        title: t('Показати на графіку'), onclick: () => { pbAlt = pbAlt === bestKey ? '' : bestKey; paintTraj(model()); } }, h('div', { class: 'now-tile-label' }, t('Якщо пристріляти на {z} м', { z: fmt.num(better.zero) })),
+        h('div', { class: 'now-main' }, `${fmt.num(r5(better.span[0]))}–${fmt.num(r5(better.span[1]))} ${t('м')}`),
+        h('div', { class: 'now-sub' }, t('+{n} м', { n: fmt.num(r5(better.span[1]) - r5(cur[1])) }))) : null) : null;
     // «Від–до» вже крупно в плитці — під нею лише те, чого там нема: вершина траєкторії
     trajBox.replaceChildren(...[modes, h('p', { class: 'muted small pb-r-hint' }, t('Допуск: на скільки куля може піти вище чи нижче точки прицілювання (пів висоти цілі)')),
       radius, tiles, h('p', { class: 'dope-pb muted small' }, apexText(pb, pbR)),
@@ -548,7 +550,7 @@ export function nowSheet(ctx) {
 
   const label = (text, el) => h('label', { class: 'field half' }, h('span', { class: 'field-label' }, text), el);
   // Порядок: що стріляємо → цілі → дистанція → відповідь → умови (згорнуті, підсумок у заголовку) → таблиця → дії
-  const tableFrame = ctx.box(t('На всі дистанції'), tableBox);
+  const tableFrame = ctx.box(t('На всі дистанції'), tableBox, { fold: 'now-table' });
   const pbFrame = ctx.box(t('Траєкторія'), trajBox, { fold: 'now-pb', summary: pbSum });
   const body = h('div', { class: 'now' },
     ctx.box(t('Що стріляємо'), [
