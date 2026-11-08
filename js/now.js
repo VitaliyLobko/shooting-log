@@ -7,7 +7,7 @@ import * as M from './model.js';
 import { solve } from './ballistics.js';
 import { num } from './target.js';
 import { tripWeather, forecastAt } from './forecast.js';
-import { trajectoryPoints, pointBlank, apexText, trajectoryChart, bestZero, schemeAt, fullChart, zerosLabel } from './trajectory.js';
+import { trajectoryPoints, pointBlank, apexText, trajectoryChart, bestZero, schemeAt, fullChart, zerosLabel, zeros, rezero, heightAt } from './trajectory.js';
 
 const unitName = (u) => (u === 'moa' ? 'MOA' : 'MRAD');
 const gridUnit = (reticle) => (reticle === 'mil' || reticle === 'moa' ? reticle : null);
@@ -302,7 +302,7 @@ export function nowSheet(ctx) {
       return h('div', { class: `now-tg-row ${on}`, onclick: () => setDist(x.d) },
         h('span', { class: 'now-tg-n' }, `Ц${x.n}`), h('span', { class: 'now-tg-d' }, `${fmt.num(x.d)} ${t('м')}`),
         h('span', { class: 'now-tg-e' }, h('b', {}, hd.elev?.main ?? '—'), hd.elev?.sub ? h('small', {}, hd.elev.sub) : null),
-        h('span', { class: 'now-tg-w' }, hd.wind ? hd.wind.main : ''),
+        h('span', { class: 'now-tg-e now-tg-w' }, ...(hd.wind ? [h('b', {}, hd.wind.main), hd.wind.sub ? h('small', {}, hd.wind.sub) : null].filter(Boolean) : [])),
         h('button', { type: 'button', class: 'now-tg-del', 'aria-label': t('Прибрати ціль {n}', { n: x.n }),
           onclick: (e) => { e.stopPropagation(); targets = targets.filter((y) => y !== x); write(TG_KEY, targets); paintTargets(lastM); } }, '×'));
     });
@@ -349,14 +349,17 @@ export function nowSheet(ctx) {
     }
   };
 
-  /** Прямий постріл за балістикою під цю погоду; без BC і швидкості блоку немає. */
-  // Порівняння на графіку: схема пристрілки пунктиром поверх поточної — 100, 200, 50/200, 25/300 чи найкраща; ще тап — сховати
-  const SCHEMES = [['100', '100 м'], ['200', '200 м'], ['50', '50/200'], ['25', '25/300'], ['best', 'Найкраща']];
+  // Порівняння на графіку: інша пристрілка пунктиром поверх поточної; ще тап — сховати.
+  // Кнопки — звичні назви схем, під ними справжні нулі для цього набою й прицілу: «50/200» і «25/300» у кожного ствола свої
+  // (Zion 16″ з M855 і прицілом 6 см: на 50 м — 50/175, а дальній нуль 200 м дає пристрілка на 45 м)
+  const SCHEME_Z = [25, 50, 100, 200, 300];
+  const KNOWN = { 50: ['50/200', 200], 25: ['25/300', 300] };
   let pbAlt = '';
   // Режим блоку: прямий постріл (сантиметри біля лінії прицілу) чи вся траєкторія до 800 м (поправки в мрад)
   let pbMode = 'pb';
   // У «Усій траєкторії»: поправки в мрад чи висота кулі над лінією прицілу в см
   let allView = 'mrad';
+  /** Прямий постріл за балістикою під цю погоду; без BC і швидкості блоку немає. */
   const paintTraj = (m) => {
     pbFrame.hidden = !m.now;
     if (!m.now) { trajBox.replaceChildren(); return; }
@@ -387,8 +390,7 @@ export function nowSheet(ctx) {
     const best = bestZero(pts, pbR);
     const better = best && cur && best.zero !== m.zero && best.span[1] - cur[1] >= 15 ? best : null;
     const bestZ = best?.zero ?? null;
-    // «Найкраща» окремою кнопкою — лише коли вона не збігається з поточною чи з однією зі схем
-    const bestKey = SCHEMES.some(([k]) => Number(k) === bestZ) ? String(bestZ) : 'best';
+    const bestKey = bestZ ? String(bestZ) : '';
     const tiles = cur ? h('div', { class: 'now-tiles' },
       h('div', { class: 'now-tile elev' }, h('div', { class: 'now-tile-label' }, t('Барабан не крутити')),
         h('div', { class: 'now-main' }, `${fmt.num(r5(cur[0]))}–${fmt.num(r5(cur[1]))} ${t('м')}`),
@@ -397,20 +399,43 @@ export function nowSheet(ctx) {
         title: t('Показати на графіку'), onclick: () => { pbAlt = pbAlt === bestKey ? '' : bestKey; paintTraj(model()); } }, h('div', { class: 'now-tile-label' }, t('Якщо пристріляти на {z} м', { z: fmt.num(better.zero) })),
         h('div', { class: 'now-main' }, `${fmt.num(r5(better.span[0]))}–${fmt.num(r5(better.span[1]))} ${t('м')}`),
         h('div', { class: 'now-sub' }, t('+{n} м', { n: fmt.num(r5(better.span[1]) - r5(cur[1])) }))) : null) : null;
-    // Схеми, що збігаються з поточною пристрілкою, не показуємо; «Найкраща» — лише коли вона інша
-    const schemes = SCHEMES.filter(([k]) => (k === 'best' ? bestZ && bestZ !== m.zero && bestKey === 'best' : Number(k) !== m.zero));
-    if (pbAlt && !schemes.some(([k]) => k === pbAlt)) pbAlt = '';
-    const altZ = pbAlt === 'best' ? bestZ : pbAlt ? Number(pbAlt) : null;
+    // Інша пристрілка — та сама траєкторія, повернута на кут y(z)/z. Різниця менша за клік 0,1 мрад — це та сама
+    // траєкторія (виставити різницю барабаном не вийде): такі кнопки склеюємо, «Найкраща» має перевагу;
+    // траєкторію поточної пристрілки не пропонуємо. Zion з M855: 25 і 300 м — 0,09 мрад (одна), 50 і 200 — 0,17 (різні)
+    const sig = (z, extra = {}) => ({ z, ang: (heightAt(pts, z) / z) * 10, ...extra });
+    const same = (a, b) => Math.abs(a.ang - b.ang) < 0.1;
+    const curSig = sig(m.zero);
+    const schemes = [];
+    for (const c of [...(bestZ ? [sig(bestZ, { best: true })] : []), ...SCHEME_Z.map((z) => sig(z))]) {
+      if (!same(c, curSig) && !schemes.some((k) => same(k, c))) schemes.push(c);
+    }
+    schemes.sort((a, b) => (zeros(rezero(pts, a.z)).down ?? a.z) - (zeros(rezero(pts, b.z)).down ?? b.z));
+    if (pbAlt && !schemes.some((c) => String(c.z) === pbAlt)) pbAlt = '';
+    const altZ = pbAlt ? Number(pbAlt) : null;
     const alt = altZ ? schemeAt(pts, altZ, pbR) : null;
     const schemeRow = h('div', { class: 'chips pb-schemes', role: 'group', 'aria-label': t('Порівняти з пристрілкою') },
       h('span', { class: 'muted small' }, t('Порівняти:')),
-      ...schemes.map(([k, label]) => h('button', { type: 'button', class: k === pbAlt ? 'on' : '', 'aria-pressed': String(k === pbAlt),
-        // Звичні назви схем; «Найкраща» — своя дистанція, тож обидва її нулі (справжні нулі будь-якої схеми — під графіком)
-        onclick: () => { pbAlt = pbAlt === k ? '' : k; paintTraj(model()); } }, k === 'best' ? `${t('Найкраща')} ${zerosLabel(pts, bestZ)}` : t(label))));
+      ...schemes.map((c) => {
+        const k = String(c.z);
+        return h('button', { type: 'button', class: k === pbAlt ? 'on' : '', 'aria-pressed': String(k === pbAlt),
+          onclick: () => { pbAlt = pbAlt === k ? '' : k; paintTraj(model()); } },
+        // Звична назва схеми, під нею дрібно — справжні нулі з цим набоєм і прицілом (якщо інші)
+        (() => {
+          const real = zerosLabel(pts, c.z);
+          const name = c.best ? t('Найкраща') : KNOWN[c.z]?.[0] ?? `${c.z} ${t('м')}`;
+          return [h('span', {}, name), real !== name && real !== String(c.z) ? h('small', {}, real) : null].filter(Boolean);
+        })());
+      }));
+    // Обрана відома схема дає в цього ствола інший дальній нуль — кажемо прямо, щоб назва не вводила в оману
+    const known = altZ && KNOWN[altZ] ? (() => {
+      const [name, far] = KNOWN[altZ]; const { down } = zeros(alt.pts);
+      return down !== null && Math.abs(r5(down) - far) >= 15
+        ? h('p', { class: 'muted small pb-known' }, t('Схема «{n}»: з цим набоєм і прицілом дальній нуль виходить на {b} м, а не на {c}.', { n: name, b: r5(down), c: far })) : null;
+    })() : null;
     // «Від–до» вже крупно в плитці — під нею лише те, чого там нема: вершина траєкторії
-    trajBox.replaceChildren(modes, h('p', { class: 'muted small pb-r-hint' }, t('Допуск: на скільки куля може піти вище чи нижче точки прицілювання (пів висоти цілі)')),
+    trajBox.replaceChildren(...[modes, h('p', { class: 'muted small pb-r-hint' }, t('Допуск: на скільки куля може піти вище чи нижче точки прицілювання (пів висоти цілі)')),
       radius, tiles, h('p', { class: 'dope-pb muted small' }, apexText(pb, pbR)),
-      schemeRow, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt }));
+      schemeRow, known, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt })].filter(Boolean));
   };
 
   const paintTable = (m) => {
