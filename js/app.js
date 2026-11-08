@@ -4081,7 +4081,7 @@ function dopeForm(w, d = null) {
     });
     radius.classList.add('segmented');
     trajBox.replaceChildren(h('h4', {}, t('Прямий постріл')), radius,
-      h('p', { class: 'dope-pb' }, pointBlankText(pb, pbR, zero)), trajectoryChart(pts, { r: pbR, zero, ...pb }));
+      h('p', { class: 'dope-pb' }, pointBlankText(pb, pbR, zero)), trajectoryChart(pts, { r: pbR, zero, ...pb, zeroNote: s.zero ? t('з картки прицілу') : t('у прицілі не вказано — рахуємо від 100 м') }));
   };
   const paintCalc = () => {
     const s = calcSource();

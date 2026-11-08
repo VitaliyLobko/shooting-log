@@ -130,7 +130,7 @@ const W_ = W; const H_ = H; const T_ = T;
  * Графік: висота кулі над лінією прицілу, смуга ±r, пристрілка, відрізки прямого пострілу.
  * Тап чи рух мишею — висота на тій дистанції рядком під графіком.
  */
-export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = false }) {
+export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = false, zeroNote = null }) {
   // alt — для порівняння інша пристрілка { pts, zero, span }: пунктиром іншим кольором
   // full — уся траєкторія до кінця таблиці: униз до найнижчої точки (на 800 м куля на метри нижче лінії прицілу)
   const far = Math.max(spans.length ? spans[spans.length - 1][1] : zero, alt?.span[1] ?? 0);
@@ -170,9 +170,11 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
   // Над графіком, а не під ним: рука, що веде пальцем, закриває те, що нижче
   const read = h('div', { class: 'tr-read' }, h('span', { class: 'muted small' }, t('Ведіть пальцем по графіку — покаже, де куля на кожній дистанції')));
   const cmShort = (v) => fmt.num(Math.abs(v) >= 20 ? Math.round(Math.abs(v)) : Math.round(Math.abs(v) * 10) / 10);
-  const chip = (cls, label, v) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
+  // Біля дула куля нижче лінії прицілу на висоту прицілу — це не промах, кажемо прямо
+  const chip = (cls, label, v, d) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
     h('b', {}, Math.abs(v) < 0.5 ? t('у точку') : `${v > 0 ? '↑' : '↓'} ${cmShort(v)} ${t('см')}`),
-    full ? null : h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
+    d === 0 ? h('span', { class: 'tr-chip-sub' }, t('дуло: приціл на {n} см вище ствола', { n: cmShort(v) }))
+      : full ? null : h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
   const pick = (e) => {
     const box = plot.firstElementChild.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * W;
@@ -185,8 +187,8 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     const ac = alt ? heightAt(alt.pts, d) : null;
     if (ac !== null) place(altDot, ac);
     read.replaceChildren(...[h('span', { class: 'tr-read-d' }, `${d} ${t('м')}`),
-      chip('main', t('пристрілка {z} м', { z: zero }), cm),
-      ac !== null ? chip('alt', t('пристрілка {z} м', { z: alt.zero }), ac) : null].filter(Boolean));
+      chip('main', t('пристрілка {z} м', { z: zero }), cm, d),
+      ac !== null ? chip('alt', t('пристрілка {z} м', { z: alt.zero }), ac, d) : null].filter(Boolean));
   };
   plot.addEventListener('pointerdown', pick);
   plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e); });
@@ -197,12 +199,14 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     // Два нулі — одна траєкторія: пристрілювати можна на будь-якому, зручніше — на ближньому
     (() => { const { up, down } = zeros(alt.pts); return up !== null && down !== null && round5(down) - round5(up) >= 10 ? t('нулі на {a} і {b} м — пристрілювати можна на будь-якому', { a: round5(up), b: round5(down) }) : null; })(),
     t('±{r} см: {a}–{b} м', { r, a: round5(alt.span[0]), b: round5(alt.span[1]) })].filter(Boolean).join(' · ')) : null;
-  return h('div', { class: 'tr' }, read, plot, altNote, legend);
+  // Підпис основної кривої: яка це пристрілка й звідки вона
+  const mainNote = h('p', { class: 'small tr-main-note' }, [t('Помаранчева — пристрілка {z} м', { z: zero }), zeroNote].filter(Boolean).join(' · '));
+  return h('div', { class: 'tr' }, read, plot, mainNote, altNote, legend);
 }
 
 /**
  * Уся траєкторія: поправки в мрад по дистанції — вертикаль і знос вітром (wind — м/с бічної складової),
- * межа дозвуку (швидкість < 343 м/с). H, W (знос на 1 м/с), V, T — з solve() з кроком step.
+ * межа дозвуку (швидкість звуку — за температурою tC). H, W (знос на 1 м/с), V, T — з solve() з кроком step.
  */
 export function fullChart({ H, W, V, T, step, wind = 0, tC = 15, arrow = '→' }) {
   const n = H.length;

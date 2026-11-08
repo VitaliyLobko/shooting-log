@@ -366,6 +366,7 @@ export function nowSheet(ctx) {
     const modes = chips([['pb', t('Прямий постріл')], ['all', t('Уся траєкторія')]], pbMode, (k) => { pbMode = k; paintTraj(model()); });
     modes.classList.add('segmented');
     const pts = trajectoryPoints(m.now.H, 10, m.sh);
+    const zeroNote = m.sc?.zero > 0 ? t('з картки прицілу') : t('у прицілі не вказано — рахуємо від 100 м');
     const pb = pointBlank(pts, pbR);
     if (pbMode === 'all') {
       const v = Number(speed.value.replace(',', '.')) || 0;
@@ -374,7 +375,7 @@ export function nowSheet(ctx) {
       const views = chips([['mrad', t('Поправки')], ['cm', t('Висота кулі')]], allView, (k) => { allView = k; paintTraj(model()); });
       views.classList.add('segmented');
       trajBox.replaceChildren(modes, views, allView === 'cm'
-        ? trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, full: true })
+        ? trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, full: true, zeroNote })
         : fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross, tC: m.air.tC, arrow: Number(clock.value) < 6 ? '→' : '←' }));
       return;
     }
@@ -435,7 +436,7 @@ export function nowSheet(ctx) {
     // «Від–до» вже крупно в плитці — під нею лише те, чого там нема: вершина траєкторії
     trajBox.replaceChildren(...[modes, h('p', { class: 'muted small pb-r-hint' }, t('Допуск: на скільки куля може піти вище чи нижче точки прицілювання (пів висоти цілі)')),
       radius, tiles, h('p', { class: 'dope-pb muted small' }, apexText(pb, pbR)),
-      schemeRow, known, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt })].filter(Boolean));
+      schemeRow, known, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt, zeroNote })].filter(Boolean));
   };
 
   const paintTable = (m) => {

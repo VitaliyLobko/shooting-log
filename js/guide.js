@@ -2258,7 +2258,8 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
   const holdSolve = (q) => {
     const kit = $('s-kit').value; const L = LOADS[kit]; const moa = RET[L.ret].u === 'MOA';
     const z = L.zero ?? +$('s-zero').value;
-    const tb = atmTab(kit, L.def, +$('s-temp').value, +$('s-alt').value);
+    // Ствол і набій — вибрані в «Гвинтівка й набій», як і в прицілі поза серією
+    const tb = atmTab(kit, $('s-barrel').value || L.def, +$('s-temp').value, +$('s-alt').value);
     const hy = holdAt(tb.H, q.dist) - (L.my ? 0 : zeroShift(tb.H, z));
     const wm = at(tb.W, q.dist) * q.wind * Math.abs(Math.sin((q.hour * Math.PI) / 6));
     const lead = q.vt ? (q.vt * at(tb.T, q.dist) / q.dist) * (moa ? 3437.75 : 1000) : 0;
@@ -2668,7 +2669,7 @@ export function initSim(root, { clockPicker, keepPlace = (el, fn) => fn(), kitPi
       const res = el('span', { className: 'eq-f eq-r' }); res.append(el('b', {}, result), el('small', {}, note)); box.append(res);
       return box;
     };
-    const kitNow = $('s-kit').value; const tbNow = atmTab(kitNow, LOADS[kitNow].def, +$('s-temp').value, +$('s-alt').value);
+    const kitNow = $('s-kit').value; const tbNow = atmTab(kitNow, $('s-barrel').value || LOADS[kitNow].def, +$('s-temp').value, +$('s-alt').value);
     const B = (x) => el('b', {}, x); const dg = moa ? 1 : 2;
     // Стовпці таблички пам'ятки: сусідні сотні й посередині дистанція цілі — її число збігається з рядком над пам'яткою
     const around = (d) => {

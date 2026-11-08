@@ -4017,6 +4017,7 @@ button.now-tile.best.on::after { content: '✓ пунктир на графік�
 .tr-span.alt { stroke: #3fbf7f; }
 :root[data-theme="light"] .tr-curve.alt, :root[data-theme="light"] .tr-span.alt { stroke: #1f8a55; }
 :root[data-theme="light"] .tr-zero.alt { fill: #1f8a55; }
+.tr-main-note { margin: 4px 0 0; color: var(--accent); font-weight: 600; }
 .tr-alt-note { margin: 4px 0 0; color: #3fbf7f; font-weight: 600; }
 .form > .dope-scope-info { grid-column: 1 / -1; margin: -4px 0 0; }
 /* Цифра в плитці — за шириною плитки: на телефоні дві плитки вузькі, «↑ 0,5 MRAD» не вилазить за край */
