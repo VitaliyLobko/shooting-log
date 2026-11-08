@@ -23,6 +23,8 @@ jobs:
         with:
           node-version: 22
       - run: node --experimental-vm-modules .github/check.mjs
+      # Unit-тести розрахунків: балістика, тренажер, облік БК і грошей, приціл, синхронізація; без залежностей
+      - run: node --test ".github/tests/*.test.mjs"
 
   deploy:
     if: github.ref == 'refs/heads/main'

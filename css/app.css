@@ -1838,9 +1838,53 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 
 /* «Поправки зараз» */
 .now h4 { margin: 14px 0 6px; }
-.now-dists { margin: 4px 0 10px; }
-.now .chips input.now-dist-in { width: 84px; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); text-align: center; font: inherit; color: var(--text); }
-.now .chips input.now-dist-in.on { border-color: var(--fill); box-shadow: 0 0 0 1px var(--fill); font-weight: 650; }
+/* Цілі — закладки, прилиплі до верху шторки: видно, хоч куди прокрутили */
+.now-targets { position: sticky; top: -4px; z-index: 3; margin: 0 -16px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line-soft); }
+.now-tg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.now-tg-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.now-tg-toggle .box-chevron { display: inline-block; color: var(--accent); transition: transform .15s; }
+.now-tg-toggle[aria-expanded="true"] .box-chevron { transform: rotate(90deg); }
+.now-tg-add { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px 4px 8px; border: 1px dashed var(--accent); border-radius: 16px; background: none; color: var(--accent); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.now-mark-ico { display: inline-grid; place-items: center; }
+.now-mark-ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.now-tg-toggle .now-mark-ico { color: var(--accent); }
+.now-tg-toggle .now-mark-ico svg { width: 16px; height: 16px; }
+.now-tg-cond { margin: 2px 0 0; font-size: 12px; color: #5cb3ff; }
+:root[data-theme="light"] .now-tg-cond { color: #1769c2; }
+.now-head .now-dist { display: inline-flex; align-items: center; gap: 6px; }
+.now-mark { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
+.now-mark.on { color: var(--accent); }
+.now-mark .now-mark-ico svg { width: 24px; height: 24px; }
+.now-tg-chips { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; scrollbar-width: none; }
+.now-tg-chip { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+.now-tg-chip b { font-size: 16px; }
+.now-tg-chip.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.now-tg-d { font-size: 12px; color: var(--muted); }
+.now-tg-w { font-size: 13px; font-weight: 650; color: #5cb3ff; }
+:root[data-theme="light"] .now-tg-w { color: #1769c2; }
+.now-tg-list { max-height: 40vh; margin-top: 4px; overflow-y: auto; }
+.now-tg-row { display: grid; grid-template-columns: auto 54px minmax(0, 1fr) minmax(0, 1fr) 32px; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 8px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.now-tg-row + .now-tg-row { border-top: 1px solid var(--line-soft); }
+.now-tg-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.now-tg-n { font-weight: 800; color: var(--accent); }
+.now-tg-row .now-tg-d { font-size: 14px; color: var(--text); font-weight: 650; }
+.now-tg-e { display: flex; flex-direction: column; min-width: 0; }
+.now-tg-e b { font-size: 16px; }
+.now-tg-row .now-tg-w b { color: inherit; }
+.now-tg-row .now-tg-w small { font-weight: 400; }
+.now-tg-e small { font-size: 12px; color: var(--muted); }
+.now-tg-del { width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.now-range { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 12px; }
+.now-range-track { position: relative; flex: 1; min-width: 0; padding-bottom: 22px; }
+.now-step { flex: none; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--text); font: inherit; font-size: 22px; line-height: 1; cursor: pointer; }
+.now-slider { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 40px; margin: 0; background: none; cursor: pointer; touch-action: pan-y; }
+.now-slider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--line); }
+.now-slider::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
+.now-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border: 3px solid var(--bg, #111); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.now-slider::-moz-range-thumb { width: 22px; height: 22px; border: 3px solid var(--bg, #111); border-radius: 50%; background: var(--accent); }
+.now-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.now-marks { position: absolute; left: 0; right: 0; bottom: 0; height: 22px; }
+.now-marks button { position: absolute; top: 0; transform: translateX(-50%); padding: 2px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .now .box > .now-big:last-child, .now .box-body > .now-big:last-child { margin-bottom: 0; }
 .now .box .switch-row, .now .box label:last-child { margin-bottom: 0; }
 .now-big { margin: 4px 0; padding: 12px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); display: grid; gap: 8px; --wind-c: #5cb3ff; }
@@ -1848,7 +1892,9 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 .now-dist { color: var(--muted); font-weight: 650; }
 .now-main { font-size: 30px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .now-sub { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.now-src { margin: 8px 0 0; }
+.now-src { margin: 8px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.now-src.open { white-space: normal; }
+.now-tile.wind { cursor: pointer; }
 .now-wx-info:empty { display: none; }
 .now-table tbody tr { cursor: pointer; }
 .now-table tr.sel td { color: var(--accent); font-weight: 700; }
@@ -1913,7 +1959,7 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 
 .guide .calc { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 14px 0; }
 @media (min-width: 700px) { .guide .calc { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.guide .tool { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.guide .tool:not(.icon-btn) { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .guide .tool h4 { margin: 0; font-size: 15px; }
 .guide .tool label, .guide .ctl label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .guide .tool input, .guide .ctl select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); }
@@ -2911,11 +2957,17 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .sim-panel[hidden] { display: none; }
 .guide .sim-panel label { grid-template-columns: minmax(0, 1fr); }
 .guide .sim-panel select { background: var(--surface); }
-/* «Гвинтівка й набій»: набір і ствол — на всю ширину, пристрілка, температура й висота — компактним рядом із трьох */
-.guide #sim-gun { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
-.guide #sim-gun > label:has(#s-kit), .guide #sim-gun > label:has(#s-barrel), .guide #sim-gun > label:has(#s-myret), .guide #sim-gun > :not(label) { grid-column: 1 / -1; }
-.guide #sim-gun > label:has(#s-cmp) { grid-column: span 2; }
-.guide #sim-gun > label:has(#s-disp) select, .guide #sim-gun > label:has(#s-cmp) select { min-width: 0; }
+/* «Гвинтівка й набій»: набір, ствол, другий приціл — на всю ширину; пристрілка з розкидом — парою;
+   погода — своїм рядком: температура, висота й значок «Зараз тут» вирівняний по полях */
+.guide #sim-gun { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 8px; }
+.guide #sim-gun > label:has(#s-kit), .guide #sim-gun > label:has(#s-barrel), .guide #sim-gun > label:has(#s-myret), .guide #sim-gun > label:has(#s-cmp), .guide #sim-gun > :not(label) { grid-column: 1 / -1; }
+.guide #sim-gun label:has(#s-disp) select, .guide #sim-gun label:has(#s-cmp) select { min-width: 0; }
+.guide #sim-gun .sim-air { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 4px 8px; }
+.guide #sim-gun .sim-air > label { grid-row: span 2; grid-template-rows: subgrid; }
+.guide #sim-gun .sim-here-btn { grid-row: 2; grid-column: 3; width: 44px; height: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--accent-2); }
+.guide #sim-gun .sim-here-btn:disabled { opacity: .4; cursor: default; }
+.guide #sim-gun .sim-here-info { grid-column: 1 / -1; margin-top: 6px; font-size: 12px; }
+.guide #sim-gun .sim-here-info:empty { display: none; }
 .guide .sim-dope-btn { justify-self: start; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; }
 /* Другий приціл — під основним, з виносом під ним */
 .guide .sim-cmp { display: grid; justify-items: center; margin: 4px 0 8px; }
@@ -2939,7 +2991,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .guide .quiz-card-pic .good { fill: var(--buy); } .guide .quiz-card-pic .near { fill: var(--warn); } .guide .quiz-card-pic .bad { fill: var(--shoot); }
 .guide .quiz-card-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .guide .quiz-card-chips span { padding: 3px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
-.guide #sim-gun > label:has(#s-zero) select, .guide #sim-gun > label:has(#s-temp) select, .guide #sim-gun > label:has(#s-alt) select { padding-inline: 10px 26px; min-width: 0; }
+.guide #sim-gun label:has(#s-zero) select, .guide #sim-gun label:has(#s-temp) select, .guide #sim-gun label:has(#s-alt) select { padding-inline: 10px 26px; min-width: 0; }
 /* Набій — своїм рядком, мітки — другим */
 .kit-sub .kit-ammo { flex-basis: 100%; }
 .picker .kit-sub { margin-top: 1px; }
@@ -3949,7 +4001,7 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .dope-head .dope-note { flex: 1; min-width: 0; margin: 0; }
 /* «Поправки зараз»: дві плитки — вертикаль (колір застосунку) і вітер (блакитний) */
 .now-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 0 2px; }
-.now-head .now-dist { font-size: 15px; }
+.now-head .now-dist { font-size: 22px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .now-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 .now-tile { --c: var(--accent); display: grid; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 12px; container-type: inline-size;
   background: color-mix(in srgb, var(--c) 10%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
@@ -3973,19 +4025,43 @@ button.now-tile.best.on::after { content: '✓ пунктир на графік�
 .tr-span.alt { stroke: #3fbf7f; }
 :root[data-theme="light"] .tr-curve.alt, :root[data-theme="light"] .tr-span.alt { stroke: #1f8a55; }
 :root[data-theme="light"] .tr-zero.alt { fill: #1f8a55; }
+.tr-main-note { margin: 4px 0 0; color: var(--accent); font-weight: 600; }
 .tr-alt-note { margin: 4px 0 0; color: #3fbf7f; font-weight: 600; }
+.tr-zero-txt { fill: var(--accent); font-weight: 700; }
+.tr-zoom { display: flex; justify-content: flex-end; gap: 6px; margin: 0 0 4px; }
+.tr-zoom-btn { min-width: 40px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer; }
+.tr-zoom-btn:disabled { opacity: .35; cursor: default; }
+.tr-zoom-btn[hidden] { display: none; }
+.tr-zero-txt.alt { fill: #3fbf7f; }
+:root[data-theme="light"] .tr-zero-txt.alt { fill: #1f8a55; }
 .form > .dope-scope-info { grid-column: 1 / -1; margin: -4px 0 0; }
 /* Цифра в плитці — за шириною плитки: на телефоні дві плитки вузькі, «↑ 0,5 MRAD» не вилазить за край */
 .now-tile .now-main { font-size: clamp(18px, 15cqi, 30px); }
 .now-tile-label { overflow-wrap: anywhere; }
-.pb-schemes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
-.pb-schemes button.on { background: color-mix(in srgb, #3fbf7f 22%, transparent); color: #3fbf7f; box-shadow: inset 0 0 0 1px #3fbf7f; }
 .tr-curve.wind { stroke: #5cb3ff; }
 :root[data-theme="light"] .tr-curve.wind { stroke: #1769c2; }
 .tr-sub { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .tr-sub-txt { fill: var(--muted); }
-.tr-read .tr-up { color: var(--accent); font-weight: 700; }
-.tr-read .tr-wind { color: #5cb3ff; font-weight: 700; }
+/* Підпис під пальцем: дистанція крупно й плашка на кожну криву її кольором */
+.tr { --tr-alt: #3fbf7f; --tr-wind: #5cb3ff; }
+:root[data-theme="light"] .tr { --tr-alt: #1f8a55; --tr-wind: #1769c2; }
+.tr-read { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; min-height: 52px; margin: 4px 0 6px; }
+.tr-read > .muted { align-self: center; }
+.tr-read-info { flex-basis: 100%; }
+.pb-r-hint { margin: 8px 0 4px; }
+.tr-read-d { align-self: center; min-width: 64px; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tr-chip { --c: var(--accent); display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 4px 10px; border-left: 3px solid var(--c); border-radius: 8px; background: color-mix(in srgb, var(--c) 12%, transparent); font-variant-numeric: tabular-nums; }
+.tr-chip.alt { --c: var(--tr-alt); }
+.tr-chip.wind { --c: var(--tr-wind); }
+.tr-chip.info { --c: var(--muted); }
+.tr-chip-label { font-size: 11px; color: var(--muted); }
+.tr-chip b { font-size: 17px; line-height: 1.2; color: var(--c); }
+.tr-chip.info b { color: var(--text); }
+.tr-chip-sub { font-size: 11px; color: var(--muted); }
+.tr-chip-sub.in { color: var(--tr-alt); }
+.tr-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.tr-dot.alt { fill: var(--tr-alt); }
+.tr-dot.wind { fill: var(--tr-wind); }
 .dope-traj > .chips.segmented:first-child { margin-bottom: 8px; }
 .dope-traj > .chips.segmented + .chips.segmented { margin-bottom: 8px; }
 /* Довжина ствола: поле й перемикач мм / ″ в одному рядку */
@@ -3993,3 +4069,30 @@ button.now-tile.best.on::after { content: '✓ пунктир на графік�
 .input-unit > input { flex: 1; min-width: 0; }
 .chips.segmented.unit-mini { flex: none; margin: 0; padding: 2px; }
 .chips.segmented.unit-mini button { flex: none; width: auto; min-width: 0; min-height: 34px; padding: 2px 9px; font-size: 13px; }
+.pb-table { margin-top: 4px; }
+.pb-table > p { margin: 0 0 8px; }
+.pb-table table { width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pb-table td { vertical-align: top; }
+.pb-table td small, .pb-table th small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
+.pb-table th small { text-transform: none; letter-spacing: 0; }
+.pb-table .pb-span, .pb-table td small { display: block; white-space: nowrap; }
+.pb-table tbody tr:not(.cur) { cursor: pointer; }
+.pb-table tr.cur td { color: var(--accent); }
+.pb-table tr.sel { background: color-mix(in srgb, #3fbf7f 14%, transparent); }
+.pb-table tr.sel td b { color: #3fbf7f; }
+.onboard { display: grid; gap: 12px; }
+.onboard-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 18px; }
+.onboard .chips { flex-wrap: wrap; }
+.onboard-nav { justify-content: flex-end; margin-top: 4px; }
+.btn-row > .btn.wide { flex: 1 1 100%; }
+/* «Траєкторія і пристрілка» відкриває окремий екран — тому кнопка-перехід, а не згорнутий блок */
+.now-traj-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin: 4px 0 14px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; text-align: left;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.now-traj-link[hidden] { display: none; }
+.now-traj-link .tool-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-2); }
+.now-traj-link .tool-ico svg { width: 19px; height: 19px; }
+.now-traj-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.now-traj-text .box-sum { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.now-traj-text .box-sum:empty { display: none; }
+.now-traj-go { flex: none; color: var(--muted); font-size: 22px; line-height: 1; }

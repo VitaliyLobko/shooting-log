@@ -338,12 +338,16 @@ async function pullPhotos(photos) {
 
 const stamp = (x) => Number(x?.updated) || 0;
 
+/**
+ * Найновіша версія кожного запису. Однаковий час правки з різним вмістом — переможець за самим вмістом, а не
+ * за тим, чий пристрій: інакше кожен лишав би своє, і файл на Диску перемикався б на кожній синхронізації.
+ */
 function newest(lists) {
   const map = new Map();
   for (const rec of lists.flat()) {
     if (!rec?.id) continue;
     const cur = map.get(rec.id);
-    if (!cur || stamp(rec) > stamp(cur)) map.set(rec.id, rec);
+    if (!cur || stamp(rec) > stamp(cur) || (stamp(rec) === stamp(cur) && JSON.stringify(rec) > JSON.stringify(cur))) map.set(rec.id, rec);
   }
   return map;
 }
@@ -365,7 +369,7 @@ export function merge(local, remote) {
  * за момент відновлення, видаляється. Надгробки кладемо на бік Диска — тоді localChanges запише їх
  * і сюди, а інші пристрої отримають їх із файлу. Відновлені записи мають рівно restoreAt — їх не чіпає.
  */
-function bury(local, remote, restoreAt) {
+export function bury(local, remote, restoreAt) {
   const graves = [];
   for (const name of db.STORES) {
     for (const rec of newest([local[name] ?? [], remote[name] ?? []]).values()) {
@@ -389,7 +393,7 @@ function fingerprint(data) {
     [...(data[name] ?? [])].sort((a, b) => String(a.id).localeCompare(String(b.id))))).join('\n');
 }
 
-function localChanges(local, merged) {
+export function localChanges(local, merged) {
   const changes = {};
   let count = 0;
   for (const name of ['tombstones', ...db.STORES]) {

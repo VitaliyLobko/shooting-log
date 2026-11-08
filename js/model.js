@@ -129,7 +129,7 @@ export function perSession(state, pred = () => true, last = 10) {
   return avg > 0 ? avg : null;
 }
 
-// Орієнтовний ресурс ствола до втрати купчастості, пострілів. Довідково: хромований ствол
+// Орієнтовний ресурс ствола до втрати кучності, пострілів. Довідково: хромований ствол
 // ближче до верхньої межі, матчевий — до нижньої, швидкий темп стрільби скорочує ресурс.
 const BARREL_LIFE = [
   [/(^|[^\d])(223|5[.,]56)/, 10000, 20000],
@@ -187,7 +187,6 @@ function caliberKey(caliber) {
   return CALIBER_SAME.find(([re]) => re.test(c))?.[1] ?? c.replace(/[\s.]+/g, '');
 }
 
-/** Той самий калібр з урахуванням різних написань; без калібру — підходить до будь-якого. */
 /**
  * Поправка швидкості на довжину ствола, м/с: (ствол зброї − тестовий ствол набою) × м/с на дюйм для калібру.
  * Орієнтовно: 5.56, .308, 6.5 CM та інші гвинтівкові — ~7,6 м/с (25 fps) на дюйм, 7.62×39 — ~4,5; .22 LR і гладкий — не рахуємо.
@@ -195,29 +194,45 @@ function caliberKey(caliber) {
  */
 export function barrelMvDelta(caliber, testIn, gunMm) {
   if (!(testIn > 0) || !(gunMm > 0) || !caliber) return null;
-  if (sameCaliber(caliber, '.22 LR') || /кал|ga|gauge/i.test(caliber)) return null;
+  // Гладкий: «12 кал», «12ga», «20 gauge»; «ga» лише після цифри — інакше ловить «Nagant»
+  if (sameCaliber(caliber, '.22 LR') || /(^|[\s\d])кал|\d\s*ga\b|gauge/i.test(caliber)) return null;
   const perIn = sameCaliber(caliber, '7.62×39') ? 4.5 : 7.6;
   return Math.round((gunMm / 25.4 - testIn) * perIn);
 }
 
+/** Той самий калібр з урахуванням різних написань; без калібру — підходить до будь-якого. */
 export function sameCaliber(a, b) {
   return !a || !b || caliberKey(a) === caliberKey(b);
 }
 
-/** Настріл із журналу: калібр → загалом і по кожному стволу (null — ствол не вказано, 'foreign:Назва' — чужа зброя). */
+/** Ключ написання калібру: «5.56×45», «5,56 х 45» і «5.56x45» — один рядок; .223 і 5.56 сюди не зводимо. */
+const caliberSpelling = (c) => String(c ?? '').toLowerCase().replace(/[×х*]/g, 'x').replace(/,/g, '.').replace(/\s+/g, '');
+
+/**
+ * Настріл із журналу: калібр → загалом і по кожному стволу (null — ствол не вказано, 'foreign:Назва' — чужа зброя).
+ * Різні написання одного калібру — разом, підпис — написання з найбільшим настрілом. .223 і 5.56 — окремо:
+ * це різні патрони, і ствол вони зношують по-різному.
+ */
 export function shotsByCaliber(state) {
   const totals = new Map();
   for (const m of state.movements) {
     if (m.kind !== 'shot') continue;
     const n = -(Number(m.qty) || 0);
-    const row = totals.get(m.caliber) ?? { caliber: m.caliber, total: 0, weapons: new Map() };
+    const key = caliberSpelling(m.caliber);
+    const row = totals.get(key) ?? { total: 0, weapons: new Map(), labels: new Map() };
     row.total += n;
+    const label = String(m.caliber ?? '').trim();
+    row.labels.set(label, (row.labels.get(label) ?? 0) + n);
     const gun = m.weaponId ?? (m.foreignWeapon ? `foreign:${m.foreignWeaponName?.trim() ?? ''}` : null);
     row.weapons.set(gun, (row.weapons.get(gun) ?? 0) + n);
-    totals.set(m.caliber, row);
+    totals.set(key, row);
   }
   return [...totals.values()]
-    .map((row) => ({ ...row, weapons: [...row.weapons].sort((a, b) => b[1] - a[1]) }))
+    .map(({ labels, ...row }) => ({
+      ...row,
+      caliber: [...labels].reduce((a, b) => (b[1] > a[1] ? b : a))[0],
+      weapons: [...row.weapons].sort((a, b) => b[1] - a[1]),
+    }))
     .sort((a, b) => b.total - a.total);
 }
 
@@ -237,15 +252,17 @@ export function unitPrice(state, component) {
   let money = 0;
   let qty = 0;
   for (const m of state.movements) {
-    if (m.kind !== 'buy' || m.componentId !== component.id || !(Number(m.price) > 0) || !(m.qty > 0)) continue;
+    if (m.kind !== 'buy' || m.componentId !== component.id || !(Number(m.price) > 0) || !(Number(m.qty) > 0)) continue;
     money += Number(m.price);
-    qty += m.qty;
+    qty += Number(m.qty);
   }
   return qty > 0 ? money / qty : packUnitPrice(component);
 }
 
 /** Навеска пороху в гранах: 1 gr = 0,06479891 г. */
 export const GRAIN = 0.06479891;
+// Висота прицілу над стволом, коли в картці не вказано, см: AR з оптикою — 6,6–7
+export const SIGHT_H = 7;
 
 export function recipeLines(state, recipe) {
   return recipe.items.map((item) => {
@@ -298,7 +315,7 @@ export function shotsCost(state, list) {
   return list.reduce((sum, m) => sum + (shotCost(state, m) ?? 0), 0);
 }
 
-/** Рядки рецепта, що обмежують спорядження (без гільз — вони багаторазові). */
+/** Рядки рецепта, що обмежують спорядження; гільзи теж — вони списуються при спорядженні й повертаються «Збором гільз». */
 function consumable(state, recipe) {
   return recipeLines(state, recipe).filter((l) => l.component && l.fromStock !== null);
 }
@@ -345,7 +362,7 @@ export function toAngle(mm, distance, unit) {
   return unit === 'moa' ? mm / (distance * MM_PER_MOA_AT_1M) : mm / distance;
 }
 
-/** Ціна клацання з ключа виду 'mil0.1', 'moa0.25' чи 'mm13' (мм на 100 м — у мрад, 13 мм = 0,13 мрад). */
+/** Ціна кліку з ключа виду 'mil0.1', 'moa0.25' чи 'mm13' (мм на 100 м — у мрад, 13 мм = 0,13 мрад). */
 export function clickValue(key) {
   const m = /^(mil|moa|mm)([\d.]+)$/.exec(key ?? '');
   if (!m) return null;
@@ -453,8 +470,8 @@ export function drillStats(shots) {
 // ---------- DOPE ----------
 
 /**
- * Кут у мрад з одиниць unit: 'mil', 'moa', 'cm' (на дистанції distance) або ключ ціни клацання ('mil0.1',
- * 'moa0.25', 'mm13') — тоді value є кількістю клацань. null — не перевести (см без дистанції, невідомий ключ).
+ * Кут у мрад з одиниць unit: 'mil', 'moa', 'cm' (на дистанції distance) або ключ ціни кліку ('mil0.1',
+ * 'moa0.25', 'mm13') — тоді value є кількістю кліків. null — не перевести (см без дистанції, невідомий ключ).
  */
 export function toMrad(value, unit, distance) {
   if (unit === 'mil') return value;
@@ -464,7 +481,7 @@ export function toMrad(value, unit, distance) {
   return c ? toMrad(value * c.value, c.unit, distance) : null;
 }
 
-/** Обернене до toMrad: мрад → одиниці unit (для ключа клацання — дробова кількість клацань). */
+/** Обернене до toMrad: мрад → одиниці unit (для ключа кліку — дробова кількість кліків). */
 export function fromMrad(mrad, unit, distance) {
   if (unit === 'mil') return mrad;
   if (unit === 'moa') return mrad / MM_PER_MOA_AT_1M;
@@ -542,7 +559,7 @@ export function scaleXY(scale, scale2, photo) {
 }
 
 /**
- * Купчастість групи за центрами пробоїн, усе в мм: розкид (найбільша відстань між центрами),
+ * Кучність групи за центрами пробоїн, усе в мм: розкид (найбільша відстань між центрами),
  * середній радіус від СТП і габарит (ширина × висота). offset — СТП від точки прицілювання:
  * x — праворуч, y — вгору (на фото y росте вниз).
  */
@@ -607,7 +624,7 @@ const weighted = (list, fn) => list.reduce((s, x) => s + fn(x) * x.n, 0) / list.
 
 /**
  * Те саме порівняння за будь-якою ознакою мішені: keyOf(tg) — набій, упор, глушник; null — мішень не враховуємо.
- * Рядки { key, groups, shots, meanRadius, best, offset, targets }, найкупчастіший першим.
+ * Рядки { key, groups, shots, meanRadius, best, offset, targets }, найкучніший першим.
  */
 export function precisionBy(targets, photos, keyOf) {
   const byKey = new Map();
@@ -708,7 +725,7 @@ export function scoreSeries(scores, exerciseId) {
 }
 
 /**
- * Купчастість ствола за датами: середній радіус груп кожної мішені, зведений до 100 м.
+ * Кучність ствола за датами: середній радіус груп кожної мішені, зведений до 100 м.
  * Менше — краще. Групи менші за PRECISION_MIN_HOLES не рахуються, мішені без дистанції й фото — теж.
  */
 export function precisionSeries(targets, photos, weaponId) {

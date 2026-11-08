@@ -54,7 +54,7 @@ const DIRS = { up: ['↑', 'вгору (UP)'], down: ['↓', 'вниз (DOWN)'],
 
 /**
  * Поправка прицілу по осі: зсунути влучання назустріч зміщенню СТП. mm — зміщення по осі (x праворуч, y вгору).
- * { arrow, word, angle, unit, clicks } або null — немає ціни клацання чи дистанції, або менше пів клацання.
+ * { arrow, word, angle, unit, clicks } або null — немає ціни кліку чи дистанції, або менше пів кліку.
  */
 function axisFix(mm, axis, distance, click) {
   const c = M.clickValue(click);
@@ -69,7 +69,7 @@ function axisFix(mm, axis, distance, click) {
 
 /**
  * Поправка вертикалі з таблиці DOPE (мрад, плюс — вгору) в одиницях барабана: «↑ 1,20 MRAD = 12 клац.».
- * Без ціни клацання — лише кут у мрад; 0 — «0» (дистанція пристрілки).
+ * Без ціни кліку — лише кут у мрад; 0 — «0» (дистанція пристрілки).
  */
 export function elevText(mrad, click) {
   if (Math.abs(mrad) < 0.0005) return '0';
@@ -142,7 +142,9 @@ export function groupRows(stats, { unit, distance, click, wantUp = 0 }) {
  * active — група, що редагується (інші блідіші), selected — виділена мітка, scale — показати масштаб.
  * holeR — радіус кулі в пікселях полотна: кільце пробоїни не менше за нього.
  */
-export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0, below = false } = {}) {
+export function drawMarks(ctx, marks, map, r, { active = null, selected = null, scale = false, aspect = 1, mm = null, unit = 'cm', distance = 0, holeR = 0, below = false, text = 1 } = {}) {
+  // text — у скільки разів крупніші підписи розкиду й радіуса (разом із відступами від ліній)
+  const tr = r * text;
   const halo = (draw, stroke, width) => {
     ctx.lineWidth = width + r * 0.35;
     ctx.strokeStyle = 'rgb(0 0 0 / .65)';
@@ -156,9 +158,9 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
   const isSel = (kind, g, i) => selected && selected.kind === kind && selected.g === g && selected.i === i;
   // Підпис фігури тими самими одиницями, що вибрані в картці; mm — міліметрів у пікселі полотна.
   const tag = (text, x, y, color, align = 'center') => {
-    ctx.font = `700 ${Math.round(r * 2.2)}px system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(tr * 2.2)}px system-ui, sans-serif`;
     ctx.textAlign = align;
-    ctx.lineWidth = r * 0.65;
+    ctx.lineWidth = tr * 0.65;
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgb(0 0 0 / .8)';
     ctx.strokeText(text, x, y);
@@ -230,8 +232,8 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
       if (mm && below) {
         // Під час розстановки — під рамкою групи: там немає пробоїн, які ще треба відмітити
         const x = (bx0 + bx1) / 2;
-        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 2.4, ang: 0, off: 0 });
-        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + r * 4.8, ang: 0, off: 0 });
+        labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + tr * 2.4, ang: 0, off: 0 });
+        labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha, x, y: by1 + Math.max(r, holeR) + tr * 4.8, ang: 0, off: 0 });
       } else if (mm) {
         // Розкид — над своєю лінією й уздовж неї (перевертаємо, щоб не читалося догори
         // дриґом), середній радіус — горизонтально над кільцем. Малюємо наприкінці,
@@ -239,9 +241,9 @@ export function drawMarks(ctx, marks, map, r, { active = null, selected = null, 
         const ang = Math.atan2(span[1][1] - span[0][1], span[1][0] - span[0][0]);
         labels.push({ text: length(spanLen * mm, unit, distance), color: SPAN, alpha: ctx.globalAlpha,
           x: (span[0][0] + span[1][0]) / 2, y: (span[0][1] + span[1][1]) / 2,
-          ang: Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang, off: -r * 1.1 });
+          ang: Math.abs(ang) > Math.PI / 2 ? ang + Math.PI : ang, off: -tr * 1.1 });
         labels.push({ text: length(meanR * mm, unit, distance), color: RING, alpha: ctx.globalAlpha,
-          x: cx, y: cy - meanR / aspect - r * 0.8, ang: 0, off: 0 });
+          x: cx, y: cy - meanR / aspect - tr * 0.8, ang: 0, off: 0 });
       }
     }
     group.holes.forEach((hole, i) => {
@@ -340,8 +342,9 @@ export async function paintPreview(canvas, src, marks, width, { unit = null, dis
   ctx.drawImage(img, fr?.x ?? 0, fr?.y ?? 0, sw, sh, 0, 0, canvas.width, canvas.height);
   const k = canvas.width / sw;
   const map = (p) => [(p[0] * img.width - (fr?.x ?? 0)) * k, (p[1] * img.height - (fr?.y ?? 0)) * k];
+  // Підписи в картці — у півтора раза крупніші, ніж пропорційні: на телефоні фото вужче за екран, і 2,2 r читалися дрібно
   drawMarks(ctx, marks, map, Math.max(3, canvas.width / 80),
-    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, img.width * k) : null, unit, distance, active });
+    { aspect: aspectOf(marks, img), mm: unit ? mmPerCanvasPx(marks, img, img.width * k) : null, unit, distance, active, text: 1.5 });
   return Boolean(fr);
 }
 

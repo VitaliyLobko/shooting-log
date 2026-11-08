@@ -86,7 +86,7 @@ function fly({ k0, cd, c, mv, angle, wind, max, step }) {
  * час польоту T (с) і швидкість V (м/с) на step, 2·step … max м. bc — у фунтах на кв. дюйм, як на коробці;
  * sh — висота прицілу над віссю ствола, см; пристрілка zero — точка, де лінія прицілу перетинає траєкторію вдруге.
  */
-export function solve({ bc, model = 'G7', mv, sh = 6, zero = 100, tC = 15, alt = 0, max = 700, step = 50 }) {
+export function solve({ bc, model = 'G7', mv, sh = 7, zero = 100, tC = 15, alt = 0, max = 700, step = 50 }) {
   if (!(bc > 0 && mv > 0 && DRAG[model])) return null;
   const base = { k0: (airRatio(tC, alt) * 2.08551e-4) / bc / 0.3048, cd: cdOf(model), c: 20.0467 * Math.sqrt(273.15 + tC), mv, max, step };
   const los = sh / 100;

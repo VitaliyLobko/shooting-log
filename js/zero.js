@@ -1,5 +1,5 @@
 // Майстер пристрілки: ствол і приціл відомі з картки. Стріляєш групу → тапаєш влучання на схемі мішені (або розмічаєш фото) →
-// поправка барабана в клацаннях, як прийнято: кучність нормальна й СТВ поза допуском — крутиш усю поправку одразу.
+// поправка барабана в кліках, як прийнято: кучність нормальна й СТВ поза допуском — крутиш усю поправку одразу.
 // «Готово» — пристрілка записується в приціл.
 // Сесія пам'ятається на пристрої (на приціл): закрив застосунок між групами — продовжиш з того ж місця.
 import { h, fmt, sheet, chips, toast } from './ui.js';
@@ -29,7 +29,7 @@ export function wantUpMm({ d, zero, dope, c, mv, sh }) {
   if (fromDope != null && atZero != null) return { mm: -(fromDope - atZero) * d, src: 'dope' };
   if (c?.bc > 0 && mv > 0) {
     const step = 5; const max = Math.ceil(Math.max(d, zero) / step) * step;
-    const res = solve({ bc: c.bc, model: c.dragModel || 'G7', mv, sh: sh ?? 6, zero, max, step });
+    const res = solve({ bc: c.bc, model: c.dragModel || 'G7', mv, sh: sh ?? M.SIGHT_H, zero, max, step });
     const hold = res?.H?.[Math.round(d / step) - 1];
     if (hold != null) return { mm: -hold * d, src: 'calc' };
   }
@@ -132,7 +132,7 @@ export function zeroWizard(ctx) {
   let setupOpen = !saved;
   // Розкрив налаштування сам — лишаємо розкритими; інакше з першим влучанням вони згортаються в рядок
   let setupTouched = false;
-  // Ціна клацання прицілу й скільки це сантиметрів на цілі на дистанції стрільби
+  // Ціна кліку прицілу й скільки це сантиметрів на цілі на дистанції стрільби
   const clickNote = () => {
     const cv = M.clickValue(click); if (!cv) return null;
     const mm = cv.unit === 'moa' ? cv.value * s.d * 0.29089 : cv.value * s.d;
@@ -205,7 +205,7 @@ export function zeroWizard(ctx) {
         : !fixes.length ? h('p', { class: st.n >= 3 ? 'zero-ok' : 'muted' }, st.n >= 3 ? t('✓ Пристріляно: поправка менша за пів кліку') : t('Майже в точку — добийте групу до 3–5 пострілів'))
           : h('div', { class: 'zero-fix' },
             head,
-            // Плитка на вісь: кружок зі стрілкою, крупно клацання, під ними напрям і кут; у допуску — сіра з позначкою
+            // Плитка на вісь: кружок зі стрілкою, крупно кліки, під ними напрям і кут; у допуску — сіра з позначкою
             h('div', { class: 'zero-turns' }, ...fixes.map((f) => h('div', { class: `zero-turn ${f.ok ? 'calm ok' : ''}` },
               h('span', { class: 'zt-arrow', 'aria-hidden': 'true' }, f.arrow),
               h('span', { class: 'zt-main' }, h('b', {}, String(f.clicks)), h('small', {}, t('кл.'))),

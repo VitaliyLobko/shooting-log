@@ -42,14 +42,14 @@ export const EXERCISES = [
     },
     scoring: {
       uk: [
-        'Alpha: коло 20 см.',
+        'Зона A (Альфа): коло 20 см.',
         'Максимум: 100 очок.',
-        'Звання: Basic → Shooter → Sharpshooter → Marksman → Scout → Expert → Pro — присвоює організатор, пороги в очках не опубліковані; свої можна задати в налаштуваннях вправи (✎).',
+        'Звання: Базовий → Стрілець → Влучний стрілець → Марксман → Скаут → Експерт → Профі — присвоює організатор, пороги в очках не опубліковані; свої можна задати в налаштуваннях вправи (✎).',
         'Звання підтверджується другим матчем.',
       ],
     },
     shots: 20,
-    zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
+    zones: [['A', 'Альфа', 5], ['C', 'Чарлі', 4], ['D', 'Дельта', 1]],
     ranksNote: false,
   },
   {
@@ -66,13 +66,13 @@ export const EXERCISES = [
     },
     scoring: {
       uk: [
-        'Зони: Alpha — коло 20 см, Bravo — решта мішені.',
+        'Зони: A (Альфа) — коло 20 см, B (Браво) — решта мішені.',
         'Ціна влучання: залежить від сумарного часу (таблиця Уїлена, 1923).',
         'Відома точка: 9,87 с → A = 15, B = 10.',
       ],
     },
     shots: 5,
-    zones: [['A', 'Alpha', 15], ['B', 'Bravo', 10]],
+    zones: [['A', 'Альфа', 15], ['B', 'Браво', 10]],
     time: true,
     perHit: true,
     whelan: true,
@@ -142,7 +142,7 @@ export const EXERCISES = [
       ],
     },
     shots: 20,
-    zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
+    zones: [['A', 'Альфа', 5], ['C', 'Чарлі', 4], ['D', 'Дельта', 1]],
     late: true,
     ranksNote: false,
   },
@@ -163,7 +163,7 @@ export const EXERCISES = [
       ],
     },
     shots: 20,
-    zones: [['A', 'Alpha', 5], ['C', 'Charlie', 4], ['D', 'Delta', 1]],
+    zones: [['A', 'Альфа', 5], ['C', 'Чарлі', 4], ['D', 'Дельта', 1]],
   },
   {
     id: 'nordic10',
@@ -620,7 +620,7 @@ function exerciseForm(rec, ctx) {
   ];
   for (let i = 0; i < ZONES; i += 1) {
     fields.push(
-      { name: `z${i}n`, label: i === 0 ? t('Зона') : '', value: zones[i]?.label ?? '', placeholder: t('Напр. Alpha'), half: true },
+      { name: `z${i}n`, label: i === 0 ? t('Зона') : '', value: zones[i]?.label ?? '', placeholder: t('Напр. Альфа'), half: true },
       { name: `z${i}p`, label: i === 0 ? t('Очок за влучання') : '', type: 'number', min: 0, step: 'any', value: zones[i]?.pts ?? '', half: true });
   }
   // Пороги звань — тут же, рядами «звання | від скількох очок», від вищого; свої або вбудовані, якщо своїх ще немає.

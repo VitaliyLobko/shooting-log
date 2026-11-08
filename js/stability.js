@@ -22,12 +22,15 @@ export function bulletDiameter(caliber) {
   return named ? named[1] : bulletMm(caliber);
 }
 
-/** «1:8», «1/7», «8», «1:200 мм» → дюймів на оберт; числа понад 30 вважаємо міліметрами. null — не розібрати. */
+/**
+ * «1:8», «1/7», «1-8», «1 in 8», «8», «1:200 мм» → дюймів на оберт; міліметри — «мм» одразу після числа
+ * або число понад 30 («1:8 (203 мм)» — це 8″). null — не розібрати.
+ */
 export function parseTwist(text) {
-  const m = String(text ?? '').replace(',', '.').match(/(?:1\s*[:/]\s*)?(\d+(?:\.\d+)?)/);
+  const m = String(text ?? '').replace(',', '.').match(/(?:1\s*(?:[:/-]|in)\s*)?(\d+(?:\.\d+)?)\s*(мм|mm)?/i);
   if (!m) return null;
   const v = Number(m[1]);
-  const inches = v > 30 || /мм|mm/i.test(text) ? v / MM_IN : v;
+  const inches = v > 30 || m[2] ? v / MM_IN : v;
   return inches >= 5 && inches <= 20 ? Math.round(inches * 100) / 100 : null;
 }
 

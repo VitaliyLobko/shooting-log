@@ -17,7 +17,7 @@ import { initLock, lockOn, lockDelay, lockAvailable, enableLock, disableLock, se
 import { solve } from './ballistics.js';
 import { bulletDiameter, bulletGrains, parseTwist, twistText, sgOf, sgVerdict } from './stability.js';
 import { trajectoryPoints, pointBlank, pointBlankText, trajectoryChart } from './trajectory.js';
-import { tripWeather } from './forecast.js';
+import { tripWeather, forecastAt } from './forecast.js';
 import { nowSheet, elevCells, windCell, cellTd, oneColumn, staleText, condText } from './now.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
@@ -31,6 +31,7 @@ const alignMod = () => import('./align.js');
 const pdfMod = () => import('./pdf.js');
 const simIntro = (...args) => import('./sim-tour.js').then((m) => m.simIntro(...args));
 const tours = () => import('./tours.js');
+const onboardMod = () => import('./onboard.js');
 
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
@@ -1059,11 +1060,21 @@ function cartridgeForm(c = null, { onSaved = null } = {}) {
     const draft = { caliber: f.inputs.caliber.value, bulletWeight: num('bulletWeight'), weightUnit: unit(), bulletLength: num('bulletLength'), mv: num('mv') };
     sgLine.replaceChildren(...stabilityLines(draft).map((x) => h('span', { class: `sg-${x.level}` }, x.text)));
   };
-  const ballistics = formPart(f, ['bulletWeight', 'weightUnit', 'bc', 'dragModel', 'mv', 'testBarrel', 'bulletLength'], energy, sgLine);
-  const repaint = () => { paintEnergy(); paintSg(); };
+  // BC не тієї моделі: поперечне навантаження кулі / BC у G7 зазвичай 0,85–1,2, у G1 — 0,4–0,7. Нижче 0,75 при G7 — майже напевно
+  // вписали G1 (M855: 0,151 G7 = 0,304 G1); без ваги чи калібру — лише явно завеликий BC
+  const bcLine = h('p', { class: 'warn-text small cf-bc', hidden: true });
+  const paintBc = () => {
+    const bc = num('bc'); const gr = bulletGrains({ bulletWeight: num('bulletWeight'), weightUnit: unit() });
+    const d = bulletDiameter(f.inputs.caliber.value); const sd = gr && d ? gr / 7000 / (d / 25.4) ** 2 : null;
+    const g1 = f.inputs.dragModel.value === 'G7' && bc > 0 && (sd ? sd / bc < 0.75 : bc >= 0.4);
+    bcLine.textContent = g1 ? t('BC {bc} завеликий для G7, схоже, це BC за G1. Перевірте на коробці чи сайті виробника: з ним поправки на дальніх дистанціях вийдуть замалі.', { bc: fmt.num(bc) }) : '';
+    bcLine.hidden = !g1;
+  };
+  const ballistics = formPart(f, ['bulletWeight', 'weightUnit', 'bc', 'dragModel', 'mv', 'testBarrel', 'bulletLength'], bcLine, energy, sgLine);
+  const repaint = () => { paintEnergy(); paintSg(); paintBc(); };
   ballistics.addEventListener('input', repaint);
   ballistics.addEventListener('click', () => queueMicrotask(repaint));
-  f.inputs.caliber.addEventListener('input', paintSg);
+  f.inputs.caliber.addEventListener('input', () => { paintSg(); paintBc(); });
   repaint();
   const ballSum = () => [num('bulletWeight') ? `${fmt.num(num('bulletWeight'))} ${unit()}` : null,
     num('bc') ? `BC ${fmt.num(num('bc'))} ${f.inputs.dragModel.value}` : null,
@@ -1447,7 +1458,7 @@ function stabilityBox(c) {
   ]);
 }
 
-/** Купчастість набою в кожному стволі — та сама мірка, що й «Набої за купчастістю» в картці ствола. */
+/** Кучність набою в кожному стволі — та сама мірка, що й «Набої за кучністю» в картці ствола. */
 function cartridgePrecisionBox(c, close) {
   const rows = state.weapons.flatMap((w) => {
     const r = M.ammoPrecision(state.targets.filter((x) => x.weaponId === w.id), state.photos).find((x) => x.cartridgeId === c.id);
@@ -1455,7 +1466,7 @@ function cartridgePrecisionBox(c, close) {
   }).sort((a, b) => a.r.meanRadius - b.r.meanRadius);
   if (!rows.length) return null;
   const groups = (n) => `${fmt.num(n)} ${plural(n, [t('група'), t('групи'), t('груп')])}`;
-  return box(t('Купчастість'), h('div', { class: 'rows' }, rows.map(({ w, r }) => h('button', {
+  return box(t('Кучність'), h('div', { class: 'rows' }, rows.map(({ w, r }) => h('button', {
     type: 'button', class: 'row ap-row', onclick: () => { close(); precisionTargets(w, r); },
   }, weaponThumb(w),
   h('span', { class: 'row-main' },
@@ -1521,7 +1532,7 @@ function zeroPending(s) {
 }
 
 function scopeLine(s, full = false, more = 0) {
-  // У списку параметри — значками поруч із назвою (пристрілка й ціна клацання),
+  // У списку параметри — значками поруч із назвою (пристрілка й ціна кліку),
   // у картці — словами під назвою: там місця вистачає.
   if (!full) {
     // Кілька прицілів — на місці ◉ стос із їх кількістю: у списку й так лише основний, а рядок не переноситься
@@ -1622,7 +1633,7 @@ function gunFlags(w, all = false) {
   return h('div', { class: 'gun-flags' }, flags.map(([level, text, more = '']) => h('span', { class: `badge small ${level}${more}` }, text)));
 }
 
-/** Три головні числа картки: настріл із кільцем ресурсу, після чистки, купчастість (тап — мішені ствола). */
+/** Три головні числа картки: настріл із кільцем ресурсу, після чистки, кучність (тап — мішені ствола). */
 function gunStats(w, close) {
   const shots = M.weaponShots(state, w);
   const wear = barrelWear(w);
@@ -1637,7 +1648,7 @@ function gunStats(w, close) {
     tile(c.every ? `${fmt.num(c.count)} / ${fmt.num(c.every)}` : fmt.num(c.since),
       c.every && c.unit === 'sessions' ? t('стрільб після чистки') : t('після чистки'),
       cleanPct === null ? null : h('div', { class: 'bar' }, h('div', { class: `fill ${c.due ? 'over' : fillClass(cleanPct)}`, style: `width:${Math.max(4, cleanPct)}%` }))),
-    tile(p?.value ?? '—', p?.label ?? t('Купчастість'), null, { type: 'button', title: t('Купчастість'), onclick: () => openTargets(w, close) }));
+    tile(p?.value ?? '—', p?.label ?? t('Кучність'), null, { type: 'button', title: t('Кучність'), onclick: () => openTargets(w, close) }));
 }
 
 /** Значок «Поправки зараз» у плитці ствола: тап не відкриває картку. */
@@ -2838,7 +2849,7 @@ const CHOKES = [['cyl', 'Циліндр'], ['ic', 'Получок 1/4'], ['mod',
   ['im', 'Чок 3/4'], ['full', 'Повний чок'], ['xf', 'Посилений чок'], ['var', 'Змінний']];
 
 /**
- * Упор і положення — від них залежить купчастість, тож пишемо в мішень і результат вправи.
+ * Упор і положення — від них залежить кучність, тож пишемо в мішень і результат вправи.
  * До 0.7.101 був лише прапорець «сошки» (bipod) — у старих записах читаємо його як «сошки».
  */
 const RESTS = [['bipod', 'Сошки'], ['bag', 'Мішок / упор'], ['prone', 'Лежачи з руки'], ['knee', 'З коліна'], ['stand', 'Стоячи']];
@@ -3003,11 +3014,11 @@ function weaponForm(w = null, back = null) {
       Object.entries(SCOPE_KINDS).map(([k, label]) => h('option', { value: k, selected: k === (s.kind ?? 'optic') }, t(label))));
     const zero = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: '100', class: 'sc-zero' });
     zero.value = s.zero ?? '';
-    const sh = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: '6', class: 'sc-sh' });
+    const sh = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: String(M.SIGHT_H), class: 'sc-sh' });
     sh.value = s.sh ?? '';
     const wt = h('input', { type: 'number', inputmode: 'decimal', step: 'any', min: 0, placeholder: '600', class: 'sc-w' });
     wt.value = s.weight ?? '';
-    // ціна клацання прицілу — підставляється в мішень, коли вибрали цей приціл; нестандартна — «Своє значення»
+    // ціна кліку прицілу — підставляється в мішень, коли вибрали цей приціл; нестандартна — «Своє значення»
     const own = s.click && !CLICKS.some(([k]) => k === s.click) ? CLICK_KEY.exec(s.click) : null;
     const click = h('select', { class: 'sc-click' },
       [['', t('— не вказано —')], ...CLICKS, [OWN_CLICK, 'Своє значення…']]
@@ -3100,7 +3111,7 @@ function weaponForm(w = null, back = null) {
   });
   async function save() {
     if (invalidField(f) || size.invalid() || permit.invalid()) return;
-    // «Своє значення» без числа інакше тихо стерло б ціну клацання
+    // «Своє значення» без числа інакше тихо стерло б ціну кліку
     const noOwn = [...scopesBox.querySelectorAll('.scope-row')].find((row) => row.querySelector('.sc-click').value === OWN_CLICK
       && row.querySelector('.sc-name').value.trim() && !ownClickKey(row.querySelector('.sc-own-value').value, 'mil'));
     if (noOwn) {
@@ -3409,7 +3420,7 @@ function reportBuy(w) {
   }));
 }
 
-/** Зміст звіту: підсумки за період, купчастість за набоями й таблиця стрільб і чисток. */
+/** Зміст звіту: підсумки за період, кучність за набоями й таблиця стрільб і чисток. */
 function weaponReport(w, [from, to]) {
   const inRange = (x) => (!from || (x.date ?? '') >= from) && (!to || (x.date ?? '') <= to);
   const all = state.movements.filter((m) => m.weaponId === w.id && (m.kind === 'shot' || m.kind === 'clean'));
@@ -3459,7 +3470,7 @@ function weaponReport(w, [from, to]) {
     box(t('Ствол'), barrel),
     papers.length ? box(t('Документи й оснащення'), kv(papers)) : null,
     reportBuy(w),
-    precision.length ? box(t('Купчастість за набоями (на 100 м)'),
+    precision.length ? box(t('Кучність за набоями (на 100 м)'),
       reportTable([t('Набій'), t('Груп'), t('Постр.'), t('Сер. радіус'), t('Найкращий розмах')],
         precision.map((r) => [findCartridge(r.cartridgeId)?.name ?? t('(видалено)'), fmt.num(r.groups), fmt.num(r.shots), len(r.meanRadius), len(r.best)]),
         { numeric: [1, 2, 3, 4] })) : null,
@@ -3593,12 +3604,12 @@ function weaponBody(w, close) {
 
 // ---------- DOPE ----------
 
-// Одиниці вводу таблиці: клацання (за ціною клацання прицілу), кут або сантиметри на цілі
+// Одиниці вводу таблиці: кліки (за ціною кліку прицілу), кут або сантиметри на цілі
 const DOPE_UNITS = [['click', 'кл.'], ['mil', 'MRAD'], ['moa', 'MOA'], ['cm', 'см']];
 
 const dopeScope = (w, d) => w.scopes?.find((s) => s.id === d.scopeId) ?? null;
 
-/** Ключ для toMrad: для клацань — ціна клацання прицілу, інакше сама одиниця. */
+/** Ключ для toMrad: для кліків — ціна кліку прицілу, інакше сама одиниця. */
 const dopeUnitKey = (unit, scope) => (unit === 'click' ? scope?.click ?? null : unit);
 
 /** «Приціл · Набій» таблиці; видалені — «(удалено)». */
@@ -3613,8 +3624,22 @@ function dopeTitle(w, d) {
 function myDopeLoads() {
   return state.weapons.filter((w) => !w.archived).flatMap((w) => (w.dope ?? []).map((d) => {
     const scope = dopeScope(w, d);
-    return { id: d.id, label: `${w.name} · ${dopeTitle(w, d)}`, rows: d.rows, zero: scope?.zero ?? null, windSpeed: d.windSpeed ?? null, reticle: reticleOf(scope) };
+    return { id: d.id, label: `${w.name} · ${dopeTitle(w, d)}`, rows: d.rows, zero: scope?.zero ?? null, windSpeed: d.windSpeed ?? null, reticle: reticleOf(scope), wx: dopeWeather(w, d, scope) };
   }));
+}
+
+/**
+ * Чим перерахувати таблицю під погоду тренажера — те саме, що бере «Поправки зараз»: погода таблиці, BC і швидкість
+ * набою (хронограф → картка), приціл і пристрілка. null — таблиця без погоди, набій без BC чи швидкості, або таблиця
+ * для іншої пристрілки чи висоти прицілу: тоді тренажер бере її як є.
+ */
+function dopeWeather(w, d, scope) {
+  const c = findCartridge(d.cartridgeId);
+  if (d.cond?.tC === undefined || d.cond?.tC === null || !(c?.bc > 0) || staleText(d.cond, scope)) return null;
+  const mv = gunMv(w, c).mv;
+  if (!(mv > 0)) return null;
+  return { tC: d.cond.tC, alt: d.cond.alt ?? 0, bc: c.bc, model: c.dragModel || 'G7', mv, ammo: c.name,
+    sh: scope?.sh > 0 ? scope.sh : M.SIGHT_H, zero: scope?.zero > 0 ? scope.zero : 100 };
 }
 
 /** Середня швидкість останньої серії хронографа цієї зброї з цим набоєм, м/с; null — серій немає. */
@@ -3795,7 +3820,11 @@ function openNow(w) {
 function trainDope(d, close) {
   try {
     const saved = JSON.parse(localStorage.getItem('shooters-log:sim')) ?? {};
-    localStorage.setItem('shooters-log:sim', JSON.stringify({ ...saved, 's-kit': `my:${d.id}`, mode: 'aim' }));
+    // Таблиця, яку тренажер перераховує під погоду, відкривається на своїй погоді — її цифри як є
+    const w = state.weapons.find((x) => x.dope?.some((y) => y.id === d.id));
+    const wx = w ? dopeWeather(w, d, dopeScope(w, d)) : null;
+    const air = wx ? { 's-temp': String(wx.tC), 's-alt': String(wx.alt) } : {};
+    localStorage.setItem('shooters-log:sim', JSON.stringify({ ...saved, 's-kit': `my:${d.id}`, ...air, mode: 'aim' }));
   } catch { /* приватний режим — тренажер відкриється на першій своїй таблиці */ }
   close?.();
   goRange('sim');
@@ -3920,7 +3949,7 @@ function dopeForm(w, d = null) {
     scopeInfo.hidden = !sc;
     if (!sc) return;
     scopeInfo.textContent = `${t('Поправки — від пристрілки')} ${sc.zero > 0 ? t('{n} м', { n: fmt.num(sc.zero) }) : t('(не вказано — 100 м)')} · `
-      + `${sc.sh > 0 ? t('приціл {n} см над стволом', { n: fmt.num(sc.sh) }) : t('висоту прицілу не вказано — 6 см')}. `
+      + `${sc.sh > 0 ? t('приціл {n} см над стволом', { n: fmt.num(sc.sh) }) : t('висоту прицілу не вказано — {n} см', { n: M.SIGHT_H })}. `
       + t('Пристрілка задає нуль таблиці, висота прицілу помітна на ближніх дистанціях (до ~100 м). Змінити — в картці прицілу.');
   };
   f.inputs.scopeId.closest('.field').after(scopeInfo);
@@ -4020,13 +4049,21 @@ function dopeForm(w, d = null) {
     if (from.note && !f.inputs.note.value.trim()) f.inputs.note.value = from.note;
     rowsBox.replaceChildren();
     rows.forEach((r) => addRow(r.distance, r.value, r.wind));
+    calcRows = false;
     // Зі «Стрільця» відомо, за якої температури й висоти прицілу таблиця: застарілу буде видно
     if (Number.isFinite(from.tC)) f.inputs.condT.value = String(from.tC);
     setup = from.sh || from.zero ? { zero: from.zero ?? null, sh: from.sh ?? null, mv: null } : null;
     drawUnits();
     paintCond();
   });
-  rowsBox.addEventListener('input', () => { setup = null; });
+  // Рядки з розрахунку переписуємо без питань; свої (виміряні, вставлені, правлені руками) — лише після «Замінити»
+  let calcRows = (d?.note ?? '').startsWith(`${t('Розрахунок')}: `);
+  rowsBox.addEventListener('input', () => { setup = null; calcRows = false; });
+  const ownRows = () => !calcRows && [...rowsBox.querySelectorAll('.dope-v, .dope-w')]
+    .some((i) => i.value.trim() && Number(i.value.trim().replace(',', '.').replace('−', '-')) !== 0);
+  const safeFill = () => (ownRows()
+    ? confirmSheet(t('Замінити свої поправки?'), t('Розрахунок перепише всі рядки таблиці. Свої, виміряні на стрільбищі, зникнуть, якщо потім натиснути «Зберегти».'), t('Замінити'), () => fillCalc())
+    : fillCalc());
   // Розрахунок: набій з BC і швидкістю (з хронографа, якщо є серія), приціл — пристрілка й висота над стволом
   // Погода розрахунку — з «Умов таблиці» (порожні — 15 °C і рівень моря): окремих полів у розрахунку немає
   const air = () => { const v = f.values(); return { tC: v.condT ?? 15, alt: v.condAlt ?? 0, bad: Number.isNaN(v.condT) || Number.isNaN(v.condAlt) }; };
@@ -4040,7 +4077,7 @@ function dopeForm(w, d = null) {
   };
   const calcText = (s) => [`${s.c.dragModel || 'G7'} ${fmt.num(s.c.bc)}`, `${s.mv} ${t('м/с')} (${mvSrcText(s.g)})`,
     s.zero ? t('пристрілка {n} м', { n: s.zero }) : t('пристрілку не вказано — від 100 м'),
-    s.sh ? t('приціл {n} см над стволом', { n: fmt.num(s.sh) }) : t('висоту прицілу не вказано — 6 см')].join(' · ');
+    s.sh ? t('приціл {n} см над стволом', { n: fmt.num(s.sh) }) : t('висоту прицілу не вказано — {n} см', { n: M.SIGHT_H })].join(' · ');
   // Прогноз на день виїзду: температура й висота місця — у поля розрахунку, звідки цифри — у примітку
   let forecastNote = '';
   const tripBox = tripWeather({
@@ -4049,7 +4086,7 @@ function dopeForm(w, d = null) {
       f.inputs.condT.value = String(Math.round(temp));
       if (elevation !== null) f.inputs.condAlt.value = String(Math.round(elevation));
       forecastNote = t('прогноз: {place}, {date} {time}', { place, date: fmt.date(date), time });
-      fillCalc();
+      safeFill();
       toast(t('Прогноз: {temp} °C, висота {alt} м', { temp: fmt.num(Math.round(temp)), alt: fmt.num(Math.round(elevation ?? 0)) }));
     },
   });
@@ -4062,7 +4099,7 @@ function dopeForm(w, d = null) {
     const s = calcSource();
     const a = air();
     if (s.error || a.bad) { trajBox.replaceChildren(); return; }
-    const sh = s.sh ?? 6; const zero = s.zero ?? 100;
+    const sh = s.sh ?? M.SIGHT_H; const zero = s.zero ?? 100;
     const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: a.tC, alt: a.alt, max: 700, step: 10 })
       ?? solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh, zero, tC: a.tC, alt: a.alt, max: 400, step: 10 });
     if (!res) { trajBox.replaceChildren(); return; }
@@ -4073,7 +4110,7 @@ function dopeForm(w, d = null) {
     });
     radius.classList.add('segmented');
     trajBox.replaceChildren(h('h4', {}, t('Прямий постріл')), radius,
-      h('p', { class: 'dope-pb' }, pointBlankText(pb, pbR, zero)), trajectoryChart(pts, { r: pbR, zero, ...pb }));
+      h('p', { class: 'dope-pb' }, pointBlankText(pb, pbR, zero)), trajectoryChart(pts, { r: pbR, zero, ...pb, zeroNote: s.zero ? t('з картки прицілу') : t('у прицілі не вказано — рахуємо від 100 м') }));
   };
   const paintCalc = () => {
     const s = calcSource();
@@ -4090,7 +4127,7 @@ function dopeForm(w, d = null) {
     if (s.error) { paintCalc(); formError(s.error); calcInfo.scrollIntoView({ block: 'center', behavior: smooth() }); return; }
     const { tC, alt, bad } = air();
     if (bad) { formError(t('Температура й висота — числа')); return; }
-    const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh: s.sh ?? 6, zero: s.zero ?? 100, tC, alt, max: 700, step: 25 });
+    const res = solve({ bc: s.c.bc, model: s.c.dragModel || 'G7', mv: s.mv, sh: s.sh ?? M.SIGHT_H, zero: s.zero ?? 100, tC, alt, max: 700, step: 25 });
     if (!res) { formError(t('Куля не долітає до 700 м — перевірте BC і швидкість')); return; }
     if (!(Number(windForm.values().windSpeed) > 0)) windForm.inputs.windSpeed.value = '5';
     const ws = Number(windForm.values().windSpeed);
@@ -4100,10 +4137,13 @@ function dopeForm(w, d = null) {
       const i = dist / 25 - 1; const mrad = Math.round(res.H[i] * 1000) / 1000 || 0; const wind = Math.round(res.W[i] * ws * 1000) / 1000;
       addRow(dist, toText(mrad, dist), toText(wind, dist), { v: mrad, w: wind });
     }
-    setup = { zero: s.zero ?? 100, sh: s.sh ?? 6, mv: s.mv };
+    setup = { zero: s.zero ?? 100, sh: s.sh ?? M.SIGHT_H, mv: s.mv };
+    calcRows = true;
     f.inputs.condT.value = String(tC);
     f.inputs.condAlt.value = String(alt);
-    if (!f.inputs.note.value.trim()) {
+    // Примітку, що її написав попередній розрахунок, переписуємо: інакше погода в ній розійдеться з рядками
+    const note = f.inputs.note.value.trim();
+    if (!note || note.startsWith(`${t('Розрахунок')}: `)) {
       f.inputs.note.value = [`${t('Розрахунок')}: ${calcText(s)}`, `${tC > 0 ? '+' : ''}${fmt.num(tC)} °C`, `${fmt.num(alt)} ${t('м')}`, forecastNote || null]
         .filter(Boolean).join(' · ');
     }
@@ -4118,7 +4158,7 @@ function dopeForm(w, d = null) {
   const calcBtn = btn(t('Розрахувати'), () => {
     calcPanel.hidden = false;
     paste.panel.hidden = true;
-    fillCalc();
+    safeFill();
     calcPanel.scrollIntoView({ block: 'nearest', behavior: smooth() });
   });
   // Порядок: що (приціл, набій) → чим заповнити (розрахунок чи вставка, панель одразу під кнопками) → таблиця →
@@ -4620,7 +4660,7 @@ const KIND_ICON = {
   buy: '<path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   // Пробоїна в мішені — не перехрестя: воно в застосунку про прицілювання
   shot: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="14.2" cy="9.8" r="1.6" fill="currentColor" stroke="none"/>',
-  // Купчастість: три пробоїни купкою в центрі мішені
+  // Кучність: три пробоїни купкою в центрі мішені
   group: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><g fill="currentColor" stroke="none"><circle cx="10.6" cy="10.9" r="1.45"/><circle cx="13.6" cy="11.3" r="1.45"/><circle cx="11.9" cy="14" r="1.45"/></g>',
   // Набій і велика лійка з порохом: споряджено власноруч.
   reload: '<path d="M2.5 21V11l.8-1.5V7c0-1.4.6-2.8 1.2-3.5.6.7 1.2 2.1 1.2 3.5v2.5l.8 1.5v10z"/><path d="M2.5 14h4"/><path d="M9.5 3h13l-5 6v4.5h-3V9z"/><path d="M16 16.8h0M16 20.3h0"/>',
@@ -4788,7 +4828,7 @@ function zeroIco() {
   return el;
 }
 
-/** Значок: ціна клацання — барабан прицілу з рискою. */
+/** Значок: ціна кліку — барабан прицілу з рискою. */
 function clickIco() {
   const el = h('span', { class: 'btn-ico', 'aria-hidden': 'true' });
   el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><path d="M12 5.5V2M15.5 3.4l1.4-2.4M8.5 3.4 7.1 1M12 12l3-3"/></svg>';
@@ -5260,7 +5300,7 @@ function renderLog() {
 // Фото мішені більше за фото зброї: на 2400 px пробоїна .223 на 100 м — це ще 20+ пікселів.
 const TARGET_PHOTO = 2400;
 
-// Купчастість за замовчуванням у MOA: кутова міра не залежить від дистанції, її й називають уголос.
+// Кучність за замовчуванням у MOA: кутова міра не залежить від дистанції, її й називають уголос.
 let targetUnit = UNITS.some(([k]) => k === recall('shooters-log:target-unit-v2')) ? recall('shooters-log:target-unit-v2') : 'moa';
 let targetWeapon = '';
 
@@ -5276,7 +5316,7 @@ function targetWhen(tg) {
 }
 
 /**
- * Найкращий розмах серед мішеней: та сама мірка, що й у «Набоях за купчастістю» —
+ * Найкращий розмах серед мішеней: та сама мірка, що й у «Набоях за кучністю» —
  * групи від 3 пробоїн і порівняння за кутом, інакше 3,8 см на 30 м виглядали б кращими за 5 см на 300 м.
  */
 function bestSpread(targets) {
@@ -5290,8 +5330,8 @@ function bestSpread(targets) {
 }
 
 /**
- * Купчастість ствола одним числом: середній радіус найкупчастішого набою — те саме, що перший рядок
- * «Набоїв за купчастістю». Без груп за набоями — найкращий розмах, із власним підписом.
+ * Кучність ствола одним числом: середній радіус найкучнішого набою — те саме, що перший рядок
+ * «Набоїв за кучністю». Без груп за набоями — найкращий розмах, із власним підписом.
  */
 function gunPrecision(w) {
   const targets = state.targets.filter((x) => x.weaponId === w.id);
@@ -5302,7 +5342,7 @@ function gunPrecision(w) {
   return { value: best.distance > 0 ? length(best.spread, 'moa', best.distance) : length(best.spread, 'cm'), label: t('розкид') };
 }
 
-/** Найкраща купчастість — другим числом у правій колонці плитки. */
+/** Найкраща кучність — другим числом у правій колонці плитки. */
 function precisionBadge(w) {
   const p = gunPrecision(w);
   if (!p) return null;
@@ -5328,7 +5368,7 @@ function bestGroup(tg, min = 2) {
 
 const UNIT_ICON = { cm: 'scale', moa: 'angle', mil: 'mil' };
 
-/** Одиниці купчастості — як перемикач розділів «Полігону», але тихіший: підписи на всіх (значки MOA й MRAD схожі). */
+/** Одиниці кучності — як перемикач розділів «Полігону», але тихіший: підписи на всіх (значки MOA й MRAD схожі). */
 function unitChips(onPick) {
   return h('div', { class: 'range-seg unit-seg', role: 'tablist' }, UNITS.map(([k, label]) => h('button', {
     type: 'button', role: 'tab', class: k === targetUnit ? 'on' : null, 'aria-selected': String(k === targetUnit),
@@ -5340,7 +5380,7 @@ function unitChips(onPick) {
   }, icon(UNIT_ICON[k]), h('span', {}, t(label)))));
 }
 
-/** Вхід у «Кучность»: з журналу — усі мішені, з картки зброї — лише її. */
+/** Вхід у «Кучність»: з журналу — усі мішені, з картки зброї — лише її. */
 function openTargets(weapon, closeSheet = null) {
   closeSheet?.();
   targetWeapon = weapon.id;
@@ -5349,7 +5389,7 @@ function openTargets(weapon, closeSheet = null) {
   goTab('#targets');
 }
 
-/** Як змінюється купчастість ствола від виїзду до виїзду: середній радіус, зведений до 100 м. */
+/** Як змінюється кучність ствола від виїзду до виїзду: середній радіус, зведений до 100 м. */
 function precisionChart(w) {
   const series = M.precisionSeries(state.targets, state.photos, w.id);
   if (series.length < 2) return null;
@@ -5364,16 +5404,16 @@ function precisionChart(w) {
 }
 
 /**
- * Порівняння набоїв ствола за купчастістю: найкупчастіший зверху, смужка — середній радіус відносно найгіршого.
+ * Порівняння набоїв ствола за кучністю: найкучніший зверху, смужка — середній радіус відносно найгіршого.
  * Розміри зведені до 100 м, тому кутові одиниці чесні, а сантиметри — «на 100 м».
  */
 // Менше груп на набій — порівняння ще випадкове, позначаємо «мало даних»
 const FEW_GROUPS = 3;
 const groupsText = (n) => `${fmt.num(n)} ${plural(n, [t('група'), t('групи'), t('груп')])}`;
-// Відстає від найкупчастішого менше ніж на 10 % — за такої кількості груп різниця випадкова, теж «найкупчастіший»
+// Відстає від найкучнішого менше ніж на 10 % — за такої кількості груп різниця випадкова, теж «найкучніший»
 const LEAD_SHARE = 1.1;
 
-/** Хто серед найкупчастіших (rows — за зростанням радіуса); tie — усі в межах 10 %: виділяти нікого, а сказати це. */
+/** Хто серед найкучніших (rows — за зростанням радіуса); tie — усі в межах 10 %: виділяти нікого, а сказати це. */
 function leadersOf(rows) {
   const lead = rows.map((r) => rows.length > 1 && r.meanRadius <= rows[0].meanRadius * LEAD_SHARE);
   const tie = rows.length > 1 && lead.every(Boolean);
@@ -5392,7 +5432,7 @@ function ammoPrecisionBox(w, fold) {
     const sub = [groupsText(r.groups), t('{n} постр.', { n: r.shots }),
       r.offset ? `${t('СТВ')}: ${offsetText(r.offset, targetUnit, 100)}` : null].filter(Boolean).join(' · ');
     const badge = r.groups < FEW_GROUPS ? h('span', { class: 'badge small' }, t('мало даних'))
-      : lead[i] ? h('span', { class: 'badge ok small' }, t('найкупчастіший')) : null;
+      : lead[i] ? h('span', { class: 'badge ok small' }, t('найкучніший')) : null;
     return h('button', { type: 'button', class: 'row ap-row', onclick: () => precisionTargets(w, r) },
       cartridgeIcon(c?.caliber ?? w.caliber),
       h('span', { class: 'row-main' },
@@ -5403,13 +5443,13 @@ function ammoPrecisionBox(w, fold) {
   });
   // Пояснення цифр — за кнопкою «i», як у мішені
   const legend = hintLegend(t('Що означають цифри'), [
-    [t('Число праворуч — середній радіус'), t('Середня відстань пробоїн від центру групи: менше — купчастіше. Від кількості пострілів майже не залежить, тому за ним порівнюють набої.')],
+    [t('Число праворуч — середній радіус'), t('Середня відстань пробоїн від центру групи: менше — кучніше. Від кількості пострілів майже не залежить, тому за ним порівнюють набої.')],
     [t('Смужка'), t('Середній радіус відносно найгіршого набою в списку.')],
     [t('Як рахується'), t('Враховано групи від {n} пострілів; мішені на різних дистанціях зведено до 100 м.', { n: M.PRECISION_MIN_HOLES })],
-    [t('найкупчастіший'), t('Найкращий середній радіус — або відстає від нього менше ніж на 10 %: така різниця поки випадкова.')],
+    [t('найкучніший'), t('Найкращий середній радіус — або відстає від нього менше ніж на 10 %: така різниця поки випадкова.')],
     [t('мало даних'), t('Менше {n} груп — порівняння поки випадкове.', { n: FEW_GROUPS })],
   ]);
-  return box(t('Набої за купчастістю'), [legend, h('div', { class: 'rows' }, list), tie ? tieNote() : null],
+  return box(t('Набої за кучністю'), [legend, h('div', { class: 'rows' }, list), tie ? tieNote() : null],
     { tools: hintButton(legend, 'precision'), fold: `${fold}:${w.id}`, count: rows.length });
 }
 
@@ -5462,7 +5502,7 @@ async function saveSupShift(w, scope, mrad, cid = null) {
   toast(t('Зсув з глушником записано в приціл'));
 }
 
-/** Кучність за упором: сошки, мішок, з руки… — де ствол купчастіший; усі набої разом, зведено до 100 м. */
+/** Кучність за упором: сошки, мішок, з руки… — де ствол кучніший; усі набої разом, зведено до 100 м. */
 function restBox(w, fold) {
   const rows = M.precisionBy(state.targets.filter((x) => x.weaponId === w.id), state.photos, restOf);
   if (rows.length < 2) return null;
@@ -5471,11 +5511,11 @@ function restBox(w, fold) {
   const list = rows.map((r, i) => h('button', { type: 'button', class: 'row ap-row', onclick: () => precisionTargets(w, r, restLabel(r.key)) },
     h('span', { class: 'row-main' },
       h('span', { class: 'row-title' }, restLabel(r.key), r.groups < FEW_GROUPS ? h('span', { class: 'badge small' }, t('мало даних'))
-        : lead[i] ? h('span', { class: 'badge ok small' }, t('найкупчастіший')) : null),
+        : lead[i] ? h('span', { class: 'badge ok small' }, t('найкучніший')) : null),
       h('span', { class: 'muted small' }, `${groupsText(r.groups)} · ${t('{n} постр.', { n: r.shots })}`),
       h('div', { class: 'bar' }, h('div', { class: `fill ${lead[i] ? '' : 'ap'}`, style: `width:${Math.max(4, (r.meanRadius / worst) * 100)}%` }))),
     h('span', { class: 'tg-best col' }, length(r.meanRadius, targetUnit, 100), h('small', { class: 'muted' }, t('сер. радіус')))));
-  return box(t('Купчастість за упором'), [h('p', { class: 'muted small' }, t('Усі набої разом, мішені зведено до 100 м.')), h('div', { class: 'rows' }, list), tie ? tieNote() : null],
+  return box(t('Кучність за упором'), [h('p', { class: 'muted small' }, t('Усі набої разом, мішені зведено до 100 м.')), h('div', { class: 'rows' }, list), tie ? tieNote() : null],
     { fold: `${fold}-rest:${w.id}`, count: rows.length });
 }
 
@@ -5503,8 +5543,8 @@ function targetThumb(tg) {
 }
 
 /**
- * Найкупчастіша мішень списку — за кутовим розкидом (розкид / дистанція), щоб 100 і 300 м порівнювались чесно;
- * групи від PRECISION_MIN_HOLES пострілів, бо дві пробоїни поруч — ще не купчастість. Одна мішень — без зірки.
+ * Найкучніша мішень списку — за кутовим розкидом (розкид / дистанція), щоб 100 і 300 м порівнювались чесно;
+ * групи від PRECISION_MIN_HOLES пострілів, бо дві пробоїни поруч — ще не кучність. Одна мішень — без зірки.
  */
 function bestTargetId(list) {
   if (list.length < 2) return null;
@@ -5519,7 +5559,7 @@ function bestTargetId(list) {
 
 /**
  * inWeapon — рядок у списку одного ствола: назва зброї там зайва, тож зверху дата, а дистанція — жирним.
- * best — найкупчастіша мішень списку: зірка після дати.
+ * best — найкучніша мішень списку: зірка після дати.
  */
 function targetRow(tg, beforeOpen = null, { inWeapon = false, best: top = false } = {}) {
   const best = bestGroup(tg);
@@ -5533,7 +5573,7 @@ function targetRow(tg, beforeOpen = null, { inWeapon = false, best: top = false 
   return h('button', { type: 'button', class: 'row tg-row', 'data-id': tg.id, onclick: () => { beforeOpen?.(); targetDetail(tg); } },
     targetThumb(tg),
     h('span', { class: 'row-main' },
-      h('span', { class: 'row-title' }, title, top ? starIcon(t('Найкупчастіша')) : null),
+      h('span', { class: 'row-title' }, title, top ? starIcon(t('Найкучніша')) : null),
       h('span', { class: 'muted small' }, sub)),
     best ? spreadCell(length(best.stats.spread, targetUnit, tg.distance)) : null);
 }
@@ -5988,7 +6028,7 @@ function renderTargets() {
       ? groups.map((g) => fold(`targets:${g.id}`,
         [h('span', { class: 'fold-title' }, g.name), h('span', { class: 'fold-meta' }, t('мішеней: {n}', { n: g.items.length }))],
         [...precisionInGroup(g.id), groupRows(g.items)].filter(Boolean)))
-      : empty(t('Мішеней поки немає'), t('Сфотографуйте мішень і натисніть «Додати»: позначте пробоїни — застосунок порахує купчастість, СТВ і поправки в кліках.'), [addBtn()]),
+      : empty(t('Мішеней поки немає'), t('Сфотографуйте мішень і натисніть «Додати»: позначте пробоїни — застосунок порахує кучність, СТВ і поправки в кліках.'), [addBtn()]),
     h('p', { class: 'muted small' }, t('Розкид — між центрами найвіддаленіших пробоїн. СТВ — середня точка влучання. Перекіс фото виправляє крок «Вирівняти» після вибору фото.')));
 }
 
@@ -6113,7 +6153,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     zeroWarn.textContent = zero && distance > 0 && zero !== distance
       ? t('Приціл пристріляний на {z} м, мішень — {d} м.', { z: fmt.num(zero), d: fmt.num(distance) }) : '';
   };
-  // Вибрали приціл — з нього ціна клацання; свого значення прицілу в списку ще може не бути.
+  // Вибрали приціл — з нього ціна кліку; свого значення прицілу в списку ще може не бути.
   const onScope = () => {
     const click = selectedScope()?.click;
     if (click) {
@@ -6313,6 +6353,12 @@ async function editMarks(tg) {
  * Координати пристрою; null — геолокація недоступна або людина не дозволила.
  * Дозвіл питає сам браузер при першому запиті; увімкнути GPS застосунок не може — лише підказати.
  */
+/** Погода зараз за місцем телефона для тренажера: { temp, elevation }; null — координат немає (тост уже показано). */
+async function hereWeather() {
+  const pos = await devicePosition();
+  return pos ? forecastAt(pos, M.today(), new Date().getHours()) : null;
+}
+
 function devicePosition() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) { toast(t('Геолокація недоступна')); resolve(null); return; }
@@ -6547,17 +6593,17 @@ function scopeText(s) {
   return [s.name, s.zero ? t('пристрілка {n} м', { n: fmt.num(s.zero) }) : null].filter(Boolean).join(' · ');
 }
 
-// Ключ ціни клацання: одиниця й число — 'mil0.1', 'moa0.25', 'mm13' (мм на 100 м); ¼″ на 100 ярдів (Burris) — 'moa0.2387'.
+// Ключ ціни кліку: одиниця й число — 'mil0.1', 'moa0.25', 'mm13' (мм на 100 м); ¼″ на 100 ярдів (Burris) — 'moa0.2387'.
 const CLICK_KEY = /^(mil|moa|mm)([\d.]+)$/;
 const OWN_CLICK = 'own';
 
-/** Своє значення ціни клацання → ключ виду 'mil0.2'; null — порожньо або не додатне число. */
+/** Своє значення ціни кліку → ключ виду 'mil0.2'; null — порожньо або не додатне число. */
 function ownClickKey(value, unit) {
   const v = Number(String(value).replace(',', '.'));
   return v > 0 ? `${unit}${+v.toFixed(4)}` : null;
 }
 
-/** Підпис ціни клацання: зі списку або своє значення — «0,2 MRAD», «0,24 MOA», «10 мм / 100 м». */
+/** Підпис ціни кліку: зі списку або своє значення — «0,2 MRAD», «0,24 MOA», «10 мм / 100 м». */
 function clickLabel(key) {
   const row = CLICKS.find(([k]) => k === key);
   if (row) return t(row[1]);
@@ -6567,13 +6613,13 @@ function clickLabel(key) {
   return m[1] === 'mm' ? t('{v} мм / 100 м', { v }) : `${v} ${m[1] === 'moa' ? 'MOA' : 'MRAD'}`;
 }
 
-/** Чіпи ціни клацання в мішені: стандартні плюс свої значення з прицілів і самої мішені. */
+/** Чіпи ціни кліку в мішені: стандартні плюс свої значення з прицілів і самої мішені. */
 function clickChoices(...keys) {
   const own = [...new Set(keys.filter((k) => k && !CLICKS.some(([c]) => c === k) && CLICK_KEY.test(k)))];
   return [...CLICKS.map(([k, label]) => [k, t(label)]), ...own.map((k) => [k, clickLabel(k)])];
 }
 
-/** Ціна клацання плюс скільки це сантиметрів на цій дистанції: «0,1 MRAD · 3,0 см на 300 м». */
+/** Ціна кліку плюс скільки це сантиметрів на цій дистанції: «0,1 MRAD · 3,0 см на 300 м». */
 function clickAtDistance(key, distance) {
   const label = clickLabel(key);
   const c = M.clickValue(key);
@@ -6581,7 +6627,7 @@ function clickAtDistance(key, distance) {
   return cm ? `${label} · ${t('{v} см на {d} м', { v: fmt.num(Math.round(cm * 10) / 10), d: fmt.num(distance) })}` : label;
 }
 
-/** Поправка крупно: стрілка, клацання, напрямок як на барабані. */
+/** Поправка крупно: стрілка, кліки, напрямок як на барабані. */
 function fixPanel(fixes, click) {
   if (!M.clickValue(click)) return h('p', { class: 'muted small' }, t('Вкажіть ціну кліку в даних мішені — з’явиться поправка.'));
   if (!fixes.length) return h('div', { class: 'tg-fix ok' }, `✓ ${t('Поправка не потрібна')}`);
@@ -7735,15 +7781,44 @@ async function loadDemoQuiet() {
   }
 }
 
-/** Перший запуск на порожній базі: показати на прикладі чи почати самому. Раз на пристрій. */
+/**
+ * Помічник: ствол, приціл і набій за три кроки — і одразу «Поправки зараз» (без балістики набою — картка ствола).
+ * З привітання при першому запуску і з налаштувань.
+ */
+function startOnboard() {
+  onboardMod().then((m) => m.onboard({
+    uid: db.uid,
+    save: (store, obj) => db.write({ [store]: { put: [obj] } }),
+    findCartridge: (name, caliber) => state.cartridges.find((c) => !c.archived && c.name === name && M.sameCaliber(c.caliber, caliber)),
+    done: async (id, cid) => {
+      await refresh();
+      goTab('#guns');
+      const w = findWeapon(id);
+      if (!w) return;
+      confirmed([id]);
+      // На «Поправках зараз» — саме набій з помічника, а не перший за абеткою
+      if (cid) remember(`shooters-log:now:${id}`, JSON.stringify({ cid }));
+      const c = findCartridge(cid);
+      const ready = (x) => x.bc > 0 && x.mv > 0;
+      if (!w.scopes?.length) toast(t('Ствол додано'));
+      else if (c ? ready(c) : state.cartridges.some((x) => !x.archived && ready(x) && M.sameCaliber(x.caliber, w.caliber))) openNow(w);
+      else if (c) toast(t('Ствол додано. Поправки з’являться, коли в набою будуть BC і швидкість: їх можна дописати в його картці на «Складі».'), { timeout: 8000 });
+      else toast(t('Ствол додано. Поправки з’являться, коли на «Складі» буде набій цього калібру з BC і швидкістю.'), { timeout: 8000 });
+    },
+  }));
+}
+
+/** Перший запуск на порожній базі: почати зі свого ствола, показати на прикладі чи без підказок. Раз на пристрій. */
 function welcome() {
   remember(WELCOMED, '1');
   const close = sheet(t('Вітаємо'), h('div', {},
     h('p', {}, t('Shooter’s Log веде облік набоїв, зброї, стрільб і мішеней. Усе зберігається на цьому пристрої, без сервера.')),
-    h('p', { class: 'muted' }, t('Подивитися на готовому прикладі? Завантажу демодані — три стволи з історією — і покажу розділи. Демо потім видаляється однією кнопкою в налаштуваннях.'))), {
+    h('p', { class: 'muted' }, t('Почніть зі свого ствола: три короткі кроки, і побачите поправки для своєї зброї.')),
+    h('div', { class: 'btn-row' }, btn(t('Почати зі свого ствола'), () => { close(); startOnboard(); }, 'primary wide')),
+    h('p', { class: 'muted' }, t('Або подивіться на готовому прикладі: завантажу демо з трьома стволами й покажу розділи, а потім його можна видалити однією кнопкою в налаштуваннях.'))), {
     actions: [
       btn(t('Без підказок'), () => { close(); toast(t('Підказки до розділу — кнопка «?» угорі')); }),
-      btn(t('Показати на прикладі'), () => { close(); loadDemoQuiet().then((ok) => ok && appTour()); }, 'primary'),
+      btn(t('На прикладі'), () => { close(); loadDemoQuiet().then((ok) => ok && appTour()); }),
     ],
   });
 }
@@ -8000,9 +8075,9 @@ function aboutPanel() {
       h('div', {},
         h('h3', {}, 'Shooter’s Log'),
         h('p', { class: 'muted small' }, t('Версія {v} · збірка {b}', { v: self.APP_VERSION, b: self.APP_BUILD ?? '—' })))),
-    h('p', { class: 'muted small about-desc' }, t('Облік боєприпасів, настрілу по стволах, купчастості й вправ. Працює без інтернету: усе рахується на пристрої.')),
+    h('p', { class: 'muted small about-desc' }, t('Облік боєприпасів, настрілу по стволах, кучності й вправ. Працює без інтернету: усе рахується на пристрої.')),
     h('div', { class: 'btn-row' }, btn(t('Перевірити оновлення'), () => checkUpdate()), btn(t('Що нового'), () => allChanges().then(changesSheet)),
-      btn(t('Тур застосунком'), appTour)),
+      btn(t('Тур застосунком'), appTour), btn(t('Свій ствол за хвилину'), startOnboard)),
     // Банка Монобанку — звичайне посилання, без сторонніх скриптів: CSP і обіцянка «дані нікуди не йдуть» лишаються
     h('a', { class: 'donate-card', href: 'https://send.monobank.ua/jar/XJKDMyVfW', target: '_blank', rel: 'noopener' },
       h('span', { class: 'donate-art' },
@@ -8022,7 +8097,7 @@ function aboutPanel() {
     more(t('З чого почати'), h('ol', { class: 'ex-rules' },
       h('li', {}, t('Заведіть ствол на вкладці «Арсенал» і набій на вкладці «Склад».')),
       h('li', {}, t('Свайп по картці набою: вправо — покупка, вліво — списання на стрільбу.')),
-      h('li', {}, t('Після стрільби сфотографуйте мішень: «Полігон» → «Мішені» → «+». Позначте масштаб і пробоїни — застосунок порахує купчастість, СТВ і поправки в кліках.')),
+      h('li', {}, t('Після стрільби сфотографуйте мішень: «Полігон» → «Мішені» → «+». Позначте масштаб і пробоїни — застосунок порахує кучність, СТВ і поправки в кліках.')),
       h('li', {}, t('Хочете спершу подивитися — ⚙ → «Завантажити демодані», там готовий облік з 2022 року. Перед своїми записами видаліть демо: ⚙ → «Видалити дані з пристрою».')),
       h('li', {}, t('Без Google Диска дані лежать лише на цьому пристрої — підключіть його в ⚙ або час від часу зберігайте копію.')))),
     h('nav', { class: 'about-links' },
@@ -8678,7 +8753,7 @@ function renderSim() {
   guide().then(({ g, html }) => {
     const sim = g.parseGuide(html).sections.find((s) => s.id === 'sim');
     box.replaceChildren(sim.body);
-    g.initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    g.initGuide(box, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses, hereWeather });
     simIntro(box, { auto: true });
   }).catch(() => {
     box.replaceChildren(empty(t('Довідник недоступний'), t('Відкрийте застосунок з інтернетом хоча б раз, щоб він зберігся для офлайну.')));
@@ -8743,7 +8818,7 @@ function guideDoc(kind, view, subtitle) {
       search, nothing, ...folds, foot, toc].filter(Boolean));
     updToc();
     if (!marksman) return;
-    g.initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses });
+    g.initGuide(list, { clockPicker, keepPlace, kitPicker, myLoads: myDopeLoads, myGuns: myGunLoads, windGuesses, hereWeather });
     simIntro(list);
   }).catch(() => {
     list.replaceChildren(empty(t('Довідник недоступний'), t('Відкрийте застосунок з інтернетом хоча б раз, щоб він зберігся для офлайну.')));
