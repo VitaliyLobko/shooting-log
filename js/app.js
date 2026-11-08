@@ -4020,13 +4020,21 @@ function dopeForm(w, d = null) {
     if (from.note && !f.inputs.note.value.trim()) f.inputs.note.value = from.note;
     rowsBox.replaceChildren();
     rows.forEach((r) => addRow(r.distance, r.value, r.wind));
+    calcRows = false;
     // Зі «Стрільця» відомо, за якої температури й висоти прицілу таблиця: застарілу буде видно
     if (Number.isFinite(from.tC)) f.inputs.condT.value = String(from.tC);
     setup = from.sh || from.zero ? { zero: from.zero ?? null, sh: from.sh ?? null, mv: null } : null;
     drawUnits();
     paintCond();
   });
-  rowsBox.addEventListener('input', () => { setup = null; });
+  // Рядки з розрахунку переписуємо без питань; свої (виміряні, вставлені, правлені руками) — лише після «Замінити»
+  let calcRows = (d?.note ?? '').startsWith(`${t('Розрахунок')}: `);
+  rowsBox.addEventListener('input', () => { setup = null; calcRows = false; });
+  const ownRows = () => !calcRows && [...rowsBox.querySelectorAll('.dope-v, .dope-w')]
+    .some((i) => i.value.trim() && Number(i.value.trim().replace(',', '.').replace('−', '-')) !== 0);
+  const safeFill = () => (ownRows()
+    ? confirmSheet(t('Замінити свої поправки?'), t('Розрахунок перепише всі рядки таблиці. Свої, виміряні на стрільбищі, зникнуть, якщо потім натиснути «Зберегти».'), t('Замінити'), () => fillCalc())
+    : fillCalc());
   // Розрахунок: набій з BC і швидкістю (з хронографа, якщо є серія), приціл — пристрілка й висота над стволом
   // Погода розрахунку — з «Умов таблиці» (порожні — 15 °C і рівень моря): окремих полів у розрахунку немає
   const air = () => { const v = f.values(); return { tC: v.condT ?? 15, alt: v.condAlt ?? 0, bad: Number.isNaN(v.condT) || Number.isNaN(v.condAlt) }; };
@@ -4049,7 +4057,7 @@ function dopeForm(w, d = null) {
       f.inputs.condT.value = String(Math.round(temp));
       if (elevation !== null) f.inputs.condAlt.value = String(Math.round(elevation));
       forecastNote = t('прогноз: {place}, {date} {time}', { place, date: fmt.date(date), time });
-      fillCalc();
+      safeFill();
       toast(t('Прогноз: {temp} °C, висота {alt} м', { temp: fmt.num(Math.round(temp)), alt: fmt.num(Math.round(elevation ?? 0)) }));
     },
   });
@@ -4101,6 +4109,7 @@ function dopeForm(w, d = null) {
       addRow(dist, toText(mrad, dist), toText(wind, dist), { v: mrad, w: wind });
     }
     setup = { zero: s.zero ?? 100, sh: s.sh ?? 6, mv: s.mv };
+    calcRows = true;
     f.inputs.condT.value = String(tC);
     f.inputs.condAlt.value = String(alt);
     // Примітку, що її написав попередній розрахунок, переписуємо: інакше погода в ній розійдеться з рядками
@@ -4120,7 +4129,7 @@ function dopeForm(w, d = null) {
   const calcBtn = btn(t('Розрахувати'), () => {
     calcPanel.hidden = false;
     paste.panel.hidden = true;
-    fillCalc();
+    safeFill();
     calcPanel.scrollIntoView({ block: 'nearest', behavior: smooth() });
   });
   // Порядок: що (приціл, набій) → чим заповнити (розрахунок чи вставка, панель одразу під кнопками) → таблиця →

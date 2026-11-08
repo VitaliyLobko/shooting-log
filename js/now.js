@@ -7,7 +7,7 @@ import * as M from './model.js';
 import { solve } from './ballistics.js';
 import { num } from './target.js';
 import { tripWeather, forecastAt } from './forecast.js';
-import { trajectoryPoints, pointBlank, pointBlankText, trajectoryChart, bestZero, schemeAt, fullChart, zerosLabel } from './trajectory.js';
+import { trajectoryPoints, pointBlank, apexText, trajectoryChart, bestZero, schemeAt, fullChart, zerosLabel } from './trajectory.js';
 
 const unitName = (u) => (u === 'moa' ? 'MOA' : 'MRAD');
 const gridUnit = (reticle) => (reticle === 'mil' || reticle === 'moa' ? reticle : null);
@@ -339,7 +339,8 @@ export function nowSheet(ctx) {
           tile('elev', t('Вертикаль'), cells[0].main,
             [cells[0].sub, cells[1] ? `${t('винос')} ${cells[1].main}${cells[1].sub ? ` · ${cells[1].sub}` : ''}` : null].filter(Boolean).join(' · ')),
           tile(`wind ${wc ? '' : 'calm'}`, v > 0 ? `${t('Вітер')} · ${fmt.num(v)} ${t('м/с')} ${t('з {n} год', { n: h12 })}` : t('Вітер'),
-            wc ? wc.main : v > 0 ? t('без поправки') : t('штиль'), wc?.sub ?? null)),
+            // Вітер є, а зносу порахувати нема з чого (поза таблицею без колонки вітру й без BC) — так і кажемо
+            wc ? wc.main : v > 0 ? (wd === null ? '—' : t('без поправки')) : t('штиль'), wc?.sub ?? (v > 0 && wd === null ? t('немає з чого порахувати') : null))),
         m.fix && (m.fix.x || m.fix.y) ? h('div', { class: 'muted small' }, t('З поправкою на глушник')) : null,
         m.shift && typeof m.sc?.zeroSuppressor !== 'boolean'
           ? h('div', { class: 'muted small' }, t('Чи пристрілювали приціл з глушником, не вказано, тож поправку на глушник не враховано. Відповісти можна в картці таблиці DOPE.')) : null,
@@ -371,7 +372,7 @@ export function nowSheet(ctx) {
       views.classList.add('segmented');
       trajBox.replaceChildren(modes, views, allView === 'cm'
         ? trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, full: true })
-        : fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross }));
+        : fullChart({ H: m.now.H, W: m.now.W, V: m.now.V, T: m.now.T, step: 10, wind: cross, tC: m.air.tC, arrow: Number(clock.value) < 6 ? '→' : '←' }));
       return;
     }
     const near = pb.spans[0];
@@ -401,13 +402,15 @@ export function nowSheet(ctx) {
     if (pbAlt && !schemes.some(([k]) => k === pbAlt)) pbAlt = '';
     const altZ = pbAlt === 'best' ? bestZ : pbAlt ? Number(pbAlt) : null;
     const alt = altZ ? schemeAt(pts, altZ, pbR) : null;
-    const pick = h('div', { class: 'chips pb-schemes', role: 'group', 'aria-label': t('Порівняти з пристрілкою') },
+    const schemeRow = h('div', { class: 'chips pb-schemes', role: 'group', 'aria-label': t('Порівняти з пристрілкою') },
       h('span', { class: 'muted small' }, t('Порівняти:')),
       ...schemes.map(([k, label]) => h('button', { type: 'button', class: k === pbAlt ? 'on' : '', 'aria-pressed': String(k === pbAlt),
         // Звичні назви схем; «Найкраща» — своя дистанція, тож обидва її нулі (справжні нулі будь-якої схеми — під графіком)
         onclick: () => { pbAlt = pbAlt === k ? '' : k; paintTraj(model()); } }, k === 'best' ? `${t('Найкраща')} ${zerosLabel(pts, bestZ)}` : t(label))));
-    trajBox.replaceChildren(modes, radius, tiles, h('p', { class: 'dope-pb muted small' }, pointBlankText(pb, pbR, m.zero)),
-      pick, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt }));
+    // «Від–до» вже крупно в плитці — під нею лише те, чого там нема: вершина траєкторії
+    trajBox.replaceChildren(modes, h('p', { class: 'muted small pb-r-hint' }, t('Допуск: на скільки куля може піти вище чи нижче точки прицілювання (пів висоти цілі)')),
+      radius, tiles, h('p', { class: 'dope-pb muted small' }, apexText(pb, pbR)),
+      schemeRow, trajectoryChart(pts, { r: pbR, zero: m.zero, ...pb, alt }));
   };
 
   const paintTable = (m) => {

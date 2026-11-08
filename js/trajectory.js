@@ -35,11 +35,6 @@ export function pointBlank(pts, r) {
   return { spans, apex };
 }
 
-/**
- * Найкраща пристрілка для смуги ±r: та, за якої прямий постріл (одним шматком від дула) сягає найдалі.
- * Інша пристрілка — та сама траєкторія відносно лінії прицілу, повернутої навколо прицілу: y_Z(d) = y(d) − y(Z)·d/Z.
- * Повертає { zero, spans } або null, якщо таблиця закоротка.
- */
 /** Та сама траєкторія при пристрілці на z м: лінія прицілу повернута навколо прицілу, y_Z(d) = y(d) − y(z)·d/z. */
 export function rezero(pts, z) {
   const yz = heightAt(pts, z);
@@ -82,6 +77,11 @@ export function schemeAt(pts, z, r) {
   return { pts: moved, zero: z, span: spans[0] ?? [0, 0], far: farCross(moved, z) };
 }
 
+/**
+ * Найкраща пристрілка для смуги ±r: та, за якої прямий постріл (одним шматком від дула) сягає найдалі.
+ * Інша пристрілка — та сама траєкторія відносно лінії прицілу, повернутої навколо прицілу: y_Z(d) = y(d) − y(Z)·d/Z.
+ * Повертає { zero, span, pts } або null, якщо таблиця закоротка.
+ */
 export function bestZero(pts, r) {
   let best = null;
   const end = pts[pts.length - 1].d;
@@ -97,6 +97,16 @@ export function bestZero(pts, r) {
 
 const round5 = (d) => Math.round(d / 5) * 5;
 const cmText = (cm) => `${cm > 0 ? '+' : cm < 0 ? '−' : ''}${fmt.num(Math.abs(cm) >= 20 ? Math.round(Math.abs(cm)) : Math.round(Math.abs(cm) * 10) / 10)}`;
+
+/** Лише про вершину траєкторії — для екрана, де «від–до» вже крупно в плитці. */
+export function apexText({ spans, apex }, r) {
+  if (!spans.length) return t('Ні на якій дистанції куля не тримається в межах ±{r} см', { r });
+  const span = ([a, b]) => (a === 0 ? t('від дула до {b} м', { b: round5(b) }) : t('від {a} до {b} м', { a: round5(a), b: round5(b) }));
+  if (apex.cm < 0.5) return t('Вище лінії прицілу куля не піднімається.');
+  if (spans.length === 1 || apex.cm <= r) return t('Найвище куля йде на {d} м, {cm} см.', { d: apex.d, cm: cmText(apex.cm) });
+  return t('Посередині куля йде вище ніж на {r} см, до {cm} см на {d} м. У межах ±{r} см — {spans}.',
+    { r, cm: cmText(apex.cm), d: apex.d, spans: spans.map(span).join(t(' і ')) });
+}
 
 /** Висновок одним-двома реченнями: від скількох до скількох метрів крутити не треба. */
 export function pointBlankText({ spans, apex }, r, zero) {
@@ -162,7 +172,7 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
   const cmShort = (v) => fmt.num(Math.abs(v) >= 20 ? Math.round(Math.abs(v)) : Math.round(Math.abs(v) * 10) / 10);
   const chip = (cls, label, v) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label),
     h('b', {}, Math.abs(v) < 0.5 ? t('у точку') : `${v > 0 ? '↑' : '↓'} ${cmShort(v)} ${t('см')}`),
-    h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
+    full ? null : h('span', { class: `tr-chip-sub ${Math.abs(v) <= r ? 'in' : 'out'}` }, Math.abs(v) <= r ? t('✓ у смузі ±{r}', { r }) : t('поза ±{r} см', { r })));
   const pick = (e) => {
     const box = plot.firstElementChild.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * W;
@@ -184,7 +194,8 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
     ? t('Ліворуч — сантиметри над лінією прицілу (мінус — нижче), внизу — метри. Без поправки барабаном куля йде так; крапка — пристрілка.')
     : t('Ліворуч — сантиметри над лінією прицілу, внизу — метри. Смуга — ±{r} см, крапка — пристрілка, риска внизу — де барабан крутити не треба.', { r }));
   const altNote = alt ? h('p', { class: 'small tr-alt-note' }, [t('Пунктир — пристрілка {z} м', { z: alt.zero }),
-    (() => { const { up, down } = zeros(alt.pts); return up !== null && down !== null ? t('нулі на {a} і {b} м', { a: round5(up), b: round5(down) }) : null; })(),
+    // Два нулі — одна траєкторія: пристрілювати можна на будь-якому, зручніше — на ближньому
+    (() => { const { up, down } = zeros(alt.pts); return up !== null && down !== null && round5(down) - round5(up) >= 10 ? t('нулі на {a} і {b} м — пристрілювати можна на будь-якому', { a: round5(up), b: round5(down) }) : null; })(),
     t('±{r} см: {a}–{b} м', { r, a: round5(alt.span[0]), b: round5(alt.span[1]) })].filter(Boolean).join(' · ')) : null;
   return h('div', { class: 'tr' }, read, plot, altNote, legend);
 }
@@ -193,7 +204,7 @@ export function trajectoryChart(pts, { r, zero, spans, apex, alt = null, full = 
  * Уся траєкторія: поправки в мрад по дистанції — вертикаль і знос вітром (wind — м/с бічної складової),
  * межа дозвуку (швидкість < 343 м/с). H, W (знос на 1 м/с), V, T — з solve() з кроком step.
  */
-export function fullChart({ H, W, V, T, step, wind = 0 }) {
+export function fullChart({ H, W, V, T, step, wind = 0, tC = 15, arrow = '→' }) {
   const n = H.length;
   const xMax = n * step;
   const wd = W.map((w) => w * wind);
@@ -204,14 +215,18 @@ export function fullChart({ H, W, V, T, step, wind = 0 }) {
   const xs = (d) => L + ((W_ - L - R) * d) / xMax;
   const ys = (v) => T_ + ((H_ - T_ - B) * (yMax - v)) / (yMax - yMin);
   const poly = (vals) => vals.map((v, i) => [i, v]).slice(from).map(([i, v]) => `${xs((i + 1) * step).toFixed(1)},${ys(v).toFixed(1)}`).join(' ');
-  const sub = V.findIndex((v) => v < 343);
+  // Швидкість звуку залежить від температури: +15 °C — 340 м/с, −10 °C — 325
+  const sound = 331.3 * Math.sqrt(1 + tC / 273.15);
+  const sub = V.findIndex((v) => v < sound);
   const subD = sub >= 0 ? (sub + 1) * step : null;
   const xTicks = Array.from({ length: Math.floor(xMax / 100) + 1 }, (_, i) => i * 100).filter((d) => d % (xMax > 500 ? 200 : 100) === 0);
   const yStep = yMax > 12 ? 4 : yMax > 6 ? 2 : 1;
-  const yTicks = Array.from({ length: Math.floor((yMax - yMin) / yStep) + 1 }, (_, i) => yMin + i * yStep);
+  // Кратні кроку — щоб нуль завжди мав підпис
+  const y0 = Math.ceil(yMin / yStep) * yStep;
+  const yTicks = Array.from({ length: Math.floor((yMax - y0) / yStep) + 1 }, (_, i) => y0 + i * yStep);
   const svg = `<svg viewBox="0 0 ${W_} ${H_}" role="img" aria-label="${t('Поправки за дистанцією')}">
     ${xTicks.map((d) => `<line class="tr-grid" x1="${xs(d)}" x2="${xs(d)}" y1="${T_}" y2="${H_ - B}"/><text class="tr-txt" x="${xs(d)}" y="${H_ - 6}" text-anchor="middle">${d}</text>`).join('')}
-    ${yTicks.map((v) => `<line class="tr-grid" x1="${L}" x2="${W_ - R}" y1="${ys(v)}" y2="${ys(v)}"/><text class="tr-txt" x="${L - 4}" y="${ys(v) + 3}" text-anchor="end">${v}</text>`).join('')}
+    ${yTicks.map((v) => `<line class="tr-grid" x1="${L}" x2="${W_ - R}" y1="${ys(v)}" y2="${ys(v)}"/><text class="tr-txt" x="${L - 4}" y="${ys(v) + 3}" text-anchor="end">${v < 0 ? '−' : ''}${Math.abs(v)}</text>`).join('')}
     ${subD ? `<line class="tr-sub" x1="${xs(subD)}" x2="${xs(subD)}" y1="${T_}" y2="${H_ - B}"/><text class="tr-txt tr-sub-txt" x="${xs(subD) - 3}" y="${T_ + 9}" text-anchor="end">${t('дозвук')}</text>` : ''}
     <polyline class="tr-curve" points="${poly(H)}"/>
     ${wind > 0 ? `<polyline class="tr-curve wind" points="${poly(wd)}"/>` : ''}
@@ -235,15 +250,17 @@ export function fullChart({ H, W, V, T, step, wind = 0 }) {
     if (windDot) place(windDot, side);
     const mr = (x) => fmt.num(Math.round(x * 10) / 10);
     const chip = (cls, label, main, sub) => h('span', { class: `tr-chip ${cls}` }, h('span', { class: 'tr-chip-label' }, label), h('b', {}, main), sub ? h('span', { class: 'tr-chip-sub' }, sub) : null);
+    // Швидкість і час — дрібним рядком: на телефоні три плашки не влазять в один ряд
     read.replaceChildren(...[h('span', { class: 'tr-read-d' }, `${d} ${t('м')}`),
       chip('main', t('вертикаль'), `${up >= 0 ? '↑' : '↓'} ${mr(Math.abs(up))} MRAD`),
-      wind > 0 ? chip('wind', t('вітер'), `↔ ${mr(side)} MRAD`) : null,
-      chip('info', t('куля'), `${Math.round(v)} ${t('м/с')}`, `${fmt.num(Math.round(at(T, d) * 100) / 100)} ${t('с')}${v < 343 ? ` · ${t('дозвук')}` : ''}`)].filter(Boolean));
+      wind > 0 ? chip('wind', t('вітер'), `${arrow} ${mr(side)} MRAD`) : null,
+      h('span', { class: 'tr-read-info muted small' }, [t('куля {v} м/с', { v: Math.round(v) }), t('летить {s} с', { s: fmt.num(Math.round(at(T, d) * 100) / 100) }),
+        v < sound ? t('дозвукова') : null].filter(Boolean).join(' · '))].filter(Boolean));
   };
   plot.addEventListener('pointerdown', pick);
   plot.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e); });
   const legend = h('p', { class: 'muted small tr-legend' }, [t('Ліворуч — поправка в MRAD, внизу — метри (від 50 м)'), t('Помаранчева — вертикаль'),
     wind > 0 ? t('блакитна — знос вітром {w} м/с збоку', { w: fmt.num(Math.round(wind * 10) / 10) }) : t('вітер не задано'),
-    subD ? t('після {d} м куля дозвукова — точність падає', { d: subD }) : null].filter(Boolean).join(' · '));
+    subD ? t('після {d} м куля дозвукова, точність падає', { d: subD }) : null].filter(Boolean).join(' · '));
   return h('div', { class: 'tr' }, read, plot, legend);
 }

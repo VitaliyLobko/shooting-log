@@ -4031,6 +4031,8 @@ button.now-tile.best.on::after { content: '✓ пунктир на графік�
 :root[data-theme="light"] .tr { --tr-alt: #1f8a55; --tr-wind: #1769c2; }
 .tr-read { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; min-height: 52px; margin: 4px 0 6px; }
 .tr-read > .muted { align-self: center; }
+.tr-read-info { flex-basis: 100%; }
+.pb-r-hint { margin: 8px 0 4px; }
 .tr-read-d { align-self: center; min-width: 64px; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tr-chip { --c: var(--accent); display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 4px 10px; border-left: 3px solid var(--c); border-radius: 8px; background: color-mix(in srgb, var(--c) 12%, transparent); font-variant-numeric: tabular-nums; }
 .tr-chip.alt { --c: var(--tr-alt); }
