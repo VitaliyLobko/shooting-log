@@ -53,6 +53,8 @@ const ASSETS = [
   './js/levels.js',
   './js/timer.js',
   './js/exercises.js',
+  './js/exercises-ru.js',
+  './js/items.js',
   './js/changelog.js',
   './js/ics.js',
   './js/shot-detector.js',

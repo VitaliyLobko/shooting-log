@@ -5,8 +5,8 @@
 // ponytail: ім'я бази лишилося старим — перейменування сховало б дані, вже записані на пристрої.
 // Міняти разом із міграцією (перелити стори зі старої бази), коли з'явиться привід.
 const DB_NAME = 'shooting-log';
-const DB_VERSION = 13;
-export const STORES = ['weapons', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores', 'exercises', 'chrono', 'gear', 'articles', 'gearKinds', 'calibers', 'prefs'];
+const DB_VERSION = 14;
+export const STORES = ['weapons', 'items', 'cartridges', 'components', 'recipes', 'movements', 'photos', 'targets', 'drills', 'scores', 'exercises', 'chrono', 'gear', 'articles', 'gearKinds', 'calibers', 'prefs'];
 // prefs — налаштування, спільні для всіх пристроїв (їде з Диском і копією), але не дані: порожня база з ними все одно порожня
 export const DATA_STORES = STORES.filter((s) => s !== 'prefs');
 const ALL = [...STORES, 'tombstones'];

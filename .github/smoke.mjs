@@ -175,9 +175,10 @@ try {
       check(!d.length, `${step}${d.length ? ` — ${d.join('; ')}` : ''}`);
     }
   }
-  // Тюнінг живе в стволі: картка ствола → рядок тюнінгу → олівець
-  for (const w of (await store('weapons')).filter((x) => x.mods?.length)) {
-    const mod = richest(w.mods, 1)[0];
+  // Тюнінг — окремі речі (items), «куплено для» ствола: картка ствола → рядок тюнінгу → олівець; ні ствол, ні річ не змінились
+  const parts = (await store('items')).filter((it) => it.type === 'part');
+  for (const w of (await store('weapons')).filter((x) => parts.some((it) => it.forId === x.id))) {
+    const mod = richest(parts.filter((it) => it.forId === w.id), 1)[0];
     step = `правка без змін: тюнінг «${mod.name}» (${w.name})`;
     await closeSheets();
     await js(`location.hash = '#guns'`); await sleep(400);
@@ -186,7 +187,8 @@ try {
     await js(`document.querySelectorAll('#layer > :last-child .box.closed').forEach((b) => b.classList.remove('closed'))`);
     const fail = await tapText(mod.name) ? await editAndSave() : 'тюнінг не знайдено в картці';
     const after = (await store('weapons')).find((x) => x.id === w.id);
-    const d = fail ? [fail] : [...saved(w, after), ...diff(w, after)];
+    const modAfter = (await store('items')).find((x) => x.id === mod.id);
+    const d = fail ? [fail] : [...saved(w, after), ...diff(w, after), ...diff(mod, modAfter)];
     check(!d.length, `${step}${d.length ? ` — ${d.join('; ')}` : ''}`);
   }
   await closeSheets();

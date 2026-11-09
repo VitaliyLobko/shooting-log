@@ -18,6 +18,7 @@ import { solve } from './ballistics.js';
 import { bulletDiameter, bulletGrains, parseTwist, twistText, sgOf, sgVerdict } from './stability.js';
 import { trajectoryPoints, pointBlank, pointBlankText, trajectoryChart } from './trajectory.js';
 import { tripWeather, forecastAt } from './forecast.js';
+import { hydrate, splitWeapon, dropWeapon, migrateWeapons, twinOf, itemView, retype, mergeItems, scopeKey } from './items.js';
 import { nowSheet, elevCells, windCell, cellTd, oneColumn, staleText, condText } from './now.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
 import {
@@ -36,7 +37,7 @@ const onboardMod = () => import('./onboard.js');
 /** Плавне прокручування — якщо в системі не просили менше руху. */
 const smooth = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 
-let state = { weapons: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [], gearKinds: [], calibers: [], prefs: [] };
+let state = { weapons: [], items: [], cartridges: [], components: [], recipes: [], movements: [], photos: [], targets: [], drills: [], scores: [], exercises: [], chrono: [], gear: [], articles: [], gearKinds: [], calibers: [], prefs: [] };
 let tab = 'ammo';
 let logFilter = 'all';
 
@@ -47,8 +48,49 @@ const LOW_ROUNDS = 50;
 
 // ---------- дані ----------
 
+/**
+ * Стан із бази: старі стволи (приціли й тюнінг усередині) — разово в речі, далі стволи «зібрані» (items.js).
+ * Перенос не вдався — стволи лишаються як були, застосунок працює; спробує знову наступного разу.
+ */
+async function loadState() {
+  let raw = await db.loadAll();
+  const legacy = raw.weapons.filter((w) => !w.itemsV);
+  if (legacy.length) {
+    try {
+      await db.write(migrateWeapons(legacy, raw));
+      raw = await db.loadAll();
+    } catch (err) { console.error('items migration', err); }
+  }
+  return hydrate(raw);
+}
+
+/** id прицілів, налаштованих в інших стволах, — такий приціл зі ствола лише знімають, а не видаляють. */
+const pairedElsewhere = (wid) => new Set(state.weapons.filter((w) => w.id !== wid).flatMap((w) => (w.scopes ?? []).map((s) => s.id)));
+
+/** Запис у базу: «зібраний» ствол — запис ствола (пари прицілів) і зміни речей; видалений ствол — і його речі. */
+function dbWrite(changes) {
+  const ws = changes.weapons;
+  if (!ws?.put?.length && !ws?.del?.length) return db.write(changes);
+  const items = state.items ?? [];
+  const put = [...(changes.items?.put ?? [])];
+  const del = [...(changes.items?.del ?? [])];
+  const weapons = { ...ws };
+  if (ws.put?.length) {
+    weapons.put = ws.put.map((w) => {
+      const r = splitWeapon(w, items, pairedElsewhere(w.id));
+      put.push(...r.put); del.push(...r.del);
+      return r.weapon;
+    });
+  }
+  for (const id of ws.del ?? []) {
+    const r = dropWeapon(id, items, pairedElsewhere(id));
+    put.push(...r.put); del.push(...r.del);
+  }
+  return db.write({ ...changes, weapons, ...(put.length || del.length ? { items: { put, del } } : {}) });
+}
+
 async function refresh() {
-  state = await db.loadAll();
+  state = await loadState();
   setCaliberHues(state.calibers, state.cartridges);
   render();
   refreshSheets();
@@ -74,23 +116,46 @@ async function addMovements(list, label, extra = {}, warning = null) {
       del: puts.filter((x) => !had(x.id)).map((x) => x.id),
     };
   }
-  await db.write({ movements: { put: list }, ...extra });
+  await dbWrite({ movements: { put: list }, ...extra });
   await refresh();
   confirmed(list.flatMap((m) => [m.id, m.cartridgeId, m.componentId, m.weaponId]));
   if (warning) toast(warning);
   setUndo(label, async () => {
-    await db.write({ movements: { del: list.map((m) => m.id) }, ...undoExtra });
+    await dbWrite({ movements: { del: list.map((m) => m.id) }, ...undoExtra });
     await refresh();
   });
 }
 
 async function saveEntity(store, obj) {
-  await db.write({ [store]: { put: [obj] } });
+  await dbWrite({ [store]: { put: [obj] } });
   await refresh();
   confirmed([obj.id]);
 }
 
 const findWeapon = (id) => state.weapons.find((w) => w.id === id);
+const itemOf = (id) => state.items.find((x) => x.id === id) ?? null;
+/** Річ куплена для цього ствола; без запису речі (нова, ще не збережена) — своя. */
+const ownedBy = (w, x) => { const it = itemOf(x.id); return !it || it.forId === w.id; };
+/**
+ * Речі зі схожою назвою (без «приціл/оптика…», регістру, різниці x/×; одна назва містить іншу) — підказка
+ * «вона вже є», поки заводять нову: щоб не з’являлись дублі.
+ */
+function sameNamed(name, { type = null, except = [] } = {}) {
+  const k = scopeKey(name);
+  if (k.length < 3) return [];
+  return state.items.filter((it) => !isSold(it) && !except.includes(it.id) && (!type || it.type === type)).filter((it) => {
+    const ik = scopeKey(it.name);
+    return ik.length >= 3 && (ik.includes(k) || k.includes(ik));
+  }).sort(byName).slice(0, 3);
+}
+
+/** Де річ, якщо не тут: «стоїть на Savage» чи «куплено для Savage». */
+function whereSub(w, x) {
+  const it = itemOf(x.id);
+  const on = it?.weaponId && it.weaponId !== w.id ? findWeapon(it.weaponId) : null;
+  const bought = it?.forId && it.forId !== w.id ? findWeapon(it.forId) : null;
+  return on ? t('стоїть на {gun}', { gun: on.name }) : bought ? t('куплено для {gun}', { gun: bought.name }) : null;
+}
 const findCartridge = (id) => state.cartridges.find((c) => c.id === id);
 const findComponent = (id) => state.components.find((c) => c.id === id);
 const findRecipe = (id) => state.recipes.find((r) => r.id === id);
@@ -677,15 +742,21 @@ function box(title, content, { fold, count, summary = null, tools = null, corner
   if (!fold) return h('fieldset', { class: 'box' }, h('legend', {}, title, tools), content, corner);
   const key = `box:${fold}`;
   const el = h('fieldset', { class: `box foldable ${unfolded.has(key) ? '' : 'closed'}` });
+  // content-функція — вміст будується при першому розгортанні: згорнутий блок не малює зайвого
+  let build = typeof content === 'function' ? content : null;
+  const body = build ? h('div', { class: 'box-body' }) : h('div', { class: 'box-body' }, content);
+  const fill = () => { if (build) { body.append(build()); build = null; } };
+  if (unfolded.has(key)) fill();
   const toggle = h('button', {
     type: 'button', class: 'box-toggle', 'aria-expanded': String(unfolded.has(key)),
     onclick: () => {
       const open = el.classList.toggle('closed') === false;
       setUnfolded(key, open);
+      if (open) fill();
       toggle.setAttribute('aria-expanded', String(open));
     },
   }, h('span', { class: 'box-chevron', 'aria-hidden': 'true' }, '›'), title, count ? h('span', { class: 'box-count' }, fmt.num(count)) : null, summary);
-  el.append(h('legend', {}, toggle, tools), h('div', { class: 'box-body' }, content));
+  el.append(h('legend', {}, toggle, tools), body);
   if (corner) el.append(corner);
   return el;
 }
@@ -878,7 +949,7 @@ async function addCollected(shot, collected) {
   let batch = shot.batch;
   if (!batch) {
     batch = db.uid();
-    await db.write({ movements: { put: [{ ...shot, batch }] } });
+    await dbWrite({ movements: { put: [{ ...shot, batch }] } });
   }
   const c = collectMovement(collected, batch, shot.date);
   await addMovements([c.move], t('Зібрані гільзи → «{name}»', { name: collected.component.name }), c.extra);
@@ -986,7 +1057,7 @@ function caliberColorForm(caliber) {
   const close = sheet(t('Колір калібру'), body, {
     actions: [btn(t('Скасувати'), () => close()), btn(t('Зберегти'), async () => {
       close();
-      if (d.std) { if (own) await db.write({ calibers: { del: [id] } }); } else await db.write({ calibers: { put: [{ ...(own ?? { id, created: Date.now() }), hue: d.hue }] } });
+      if (d.std) { if (own) await dbWrite({ calibers: { del: [id] } }); } else await dbWrite({ calibers: { put: [{ ...(own ?? { id, created: Date.now() }), hue: d.hue }] } });
       await refresh();
     }, 'primary')],
   });
@@ -1481,7 +1552,7 @@ function removeCartridge(c) {
     return;
   }
   confirmSheet(t('Видалити набій?'), c.name, t('Видалити'), async () => {
-    await db.write({ cartridges: { del: [c.id] } });
+    await dbWrite({ cartridges: { del: [c.id] } });
     await refresh();
   });
 }
@@ -1519,8 +1590,9 @@ const SCOPE_KINDS = {
 const RETICLES = [['mil', 'Сітка MRAD'], ['moa', 'Сітка MOA'], ['dot', 'Точка, без сітки']];
 const reticleOf = (s) => s?.reticle || (s?.kind === 'red' || s?.kind === 'holo' ? 'dot' : M.clickValue(s?.click)?.unit ?? 'dot');
 
-function scopeOptions(w) {
-  return [...(w?.scopes ?? []).map((s) => [s.id, s.name]), ['', t('— не вказувати —')]];
+/** Приціли ствола для вибору; проданий — лише якщо саме він і вибраний (старий запис). */
+function scopeOptions(w, keep = null) {
+  return [...(w?.scopes ?? []).filter((s) => !isSold(s) || s.id === keep).map((s) => [s.id, s.name]), ['', t('— не вказувати —')]];
 }
 
 /** Незакінчена пристрілка майстра на цьому пристрої (js/zero.js тримає сесію в shooters-log:zero:<id>): є хоч одна група. */
@@ -1564,10 +1636,12 @@ function scopeLine(s, full = false, more = 0) {
 }
 
 function scopeList(w, full = false) {
-  if (!w.scopes?.length) return null;
+  const all = liveScopes(w);
+  if (!all.length) return null;
   // У списку — лише основний приціл: решта в картці, інакше плитка росте на пів екрана.
-  const list = full ? w.scopes : [M.defaultScope(w) ?? w.scopes[0]];
-  const more = full ? 0 : w.scopes.length - list.length;
+  const main = M.defaultScope(w);
+  const list = full ? all : [main && !isSold(main) ? main : all[0]];
+  const more = full ? 0 : all.length - list.length;
   return h('div', { class: `scopes ${full ? '' : 'small'}` }, list.map((s) => scopeLine(s, full, more)));
 }
 
@@ -1789,7 +1863,7 @@ function weaponCard(w) {
           h('span', { class: 'sr' }, t('настріл'))),
         precisionBadge(w)),
       // Приціл — рядком на всю ширину: між фото й настрілом на телефоні його назва рвалась посеред слова.
-      w.scopes?.length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w), nowIconBtn(w)) : null,
+      liveScopes(w).length ? h('div', { class: 'card-foot weapon-info' }, scopeList(w), nowIconBtn(w)) : null,
       // Смуг немає: плитка говорить лише про те, що потребує уваги, решта — в картці
       flags ? h('div', { class: 'card-foot' }, flags) : null));
   return swipeable(card, {
@@ -1838,7 +1912,7 @@ const visibleSegs = (segs) => { const hide = hiddenSegs(); return segs.filter(([
 function putModules(off) {
   const rec = { ...(modulesRec() ?? { id: MODULES_ID, created: Date.now() }), off: [...off] };
   state.prefs = [...(state.prefs ?? []).filter((p) => p.id !== MODULES_ID), rec];
-  return db.write({ prefs: { put: [rec] } }).catch((err) => toast(t('Помилка: {msg}', { msg: err?.message || String(err) })));
+  return dbWrite({ prefs: { put: [rec] } }).catch((err) => toast(t('Помилка: {msg}', { msg: err?.message || String(err) })));
 }
 function setModule(m, on) {
   const off = modulesOff();
@@ -1852,6 +1926,18 @@ async function migrateModules() {
   if (!Array.isArray(off)) return;
   if (!modulesRec() && off.length) await putModules(new Set(off));
   try { localStorage.removeItem(MODULES_KEY); } catch { /* приватний режим */ }
+}
+
+/** Правки вбудованих вправ, збережені російською до 0.7.102, — українською (рядки з вбудованого тексту; своє — як є). */
+async function migrateExercisesRu() {
+  if (!state.exercises?.length) return;
+  try {
+    const { translateExercise } = await import('./exercises-ru.js');
+    const put = state.exercises.map(translateExercise).filter((r, i) => r !== state.exercises[i]);
+    if (!put.length) return;
+    await dbWrite({ exercises: { put } });
+    state.exercises = state.exercises.map((r) => put.find((x) => x.id === r.id) ?? r);
+  } catch { /* не вийшло — лишиться як було, спробуємо наступного запуску */ }
 }
 
 const GUN_SEGS = [['guns', 'Зброя', 'rifle'], ['gear', 'Екіпірування', 'vest']];
@@ -1972,19 +2058,26 @@ const modDay = (w, m) => m.date ?? M.today();
 const investRows = (w) => [[w.buyPrice, gunDay(w), w.usdRate], ...tuneItems(w).map((m) => [m.price, modDay(w, m), m.usdRate])];
 /** Приціл з покупкою (ціна чи дата) — та сама річ, що й тюнінг: у «Покупка й тюнінг», витратах і звіті. */
 const scopeBought = (sc) => Boolean(priceOf(sc.price) || sc.date);
-/** Усе куплене на ствол: тюнінг і приціли з покупкою — одним списком. */
-const tuneItems = (w) => [...(w.mods ?? []), ...(w.scopes ?? []).filter(scopeBought)];
-const isScopeOf = (w, x) => (w?.scopes ?? []).some((sc) => sc.id === x.id);
-/** Перегляд покупки на ствол: приціл — своя шторка (без «Продав»), тюнінг — своя. */
-const tuneDetail = (w, x) => (isScopeOf(w, x) ? scopeDetail(w, x) : modDetail(w, x));
+/** Покупка серед речей: тюнінг і приціли з покупкою. */
+const boughtItem = (it) => it.type === 'part' || (it.type === 'scope' && scopeBought(it));
+/**
+ * Усе куплене для ствола — з речей за «куплено для», а не з того, що видно на стволі: переставлена чи прибрана з форми
+ * річ і далі рахується там, для чого куплена.
+ */
+const tuneItems = (w) => state.items.filter((it) => it.forId === w.id && boughtItem(it)).map(itemView);
+const isScopeItem = (x) => itemOf(x.id)?.type === 'scope';
+/** Перегляд покупки: приціл — своя шторка, тюнінг — своя; без ствола — річ без ствола. */
+const tuneDetail = (w, x) => (!w ? looseDetail(itemOf(x.id) ?? x) : isScopeItem(x) ? scopeDetail(w, x) : modDetail(w, x));
 
 const isSold = (x) => Boolean(x?.soldDate);
+/** Приціли ствола без проданих: для вибору, плитки, звіту й тренажера (проданий лишається лише в історії). */
+const liveScopes = (w) => (w?.scopes ?? []).filter((s) => !isSold(s));
 
 /** Усе продане: стволи, знятий тюнінг, екіпірування — { item, weapon?, kind }. */
 function soldItems() {
   return [
     ...state.weapons.filter(isSold).map((w) => ({ item: w, kind: 'gun' })),
-    ...state.weapons.flatMap((w) => (w.mods ?? []).filter(isSold).map((m) => ({ item: m, weapon: w, kind: 'mod' }))),
+    ...state.items.filter(isSold).map((it) => ({ item: itemView(it), weapon: findWeapon(it.forId) ?? null, kind: 'mod' })),
     ...state.gear.filter(isSold).map((g) => ({ item: g, kind: 'gear' })),
   ].sort((a, b) => b.item.soldDate.localeCompare(a.item.soldDate));
 }
@@ -1994,7 +2087,8 @@ function soldItems() {
  * Набої й компоненти — лише покупки: спорядження вже оплачене покупкою компонентів.
  */
 function spending() {
-  const all = [...state.weapons.map((w) => ['gun', w, null]), ...state.weapons.flatMap((w) => tuneItems(w).map((m) => ['mod', m, w])),
+  // Річ, куплена не під ствол (чи під видалений), — у загальних витратах, без ствола
+  const all = [...state.weapons.map((w) => ['gun', w, null]), ...state.items.filter(boughtItem).map((it) => ['mod', itemView(it), findWeapon(it.forId) ?? null]),
     ...state.gear.map((g) => ['gear', g, null])];
   const unit = (m) => (m.componentId ? (findComponent(m.componentId)?.unit || 'шт') : 'шт');
   return [
@@ -2160,7 +2254,7 @@ function renderGear() {
         const paidOn = kind === 'gun' ? item.buyDate : item.date;
         const sub = [fmt.date(item.soldDate), weapon?.name, paid ? t('куплено за {a} → продано за {b}', {
           a: grn(paid) + usdTail([[paid, paidOn, item.usdRate]]), b: grn(got) + usdTail([[got, item.soldDate, item.soldUsdRate]]) }) : null].filter(Boolean).join(' · ');
-        const open = kind === 'gun' ? () => weaponDetail(item) : kind === 'mod' ? () => modDetail(weapon, item) : () => gearDetail(item);
+        const open = kind === 'gun' ? () => weaponDetail(item) : kind === 'mod' ? () => tuneDetail(weapon, item) : () => gearDetail(item);
         return priceRow(item.name, sub, got, open, null, item.soldDate, item.soldUsdRate);
       })) : null);
 }
@@ -2189,7 +2283,7 @@ function shopLinks(text) {
 const linksField = (value) => ({ name: 'links', label: t('Посилання на товар'), type: 'textarea', rows: 2, value, placeholder: t('https://… — кожне з нового рядка'), wide: true });
 
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
-function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null, mounted = false }) {
+function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null, mounted = false, suggest = null }) {
   // preset — незбережена чернетка (повернулись із пошуку фото): лише значення полів, без «Видалити»/«Продав»
   const src = item ?? preset;
   const f = form([
@@ -2243,6 +2337,14 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     box(t('Основне'), formPart(f, ['name', 'kind', 'note', 'on'], onSwitch)),
     formBox(t('Покупка'), formPart(f, ['price', 'date', 'usdRate', 'place', 'links']), buySum, { open: !item }),
     formBox(f.inputs.specs ? t('Вага й характеристики') : t('Вага'), formPart(f, ['weight', 'specs'], specsFind), specSum));
+  // suggest(назва, done) — підказка під назвою (така річ уже є); done закриває форму. Після розкладки полів по рамках
+  if (suggest) {
+    const hint = h('div', { class: 'dup-hint-box' });
+    const paint = () => hint.replaceChildren(...[suggest(f.inputs.name.value, () => close())].filter(Boolean));
+    f.inputs.name.addEventListener('input', paint);
+    f.inputs.name.closest('.field').after(hint);
+    queueMicrotask(paint);
+  }
   // Продати й кошик — ліворуч від заголовка; внизу лише «Скасувати» і «Зберегти»
   const close = sheet(title, body, {
     lead: item && onSell ? toolBtn('sell', isSold(item) ? t('Продаж') : t('Продати'), () => { close(); sellForm(item, onSell); }) : null,
@@ -2263,7 +2365,8 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
  * Перегляд покупки (екіпірування чи тюнінг): фото, ціна, коли й де, характеристики, продаж.
  * Правка — олівцем, як у набоїв і компонентів: тап по рядку нічого не зачепить.
  */
-function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove, extra = null }) {
+function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove, place = null, foot = null }) {
+  // place — де річ стоїть (рамка під покупкою); foot — дії внизу: (done) => вузол, done закриває картку перед іншою шторкою
   const kv = (rows) => h('dl', { class: 'kv' }, rows.filter(Boolean).flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]));
   const money = (n, iso, rate) => (n ? tileMoney(n, usdSum([[n, iso, rate]])) : t('без ціни'));
   const paid = priceOf(item.price);
@@ -2272,18 +2375,19 @@ function purchaseDetail(item, { sub, photo, onEdit, onSell, onRemove, extra = nu
     h('div', { class: 'purchase-head' },
       photo ? h('img', { class: 'purchase-photo', src: photo.thumb, alt: t('Фото'), onclick: () => viewer([photo], 0) }) : null,
       h('div', { class: 'purchase-sub' }, sub)),
-    extra,
     h('div', { class: 'stats even' },
       stat(t('сплачено'), money(paid, item.date, item.usdRate), 'accent'),
       stat(t('Дата покупки'), item.date ? fmt.date(item.date) : '—')),
     kv([item.weight ? [t('Вага'), grams(item.weight)] : null, item.place ? [t('Де куплено'), item.place] : null,
       shopLinks(item.links) ? [t('Посилання'), shopLinks(item.links)] : null, item.note ? [t('Примітка'), item.note] : null]),
+    place ? box(t('Ствол'), place) : null,
     isSold(item) ? box(t('Продаж'), [
       h('div', { class: 'stats even' },
         stat(t('продано за'), money(got, item.soldDate, item.soldUsdRate)),
         stat(t('Дата продажу'), fmt.date(item.soldDate))),
       kv([item.soldPlace ? [t('Кому / де продано'), item.soldPlace] : null])]) : null,
-    item.specs ? box(t('Характеристики'), h('div', { class: 'purchase-specs' }, item.specs)) : null), {
+    item.specs ? box(t('Характеристики'), h('div', { class: 'purchase-specs' }, item.specs)) : null,
+    foot ? foot(() => close()) : null), {
     // Продати й кошик — ліворуч від заголовка, як у формі; олівець — праворуч
     lead: onSell ? toolBtn('sell', isSold(item) ? t('Продаж') : t('Продати'), () => { close(); sellForm(item, onSell); }) : null,
     tools: [
@@ -2298,7 +2402,7 @@ function gearActions(g) {
   return {
     onSell: (sale) => saveEntity('gear', { ...g, ...sale }),
     onRemove: async () => {
-      await db.write({ gear: { del: [g.id] } });
+      await dbWrite({ gear: { del: [g.id] } });
       const p = gearPhoto(g.id);
       if (p) await removePhotos([p]);
       else await refresh();
@@ -2339,7 +2443,7 @@ function gearKindsBar(idle) {
 }
 
 async function restoreGearKinds(list) {
-  await db.write({ gearKinds: { put: list.map((k) => ({ ...state.gearKinds.find((r) => r.id === k.id), hidden: false })) } });
+  await dbWrite({ gearKinds: { put: list.map((k) => ({ ...state.gearKinds.find((r) => r.id === k.id), hidden: false })) } });
   await refresh();
   toast(t('Категорії повернулися: {n}', { n: list.length }));
 }
@@ -2398,7 +2502,7 @@ function gearKindForm(k = null) {
     const seq = [...others.slice(0, at), { id }, ...others.slice(at)];
     const put = seq.flatMap((x, i) => (x.id === id ? [{ ...rec, order: i }] : x.order === i ? [] : [{ ...stored(x.id), order: i }]));
     close();
-    await db.write({ gearKinds: { put } });
+    await dbWrite({ gearKinds: { put } });
     await refresh();
     if (!k) toast(t('Категорію «{name}» додано', { name }));
   }
@@ -2409,7 +2513,7 @@ function removeGearKind(k) {
   const kinds = gearKinds();
   const items = state.gear.filter((g) => gearKind(g.kind, kinds).id === k.id);
   const drop = async (to = null) => {
-    await db.write({
+    await dbWrite({
       gearKinds: k.builtIn
         ? { put: [{ ...(state.gearKinds.find((r) => r.id === k.id) ?? { id: k.id, created: Date.now() }), hidden: true }] }
         : { del: [k.id] },
@@ -2633,7 +2737,7 @@ async function saveItemPhoto(owner, change) {
     try {
       const { blob, thumb, w, h: height } = await preparePhoto(change.file, { studio: true });
       const id = db.uid();
-      await db.write({
+      await dbWrite({
         photos: { put: [{ id, ...owner, created: Date.now(), thumb, w, h: height, driveId: null }] },
         blobs: { put: [{ id, blob }] },
       });
@@ -2654,83 +2758,101 @@ function withMod(w, obj) {
 
 /** Продаж і видалення тюнінгу — спільні для перегляду й форми. */
 function modActions(w, m) {
-  const others = () => (findWeapon(w.id)?.mods ?? []).filter((x) => x.id !== m.id);
+  // Сама річ, а не ствол: тюнінг з іншого ствола зі збереженням ствола лише зняли б
   return {
-    onSell: (sale) => saveEntity('weapons', { ...findWeapon(w.id), mods: withMod(w, { ...m, ...sale }) }),
+    onSell: (sale) => (itemOf(m.id) ? saveEntity('items', { ...itemOf(m.id), ...sale }) : saveEntity('weapons', { ...findWeapon(w.id), mods: withMod(w, { ...m, ...sale }) })),
     onRemove: async () => {
-      await saveEntity('weapons', { ...findWeapon(w.id), mods: others() });
+      await dbWrite({ items: { del: [m.id] } });
       const p = modPhoto(m.id);
       if (p) await removePhotos([p]);
+      else await refresh();
     },
   };
 }
 
+/** Ствол, з якого річ правлять: де стоїть, інакше для якого куплено; і річ у ньому — свіжа, не з відкритої картки. */
+function itemHome(w, x) {
+  const it = itemOf(x.id);
+  const g = findWeapon(it?.weaponId) ?? findWeapon(it?.forId) ?? findWeapon(w.id) ?? w;
+  const here = [...(g.scopes ?? []), ...(g.mods ?? [])].find((y) => y.id === x.id);
+  return here ? [g, here] : [findWeapon(w.id) ?? w, x];
+}
+
 function modDetail(w, m) {
-  const cur = findWeapon(w.id) ?? w;
-  const twin = scopeTwin(cur, m);
-  const scopes = isSold(m) ? [] : [...(twin ? [twin] : []), ...(cur.scopes ?? []).filter((sc) => sc !== twin)];
-  // Приціл, заведений ще й тюнінгом (заради фото й ціни), — одним тапом стає одним записом прицілу
-  const merge = scopes.length ? h('div', { class: 'btn-row' }, scopes.map((sc) => btn(
-    scopes.length > 1 ? t('Це приціл «{name}»', { name: sc.name }) : t('Це той самий приціл'),
-    () => askMerge(w, m, sc), sc === twin ? 'mini primary' : 'mini'))) : null;
   purchaseDetail(m, {
     sub: t('Тюнінг: {name}', { name: w.name }),
-    photo: modPhoto(m.id), onEdit: () => modForm(w, m), ...modActions(w, m),
-    extra: isSold(m) ? null : h('div', {}, mountSwitch(w, m), merge),
+    photo: modPhoto(m.id), onEdit: () => modForm(...itemHome(w, m)), ...modActions(w, m),
+    place: isSold(m) ? null : itemPlaces(m) ?? mountSwitch(w, m),
+    foot: isSold(m) ? null : (done) => itemTools(w, m, done),
   });
 }
 
-/** Підтвердити й злити тюнінг-дубль у приціл. */
-function askMerge(w, m, sc) {
-  confirmSheet(t('Об’єднати з прицілом?'), t('Фото, ціна, дата й вага перейдуть у приціл «{name}», а тюнінг «{mod}» зникне.', { name: sc.name, mod: m.name }),
-    t('Об’єднати'), () => mergeModIntoScope(w, m, sc));
+/** Під карткою речі: злити з тією самою річчю, заведеною двічі, і перенести між прицілами й тюнінгом. */
+function itemTools(w, x, done) {
+  const it = itemOf(x.id);
+  if (!it) return null;
+  return h('div', { class: 'btn-row item-tools' },
+    btn(t('Це та сама річ…'), () => { done(); sameThingSheet(it); }, 'mini quiet'),
+    btn(it.type === 'scope' ? t('Перенести в тюнінг') : t('Перенести в приціли'), () => { done(); askRetype(it, it.type === 'scope' ? 'part' : 'scope'); }, 'mini quiet'));
 }
 
-/** Назва без «приціл/оптика…», регістру, лапок і різниці «x/×» у кратності — щоб упізнати той самий приціл. */
-const scopeKey = (s) => String(s ?? '').toLowerCase()
-  .replace(/(\d)\s*[x×х]\s*(\d)/g, '$1x$2')
-  .replace(/(^|\s)(приціл|прицел|оптика|оптичний приціл|коліматор|коллиматор|scope)(?=\s|$)/g, ' ')
-  .replace(/[«»"″'’“”()]/g, '').replace(/\s+/g, ' ').trim();
+/** Приціл, на який уже посилаються стрільби, мішені чи DOPE, — у тюнінг не переносимо: там би лишились посилання в нікуди. */
+const scopeUsed = (id) => state.movements.some((m) => m.scopeId === id) || state.targets.some((x) => x.scopeId === id)
+  || state.weapons.some((w) => (w.dope ?? []).some((d) => d.scopeId === id));
+
+function askRetype(it, type) {
+  if (type === 'part' && scopeUsed(it.id)) {
+    toast(t('«{name}» уже є в стрільбах, мішенях чи DOPE, тож у тюнінг його не перенести', { name: it.name }));
+    return;
+  }
+  confirmSheet(type === 'scope' ? t('Перенести в приціли?') : t('Перенести в тюнінг?'),
+    type === 'scope' ? t('«{name}» стане прицілом. Пристрілку, сітку й ціну кліку вкажіть у формі зброї.', { name: it.name })
+      : t('«{name}» стане тюнінгом, пристрілка цього прицілу зникне.', { name: it.name }),
+    t('Перенести'), async () => {
+      await db.write(retype(it.id, type, await db.loadAll()));
+      await refresh();
+      if (it.weaponId) await fixMain(it.weaponId);
+      toast(type === 'scope' ? t('«{name}» — тепер приціл', { name: it.name }) : t('«{name}» — тепер тюнінг', { name: it.name }));
+    });
+}
+
+/** «Це та сама річ…»: вибрати, з чим злити; лишається вибрана. Приціл — лише з прицілом, тюнінг — з будь-чим. */
+function sameThingSheet(it) {
+  const list = state.items.filter((y) => y.id !== it.id && !isSold(y) && (y.type === 'scope' || (it.type === 'part' && y.type === 'part'))).sort(byName);
+  const sub = (y) => [y.type === 'scope' ? t('приціл') : t('тюнінг'),
+    findWeapon(y.weaponId) ? t('стоїть на {gun}', { gun: findWeapon(y.weaponId).name }) : findWeapon(y.forId) ? t('куплено для {gun}', { gun: findWeapon(y.forId).name }) : null].filter(Boolean).join(' · ');
+  const close = sheet(t('Та сама річ, що й…'), h('div', {},
+    h('p', { class: 'muted small' }, t('Лишиться вибрана річ; із «{name}» вона візьме фото, місце в наборах і те, що в ній не заповнено.', { name: it.name })),
+    list.length ? h('div', { class: 'rows' }, list.map((y) => h('button', { type: 'button', class: 'row', onclick: () => { close(); askMerge(it, y); } },
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, y.name), h('span', { class: 'muted small' }, sub(y))))))
+      : h('p', { class: 'muted' }, t('Нема з чим об’єднати'))));
+}
+
+/** Підтвердити й злити src у dst: src зникає. */
+function askMerge(src, dst) {
+  confirmSheet(t('Об’єднати?'), t('«{src}» зникне: ціна, дата, вага, фото й місце в наборах доповнять «{dst}».', { src: src.name, dst: dst.name }),
+    t('Об’єднати'), () => mergeInto(src.id, dst.id));
+}
+
+async function mergeInto(srcId, dstId) {
+  const name = itemOf(dstId)?.name;
+  const { drop, ...changes } = mergeItems(srcId, dstId, await db.loadAll());
+  await db.write(changes);
+  const extra = drop.map((id) => state.photos.find((p) => p.id === id)).filter(Boolean);
+  if (extra.length) await removePhotos(extra);
+  else await refresh();
+  toast(t('Об’єднано: «{name}»', { name }));
+}
 
 /** Приціл цього ствола, який тюнінг m дублює: та сама назва без «приціл/оптика…» (часткового збігу мало — кронштейн «… Aimpoint PRO»). */
-function scopeTwin(w, m) {
-  if (isSold(m)) return null;
-  const mk = scopeKey(m.name);
-  if (mk.length < 4) return null;
-  return (w.scopes ?? []).find((sc) => {
-    const sk = scopeKey(sc.name);
-    return sk === mk;
-  }) ?? null;
-}
+const scopeTwin = (w, m) => twinOf(w.scopes, m);
 
 /** Підказка над переліком: тюнінг, схожий на приціл, — злити одним тапом (після підтвердження). */
 function twinHints(w, done = null) {
-  const pairs = (w.mods ?? []).map((m) => [m, scopeTwin(w, m)]).filter(([, sc]) => sc);
+  const pairs = (w.mods ?? []).filter((m) => ownedBy(w, m)).map((m) => [m, scopeTwin(w, m)]).filter(([, sc]) => sc);
   return pairs.map(([m, sc]) => h('div', { class: 'twin-hint' },
     h('span', {}, t('«{mod}» — схоже, це приціл «{name}», заведений ще й тюнінгом.', { mod: m.name, name: sc.name })),
-    btn(t('Об’єднати'), () => { done?.(); askMerge(w, m, sc); }, 'mini')));
-}
-
-/** Тюнінг-дубль прицілу → у приціл: покупка, вага, характеристики й фото; тюнінг зникає. */
-async function mergeModIntoScope(w, m, sc) {
-  const cur = findWeapon(w.id);
-  const own = scopePhoto(sc.id);
-  const p = modPhoto(m.id);
-  const keep = (a, b) => (a === undefined || a === null || a === '' ? b : a);
-  await saveEntity('weapons', {
-    ...cur,
-    mods: (cur.mods ?? []).filter((x) => x.id !== m.id),
-    scopes: (cur.scopes ?? []).map((x) => (x.id !== sc.id ? x : {
-      ...x, price: keep(m.price, x.price), date: keep(m.date, x.date), usdRate: keep(m.usdRate, x.usdRate), place: keep(m.place, x.place),
-      weight: m.weight > 0 ? m.weight : x.weight, specs: keep(x.specs, m.specs), note: keep(x.note, m.note),
-    })),
-  });
-  if (p && !own) {
-    const { modId, ...rest } = p;
-    await db.write({ photos: { put: [{ ...rest, scopeId: sc.id }] } });
-    await refresh();
-  } else if (p) await removePhotos([p]);
-  toast(t('Об’єднано з прицілом «{name}»', { name: sc.name }));
+    btn(t('Об’єднати'), () => { done?.(); askMerge(m, sc); }, 'mini')));
 }
 
 /** Покупка прицілу: ціна, дата, де, вага, характеристики й фото — як у тюнінгу; нуль і клік — у формі зброї. */
@@ -2742,18 +2864,32 @@ function scopeBuyForm(w, sc, { file = null } = {}) {
     onSearch: () => remember(PHOTO_FOR, JSON.stringify({ weaponId: w.id, scopeId: sc.id })),
     onSave: async (obj, photo) => {
       const cur = findWeapon(w.id);
-      await saveEntity('weapons', { ...cur, scopes: (cur.scopes ?? []).map((x) => (x.id === obj.id ? { ...x, ...obj } : x)) });
+      await saveEntity('weapons', { ...cur, scopes: (cur.scopes ?? []).map((x) => (x.id === obj.id ? { ...x, ...obj, on: x.on } : x)) });
       await saveItemPhoto({ scopeId: obj.id }, photo);
     },
+    ...scopeActions(sc),
   });
 }
 
-/** Перегляд прицілу як покупки; продаж і видалення прицілу — у формі зброї, тут їх нема. */
+/** Продаж прицілу: проданий знято — зі ствола, наборів і запису стрільби зникає, історія лишається. */
+function scopeActions(sc) {
+  if (!itemOf(sc.id)) return {};
+  return {
+    onSell: async (sale) => {
+      const it = itemOf(sc.id);
+      await saveEntity('items', { ...it, ...sale, ...(sale.soldDate ? { weaponId: null } : {}) });
+      if (sale.soldDate && it.weaponId) await fixMain(it.weaponId);
+    },
+  };
+}
+
+/** Перегляд прицілу як покупки: продаж — тут, прибрати зі ствола — у формі зброї. */
 function scopeDetail(w, sc) {
   purchaseDetail(sc, {
     sub: t('Приціл: {name}', { name: w.name }),
-    photo: scopePhoto(sc.id), onEdit: () => scopeBuyForm(w, findWeapon(w.id)?.scopes?.find((x) => x.id === sc.id) ?? sc),
-    extra: mountSwitch(w, sc, true, true),
+    photo: scopePhoto(sc.id), onEdit: () => scopeBuyForm(...itemHome(w, sc)), ...scopeActions(sc),
+    place: isSold(sc) ? null : itemPlaces(sc) ?? mountSwitch(w, sc, true, true),
+    foot: isSold(sc) ? null : (done) => itemTools(w, sc, done),
   });
 }
 
@@ -2764,6 +2900,8 @@ function modForm(w, m = null, { file = null, preset = null } = {}) {
     mounted: true,
     photo: { current: m ? modPhoto(m.id) : null, file },
     preset,
+    suggest: m ? null : (name, done) => dupHint(sameNamed(name), t('Схоже, ця річ уже є:'), (it) => (it.weaponId === w.id ? null
+      : btn(t('Поставити сюди'), () => { done(); placeItem(it.id, w.id); }, 'mini')), w),
     // Незбережений тюнінг — чернеткою: поки шукали картинку, застосунок могли закрити
     onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ weaponId: w.id, modId: m?.id ?? null, draft: m ? null : values })),
     onSave: async (obj, photo) => {
@@ -2800,7 +2938,7 @@ function buyBox(w, close) {
   const total = weaponInvested(w);
   const bought = w.buyPrice || w.buyDate || w.buyPlace;
   const modRow = (m) => {
-    const scope = isScopeOf(w, m);
+    const scope = isScopeItem(m);
     const p = scope ? scopePhoto(m.id) : modPhoto(m.id);
     const sub = isSold(m) ? t('продано {date}', { date: fmt.date(m.soldDate) })
       : [scope ? t('приціл') : null, placeLine(m.date, m.place) || (scope ? null : m.note)].filter(Boolean).join(' · ');
@@ -2841,7 +2979,65 @@ function renderWeapons() {
     shotsHero(shots.total, split),
     urgentPermitsBlock(),
     active.sort(byName).map(weaponCard),
+    looseBlock(),
     archived);
+}
+
+/** Речі, яких не видно в жодному стволі: куплені не під ствол (чи під видалений) і ніде не стоять, приціл без пари. */
+function looseItems() {
+  const seen = new Set(state.weapons.flatMap((w) => [...(w.scopes ?? []), ...(w.mods ?? [])].map((x) => x.id)));
+  return state.items.filter((it) => !seen.has(it.id) && (it.type === 'scope' || it.type === 'part')).sort(byName);
+}
+
+const itemPhoto = (it) => (it.type === 'scope' ? scopePhoto(it.id) : modPhoto(it.id));
+
+/** «Речі без ствола» в Арсеналі: тап — картка, звідти поставити на ствол чи вказати, для якого куплено. */
+function looseBlock() {
+  const list = looseItems();
+  if (!list.length) return null;
+  const row = (it) => priceRow(it.name,
+    [it.type === 'scope' ? t('приціл') : t('тюнінг'), isSold(it) ? t('продано {date}', { date: fmt.date(it.soldDate) }) : placeLine(it.date, it.place)].filter(Boolean).join(' · '),
+    it.price, () => looseDetail(it), photoThumb(itemPhoto(it)), it.date ?? M.today(), it.usdRate, isSold(it) ? 'tune sold' : 'tune');
+  return box(t('Речі без ствола'), h('div', { class: 'rows invest-rows' }, list.map(row)), { fold: 'loose-items', count: list.length });
+}
+
+/** Картка речі без ствола: покупка й продаж як у тюнінгу, «Стоїть на» й «Куплено для» — і з одним стволом. */
+function looseDetail(it) {
+  const g = findWeapon(it.weaponId) ?? findWeapon(it.forId);
+  const view = g && [...(g.scopes ?? []), ...(g.mods ?? [])].find((x) => x.id === it.id);
+  if (view) { tuneDetail(g, view); return; }
+  const x = itemView(itemOf(it.id) ?? it);
+  purchaseDetail(x, {
+    sub: it.type === 'scope' ? t('Приціл без ствола') : t('Тюнінг без ствола'),
+    photo: itemPhoto(it), onEdit: () => looseForm(it), ...looseActions(it),
+    place: isSold(it) ? null : itemPlaces(it, true),
+    foot: isSold(it) ? null : (done) => itemTools(null, it, done),
+  });
+}
+
+function looseActions(it) {
+  return {
+    onSell: (sale) => saveEntity('items', { ...itemOf(it.id), ...sale, ...(sale.soldDate ? { weaponId: null } : {}) }),
+    onRemove: async () => {
+      await dbWrite({ items: { del: [it.id] } });
+      const p = itemPhoto(it);
+      if (p) await removePhotos([p]);
+      else await refresh();
+    },
+  };
+}
+
+function looseForm(it, { file = null } = {}) {
+  const cur = itemOf(it.id) ?? it;
+  purchaseForm(it.type === 'scope' ? t('Приціл: {name}', { name: cur.name }) : t('Змінити тюнінг'), itemView(cur), {
+    placeholder: it.type === 'scope' ? t('Назва прицілу') : t('Ліхтар, руків’я, ДТК, приклад, ремінь…'),
+    photo: { current: itemPhoto(cur), file },
+    onSave: async (obj, photo) => {
+      await saveEntity('items', { ...itemOf(it.id), ...obj });
+      await saveItemPhoto(it.type === 'scope' ? { scopeId: it.id } : { modId: it.id }, photo);
+    },
+    ...looseActions(cur),
+  });
 }
 
 /** Дульні звуження гладкого ствола: позначення й звужувальна вставка. */
@@ -2939,7 +3135,7 @@ function weaponExtras(select, prev = null) {
   const paint = scopePicker(scope, gun);
   const fill = (id) => {
     const w = gun();
-    scope.replaceChildren(...selectOptions(scopeOptions(w), id).filter(Boolean));
+    scope.replaceChildren(...selectOptions(scopeOptions(w, id), id).filter(Boolean));
     scopeField.hidden = !w?.scopes?.length;
     paint();
   };
@@ -3006,6 +3202,8 @@ function weaponForm(w = null, back = null) {
   const permit = permitFields(w);
   const size = sizeFields(w);
   const scopesBox = h('div', { class: 'items' });
+  // Приціли, які взяли з наявних (з іншого ствола чи знятих), — після збереження тост, звідки зняли
+  const adopted = new Set();
   const num = (el) => Number(String(el?.value ?? '').replace(',', '.')) || 0;
   const addScope = (s = {}) => {
     const name = h('input', { type: 'text', placeholder: 'Vortex Diamondback 4-12x40', autocomplete: 'off', class: 'sc-name' });
@@ -3078,9 +3276,22 @@ function weaponForm(w = null, back = null) {
     paint();
     // Новий приціл — одразу розгорнутий
     setOpen(!s.name);
-    return { name };
+    // Новий: назва схожа на наявний приціл — взяти його (та сама річ), а не заводити дубль
+    if (!s.name) {
+      const hint = h('div', { class: 'dup-hint-box field wide' });
+      const here = () => [...scopesBox.querySelectorAll('.scope-row')].map((x) => x.dataset.id);
+      const paint = () => hint.replaceChildren(...[dupHint(sameNamed(name.value, { type: 'scope', except: here() }), t('Цей приціл уже є:'),
+        (it) => btn(t('Це він'), () => {
+          adopted.add(it.id);
+          const next = addScope(itemView(it));
+          row.after(next.row); row.remove(); next.open();
+        }, 'mini'), w)].filter(Boolean));
+      name.addEventListener('input', paint);
+      name.closest('.field').after(hint);
+    }
+    return { name, row, open: () => setOpen(true) };
   };
-  (w?.scopes ?? []).forEach(addScope);
+  (w?.scopes ?? []).filter((s) => !isSold(s)).forEach(addScope);
   const sizeSum = () => {
     const v = size.values().size;
     if (!v) return '';
@@ -3100,10 +3311,11 @@ function weaponForm(w = null, back = null) {
     f.inputs.buyDate.value ? fmt.date(f.inputs.buyDate.value) : null, f.inputs.buyPlace.value.trim() || null].filter(Boolean).join(' · ');
   const close = sheet(w ? t('Змінити зброю') : t('Нова зброя'), h('div', { class: 'weapon-form' },
     box(t('Основне'), main),
+    // Габарити й вага — одразу після основного, як у картці (рядок характеристик під фото)
+    formBox(t('Габарити й вага'), size.el, sizeSum),
     box(t('Приціли'), [scopesBox, btn(t('+ приціл'), () => addScope().name.focus(), 'mini')]),
     formBox(t('Облік ствола'), life, lifeSum),
     formBox(t('Покупка'), buy, buySum),
-    formBox(t('Габарити й вага'), size.el, sizeSum),
     formBox(t('Нагадування про чистку'), remind.el, remindSum),
     formBox(t('Дозвіл на зброю'), permit.el, permitSum, { tools: permit.tools })), {
     onClose: back,
@@ -3144,7 +3356,11 @@ function weaponForm(w = null, back = null) {
       };
     }).filter((s) => s.name);
     close();
-    await saveEntity('weapons', { ...(w ?? { id: db.uid(), created: Date.now() }), ...v, ...remind.values(), ...choke.values(), ...size.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes });
+    const base = w ?? { id: db.uid(), created: Date.now() };
+    const before = [...adopted].filter((id) => scopes.some((s) => s.id === id)).map(itemOf);
+    await saveEntity('weapons', { ...base, ...v, ...remind.values(), ...choke.values(), ...size.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes: [...scopes, ...(w?.scopes ?? []).filter(isSold)] });
+    const moved = await movedFrom(before, base.id);
+    if (moved.length) toast(moved.join('; '));
   }
 }
 
@@ -3187,7 +3403,7 @@ async function addPhotos(weaponId, files) {
     try {
       const { blob, thumb, w, h: height } = await preparePhoto(file, { studio: true });
       const id = db.uid();
-      await db.write({
+      await dbWrite({
         photos: { put: [{ id, weaponId, created: Date.now(), thumb, w, h: height, driveId: null }] },
         blobs: { put: [{ id, blob }] },
       });
@@ -3250,7 +3466,7 @@ async function removePhotos(list) {
   const ids = list.map((p) => p.id);
   // driveId беремо зі сховища: у state він може ще не встигнути з'явитися після вивантаження
   const driveIds = await Promise.all(ids.map(async (id) => (await db.get('photos', id))?.driveId));
-  await db.write({ photos: { del: ids }, blobs: { del: ids } });
+  await dbWrite({ photos: { del: ids }, blobs: { del: ids } });
   // У кошик Диска — лише після запису: не записалось — файл на Диску ще потрібен
   driveIds.forEach((driveId) => sync.trashPhoto(driveId));
   await refresh();
@@ -3275,7 +3491,7 @@ async function editWeaponPhoto(p) {
   const fresh = { ...p, id, thumb: result.thumb, w: result.w, h: result.h, driveId: null };
   const oldDrive = (await db.get('photos', p.id))?.driveId;
   const w = findWeapon(p.weaponId);
-  await db.write({
+  await dbWrite({
     photos: { put: [fresh], del: [p.id] },
     blobs: { put: [{ id, blob: result.blob }], del: [p.id] },
     ...(w?.coverId === p.id ? { weapons: { put: [{ ...w, coverId: id }] } } : {}),
@@ -3300,7 +3516,7 @@ async function saveStudioPhoto(weaponId, canvas) {
   const id = db.uid();
   const fresh = { id, weaponId, created: Date.now(), thumb: result.thumb, w: result.w, h: result.h, driveId: null };
   const w = findWeapon(weaponId);
-  await db.write({
+  await dbWrite({
     photos: { put: [fresh] },
     blobs: { put: [{ id, blob: result.blob }] },
     ...(w ? { weapons: { put: [{ ...w, coverId: id }] } } : {}),
@@ -3448,7 +3664,7 @@ function weaponReport(w, [from, to]) {
   ];
   const papers = [
     permit ? [t('Дозвіл на зброю'), permit] : null,
-    w.scopes?.length ? [t('Приціли'), w.scopes.map((s) => s.name).join(', ')] : null,
+    liveScopes(w).length ? [t('Приціли'), liveScopes(w).map((s) => s.name).join(', ')] : null,
     chokeText(w) ? [t('Дульне звуження'), chokeText(w)] : null,
     ...sizeRows(w),
   ].filter(Boolean);
@@ -3492,15 +3708,16 @@ function removeWeapon(w) {
     return;
   }
   confirmSheet(t('Видалити зброю?'), w.name, t('Видалити'), async () => {
-    await db.write({ weapons: { del: [w.id] } });
-    await removePhotos([...weaponPhotos(w.id), ...(w.mods ?? []).map((m) => modPhoto(m.id)), ...(w.scopes ?? []).map((sc) => scopePhoto(sc.id))].filter(Boolean));
+    const gone = dropWeapon(w.id, state.items, pairedElsewhere(w.id)).del;
+    await dbWrite({ weapons: { del: [w.id] } });
+    await removePhotos([...weaponPhotos(w.id), ...gone.map((id) => modPhoto(id) ?? scopePhoto(id))].filter(Boolean));
     await refresh();
   });
 }
 
 /** Приціли в картці: біля кожного — кнопка-значок майстра пристрілки. */
 function zeroScopes(w) {
-  return h('div', { class: 'scopes' }, (w.scopes ?? []).map((s) => h('div', { class: 'scope-zrow' },
+  return h('div', { class: 'scopes' }, (w.scopes ?? []).filter((s) => !isSold(s)).map((s) => h('div', { class: 'scope-zrow' },
     scopeLine(s, true),
     h('button', {
       type: 'button', class: 'icon-btn zero-ico', title: t('Пристріляти приціл'), 'aria-label': `${t('Пристріляти приціл')}: ${s.name}`,
@@ -3519,7 +3736,7 @@ function zeroWizIco() {
 
 /** Приціли, які можна пристріляти: стволи в строю (не в архіві, не продані) × їхні приціли. */
 const zeroChoices = () => state.weapons.filter((w) => !w.archived && !isSold(w)).sort(byName)
-  .flatMap((w) => (w.scopes ?? []).map((s) => [w, s]));
+  .flatMap((w) => (w.scopes ?? []).filter((s) => !isSold(s)).map((s) => [w, s]));
 
 /** «Пристрілка» в Полігон → Мішені: вибрати ствол і приціл (один варіант — одразу майстер). */
 function zeroStartBtn() {
@@ -3570,14 +3787,14 @@ async function openZero(w, s) {
 function weaponBody(w, close) {
   const moves = state.movements.filter((m) => m.weaponId === w.id);
   const cost = M.shotsCost(state, moves);
-  const main = M.defaultScope(w) ?? w.scopes?.[0];
+  const main = [M.defaultScope(w)].find((s) => s && !isSold(s)) ?? liveScopes(w)[0];
   // Калібр у підписі шапки — іконкою набою й кольором калібру, як у Складі; номер і комплект — звичайним
   const rest = [w.serial && `№ ${w.serial}`, chokeText(w) || null].filter(Boolean).join(' · ');
   const caption = [w.caliber ? cartridgeIcon(w.caliber) : null, w.caliber ? h('span', { class: 'gun-hero-cal' }, w.caliber) : null,
     w.caliber && rest ? ' · ' : null, rest || null].filter(Boolean);
   return h('div', { class: 'gun-card' },
     gunHero(w, caption, {
-      foot: w.scopes?.length ? h('button', { type: 'button', class: 'gun-hero-now', onclick: () => openNow(w) }, toolIcon('poa'), t('Поправки зараз')) : null,
+      foot: liveScopes(w).length ? h('button', { type: 'button', class: 'gun-hero-now', onclick: () => openNow(w) }, toolIcon('poa'), t('Поправки зараз')) : null,
     }),
     sizeBox(w),
     w.note ? h('p', { class: 'muted small gun-note' }, w.note) : null,
@@ -3585,8 +3802,8 @@ function weaponBody(w, close) {
     gunStats(w, close),
     mountBox(w),
     // Розділи згорнуті, у заголовку — головне з кожного: картка вміщається на екран, деталі — тапом
-    main ? box(w.scopes.length > 1 ? t('Приціли') : t('Приціл'), zeroScopes(w), {
-      fold: `scopes:${w.id}`, count: w.scopes.length > 1 ? w.scopes.length : null,
+    main ? box(liveScopes(w).length > 1 ? t('Приціли') : t('Приціл'), zeroScopes(w), {
+      fold: `scopes:${w.id}`, count: liveScopes(w).length > 1 ? liveScopes(w).length : null,
       summary: h('span', { class: 'box-sum' }, main.name),
     }) : null,
     buyBox(w, close),
@@ -3596,7 +3813,7 @@ function weaponBody(w, close) {
     ammoPrecisionBox(w, 'precision'),
     suppressorBox(w, 'precision'),
     restBox(w, 'precision'),
-    box(t('Стрільби й чистки'), h('div', { class: 'gun-moves' }, movementRows(moves, { skip: { weapon: true } })), {
+    box(t('Стрільби й чистки'), () => h('div', { class: 'gun-moves' }, movementRows(moves, { skip: { weapon: true } })), {
       fold: `shots:${w.id}`, count: moves.length,
       summary: cost ? h('span', { class: 'box-sum' }, grn(cost) + usdTail(moves.filter((m) => m.kind === 'shot').map((m) => [M.shotCost(state, m), dayOf(m)]))) : null,
     }));
@@ -3684,7 +3901,7 @@ function myGunLoads() {
         return { id: c.id, name: c.name, bc: c.bc, model: c.dragModel || 'G7', mv: g.mv, chrono: g.src === 'chrono', gr };
       });
     if (!ammo.length && !cal(w.caliber)) return [];
-    return (w.scopes ?? []).flatMap((s) => {
+    return liveScopes(w).flatMap((s) => {
       const g = { name: w.name, scope: s.name, cal: cal(w.caliber), zero: s.zero ?? null, sh: s.sh ?? null, reticle: reticleOf(s) };
       return ammo.length ? ammo.map((a) => ({ ...g, id: `${w.id}:${s.id}:${a.id}`, ammo: a })) : [{ ...g, id: `${w.id}:${s.id}` }];
     });
@@ -3710,9 +3927,42 @@ function dopeCard(w, d, close) {
   const windy = d.windSpeed > 0 && d.rows.some((r) => r.wind > 0);
   // Барабан і сітка в одних одиницях — одна колонка «Поправка», інакше «Барабан» і «Винос»
   const one = oneColumn(scope?.click, reticle);
+  // Вітер для таблиці: круг під нею перераховує колонку «Вітер»; спершу — як у таблиці (її сила, повний боковий з 3 год)
+  const speed = h('input', { type: 'number', inputmode: 'decimal', min: 0, step: 'any', placeholder: t('Вітер, м/с'), value: windy ? String(d.windSpeed) : '' });
+  // Звідки дме: 3 і 9 — повний боковий, 12 і 6 — поправки немає
+  const clock = h('select', { 'aria-label': t('Звідки вітер') },
+    selectOptions(Array.from({ length: 12 }, (_, i) => [String(i + 1), t('з {n} год', { n: i + 1 })]), '3'));
+  const windNow = () => ({ v: Math.max(0, Number(speed.value.replace(',', '.')) || 0), h12: Number(clock.value) || 3 });
+  const asTable = () => windNow().v === d.windSpeed && windNow().h12 === 3;
+  const windMrad = (dist) => {
+    const base = M.windAt(d.rows, dist);
+    const { v, h12 } = windNow();
+    return base === null ? null : (base * v * M.windShare(h12)) / d.windSpeed;
+  };
+  // Вітер справа зносить кулю вліво — виносимо назустріч вітру
+  const windArrow = (mrad) => (mrad >= 0.0005 ? (windNow().h12 < 6 ? '→' : '←') : '');
   const windTd = (dist) => {
-    const mrad = M.windAt(d.rows, dist);
-    return cellTd(mrad === null ? { main: '—', sub: null } : windCell(mrad, dist, scope?.click, reticle));
+    const mrad = windMrad(dist);
+    if (mrad === null) return cellTd({ main: '—', sub: null });
+    const td = cellTd(windCell(mrad, dist, scope?.click, reticle, asTable() ? '' : windArrow(mrad)));
+    td.classList.toggle('wind-live', !asTable());
+    return td;
+  };
+  const windTh = h('th');
+  const windNote = h('p', { class: 'dope-wind-note small' });
+  const tableWind = () => {
+    speed.value = String(d.windSpeed); clock.value = '3';
+    clock.dispatchEvent(new Event('change', { bubbles: true }));
+    speed.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const paintWind = () => {
+    const { v, h12 } = windNow();
+    windTh.textContent = v === 0 ? t('Вітер: штиль') : asTable() ? t('Вітер {v} м/с', { v: fmt.num(v) })
+      : t('Вітер {v} м/с з {n} год', { v: fmt.num(v), n: h12 });
+    // Перераховану колонку видно одразу: позначка під таблицею й повернення до табличних цифр
+    windNote.replaceChildren(...(asTable() ? []
+      : [t('Колонку «Вітер» перераховано під вітер на крузі нижче. У самій таблиці — {v} м/с, повний боковий.', { v: fmt.num(d.windSpeed) }), ' ',
+        btn(t('Як у таблиці'), tableWind, 'mini')]));
   };
   // Глушник: зсув записано в приціл — барабан поправляється, коли зараз не так, як при пристрілці
   const supShift = M.supShiftFor(scope, d.cartridgeId);
@@ -3753,23 +4003,15 @@ function dopeCard(w, d, close) {
   paint();
   const table = h('table', { class: 'dope' },
     h('thead', {}, h('tr', {}, h('th', {}, t('м')), ...(one ? [h('th', {}, t('Поправка'))] : [h('th', {}, t('Барабан')), h('th', {}, t('Винос'))]),
-      windy ? h('th', {}, t('Вітер {v} м/с', { v: fmt.num(d.windSpeed) })) : null)),
+      windy ? windTh : null)),
     tbody);
   const out = h('p', { class: 'dope-out small' });
   const at = h('input', { type: 'number', inputmode: 'numeric', min: 1, step: 1, placeholder: t('Інша дистанція, м'), class: 'dope-at' });
-  const speed = h('input', { type: 'number', inputmode: 'decimal', min: 0, step: 'any', placeholder: t('Вітер, м/с') });
-  // Звідки дме: 3 і 9 — повний боковий, 12 і 6 — поправки немає
-  const clock = h('select', { 'aria-label': t('Звідки вітер') },
-    selectOptions(Array.from({ length: 12 }, (_, i) => [String(i + 1), t('з {n} год', { n: i + 1 })]), '3'));
   const windLine = (dist) => {
-    const v = Number(speed.value.replace(',', '.'));
-    const base = M.windAt(d.rows, dist);
-    if (!(v > 0) || base === null) return null;
-    const h12 = Number(clock.value);
-    const mrad = (base * v * M.windShare(h12)) / d.windSpeed;
+    const mrad = windMrad(dist);
+    if (mrad === null) return null;
     if (mrad < 0.0005) return `${t('вітер')}: ${t('без поправки')}`;
-    // Вітер справа зносить кулю вліво — виносимо назустріч вітру
-    return `${t('вітер')}: ${t('винос')} ${holdText(mrad, dist, reticle, h12 < 6 ? '→' : '←')}`;
+    return `${t('вітер')}: ${t('винос')} ${holdText(mrad, dist, reticle, windArrow(mrad))}`;
   };
   const calc = () => {
     const dist = Number(at.value);
@@ -3780,9 +4022,14 @@ function dopeCard(w, d, close) {
         .filter(Boolean).join('\n');
   };
   sup?.addEventListener('change', () => { paint(); calc(); });
-  for (const el of [at, speed]) el.addEventListener('input', calc);
-  clock.addEventListener('change', calc);
-  const calcBox = h('div', { class: `dope-calc ${windy ? 'windy' : ''}` }, at, windy ? speed : null, windy ? clock : null);
+  at.addEventListener('input', calc);
+  const onWind = () => { paintWind(); paint(); calc(); };
+  speed.addEventListener('input', onWind);
+  clock.addEventListener('change', onWind);
+  paintWind();
+  const calcBox = h('div', { class: 'dope-calc' }, at);
+  // Круг — одразу під таблицею: він міняє її колонку «Вітер»
+  const windBox = windy ? h('div', { class: 'dope-wind-box' }, speed, clock) : null;
   if (windy) clockPicker(clock, { speed, hideSpeed: true });
   const stale = staleText(d.cond, scope);
   // Кожна таблиця згорнута (стан пам'ятається): кілька таблиць не лежать простирадлом; у заголовку — що це й скільки рядків
@@ -3796,13 +4043,14 @@ function dopeCard(w, d, close) {
       toolBtn('edit', t('Змінити'), () => dopeForm(w, d), 'small')),
     stale ? h('p', { class: 'warn-text small dope-stale' }, stale) : null,
     sup ? switchLabel(sup, t('З глушником')) : null, sup ? supNote : null,
-    table, calcBox, out));
+    table, windy ? windNote : null, windBox, calcBox, out));
 }
 
 /** «Поправки зараз» для ствола: набої його калібру, хронограф, глушник як минулого разу, збереження в DOPE. */
 function openNow(w) {
   nowSheet({
-    weapon: w,
+    // Проданого прицілу у виборі нема
+    weapon: { ...w, scopes: liveScopes(w) },
     ammo: state.cartridges.filter((c) => !c.archived && c.caliber && M.sameCaliber(c.caliber, w.caliber)).sort(byName),
     chronoMv: (c) => chronoMv(w, c),
     gunMv: (c) => gunMv(w, c), mvSrcText,
@@ -3926,7 +4174,7 @@ function dopePaste(onRows) {
 
 /** Форма таблиці DOPE: приціл, набій, одиниці й рядки «дистанція — поправка» (плюс — вгору). */
 function dopeForm(w, d = null) {
-  const scopes = w.scopes ?? [];
+  const scopes = (w.scopes ?? []).filter((s) => !isSold(s) || s.id === d?.scopeId);
   const cartridges = caliberOptions(state.cartridges.filter((c) => !c.archived || c.id === d?.cartridgeId), w.caliber);
   const f = form([
     { name: 'scopeId', label: t('Приціл'), type: 'select', value: d ? d.scopeId ?? '' : M.defaultScope(w)?.id ?? scopes[0]?.id ?? '', options: [...scopes.map((s) => [s.id, s.name]), ['', t('Без прицілу')]], wide: true },
@@ -4313,7 +4561,7 @@ function permitDatesToAll(w, v) {
   const dates = [v.issued ? t('видано {date}', { date: fmt.date(v.issued) }) : null,
     v.expires ? t('діє до {date}', { date: fmt.date(v.expires) }) : null].filter(Boolean).join(' · ');
   confirmSheet(t('Ці дати — всім стволам?'), `${dates}: ${others.map((x) => x.name).join(', ')}`, t('Проставити'), async () => {
-    await db.write({
+    await dbWrite({
       weapons: {
         put: others.map((x) => ({
           ...x, permit: { number: x.permit?.number ?? null, issued: v.issued || null, expires: v.expires || null },
@@ -4342,7 +4590,6 @@ function sizeRows(w) {
     s.barrel ? [t('Довжина ствола'), `${fmt.num(s.barrel)} ${t('мм')} (${fmt.num(Math.round(s.barrel / 2.54) / 10)}″)`] : null,
     s.twist ? [t('Крок нарізів'), `${twistText(s.twist)} (${fmt.num(Math.round(s.twist * 25.4))} ${t('мм')})`] : null,
     weight ? [t('Вага'), weight] : null,
-    weight && s.weightNote ? [t('Вага — з чим'), s.weightNote] : null,
   ].filter(Boolean);
 }
 
@@ -4364,7 +4611,7 @@ function weightParts(w) {
 /** Габарити й вага в картці зброї — рядок характеристик під фото: підпис дрібно, значення крупно; з обладнанням — виділено. */
 function sizeBox(w) {
   const wp = weightParts(w);
-  const rows = sizeRows(w).filter(([k]) => k !== t('Вага — з чим'));
+  const rows = sizeRows(w);
   if (!rows.length) return null;
   const short = { [t('Розкладений приклад')]: t('З прикладом'), [t('Довжина ствола')]: t('Ствол') };
   const cells = rows.map(([k, v]) => h('div', { class: 'spec' }, h('small', {}, short[k] ?? k), h('b', {}, v)));
@@ -4375,13 +4622,94 @@ function sizeBox(w) {
 /** Поставити чи зняти тюнінг зі ствола — без форми правки. */
 async function setModOn(w, m, on) {
   const cur = findWeapon(w.id);
+  const before = on ? [itemOf(m.id)] : [];
   await saveEntity('weapons', { ...cur, mods: (cur.mods ?? []).map((x) => (x.id === m.id ? { ...x, on, off: undefined } : x)) });
+  const moved = await movedFrom(before, w.id);
+  if (moved.length) toast(moved.join('; '));
 }
 
-/** Поставити чи зняти приціл — так само, як тюнінг. */
+/**
+ * Що поставили на ствол, знято з інших: рядки для тосту «Сошки: знято з Savage»; ствол, з якого зняли основний приціл,
+ * отримує основним той, що на ньому лишився. before — записи речей до переїзду.
+ */
+async function movedFrom(before, wid) {
+  const from = before.filter((it) => it?.weaponId && it.weaponId !== wid && findWeapon(it.weaponId));
+  for (const gid of new Set(from.filter((it) => it.type === 'scope').map((it) => it.weaponId))) await fixMain(gid);
+  return from.map((it) => t('{name}: знято з {gun}', { name: it.name, gun: findWeapon(it.weaponId).name }));
+}
+
+/** Основний приціл ствола з нього зняли (продали, перенесли) чи його нема — основним стає інший, що на ньому стоїть. */
+async function fixMain(wid) {
+  const cur = findWeapon(wid);
+  const main = cur && M.defaultScope(cur);
+  const next = cur && (!main || !scopeOn(main)) ? (cur.scopes ?? []).find(scopeOn) : null;
+  if (next && next.id !== main?.id) await saveEntity('weapons', { ...cur, scopes: cur.scopes.map((x) => ({ ...x, default: x.id === next.id })) });
+}
+
+/** Поставити річ, якої ствол ще не бачить (з іншого ствола чи зняту): приціл отримує тут пару — свою пристрілку. */
+async function mountHere(w, it) {
+  const cur = findWeapon(w.id);
+  const x = { ...itemView(it), on: true };
+  if (it.type === 'scope') {
+    const main = M.defaultScope(cur);
+    const scopes = [...(cur.scopes ?? []), x];
+    // Основного, що стоїть, нема — основним стає поставлений
+    await saveEntity('weapons', { ...cur, scopes: main && scopeOn(main) ? scopes : scopes.map((s) => ({ ...s, default: s.id === x.id })) });
+  } else await saveEntity('weapons', { ...cur, mods: [...(cur.mods ?? []), x] });
+  const moved = await movedFrom([it], w.id);
+  toast(moved.length ? moved.join('; ') : t('«{name}» на стволі', { name: it.name }));
+}
+
+/** Переставити річ на ствол wid (null — зняти): через ствол, де її видно, щоб основний приціл і тост були ті самі. */
+async function placeItem(id, wid) {
+  const it = itemOf(id);
+  if (!it || (it.weaponId ?? null) === (wid || null)) return;
+  const g = findWeapon(wid || it.weaponId);
+  const x = g && [...(it.type === 'scope' ? g.scopes ?? [] : g.mods ?? [])].find((y) => y.id === id);
+  if (x) await (it.type === 'scope' ? setScopeOn : setModOn)(g, x, Boolean(wid));
+  else if (wid) await mountHere(g, it);
+  else await saveEntity('items', { ...it, weaponId: null });
+}
+
+/** Підказка «уже є»: схожі речі з місцем (де стоїть чи для чого куплено) і дією для кожної. */
+function dupHint(list, title, action, w = null) {
+  if (!list.length) return null;
+  const where = (it) => [it.type === 'scope' ? t('приціл') : t('тюнінг'),
+    it.weaponId && it.weaponId === w?.id ? t('уже на цьому стволі') : (w ? whereSub(w, it) : null) ?? (findWeapon(it.weaponId) ? t('стоїть на {gun}', { gun: findWeapon(it.weaponId).name }) : t('знято'))].join(' · ');
+  return h('div', { class: 'dup-hint' }, h('div', { class: 'dup-title' }, title),
+    list.map((it) => h('div', { class: 'dup-row' }, h('span', {}, it.name, h('small', {}, where(it))), action(it))));
+}
+
+/** «Стоїть на» й «Куплено для» в картці речі — коли стволів більше одного; інакше вистачає перемикача «стоїть». */
+function itemPlaces(x, loose = false) {
+  const it = itemOf(x.id);
+  const guns = state.weapons.filter((g) => !g.archived || g.id === it?.weaponId || g.id === it?.forId).sort(byName);
+  if (!it || isSold(it) || guns.length < (loose ? 1 : 2)) return null;
+  const f = form([
+    { name: 'at', label: t('Стоїть на'), type: 'select', value: it.weaponId ?? '', options: [...guns.map((g) => [g.id, g.name]), ['', t('знято')]], half: true },
+    // Від «куплено для» залежить, у «вкладено» якого ствола рахується ціна
+    { name: 'for', label: t('Куплено для'), type: 'select', value: findWeapon(it.forId) ? it.forId : '', options: [...guns.map((g) => [g.id, g.name]), ['', t('без ствола')]], half: true },
+  ]);
+  f.inputs.at.addEventListener('change', () => { vibrate(8); placeItem(it.id, f.inputs.at.value || null); });
+  f.inputs.for.addEventListener('change', () => saveEntity('items', { ...itemOf(it.id), forId: f.inputs.for.value || null }));
+  return h('div', { class: 'item-places' }, f.el);
+}
+
+/**
+ * Поставити чи зняти приціл. Основний (за ним поправки, пристрілка й запис стрільби) іде за тим, що стоїть:
+ * зняли основний — основним стає інший, що стоїть; поставили, а основний знятий — основним стає поставлений.
+ */
 async function setScopeOn(w, sc, on) {
   const cur = findWeapon(w.id);
-  await saveEntity('weapons', { ...cur, scopes: (cur.scopes ?? []).map((x) => (x.id === sc.id ? { ...x, on } : x)) });
+  const before = on ? [itemOf(sc.id)] : [];
+  let scopes = (cur.scopes ?? []).map((x) => (x.id === sc.id ? { ...x, on } : x));
+  const main = M.defaultScope({ scopes });
+  const next = on ? (!main || !scopeOn(main) ? sc.id : null) : (main?.id === sc.id ? scopes.find(scopeOn)?.id ?? null : null);
+  if (next) scopes = scopes.map((x) => ({ ...x, default: x.id === next }));
+  await saveEntity('weapons', { ...cur, scopes });
+  const moved = await movedFrom(before, w.id);
+  const msg = [...moved, next && scopes.length > 1 ? t('Основний приціл — «{name}»', { name: scopes.find((x) => x.id === next).name }) : null].filter(Boolean);
+  if (msg.length) toast(msg.join('; '));
 }
 
 /** Перемикач «стоїть на стволі»: у блоці «Встановлено» й у картці тюнінгу; scope — це приціл, а не тюнінг. */
@@ -4428,7 +4756,7 @@ function mainScopeId(w) {
 /** На стволі зараз рівно цей набір (і основний приціл — його). */
 function setupMatches(w, s) {
   const on = new Set(s.on);
-  return (w.scopes ?? []).every((x) => scopeOn(x) === on.has(x.id))
+  return (w.scopes ?? []).filter((x) => !isSold(x)).every((x) => scopeOn(x) === on.has(x.id))
     && (w.mods ?? []).filter((m) => !isSold(m)).every((m) => !!m.on === on.has(m.id))
     // основний приціл звіряємо, лише коли він стоїть: знятий «основний» — ще не вибір користувача
     // і лише коли він ще є: видалений приціл не має робити набір назавжди «чужим» (тап тоді лише ставив би його знову)
@@ -4439,46 +4767,68 @@ async function applySetup(w, s) {
   const cur = findWeapon(w.id);
   const on = new Set(s.on);
   const main = s.main && on.has(s.main) && (cur.scopes ?? []).some((x) => x.id === s.main) ? s.main : null;
+  const before = s.on.map(itemOf).filter((it) => it && !isSold(it));
   vibrate(8);
   await saveEntity('weapons', {
     ...cur,
-    scopes: (cur.scopes ?? []).map((x) => ({ ...x, on: on.has(x.id), ...(main ? { default: x.id === main } : {}) })),
+    scopes: (cur.scopes ?? []).map((x) => ({ ...x, on: on.has(x.id) && !isSold(x), ...(main ? { default: x.id === main } : {}) })),
     mods: (cur.mods ?? []).map((m) => (isSold(m) ? m : { ...m, on: on.has(m.id), off: undefined })),
   });
-  toast(t('Набір «{name}» на стволі', { name: s.name }));
+  const moved = await movedFrom(before, w.id);
+  toast([t('Набір «{name}» на стволі', { name: s.name }), ...moved].join('; '));
 }
 const saveSetups = (w, setups) => saveEntity('weapons', { ...findWeapon(w.id), setups });
 
-/** Новий набір із того, що стоїть зараз; або наявний — перейменувати, записати поточне, видалити. */
+/**
+ * Набір: назва й склад перемикачами — що з прицілів і тюнінгу в нього входить. Новий — з того, що стоїть зараз.
+ * Набір, що зараз на стволі, після правки ставиться знову: зняли з нього ліхтар — ліхтар знято й зі ствола.
+ */
 function setupForm(w, s = null) {
   const cur = findWeapon(w.id) ?? w;
-  const items = [...(cur.scopes ?? []).filter(scopeOn), ...(cur.mods ?? []).filter((m) => !isSold(m) && m.on)].map((x) => x.name);
+  const active = s ? setupMatches(cur, s) : false;
+  const items = [...(cur.scopes ?? []).filter((x) => !isSold(x)).map((x) => ({ x, scope: true })), ...(cur.mods ?? []).filter((m) => !isSold(m)).map((x) => ({ x, scope: false }))];
+  const picked = new Set(s ? s.on : setupOnIds(cur));
   const f = form([{ name: 'name', label: t('Назва набору'), required: true, value: s?.name, placeholder: t('Ближній бій, DMR, полювання…'), wide: true }]);
-  const list = setups => setups.filter(Boolean);
-  const save = async (capture) => {
+  const inputs = items.map(({ x, scope }) => {
+    const input = h('input', { type: 'checkbox', role: 'switch', checked: picked.has(x.id), dataset: { id: x.id },
+      onchange: () => { vibrate(8); if (input.checked) picked.add(x.id); else picked.delete(x.id); } });
+    return { input, row: switchLabel(input, [x.name, scope ? t('приціл') : null, whereSub(cur, x)].filter(Boolean).join(' · ')) };
+  });
+  // «Як зараз на стволі» — склад набору стає тим, що стоїть
+  const asNow = () => {
+    const on = new Set(setupOnIds(findWeapon(w.id) ?? cur));
+    picked.clear(); on.forEach((id) => picked.add(id));
+    inputs.forEach(({ input }) => { input.checked = on.has(input.dataset.id); });
+  };
+  const save = async () => {
     if (invalidField(f)) return;
     close();
     const now = findWeapon(w.id);
     const name = f.values().name.trim();
-    const snap = { on: setupOnIds(now), main: mainScopeId(now) };
-    const entry = s ? { ...s, name, ...(capture ? snap : {}) } : { id: db.uid(), name, ...snap };
+    const ids = new Set([...(now.scopes ?? []), ...(now.mods ?? [])].map((x) => x.id));
+    const on = [...picked].filter((id) => ids.has(id));
+    const scopeIds = (now.scopes ?? []).map((x) => x.id).filter((id) => on.includes(id));
+    // Основний приціл набору: колишній, якщо лишився в наборі, далі поточний основний, далі перший приціл набору
+    const main = [s?.main, mainScopeId(now)].find((id) => id && scopeIds.includes(id)) ?? scopeIds[0] ?? null;
+    const entry = { ...(s ?? { id: db.uid() }), name, on, main };
     const all = now.setups ?? [];
     await saveSetups(w, s ? all.map((x) => (x.id === s.id ? entry : x)) : [...all, entry]);
+    if (active) await applySetup(findWeapon(w.id), entry);
   };
   // Новий набір, такий самий, як уже збережений, — попереджаємо (зберегти можна: назва може бути іншою)
   const twin = s ? null : (cur.setups ?? []).find((x) => setupMatches(cur, x));
   const close = sheet(s ? t('Набір «{name}»', { name: s.name }) : t('Зберегти набір'), h('div', {},
     twin ? h('p', { class: 'warn-text small' }, t('Такий самий набір уже є: «{name}»', { name: twin.name })) : null,
-    h('p', { class: 'muted small' }, s
-      ? t('«Записати поточне» — набір стане таким, як зараз на стволі: {list}', { list: items.join(', ') || t('нічого') })
-      : t('У набір потрапить те, що зараз стоїть на стволі: {list}', { list: items.join(', ') || t('нічого') })),
-    f.el), {
+    f.el,
+    items.length ? h('div', { class: 'setup-items' },
+      h('div', { class: 'setup-items-head' }, h('span', { class: 'field-label' }, t('Що в наборі')), btn(t('Як зараз на стволі'), asNow, 'mini quiet')),
+      ...inputs.map(({ row }) => row),
+      active ? h('p', { class: 'muted small' }, t('Цей набір зараз на стволі — зміни застосуються й до ствола.')) : null) : null), {
     tools: s ? [toolBtn('delete', t('Видалити'), () => {
       close();
       confirmSheet(t('Видалити набір?'), s.name, t('Видалити'), () => saveSetups(w, (findWeapon(w.id).setups ?? []).filter((x) => x.id !== s.id)));
     }, 'danger')] : [],
-    actions: list([btn(t('Скасувати'), () => close()), s ? btn(t('Записати поточне'), () => save(true)) : null,
-      btn(t('Зберегти'), () => save(false), 'primary')]),
+    actions: [btn(t('Скасувати'), () => close()), btn(t('Зберегти'), () => save(), 'primary')],
   });
 }
 
@@ -4509,7 +4859,7 @@ function setupsRow(w) {
       h('button', { type: 'button', class: setups.length ? 'setup-add' : 'setup-add first', onclick: () => setupForm(w) }, setups.length ? '+' : t('+ зберегти набір')),
       // Олівець — усі набори списком: змінити чи видалити будь-який, навіть той, що зараз не стоїть
       setups.length ? toolBtn('edit', t('Змінити набори'), () => setupsSheet(w), 'small setup-edit') : null),
-    setups.length ? h('p', { class: 'muted small' }, t('Тап — поставити набір; тап по вибраному — перейменувати чи оновити')) : null);
+    setups.length ? h('p', { class: 'muted small' }, t('Тап — поставити набір; тап по вибраному чи олівець — змінити склад')) : null);
 }
 
 /** Приціл без фото — квадрат зі значком сітки. */
@@ -4536,24 +4886,28 @@ function mountBox(w) {
     h('b', { class: 'mount-g' }, g ? grams(g) : ''), sw);
   const list = h('div', { class: 'mount-list' },
     ...onScopes.map((x) => {
-      const r = row(photoThumb(scopePhoto(x.id)) ?? reticleThumb(), x.name, t('приціл'), x.weight, mountSwitch(w, x, false, true));
+      const r = row(photoThumb(scopePhoto(x.id)) ?? reticleThumb(), x.name, [t('приціл'), whereSub(w, x)].filter(Boolean).join(' · '), x.weight, mountSwitch(w, x, false, true));
       r.querySelector('.mount-name').addEventListener('click', () => scopeDetail(w, x));
       return r;
     }),
     ...onMods.map((m) => {
-      const r = row(photoThumb(modPhoto(m.id)), m.name, null, m.weight, mountSwitch(w, m, false));
+      const r = row(photoThumb(modPhoto(m.id)), m.name, whereSub(w, m), m.weight, mountSwitch(w, m, false));
       r.querySelector('.mount-name').addEventListener('click', () => modDetail(w, m));
       return r;
     }));
   const total = wp.parts.length ? h('div', { class: 'weight-comp' },
-    wp.base ? h('div', {}, h('span', {}, t('Ствол') + (w.size?.weightNote ? ` (${w.size.weightNote})` : '')), h('b', {}, grams(wp.base))) : null,
+    wp.base ? h('div', {}, h('span', {}, t('Ствол')), h('b', {}, grams(wp.base))) : null,
     // Без ваги ствола проміжний рядок дублював би підсумок
     wp.base ? h('div', {}, h('span', {}, t('Обладнання')), h('b', {}, grams(wp.total - wp.base))) : null,
     h('div', { class: 'wc-total' }, h('span', {}, wp.base ? t('Вага з обладнанням') : t('Обладнання')), h('b', {}, grams(wp.total)))) : null;
-  // «Встановити»: тюнінг цього ствола, що зараз не стоїть, — тапом; або новий одразу встановленим
+  // «Встановити»: що зараз не стоїть — своє, з інших стволів і зняте, — тапом; або новий тюнінг одразу встановленим
   const add = () => {
-    const freeScopes = scopes.filter((x) => !scopeOn(x));
+    const freeScopes = scopes.filter((x) => !scopeOn(x) && !isSold(x));
     const free = mods.filter((m) => !m.on);
+    const seen = new Set([...scopes, ...(w.mods ?? [])].map((x) => x.id));
+    const others = state.items.filter((it) => !seen.has(it.id) && !isSold(it) && (it.type === 'scope' || it.type === 'part')).sort(byName);
+    const unweighed = (x) => (x.weight ? null : t('вага не вказана'));
+    const sub = (...parts) => parts.filter(Boolean).join(' · ') || null;
     const pick = (thumb, name, sub, g, put) => {
       const r = row(thumb, name, sub, g, null);
       r.classList.add('pick');
@@ -4562,9 +4916,13 @@ function mountBox(w) {
     };
     const close = sheet(t('Встановити на ствол'), h('div', { class: 'mount-pick' },
       ...twinHints(w, () => close()),
-      freeScopes.length || free.length ? h('div', { class: 'mount-list' },
-        ...freeScopes.map((x) => pick(photoThumb(scopePhoto(x.id)) ?? reticleThumb(), x.name, x.weight ? t('приціл') : `${t('приціл')} · ${t('вага не вказана')}`, x.weight, () => setScopeOn(w, x, true))),
-        ...free.map((m) => pick(photoThumb(modPhoto(m.id)), m.name, m.weight ? null : t('вага не вказана'), m.weight, () => setModOn(w, m, true))))
+      freeScopes.length || free.length || others.length ? h('div', { class: 'mount-list' },
+        ...freeScopes.map((x) => pick(photoThumb(scopePhoto(x.id)) ?? reticleThumb(), x.name, sub(t('приціл'), whereSub(w, x), unweighed(x)), x.weight, () => setScopeOn(w, x, true))),
+        ...free.map((m) => pick(photoThumb(modPhoto(m.id)), m.name, sub(whereSub(w, m), unweighed(m)), m.weight, () => setModOn(w, m, true))),
+        others.length && (freeScopes.length || free.length) ? h('p', { class: 'muted small mount-pick-head' }, t('З інших стволів')) : null,
+        ...others.map((it) => pick(
+          it.type === 'scope' ? photoThumb(scopePhoto(it.id)) ?? reticleThumb() : photoThumb(modPhoto(it.id)), it.name,
+          sub(it.type === 'scope' ? t('приціл') : null, whereSub(w, it) ?? t('знято'), unweighed(it)), it.weight, () => mountHere(w, it))))
         : h('p', { class: 'muted' }, t('Усе вже стоїть — додайте новий тюнінг.')),
       btn(t('+ новий тюнінг'), () => { close(); modForm(w, null, { preset: { on: true } }); }, 'mini')));
   };
@@ -4593,7 +4951,6 @@ function sizeFields(w) {
     num('barrel', t('Довжина ствола')),
     { name: 'twist', label: t('Крок нарізів'), value: s.twist ? `1:${fmt.num(s.twist)}` : '', placeholder: '1:8', half: true },
     num('weight', t('Вага, г')),
-    { name: 'weightNote', label: t('Вага — з чим'), value: s.weightNote, placeholder: t('З колліматором, з набоями…'), wide: true },
   ]);
   // Довжина ствола — у мм чи дюймах (як на стволі), кнопкою число перераховується; зберігається завжди в мм
   let barrelUnit = recall('shooters-log:barrel-unit') === 'in' ? 'in' : 'mm';
@@ -4620,7 +4977,6 @@ function sizeFields(w) {
     if (barrelUnit === 'in' && v.barrel > 0) v.barrel = Math.round(v.barrel * 25.4);
     const size = Object.fromEntries(SIZE_KEYS.map((k) => [k, v[k] > 0 ? v[k] : null]));
     size.twist = parseTwist(v.twist);
-    size.weightNote = v.weightNote || null;
     return { size: Object.values(size).some(Boolean) ? size : null };
   };
   const invalid = () => {
@@ -4787,7 +5143,7 @@ function shotCartridgeSelect(m) {
         ? state.movements.filter((x) => x.batch === rest.batch && x.kind === 'collect' && x.componentId !== to.id) : [];
       if (!collects.length) { await saveEntity('movements', shot); return; }
       const own = caseComponent(to);
-      await db.write({ movements: { put: [shot, ...collects.map((x) => ({ ...x, componentId: own.id }))] }, ...own.extra });
+      await dbWrite({ movements: { put: [shot, ...collects.map((x) => ({ ...x, componentId: own.id }))] }, ...own.extra });
       await refresh();
       confirmed([shot.id]);
     },
@@ -4816,7 +5172,7 @@ function shotScopeSelect(m) {
     onchange: async (e) => {
       await saveEntity('movements', { ...freshMovement(m), scopeId: e.target.value || null });
     },
-  }, selectOptions(scopeOptions(w), m.scopeId ?? '')),
+  }, selectOptions(scopeOptions(w, m.scopeId), m.scopeId ?? '')),
   (s) => scopePicker(s, () => w));
 }
 
@@ -4885,10 +5241,10 @@ function movementDetail(m) {
     const batch = cur.batch && cur.kind !== 'collect' ? state.movements.filter((x) => x.batch === cur.batch) : [cur];
     close();
     confirmSheet(t('Видалити запис?'), batch.length > 1 ? t('Разом із пов’язаними рухами ({n}).', { n: batch.length }) : t('Залишки й настріл перерахуються.'), t('Видалити'), async () => {
-      await db.write({ movements: { del: batch.map((x) => x.id) } });
+      await dbWrite({ movements: { del: batch.map((x) => x.id) } });
       await refresh();
       confirmed();
-      setUndo(t('Запис видалено'), async () => { await db.write({ movements: { put: batch } }); await refresh(); });
+      setUndo(t('Запис видалено'), async () => { await dbWrite({ movements: { put: batch } }); await refresh(); });
     });
   }, 'danger');
   const close = sheet(t(M.KINDS[m.kind]), body(), { live: body, tools: [pencil, del] });
@@ -4912,7 +5268,7 @@ function movementBody(m, close, edit = false) {
     if (!v) { dateInput.value = m.date ?? M.today(); return; }
     // Дата спільна для пачки: зібрані гільзи й списані компоненти — того ж дня, що стрільба чи спорядження
     const same = m.kind === 'collect' ? [] : linked;
-    await db.write({ movements: { put: [{ ...freshMovement(m), date: v }, ...same.map((x) => ({ ...x, date: v }))] } });
+    await dbWrite({ movements: { put: [{ ...freshMovement(m), date: v }, ...same.map((x) => ({ ...x, date: v }))] } });
     await refresh();
     confirmed([m.id]);
   });
@@ -5066,12 +5422,12 @@ async function resizeReload(m, linked, qty) {
     { ...m, qty, price: Number(m.price) > 0 ? +(m.price * k).toFixed(2) : m.price },
     ...linked.map((x) => (x.kind === 'consume' ? { ...x, qty: -+(Math.abs(x.qty) * k).toFixed(3) } : x)),
   ];
-  await db.write({ movements: { put: after } });
+  await dbWrite({ movements: { put: after } });
   await refresh();
   confirmed([m.id, m.cartridgeId]);
   if (linked.some((x) => x.componentId && M.componentStock(state, x.componentId) < 0)) toast(t('Компоненти пішли в мінус'));
   setUndo(t('Споряджено {n} · {name}', { n: qty, name: findCartridge(m.cartridgeId)?.name ?? '' }), async () => {
-    await db.write({ movements: { put: before } });
+    await dbWrite({ movements: { put: before } });
     await refresh();
   });
 }
@@ -5674,7 +6030,7 @@ function exerciseCtx() {
     // Зони чи їхні очки змінились — очки збережених результатів перераховуються, інакше рекорд і звання за старими
     onSaveExercise: async (rec) => {
       const obj = { id: db.uid(), created: Date.now(), ...rec };
-      await db.write({ exercises: { put: [obj] }, scores: { put: rescored(asExercise(obj)) } });
+      await dbWrite({ exercises: { put: [obj] }, scores: { put: rescored(asExercise(obj)) } });
       await refresh();
       confirmed([obj.id]);
     },
@@ -5688,7 +6044,7 @@ function exerciseCtx() {
         closeCard?.();
         await saveEntity('exercises', own ? { ...own, hidden: true } : { id: ex.id, created: Date.now(), hidden: true, hideOnly: true });
         setUndo(t('Вправу видалено'), async () => {
-          await db.write(own ? { exercises: { put: [own] } } : { exercises: { del: [ex.id] } });
+          await dbWrite(own ? { exercises: { put: [own] } } : { exercises: { del: [ex.id] } });
           await refresh();
         });
       });
@@ -5702,13 +6058,13 @@ function exerciseCtx() {
         : scores.length ? t('Разом із результатами ({n}). Стрільби в журналі лишаться.', { n: scores.length }) : rec.name;
       confirmSheet(base ? t('Повернути вбудовану?') : t('Видалити вправу?'), text, base ? t('Повернути') : t('Видалити'), async () => {
         closeCard?.();
-        await db.write(base
+        await dbWrite(base
           ? { exercises: { del: [rec.id] }, scores: { put: rescored(base) } }
           : { exercises: { del: [rec.id] }, scores: { del: scores.map((s) => s.id) } });
         await refresh();
         confirmed();
         setUndo(base ? t('Вбудовану повернуто') : t('Вправу видалено'), async () => {
-          await db.write({ exercises: { put: [rec] }, scores: { put: scores } });
+          await dbWrite({ exercises: { put: [rec] }, scores: { put: scores } });
           await refresh();
         });
       });
@@ -5725,11 +6081,11 @@ function exerciseCtx() {
       const done = t('Результат збережено · очки: {n}', { n: fmt.num(r.score) });
       if (!consume) {
         const had = state.scores.find((x) => x.id === r.id) ?? null;
-        await db.write({ scores: { put: [score] } });
+        await dbWrite({ scores: { put: [score] } });
         await refresh();
         confirmed([score.id, score.exercise]);
         toast(done);
-        setUndo(done, async () => { await db.write(had ? { scores: { put: [had] } } : { scores: { del: [score.id] } }); await refresh(); });
+        setUndo(done, async () => { await dbWrite(had ? { scores: { put: [had] } } : { scores: { del: [score.id] } }); await refresh(); });
         return;
       }
       const c = findCartridge(consume.cartridgeId);
@@ -5754,10 +6110,10 @@ function exerciseCtx() {
     },
     onDelete: async (r) => {
       const moves = scoreShots(r);
-      await db.write({ scores: { del: [r.id] }, movements: { del: moves.map((x) => x.id) } });
+      await dbWrite({ scores: { del: [r.id] }, movements: { del: moves.map((x) => x.id) } });
       await refresh();
       confirmed();
-      setUndo(t('Результат видалено'), async () => { await db.write({ scores: { put: [r] }, movements: { put: moves } }); await refresh(); });
+      setUndo(t('Результат видалено'), async () => { await dbWrite({ scores: { put: [r] }, movements: { put: moves } }); await refresh(); });
     },
   };
 }
@@ -5805,7 +6161,7 @@ function drillDetail(d) {
   const shots = [...d.shots].sort((a, b) => a - b);
   const remove = () => confirmSheet(t('Видалити серію?'), `${fmt.date(d.date)} · ${t('{n} постр.', { n: s.n })}`, t('Видалити'), async () => {
     close();
-    await db.write({ drills: { del: [d.id] } });
+    await dbWrite({ drills: { del: [d.id] } });
     await refresh();
     confirmed();
   });
@@ -5912,7 +6268,7 @@ function chronoDetail(c0) {
   };
   const remove = () => confirmSheet(t('Видалити серію?'), `${fmt.date(c0.date)} · ${chronoWeapon(c0)}`, t('Видалити'), async () => {
     close();
-    await db.write({ chrono: { del: [c0.id] } });
+    await dbWrite({ chrono: { del: [c0.id] } });
     await refresh();
     confirmed();
   });
@@ -6112,7 +6468,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
   const when0 = tg ?? movement ?? (score ? { ...score, time: score.clock } : null);
   const f = form([
     { name: 'weaponId', label: t('Зброя'), type: 'select', value: gunId, options: [['', t('— не вказувати —')], ...guns.map((w) => [w.id, w.name])] },
-    { name: 'scopeId', label: t('Який приціл'), type: 'select', value: scope0?.id ?? '', options: scopeOptions(findWeapon(gunId)) },
+    { name: 'scopeId', label: t('Який приціл'), type: 'select', value: scope0?.id ?? '', options: scopeOptions(findWeapon(gunId), scope0?.id) },
     { name: 'click', label: t('Ціна кліку'), type: 'select',
       options: clickChoices(tg?.click, ...guns.flatMap((w) => (w.scopes ?? []).map((s) => s.click))),
       value: tg?.click ?? scope0?.click ?? lastOf(gunId)?.click ?? 'mil0.1' },
@@ -6179,7 +6535,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     f.inputs.cartridgeId.replaceChildren(...selectOptions(ammo(id), keep).filter(Boolean));
     repaintAmmo();
     const w = findWeapon(id);
-    f.inputs.scopeId.replaceChildren(...selectOptions(scopeOptions(w), pickScope(id)?.id ?? '').filter(Boolean));
+    f.inputs.scopeId.replaceChildren(...selectOptions(scopeOptions(w, pickScope(id)?.id), pickScope(id)?.id ?? '').filter(Boolean));
     paintScope();
     scopeField.hidden = !w?.scopes?.length;
     onScope();
@@ -6226,7 +6582,7 @@ function targetForm(tg, { photo = null, movement = null, score = null, weaponId 
     const marks = await runMarking(photo.blob, draft);
     if (!marks) { toast(t('Мішень не збережено')); return; }
     const record = { ...draft, ...marks };
-    await db.write({
+    await dbWrite({
       targets: { put: [record] },
       photos: { put: [{ id: draft.photoId, targetId: record.id, created: Date.now(), thumb: photo.thumb, w: photo.w, h: photo.h, driveId: null }] },
       blobs: { put: [{ id: draft.photoId, blob: photo.blob }] },
@@ -6291,7 +6647,7 @@ async function realignTarget(tg) {
   const quad = keep.quad.map(move);
   const orig = quad.every(Boolean) && (tg.orig ? origBlob : true) ? { photoId: keep.photoId, quad } : null;
   const dropBlobs = [photo.id, ...(tg.orig && !orig ? [tg.orig.photoId] : [])].filter((x) => x !== orig?.photoId);
-  await db.write({
+  await dbWrite({
     targets: { put: [{ ...tg, ...marks, poa: inside(poa) ? poa : null, groups, photoId: id, orig }] },
     photos: { put: [{ ...photo, id, thumb: res.thumb, w: res.w, h: res.h, driveId: null }], del: [photo.id] },
     blobs: { put: [{ id, blob: res.blob }], del: dropBlobs },
@@ -6329,7 +6685,7 @@ async function restoreOriginal(tg, photo, origBlob) {
   src.close?.();
   const id = db.uid();
   const oldDrive = (await db.get('photos', photo.id))?.driveId;
-  await db.write({
+  await dbWrite({
     targets: { put: [{ ...tg, scale: moveLine(tg.scale), scale2: moveLine(tg.scale2), poa: inside(poa) ? poa : null, groups, photoId: id, orig: null }] },
     photos: { put: [{ ...photo, id, thumb, w, h: hh, driveId: null }], del: [photo.id] },
     blobs: { put: [{ id, blob: origBlob }], del: [photo.id, tg.orig.photoId] },
@@ -6482,7 +6838,7 @@ function whenEditBlock(m, linked) {
     const cur = freshMovement(m);
     // Дата спільна для пачки: зібрані гільзи — того ж дня, що стрільба
     const moved = v.date !== cur.date ? linked.map((x) => ({ ...x, date: v.date })) : [];
-    await db.write({ movements: { put: [{ ...cur, note: v.note || undefined, date: v.date, time: v.time || undefined, ...block.values() }, ...moved] } });
+    await dbWrite({ movements: { put: [{ ...cur, note: v.note || undefined, date: v.date, time: v.time || undefined, ...block.values() }, ...moved] } });
     await refresh();
     confirmed([m.id]);
   };
@@ -6809,7 +7165,7 @@ function targetDetail(tg) {
       const ph = await db.get('photos', tg.photoId);
       const blob = await db.getBlob(tg.photoId);
       const orig = tg.orig ? await db.getBlob(tg.orig.photoId) : null;
-      await db.write({ targets: { del: [tg.id] }, photos: { del: [tg.photoId] }, blobs: { del: [tg.photoId, ...(tg.orig ? [tg.orig.photoId] : [])] } });
+      await dbWrite({ targets: { del: [tg.id] }, photos: { del: [tg.photoId] }, blobs: { del: [tg.photoId, ...(tg.orig ? [tg.orig.photoId] : [])] } });
       await refresh();
       confirmed();
       let undone = false;
@@ -6818,7 +7174,7 @@ function targetDetail(tg) {
         action: t('Скасувати'),
         onAction: async () => {
           undone = true; clearTimeout(trash);
-          await db.write({ targets: { put: [tg] }, ...(ph ? { photos: { put: [ph] } } : {}), blobs: { put: [...(blob ? [{ id: tg.photoId, blob }] : []), ...(orig ? [{ id: tg.orig.photoId, blob: orig }] : [])] } });
+          await dbWrite({ targets: { put: [tg] }, ...(ph ? { photos: { put: [ph] } } : {}), blobs: { put: [...(blob ? [{ id: tg.photoId, blob }] : []), ...(orig ? [{ id: tg.orig.photoId, blob: orig }] : [])] } });
           await refresh();
           confirmed([tg.id]);
         },
@@ -6972,7 +7328,7 @@ function articleView(a) {
       close();
       confirmSheet(t('Видалити статтю?'), t('«{name}» видалиться й з інших пристроїв після синхронізації.', { name: a.title }), t('Видалити'),
         async () => {
-          await db.write({ articles: { del: [a.id] } });
+          await dbWrite({ articles: { del: [a.id] } });
           const photos = articlePhotos(a.id);
           if (photos.length) await removePhotos(photos);
           else await refresh();
@@ -7029,7 +7385,7 @@ function articleForm(a = null) {
       try {
         const { blob, thumb, w, h: height } = await preparePhoto(file);
         const photoId = db.uid();
-        await db.write({
+        await dbWrite({
           photos: { put: [{ id: photoId, articleId: id, created: Date.now(), thumb, w, h: height, driveId: null }] },
           blobs: { put: [{ id: photoId, blob }] },
         });
@@ -7251,7 +7607,7 @@ function componentDetail(c) {
       if (state.recipes.some((r) => r.items.some((i) => i.componentId === cur.id))) { toast(t('Компонент використовується в рецепті')); return; }
       if (state.movements.some((m) => m.componentId === cur.id)) { toast(t('У компонента є рухи')); return; }
       close();
-      confirmSheet(t('Видалити компонент?'), cur.name, t('Видалити'), async () => { await db.write({ components: { del: [cur.id] } }); await refresh(); });
+      confirmSheet(t('Видалити компонент?'), cur.name, t('Видалити'), async () => { await dbWrite({ components: { del: [cur.id] } }); await refresh(); });
     }, 'danger'),
   ];
   const close = sheet(c.name, body(), { live: body, tools });
@@ -7459,7 +7815,7 @@ function recipeDetail(r) {
     toolBtn('edit', t('Змінити'), () => { close(); recipeForm(state.recipes.find((x) => x.id === r.id) ?? r); }),
     toolBtn('delete', t('Видалити'), () => {
       close();
-      confirmSheet(t('Видалити рецепт?'), t('Споряджені набої й журнал залишаться.'), t('Видалити'), async () => { await db.write({ recipes: { del: [r.id] } }); await refresh(); });
+      confirmSheet(t('Видалити рецепт?'), t('Споряджені набої й журнал залишаться.'), t('Видалити'), async () => { await dbWrite({ recipes: { del: [r.id] } }); await refresh(); });
     }, 'danger'),
   ];
   // На весь екран: картка довга (компоненти, пояснення під «i»), у шторці її доводилось гортати
@@ -7626,7 +7982,7 @@ async function offerFile(name, content, type, share = true) {
 }
 
 async function exportData(share) {
-  const payload = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data: state }, null, 1);
+  const payload = JSON.stringify({ app: 'shooters-log', format: 1, exportedAt: new Date().toISOString(), data: await db.loadAll() }, null, 1);
   if (await offerFile(`shooters-log-${M.today()}.json`, payload, 'application/json', share)) remember(BACKUP_KEY, M.today());
 }
 
@@ -7788,7 +8144,7 @@ async function loadDemoQuiet() {
 function startOnboard() {
   onboardMod().then((m) => m.onboard({
     uid: db.uid,
-    save: (store, obj) => db.write({ [store]: { put: [obj] } }),
+    save: (store, obj) => dbWrite({ [store]: { put: [obj] } }),
     findCartridge: (name, caliber) => state.cartridges.find((c) => !c.archived && c.name === name && M.sameCaliber(c.caliber, caliber)),
     done: async (id, cid) => {
       await refresh();
@@ -8287,7 +8643,8 @@ function myFortunes() {
   if (reloaded >= 100) out.push(t('Власноруч споряджено {n}. Магазинні набої нервують', { n: `${fmt.num(reloaded)} ${plural(reloaded, [t('набій'), t('набої'), t('набоїв')])}` }));
   const spent = boughtSum(spending().filter((x) => String(x.date ?? '').startsWith(today.slice(0, 4))));
   if (spent > 0) out.push(t('Цього року на хобі пішло {sum}. Печиво нікому не скаже', { sum: grn(spent) }));
-  const scopes = guns.reduce((s, w) => s + (w.scopes ?? []).filter(scopeBought).length, 0);
+  // Приціли — речі: той самий на двох стволах рахується раз
+  const scopes = state.items.filter((it) => it.type === 'scope' && !isSold(it) && scopeBought(it)).length;
   if (guns.length && scopes > guns.length) out.push(t('Прицілів уже {n}, стволів {g}. Діагноз зрозумілий', { n: fmt.num(scopes), g: fmt.num(guns.length) }));
   const sold = state.weapons.filter(isSold).length;
   if (sold) out.push(t('Продано стволів: {n}. Кожен згадує тебе добрим словом', { n: fmt.num(sold) }));
@@ -8416,7 +8773,7 @@ function hiddenExercisesRow() {
   if (!hidden.length) return null;
   const restore = async () => {
     // Позначку «лише сховати» прибираємо зовсім; сховану правку — просто показуємо знову
-    await db.write({ exercises: {
+    await dbWrite({ exercises: {
       del: hidden.filter((r) => r.hideOnly).map((r) => r.id),
       put: hidden.filter((r) => !r.hideOnly).map((r) => ({ ...r, hidden: false })),
     } });
@@ -9124,9 +9481,10 @@ navigator.storage?.persist?.().catch(() => {});
 const sceneRoll = Math.random() < 1 / 6;
 if (new URLSearchParams(location.search).get('scene') || (scenesOn() && sceneDue(M.today(), sceneRoll))) coverForScene();
 try {
-  state = await db.loadAll();
+  state = await loadState();
   setCaliberHues(state.calibers, state.cartridges);
   await migrateModules();
+  await migrateExercisesRu();
 } catch (err) {
   // Приватний режим, скінчилось місце, збій браузера: без цього лишався б порожній екран без жодного слова
   window.removeEventListener('hashchange', route);

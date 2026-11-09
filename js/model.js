@@ -285,19 +285,31 @@ export function recipeCost(state, recipe) {
   return recipeLines(state, recipe).reduce((sum, line) => sum + line.cost, 0);
 }
 
+// Ціну набою питають для кожного пострілу (картка ствола, журнал), тож покупки підсумовуємо одним проходом
+// на масив рухів: новий стан — новий масив, дописаний рух — інша довжина, і підсумки рахуються знову
+const boughtCache = new WeakMap();
+function boughtByCartridge(movements) {
+  const hit = boughtCache.get(movements);
+  if (hit && hit.len === movements.length) return hit.sums;
+  const sums = new Map();
+  for (const m of movements) {
+    if (!m.cartridgeId || (m.kind !== 'buy' && m.kind !== 'reload') || !(Number(m.price) > 0) || !(m.qty > 0)) continue;
+    const s = sums.get(m.cartridgeId) ?? { money: 0, qty: 0 };
+    s.money += Number(m.price);
+    s.qty += Number(m.qty);
+    sums.set(m.cartridgeId, s);
+  }
+  boughtCache.set(movements, { len: movements.length, sums });
+  return sums;
+}
+
 /**
  * Середня ціна одного набою: покупки із сумою та спорядження за собівартістю.
  * Без таких рухів — собівартість рецепта, якщо набій самоспоряджений; інакше null.
  */
 export function cartridgeUnitCost(state, id) {
-  let money = 0;
-  let qty = 0;
-  for (const m of state.movements) {
-    if (m.cartridgeId !== id || (m.kind !== 'buy' && m.kind !== 'reload') || !(Number(m.price) > 0) || !(m.qty > 0)) continue;
-    money += Number(m.price);
-    qty += Number(m.qty);
-  }
-  if (qty > 0) return money / qty;
+  const bought = boughtByCartridge(state.movements).get(id);
+  if (bought?.qty > 0) return bought.money / bought.qty;
   const recipe = state.recipes.find((r) => r.id === state.cartridges.find((c) => c.id === id)?.recipeId);
   return recipe ? recipeCost(state, recipe) || null : null;
 }
