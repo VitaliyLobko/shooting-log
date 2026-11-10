@@ -1863,7 +1863,13 @@ body:has(#layer .backdrop) .toast:not(.reminder) { bottom: auto; top: calc(env(s
 .now-tg-w { font-size: 13px; font-weight: 650; color: #5cb3ff; }
 :root[data-theme="light"] .now-tg-w { color: #1769c2; }
 .now-tg-list { max-height: 40vh; margin-top: 4px; overflow-y: auto; }
-.now-tg-row { display: grid; grid-template-columns: auto 54px minmax(0, 1fr) minmax(0, 1fr) 32px; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 8px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.now-tg-chip .now-tg-d { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-tg-row { display: grid; grid-template-columns: auto 54px minmax(0, 1fr) minmax(0, 1fr) 32px; align-items: center; gap: 0 8px; padding: 6px 4px; border-radius: 8px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.now-tg-row > .now-tg-name { grid-column: 2 / -2; min-width: 0; }
+.now-tg-row small.now-tg-name { margin-top: -2px; overflow: hidden; font-size: 13px; font-weight: 500; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+/* 16px — щоб iOS не збільшував сторінку при фокусі */
+.now-tg-row input.now-tg-name { width: 100%; margin-top: 4px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; font-weight: 500; }
+.now-tg-row input.now-tg-name::placeholder { color: var(--muted); }
 .now-tg-row + .now-tg-row { border-top: 1px solid var(--line-soft); }
 .now-tg-row.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .now-tg-n { font-weight: 800; color: var(--accent); }

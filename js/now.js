@@ -101,7 +101,8 @@ const btn = (label, onclick, kind = '') => h('button', { type: 'button', class: 
 /**
  * Екран «Поправки зараз» для ствола. ctx: weapon, ammo — набої калібру, chronoMv(c) — швидкість з хронографа,
  * suppressor — глушник стоїть (як минулого разу), clockPicker(select, opts), switchLabel(input, text), locate(),
- * reticleOf(scope) — сітка, як у картці зброї, dope() — таблиці ствола зараз, saveDope(card) — нова таблиця DOPE, uid().
+ * reticleOf(scope) — сітка, як у картці зброї, dope() — таблиці ствола зараз, saveDope(card) — нова таблиця DOPE, uid(),
+ * targets() / saveTargets(list) — цілі-закладки [{ n, d, name? }], спільні для всіх стволів і пристроїв.
  */
 export function nowSheet(ctx) {
   const w = ctx.weapon;
@@ -166,10 +167,14 @@ export function nowSheet(ctx) {
   const trajBox = h('div', { class: 'dope-traj' });
   let pbR = Number(read('shooters-log:pb-r')) || 5;
   // Цілі на різних дистанціях — закладки вгорі екрана: поправка на кожну під поточну погоду й вітер, тап — дистанцію сюди.
-  // Спільні для всієї зброї: цілі стоять на рубежі, а не на стволі
+  // Спільні для всієї зброї й пристроїв (ctx.targets/saveTargets — запис у prefs, їде з Диском): цілі стоять на рубежі, а не на стволі.
+  // Згорнуто чи ні й чи бачили підказку — лише вигляд, тож на пристрої
   const TG_KEY = 'shooters-log:now-targets';
-  let targets = (read(TG_KEY) ?? []).filter((x) => x?.d >= D_MIN && x.d <= D_MAX);
+  let targets = (ctx.targets?.() ?? []).filter((x) => x?.d >= D_MIN && x.d <= D_MAX);
+  const saveTargets = () => ctx.saveTargets?.(targets);
   let tgOpen = read(`${TG_KEY}-open`) !== false;
+  const NAME_MAX = 24;
+  const tgLabel = (x) => (x.name ? `Ц${x.n} · ${x.name}` : `Ц${x.n}`);
   const tgBox = h('div', { class: 'now-targets' });
   // Закладка: контур — дистанції немає в цілях, залита — є
   const markIco = (on) => {
@@ -185,7 +190,7 @@ export function nowSheet(ctx) {
       targets = [...targets, { n, d }].sort((a, b) => a.d - b.d);
       write(`${TG_KEY}-seen`, true);
     }
-    write(TG_KEY, targets);
+    saveTargets();
     if (lastM) { paintDist(lastM); paintTargets(lastM); }
   };
 
@@ -304,15 +309,32 @@ export function nowSheet(ctx) {
       const on = x.d === dist ? 'on' : '';
       if (!tgOpen) {
         return h('button', { type: 'button', class: `now-tg-chip ${on}`, onclick: () => setDist(x.d) },
-          h('span', { class: 'now-tg-d' }, `Ц${x.n} · ${fmt.num(x.d)} ${t('м')}`), h('b', {}, hd.elev?.main ?? '—'),
+          h('span', { class: 'now-tg-d' }, `${tgLabel(x)} · ${fmt.num(x.d)} ${t('м')}`), h('b', {}, hd.elev?.main ?? '—'),
           hd.wind ? h('span', { class: 'now-tg-w' }, hd.wind.main) : null);
+      }
+      // Назва — окремим рядком під ціллю (колонки поправок на 360 px і так тісні): у вибраній — полем, в інших — підписом
+      let name = x.name ? h('small', { class: 'now-tg-name' }, x.name) : null;
+      if (on) {
+        name = h('input', { type: 'text', class: 'now-tg-name', maxlength: NAME_MAX, enterkeyhint: 'done', value: x.name ?? '',
+          placeholder: t('назва'), 'aria-label': t('Назва цілі {n}', { n: x.n }),
+          onclick: (e) => e.stopPropagation(),
+          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
+          onchange: (e) => {
+            const v = e.target.value.trim().slice(0, NAME_MAX);
+            if (v === (x.name ?? '')) return;
+            const { name: _old, ...rest } = x;
+            targets = targets.map((y) => (y === x ? (v ? { ...rest, name: v } : rest) : y));
+            saveTargets();
+            paintTargets(lastM);
+          } });
       }
       return h('div', { class: `now-tg-row ${on}`, onclick: () => setDist(x.d) },
         h('span', { class: 'now-tg-n' }, `Ц${x.n}`), h('span', { class: 'now-tg-d' }, `${fmt.num(x.d)} ${t('м')}`),
         h('span', { class: 'now-tg-e' }, h('b', {}, hd.elev?.main ?? '—'), hd.elev?.sub ? h('small', {}, hd.elev.sub) : null),
         h('span', { class: 'now-tg-e now-tg-w' }, ...(hd.wind ? [h('b', {}, hd.wind.main), hd.wind.sub ? h('small', {}, hd.wind.sub) : null].filter(Boolean) : [])),
-        h('button', { type: 'button', class: 'now-tg-del', 'aria-label': t('Прибрати ціль {n}', { n: x.n }),
-          onclick: (e) => { e.stopPropagation(); targets = targets.filter((y) => y !== x); write(TG_KEY, targets); paintTargets(lastM); } }, '×'));
+        h('button', { type: 'button', class: 'now-tg-del', 'aria-label': t('Прибрати ціль {n}', { n: tgLabel(x) }),
+          onclick: (e) => { e.stopPropagation(); targets = targets.filter((y) => y !== x); saveTargets(); paintTargets(lastM); } }, '×'),
+        name);
     });
     tgBox.replaceChildren(h('div', { class: 'now-tg-head' }, toggle, add), cond, h('div', { class: tgOpen ? 'now-tg-list' : 'now-tg-chips' }, ...items));
   };
@@ -533,16 +555,22 @@ export function nowSheet(ctx) {
     toast(t('Таблицю збережено в DOPE ствола'));
   };
 
-  /** Картка картинкою: біле тло, чорний текст — читається на сонці й друкується. */
+  /** Картка картинкою: біле тло, чорний текст — читається на сонці й друкується. Є цілі — лише вони, інакше 100–700 м. */
   const picture = () => {
     const m = model(); if (!m.c) return;
     const click = m.sc?.click; const ret = ctx.reticleOf(m.sc);
     const v = Number(speed.value.replace(',', '.')) || 0; const h12 = Number(clock.value);
-    const held = TABLE_DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
-    const out = held.some((x) => x.r.src === 'calc-out');
-    const rows = held.map(({ d, r }) => {
+    // Ціль, на яку поправки нема (далі за таблицю без балістики), — рядком із «—», щоб номери цілей не губились
+    const held = targets.length
+      ? targets.map((x) => ({ d: x.d, r: holdAt(m, x.d), tg: tgLabel(x) }))
+      : TABLE_DISTS.map((d) => ({ d, r: holdAt(m, d) })).filter((x) => x.r);
+    const out = held.some((x) => x.r?.src === 'calc-out');
+    const rows = held.map(({ d, r, tg }) => {
+      const mark = `${d}${r?.src === 'calc-out' ? '*' : ''}`;
+      if (!r) return [mark, '—', tg ?? '', ''];
       const c = elevCells(r.mrad, d, click, ret); const wd = v > 0 ? windAt(m, d, v, h12) : null;
-      return [`${d}${r.src === 'calc-out' ? '*' : ''}`, c.map((x) => x.main).join('  '), c.map((x) => x.sub).filter(Boolean).join(' · '), wd ? windCell(wd, d, click, ret, h12 < 6 ? '→' : '←').main : ''];
+      const sub = [tg, c.map((x) => x.sub).filter(Boolean).join(' · ')].filter(Boolean).join(' · ');
+      return [mark, c.map((x) => x.main).join('  '), sub, wd ? windCell(wd, d, click, ret, h12 < 6 ? '→' : '←').main : ''];
     });
     const W = 760; const rh = 44; const top = 112;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = top + rh * rows.length + (out ? 64 : 40);

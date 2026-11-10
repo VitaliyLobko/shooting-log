@@ -1928,6 +1928,26 @@ async function migrateModules() {
   try { localStorage.removeItem(MODULES_KEY); } catch { /* приватний режим */ }
 }
 
+// Цілі «Поправок зараз» — спільні для всіх стволів і пристроїв: запис prefs/now-targets їде з Диском і копією.
+// До 0.7.108 включно жили лише на пристрої (localStorage) — переносимо при запуску (migrateNowTargets)
+const TARGETS_ID = 'now-targets';
+const TARGETS_KEY = 'shooters-log:now-targets';
+const targetsRec = () => state.prefs?.find((p) => p.id === TARGETS_ID) ?? null;
+/** Записати цілі; у state — одразу, щоб наступне малювання бачило новий список, база й Диск — слідом. */
+function putNowTargets(list) {
+  const rec = { ...(targetsRec() ?? { id: TARGETS_ID, created: Date.now() }), list };
+  state.prefs = [...(state.prefs ?? []).filter((p) => p.id !== TARGETS_ID), rec];
+  return dbWrite({ prefs: { put: [rec] } }).catch((err) => toast(t('Помилка: {msg}', { msg: err?.message || String(err) })));
+}
+/** Разовий перенос цілей з localStorage у prefs (якщо запису ще нема — інакше правда вже на Диску). */
+async function migrateNowTargets() {
+  let list;
+  try { list = JSON.parse(recall(TARGETS_KEY) || 'null'); } catch { list = null; }
+  if (!Array.isArray(list)) return;
+  if (!targetsRec() && list.length) await putNowTargets(list.filter((x) => Number(x?.d) > 0 && Number(x?.n) > 0));
+  try { localStorage.removeItem(TARGETS_KEY); } catch { /* приватний режим */ }
+}
+
 /** Правки вбудованих вправ, збережені російською до 0.7.102, — українською (рядки з вбудованого тексту; своє — як є). */
 async function migrateExercisesRu() {
   if (!state.exercises?.length) return;
@@ -4057,6 +4077,8 @@ function openNow(w) {
     suppressor: lastGear(w).suppressor,
     clockPicker, switchLabel, reticleOf, box, locate: devicePosition, uid: db.uid,
     dope: () => (findWeapon(w.id) ?? w).dope ?? [],
+    targets: () => targetsRec()?.list ?? [],
+    saveTargets: putNowTargets,
     saveDope: async (card) => {
       const cur = findWeapon(w.id) ?? w;
       await saveEntity('weapons', { ...cur, dope: [...(cur.dope ?? []), card] });
@@ -9484,6 +9506,7 @@ try {
   state = await loadState();
   setCaliberHues(state.calibers, state.cartridges);
   await migrateModules();
+  await migrateNowTargets();
   await migrateExercisesRu();
 } catch (err) {
   // Приватний режим, скінчилось місце, збій браузера: без цього лишався б порожній екран без жодного слова
