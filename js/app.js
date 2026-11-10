@@ -810,14 +810,96 @@ function ammoHero(total) {
   const runway = trips === null ? null : trips < 1 ? t('менше ніж на виїзд')
     : t('вистачить на ≈ {n} {w}', { n: fmt.num(trips), w: plural(trips, [t('виїзд'), t('виїзди'), t('виїздів')]) });
   // Підсумок — заввишки як у «Компонентах»: число й картинка; «на скільки вистачить» — рядком під ним.
+  // Свайп — вартість запасу й (якщо є свій набій) скільки заощадив релоадінг
+  const main = h('section', { class: 'hero accent lv ammo-hero' },
+    h('div', {},
+      h('div', { class: 'hero-label' }, t('Усього набоїв')),
+      h('div', { class: 'hero-value' }, h('span', { class: total < 0 ? 'neg' : '' }, fmt.num(total)), h('span', { class: 'hero-unit' }, t('шт')))),
+    levelArt(ammoLevel(total)));
+  const own = reloadSavingsHero();
   return [
-    h('section', { class: 'hero accent lv ammo-hero' },
-      h('div', {},
-        h('div', { class: 'hero-label' }, t('Усього набоїв')),
-        h('div', { class: 'hero-value' }, h('span', { class: total < 0 ? 'neg' : '' }, fmt.num(total)), h('span', { class: 'hero-unit' }, t('шт')))),
-      levelArt(ammoLevel(total))),
+    heroPager([[main, t('Усього набоїв')], [stockValueHero(), t('Вартість запасу')], own ? [own, t('Свій набій')] : null].filter(Boolean), 'ammo'),
     runway ? h('p', { class: 'ammo-runway muted small' }, runway) : null,
   ];
+}
+
+/** Ціна набою для підсумків: купівлі, спорядження чи рецепт; дрібний (.22) — з копійками. */
+const unitText = (v) => (v < 10 ? fmt.money(v) : grn(v));
+
+/**
+ * «Вартість запасу»: скільки грошей лежить у набоях на складі — разом і за калібрами (як групи нижче),
+ * ціна — середня з купівель і спорядження, як «за постріл» у картці; без ціни — окремо штуками.
+ */
+function stockValueHero() {
+  const byCal = new Map();
+  for (const c of state.cartridges.filter((x) => !x.archived)) {
+    const qty = M.cartridgeStock(state, c.id);
+    if (!(qty > 0)) continue;
+    const unit = M.cartridgeUnitCost(state, c.id);
+    const cal = c.caliber || t('Без калібру');
+    const r = byCal.get(cal) ?? { cal, qty: 0, money: 0, unpriced: 0 };
+    r.qty += qty;
+    if (unit) r.money += qty * unit; else r.unpriced += qty;
+    byCal.set(cal, r);
+  }
+  const rows = [...byCal.values()].sort((a, b) => b.money - a.money || b.qty - a.qty);
+  const total = rows.reduce((s, r) => s + r.money, 0);
+  const unpriced = rows.reduce((s, r) => s + r.unpriced, 0);
+  return h('section', { class: 'hero cost-hero' },
+    h('div', { class: 'hero-label' }, t('Вартість запасу')),
+    total ? [
+      h('div', { class: 'cost-total' }, h('b', {}, grn(total)),
+        h('span', { class: 'muted small' }, unpriced ? t('без ціни ще {n} шт', { n: fmt.num(unpriced) }) : t('у набоях на складі'))),
+      h('div', { class: 'cost-rows' }, rows.map((r) => h('div', { class: 'cost-row' },
+        h('span', { class: 'cost-name' }, r.cal), h('b', {}, r.money ? grn(r.money) : '—'),
+        h('span', { class: 'cost-shot small muted' }, [t('{n} шт', { n: fmt.num(r.qty) }),
+          r.money ? t('≈ {price} за постріл', { price: unitText(r.money / (r.qty - r.unpriced)) }) : null,
+          r.unpriced && r.money ? t('без ціни {n} шт', { n: fmt.num(r.unpriced) }) : null].filter(Boolean).join(' · '))))),
+    ] : h('p', { class: 'muted small' }, t('Вкажіть ціну, коли купуєте набої, — тут з’явиться, скільки коштує запас.')));
+}
+
+/**
+ * «Свій набій»: скільки заощадив релоадінг. Для кожного відстріляного свого набою — середня ціна заводських того ж калібру
+ * (з відомою ціною) мінус те, у що обійшовся постріл. Калібр без заводського з ціною — рядком «нема з чим порівняти».
+ * null — свого набою нема (або модуль релоадінгу вимкнено): сторінки не буде.
+ */
+function reloadSavingsHero() {
+  if (!moduleOn('reload')) return null;
+  const own = state.cartridges.filter((c) => c.recipeId);
+  if (!own.length) return null;
+  const factory = state.cartridges.filter((c) => !c.recipeId);
+  const byCal = new Map();
+  for (const c of own) {
+    const fired = state.movements.filter((m) => m.kind === 'shot' && m.cartridgeId === c.id);
+    const n = -M.sumBy(fired, () => true);
+    if (!(n > 0)) continue;
+    const prices = factory.filter((f) => f.caliber && M.sameCaliber(f.caliber, c.caliber)).map((f) => M.cartridgeUnitCost(state, f.id)).filter((v) => v > 0);
+    const fac = prices.length ? prices.reduce((s, v) => s + v, 0) / prices.length : null;
+    const cost = fired.reduce((s, m) => s + (M.shotCost(state, m) ?? 0), 0);
+    const priced = -M.sumBy(fired, (m) => M.shotCost(state, m) !== null);
+    const cal = c.caliber || t('Без калібру');
+    const r = byCal.get(cal) ?? { cal, n: 0, priced: 0, cost: 0, fac };
+    r.n += n; r.priced += priced; r.cost += cost;
+    byCal.set(cal, r);
+  }
+  const rows = [...byCal.values()].map((r) => ({ ...r, own: r.priced > 0 ? r.cost / r.priced : null }))
+    .map((r) => ({ ...r, saved: r.fac !== null && r.own !== null ? (r.fac - r.own) * r.priced : null }))
+    .sort((a, b) => (b.saved ?? -Infinity) - (a.saved ?? -Infinity));
+  const saved = rows.reduce((s, r) => s + (r.saved ?? 0), 0);
+  const shots = rows.reduce((s, r) => s + r.n, 0);
+  const counted = rows.some((r) => r.saved !== null);
+  return h('section', { class: 'hero cost-hero' },
+    h('div', { class: 'hero-label' }, t('Свій набій')),
+    rows.length ? [
+      counted ? h('div', { class: 'cost-total' }, h('b', { class: saved < 0 ? 'neg' : '' }, grn(Math.abs(saved))),
+        h('span', { class: 'muted small' }, saved < 0 ? t('переплачено проти заводських') : t('заощаджено проти заводських'))) : null,
+      h('div', { class: 'muted small' }, `${fmt.num(shots)} ${plural(shots, [t('свій постріл'), t('свої постріли'), t('своїх пострілів')])}`),
+      h('div', { class: 'cost-rows' }, rows.map((r) => h('div', { class: 'cost-row' },
+        h('span', { class: 'cost-name' }, r.cal), h('b', { class: r.saved < 0 ? 'neg' : '' }, r.saved === null ? '—' : `${r.saved < 0 ? '−' : ''}${grn(Math.abs(r.saved))}`),
+        h('span', { class: 'cost-shot small muted' }, r.own === null ? t('{n} постр. · ціни свого набою нема', { n: fmt.num(r.n) })
+          : r.fac === null ? t('свій {own} · заводського з ціною нема, нема з чим порівняти', { own: unitText(r.own) })
+            : t('свій {own} · заводський {fac} · {n} постр.', { own: unitText(r.own), fac: unitText(r.fac), n: fmt.num(r.n) }))))),
+    ] : h('p', { class: 'muted small' }, t('Своїм набоєм ще не стріляли — після першої стрільби тут буде, скільки заощаджено проти заводських.')));
 }
 
 function cartridgeDetails(c) {
@@ -2996,7 +3078,7 @@ function renderWeapons() {
   ].filter(Boolean);
   $('subtitle').textContent = swipeTip('guns', t('Свайп ← записати стрільбу, → чистка'), t('стволів: {n}', { n: active.length }));
   return h('div', {},
-    shotsHero(shots.total, split),
+    shotsPager(shots.total, split, active),
     urgentPermitsBlock(),
     active.sort(byName).map(weaponCard),
     looseBlock(),
@@ -5577,6 +5659,88 @@ function shotsHero(total, split) {
         level.next ? t('ще {n} до «{rank}»', { n: fmt.num(level.left), rank: t(level.next.name) }) : t('найвище звання'))),
     rankRing(level),
     legend);
+}
+
+/**
+ * Відстріляне зі ствола: cost — вартість набоїв з відомою ціною, priced — скільки таких пострілів.
+ * Чужі набої й набої без ціни у вартість не входять.
+ */
+function weaponAmmoCost(w) {
+  const priced = state.movements.filter((m) => m.kind === 'shot' && m.weaponId === w.id && M.shotCost(state, m) !== null);
+  return { cost: M.shotsCost(state, priced), priced: -M.sumBy(priced, () => true) };
+}
+
+/**
+ * Друга сторінка «Загального настрілу»: скільки коштує кожен ствол разом із відстріляним і в скільки обходиться постріл.
+ * Постріл = (ствол + тюнінг) / увесь настріл (з настрілом до обліку) + середня ціна набою там, де вона відома:
+ * у настрілу до обліку й чужих набоїв ціни нема, тож ділити все на все — занизити. Тап по рядку — картка ствола.
+ */
+function costHero(weapons) {
+  // Дрібний набій (.22 — кілька гривень) — з десятими, інакше «набій 3» замість 2,6
+  const money = (v) => fmt.num(v < 10 ? Math.round(v * 10) / 10 : Math.round(v));
+  const rows = weapons.map((w) => {
+    const gun = priceOf(w.buyPrice); const invested = weaponInvested(w); const ammo = weaponAmmoCost(w);
+    const shots = M.weaponShots(state, w);
+    return { w, gun, tune: invested - gun, invested, ammo, full: invested + ammo.cost,
+      gunShot: shots > 0 ? invested / shots : 0, ammoShot: ammo.priced > 0 ? ammo.cost / ammo.priced : 0 };
+  }).filter((r) => r.full > 0).sort((a, b) => b.full - a.full);
+  const sum = (k) => rows.reduce((s, r) => s + (k === 'ammo' ? r.ammo.cost : r[k]), 0);
+  const part = (cls, v) => (v > 0 ? h('span', { class: `invest-part ${cls}`, style: `flex-grow:${v}` }) : null);
+  const shotLine = (r) => {
+    if (!r.gunShot && !r.ammoShot) return t('ще без стрільб');
+    const both = r.gunShot > 0 && r.ammoShot > 0;
+    return [t('постріл ≈ {sum} грн', { sum: money(r.gunShot + r.ammoShot) }),
+      both ? h('span', { class: 'muted' }, ' ', t('(ствол {gun} + набій {ammo})', { gun: money(r.gunShot), ammo: money(r.ammoShot) })) : null];
+  };
+  const key = (cls, label, v) => (v > 0 ? h('span', { class: `invest-key ${cls}` }, label) : null);
+  return h('section', { class: 'hero cost-hero' },
+    h('div', { class: 'hero-label' }, t('Вартість стволів')),
+    rows.length ? [
+      h('div', { class: 'cost-total' }, h('b', {}, grn(sum('full'))),
+        h('span', { class: 'muted small' }, t('разом із набоями · з них набої {sum}', { sum: grn(sum('ammo')) }))),
+      h('div', { class: 'invest-legend small' }, key('gun', t('ствол'), sum('gun')), key('tune', t('тюнінг'), sum('tune')), key('ammo', t('набої'), sum('ammo'))),
+      h('div', { class: 'cost-rows' }, rows.map((r) => h('button', { type: 'button', class: 'cost-row', onclick: () => weaponDetail(r.w) },
+        h('span', { class: 'cost-name' }, r.w.name), h('b', {}, grn(r.full)),
+        h('span', { class: 'invest-bar' }, part('gun', r.gun), part('tune', r.tune), part('ammo', r.ammo.cost)),
+        h('span', { class: 'cost-shot small' }, shotLine(r))))),
+    ] : h('p', { class: 'muted small' }, t('Вкажіть ціну покупки в картці ствола — тут з’явиться, скільки він коштує разом із набоями й тюнінгом.')));
+}
+
+/**
+ * Підсумок вкладки сторінками: свайп чи точки під карткою — інша сторінка. pages — [[картка, назва для точки]];
+ * сторінка запам’ятовується на пристрої (ключ key), first — відкрити першу (нове звання: лички мають спалахнути на очах).
+ */
+function heroPager(pages, key, first = false) {
+  const store = `shooters-log:${key}-hero-page`;
+  const cards = pages.map(([p]) => p);
+  let at = first ? 0 : Math.min(cards.length - 1, Math.max(0, Number(recall(store)) || 0));
+  const dots = h('div', { class: 'hero-dots', role: 'tablist' }, pages.map(([, label], i) => h('button', {
+    type: 'button', role: 'tab', 'aria-label': label, onclick: () => show(i, i > at ? 1 : -1),
+  })));
+  const box = h('div', { class: 'hero-pager' }, cards, dots);
+  function show(i, dir = 0) {
+    at = i;
+    remember(store, String(i));
+    cards.forEach((p, k) => {
+      p.hidden = k !== i;
+      p.classList.remove('slide-l', 'slide-r');
+      if (k === i && dir) { void p.offsetWidth; p.classList.add(dir > 0 ? 'slide-l' : 'slide-r'); }
+    });
+    [...dots.children].forEach((d, k) => { d.classList.toggle('on', k === i); d.setAttribute('aria-selected', String(k === i)); });
+  }
+  show(at);
+  return swipeStep(box, (dir) => {
+    const next = at + dir;
+    if (next < 0 || next >= cards.length) return false;
+    show(next, dir);
+    return true;
+  });
+}
+
+/** Підсумок вкладки «Зброя»: настріл зі званням і вартість стволів. */
+function shotsPager(total, split, weapons) {
+  const rank = shotsHero(total, split);
+  return heroPager([[rank, t('Загальний настріл')], [costHero(weapons), t('Вартість стволів')]], 'guns', rank.classList.contains('rank-up'));
 }
 
 function shotsPanel() {
