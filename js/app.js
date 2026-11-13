@@ -21,6 +21,7 @@ import { tripWeather, forecastAt } from './forecast.js';
 import { hydrate, splitWeapon, dropWeapon, migrateWeapons, twinOf, itemView, retype, mergeItems, scopeKey } from './items.js';
 import { nowSheet, elevCells, windCell, cellTd, oneColumn, staleText, condText } from './now.js';
 import { icsCalendar, googleCalendarLink } from './ics.js';
+import * as bot from './bot.js';
 import {
   h, fmt, sheet, refreshSheets, toast, form, chips, swipeable, confirmSheet, selectOptions, isoToDmy, toolBtn, toolIcon, goTab, reveal,
   confirmed, setUndo, fieldError, formError, icon, swipeStep, starIcon, vibrate, wheelStrip,
@@ -1247,7 +1248,15 @@ function cartridgeForm(c = null, { onSaved = null } = {}) {
     num('bc') ? `BC ${fmt.num(num('bc'))} ${f.inputs.dragModel.value}` : null,
     num('mv') ? `${fmt.num(num('mv'))} ${t('м/с')}` : null,
     num('bulletLength') ? `${fmt.num(num('bulletLength'))} ${t('мм')}` : null].filter(Boolean).join(' · ');
+  // Новий набій — з посилання на магазин чи сторінку виробника (лише з ключем бота на пристрої)
+  const link = c ? null : linkFill('cartridge', (it) => {
+    for (const k of ['name', 'caliber', 'bulletWeight', 'weightUnit', 'bc', 'dragModel', 'mv', 'bulletLength', 'testBarrel']) fillInput(f.inputs[k], it[k]);
+    // Ціна на сторінці — за упаковку: кількість і сума однієї упаковки, далі людина поправить на свою
+    if (it.packQty && it.price) { fillInput(f.inputs.initial, it.packQty); fillInput(f.inputs.initialPrice, it.price); }
+    openBoxes(body);
+  });
   const body = h('div', { class: 'weapon-form' },
+    link,
     box(t('Набій'), formPart(f, ['name', 'caliber', 'recipeId', 'note'], caliberList())),
     c ? null : box(t('Залишок'), formPart(f, ['initial', 'initialPrice'])),
     formBox(t('Балістика'), [h('p', { class: 'muted small' }, t('Для своєї балістики в тренажері: з коробки чи сайту виробника. G7 точніший для куль із хвостовиком. Якщо є серія хронографа з цією зброєю — візьмемо її.')), ballistics], ballSum));
@@ -2399,7 +2408,7 @@ function shopLinks(text) {
 const linksField = (value) => ({ name: 'links', label: t('Посилання на товар'), type: 'textarea', rows: 2, value, placeholder: t('https://… — кожне з нового рядка'), wide: true });
 
 /** Спільна форма покупки: екіпірування (з категорією) і тюнінг ствола. */
-function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null, mounted = false, suggest = null }) {
+function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove, onSell, photo = undefined, preset = null, onSearch = null, mounted = false, suggest = null, aiCats = null }) {
   // preset — незбережена чернетка (повернулись із пошуку фото): лише значення полів, без «Видалити»/«Продав»
   const src = item ?? preset;
   const f = form([
@@ -2448,7 +2457,13 @@ function purchaseForm(title, item, { kinds = null, placeholder, onSave, onRemove
     f.inputs.date.value ? fmt.date(f.inputs.date.value) : null, f.inputs.place.value.trim() || null].filter(Boolean).join(' · ');
   const specSum = () => [num('weight') ? grams(num('weight')) : null,
     f.inputs.specs?.value.trim() ? t('є характеристики') : null].filter(Boolean).join(' · ');
+  // Нова річ — з посилання на магазин (лише з ключем бота на пристрої); категорії ШІ вибирає з тих, що є у формі
+  const link = item ? null : linkFill('item', (it, file, url) => {
+    applyPurchase(f, it, url, pick, file);
+    openBoxes(body);
+  }, { cats: aiCats });
   const body = h('div', { class: 'weapon-form' },
+    link,
     pick?.el,
     box(t('Основне'), formPart(f, ['name', 'kind', 'note', 'on'], onSwitch)),
     formBox(t('Покупка'), formPart(f, ['price', 'date', 'usdRate', 'place', 'links']), buySum, { open: !item }),
@@ -2538,6 +2553,7 @@ function gearForm(g = null, { file = null, preset = null } = {}) {
     kinds: gearKinds().map((k) => [k.id, k.name]), placeholder: t('Плитоноска, шолом, підсумок…'),
     photo: { current: g ? gearPhoto(g.id) : null, file },
     preset,
+    aiCats: gearKinds().map((k) => ({ id: k.id, name: k.name })),
     onSearch: (values) => remember(PHOTO_FOR, JSON.stringify({ gearId: g?.id ?? null, draft: g ? null : values })),
     onSave: async (obj, photo) => {
       await saveEntity('gear', obj);
@@ -2800,7 +2816,125 @@ function photoPicker(current, { file: preset = null, query = () => '', onSearch 
       input);
   }
   paint();
-  return { el, value: () => ({ file, removed: removed || Boolean(file) }) };
+  // set — поставити фото з коду (ШІ-помічник узяв його зі сторінки магазину)
+  return { el, value: () => ({ file, removed: removed || Boolean(file) }), set: take };
+}
+
+// ---------- ШІ-помічник: заповнити форму з посилання на магазин ----------
+
+/** Перше посилання з тексту («Поділитися» дає назву й адресу разом); без схеми — https. */
+function linkIn(s) {
+  const text = String(s ?? '').trim();
+  const m = /https?:\/\/[^\s<>"']+/i.exec(text);
+  if (m) return m[0];
+  return /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(text) ? `https://${text}` : '';
+}
+
+const BOT_ERRORS = {
+  offline: 'Немає зв’язку — спробуйте, коли з’явиться інтернет',
+  network: 'Бот не відповідає — перевірте інтернет і спробуйте ще раз',
+  unauthorized: 'Бот не прийняв ключ — візьміть новий командою /key у боті й вставте його у «Вазі» чи Хобі-плані',
+  'old-bot': 'Бот ще не вміє читати сторінки — його треба оновити',
+  limit: 'На сьогодні ліміт ШІ вичерпано — завтра знову',
+  busy: 'ШІ зараз перевантажений — спробуйте за хвилину',
+};
+
+/** Значення в поле форми так, ніби його ввели: підсумки рамок, чипи й списки перемальовуються самі. */
+function fillInput(input, value) {
+  if (!input || value == null || value === '') return false;
+  input.value = String(value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+/** Посилання на товар у «Посилання на товар» (кожне з нового рядка), якщо його там ще нема. */
+function addLink(input, url) {
+  if (!input || !url || input.value.includes(url)) return;
+  fillInput(input, [input.value.trim(), url].filter(Boolean).join('\n'));
+}
+
+/** Назва магазину з адреси — у «Де куплено», лише коли поле порожнє. */
+const shopOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+
+/**
+ * Посилання на товар + «Заповнити» над формою нового: бот бере сторінку, ШІ розкладає характеристики по полях,
+ * apply(item, file, url) вписує їх у відкриту форму — людина перевіряє й зберігає. Лише з ключем бота на цьому
+ * пристрої (із «Ваги», Хобі-плану чи Марнотрату); без нього — null, і блоку немає зовсім.
+ * kind — weapon | cartridge | scope | item; cats — категорії речі для вибору ШІ.
+ */
+function linkFill(kind, apply, { cats = null, compact = false } = {}) {
+  if (!bot.botConfig()) return null;
+  const input = h('input', { type: 'url', inputmode: 'url', placeholder: t('Посилання на товар у магазині'), autocomplete: 'off', enterkeyhint: 'go', 'aria-label': t('Посилання на товар') });
+  const paste = h('textarea', { rows: 5, hidden: true, placeholder: t('Назва, опис і характеристики зі сторінки'), 'aria-label': t('Текст сторінки') });
+  const status = h('p', { class: 'muted small link-status', 'aria-live': 'polite' });
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    const url = linkIn(input.value);
+    const text = paste.hidden ? '' : paste.value.trim();
+    if (!url && !text) { toast(t('Вставте посилання на товар')); input.focus(); return; }
+    busy = true;
+    go.disabled = true;
+    el.classList.remove('filled');
+    status.textContent = text ? t('ШІ читає текст…') : t('Бот читає сторінку…');
+    try {
+      const res = await bot.fromPage({ kind, ...(url ? { url } : {}), ...(text ? { text } : {}), ...(cats ? { cats } : {}) });
+      if (!res.item?.name && !res.item?.brand) { status.textContent = res.note || t('На сторінці не знайшлося товару'); return; }
+      status.textContent = res.image ? t('Беру фото…') : '';
+      const file = res.image ? await bot.pageImage(res.image) : null;
+      apply(res.item, file, url);
+      el.classList.add('filled');
+      status.textContent = [t('Заповнено зі сторінки — перевірте поля перед збереженням.'), res.note].filter(Boolean).join(' ');
+    } catch (err) {
+      const code = err.message;
+      if (code === 'fetch' || code === 'empty') {
+        paste.hidden = false;
+        status.textContent = code === 'fetch'
+          ? t('Магазин не віддав сторінку боту. Відкрийте її, скопіюйте назву й характеристики і вставте сюди.')
+          : t('Ця сторінка збирається в браузері — боту нічого не видно. Скопіюйте з неї назву й характеристики і вставте сюди.');
+        paste.focus();
+      } else {
+        status.textContent = t(BOT_ERRORS[code] ?? 'ШІ не впорався — спробуйте ще раз');
+      }
+    } finally {
+      busy = false;
+      go.disabled = false;
+    }
+  };
+  const go = btn([icon('sparkle'), t('Заповнити')], run, 'mini primary');
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  const el = h('div', { class: `link-fill${compact ? ' compact' : ''}` },
+    h('div', { class: 'link-row' }, icon('globe'), input, go),
+    paste, status);
+  return el;
+}
+
+/** Спільне для форм покупки: ціна з розмітки, посилання, магазин, характеристики й фото. */
+function applyPurchase(f, item, url, pick, file) {
+  fillInput(f.inputs.name, item.name);
+  fillInput(f.inputs.price, item.price);
+  fillInput(f.inputs.weight, item.weight);
+  if (f.inputs.kind && item.cat) fillInput(f.inputs.kind, item.cat);
+  if (f.inputs.place && !f.inputs.place.value.trim()) fillInput(f.inputs.place, shopOf(url));
+  addLink(f.inputs.links, url);
+  if (f.inputs.specs) fillInput(f.inputs.specs, specsText(item));
+  if (file) pick?.set(file);
+}
+
+/** Характеристики зі сторінки; виробник — першим рядком, якщо його там ще нема. */
+const specsText = (item) => [item.brand && !String(item.specs ?? '').includes(item.brand) ? `${t('Виробник')}: ${item.brand}` : '', item.specs]
+  .filter(Boolean).join('\n');
+
+/** Після заповнення ШІ — розгорнути згорнуті рамки (самі рамки чи всі всередині форми): людина має бачити й перевірити поля. */
+function openBoxes(...roots) {
+  for (const root of roots) {
+    const boxes = root?.matches?.('.form-box') ? [root] : [...(root?.querySelectorAll('.form-box') ?? [])];
+    for (const box of boxes) {
+      box.classList.remove('closed');
+      box.querySelector('.box-toggle')?.setAttribute('aria-expanded', 'true');
+    }
+  }
 }
 
 // Пошук фото тюнінгу чи екіпірування: перед переходом у Google запам'ятовуємо, куди повернути картинку
@@ -3320,6 +3454,9 @@ function weaponForm(w = null, back = null) {
   const scopesBox = h('div', { class: 'items' });
   // Приціли, які взяли з наявних (з іншого ствола чи знятих), — після збереження тост, звідки зняли
   const adopted = new Set();
+  // ШІ-помічник: покупка й фото нових прицілів зі сторінки магазину (id рядка → { buy, file }) і фото самого ствола
+  const shopBuys = new Map();
+  let shopPhoto = null;
   const num = (el) => Number(String(el?.value ?? '').replace(',', '.')) || 0;
   const addScope = (s = {}) => {
     const name = h('input', { type: 'text', placeholder: 'Vortex Diamondback 4-12x40', autocomplete: 'off', class: 'sc-name' });
@@ -3376,6 +3513,27 @@ function weaponForm(w = null, back = null) {
         field(t('Примітка'), note, 'wide'),
         h('label', { class: 'sc-def small' }, def, t('Використовувати за замовчуванням під час запису стрільби'))));
     const setOpen = (open) => { row.classList.toggle('open', open); head.setAttribute('aria-expanded', String(open)); };
+    // Новий приціл — з посилання на магазин (лише з ключем бота): поля прицілу тут, а покупка й фото
+    // (ціна, магазин, посилання, характеристики) — у запис прицілу при збереженні ствола
+    const link = s.name ? null : linkFill('scope', (it, file, url) => {
+      fillInput(name, it.name);
+      fillInput(kind, it.kind);
+      fillInput(reticle, it.reticle);
+      fillInput(wt, it.weight);
+      if (CLICKS.some(([k]) => k === it.click)) fillInput(click, it.click);
+      else if (CLICK_KEY.test(it.click ?? '')) {
+        const [, unit, value] = CLICK_KEY.exec(it.click);
+        fillInput(click, OWN_CLICK);
+        fillInput(ownUnit, unit);
+        fillInput(ownValue, value);
+      }
+      shopBuys.set(row.dataset.id, {
+        buy: Object.fromEntries(Object.entries({ price: it.price, date: M.today(), place: shopOf(url), links: url, specs: specsText(it) || null })
+          .filter(([, v]) => v != null && v !== '')),
+        file,
+      });
+    }, { compact: true });
+    if (link) row.querySelector('.sc-body').prepend(link);
     const paint = () => {
       title.textContent = (def.checked ? '◉ ' : '') + (name.value.trim() || t('Новий приціл'));
       const ck = click.value === OWN_CLICK ? ownClickKey(ownValue.value, ownUnit.value) : click.value;
@@ -3425,13 +3583,27 @@ function weaponForm(w = null, back = null) {
     num(f.inputs.initialShots) ? t('настріл {n}', { n: fmt.num(num(f.inputs.initialShots)) }) : null].filter(Boolean).join(' · ');
   const buySum = () => [num(f.inputs.buyPrice) ? `${fmt.num(num(f.inputs.buyPrice))} ${t('грн')}` : null,
     f.inputs.buyDate.value ? fmt.date(f.inputs.buyDate.value) : null, f.inputs.buyPlace.value.trim() || null].filter(Boolean).join(' · ');
+  const sizeBox = formBox(t('Габарити й вага'), size.el, sizeSum);
+  const buyBox = formBox(t('Покупка'), buy, buySum);
+  // Новий ствол — з посилання на магазин (лише з ключем бота на пристрої); фото додається після збереження
+  const link = w ? null : linkFill('weapon', (it, file, url) => {
+    fillInput(f.inputs.name, it.name);
+    fillInput(f.inputs.caliber, it.caliber);
+    fillInput(f.inputs.buyPrice, it.price);
+    if (!f.inputs.buyPlace.value.trim()) fillInput(f.inputs.buyPlace, shopOf(url));
+    addLink(f.inputs.links, url);
+    size.fill(it);
+    shopPhoto = file;
+    openBoxes(sizeBox, buyBox);
+  });
   const close = sheet(w ? t('Змінити зброю') : t('Нова зброя'), h('div', { class: 'weapon-form' },
+    link,
     box(t('Основне'), main),
     // Габарити й вага — одразу після основного, як у картці (рядок характеристик під фото)
-    formBox(t('Габарити й вага'), size.el, sizeSum),
+    sizeBox,
     box(t('Приціли'), [scopesBox, btn(t('+ приціл'), () => addScope().name.focus(), 'mini')]),
     formBox(t('Облік ствола'), life, lifeSum),
-    formBox(t('Покупка'), buy, buySum),
+    buyBox,
     formBox(t('Нагадування про чистку'), remind.el, remindSum),
     formBox(t('Дозвіл на зброю'), permit.el, permitSum, { tools: permit.tools })), {
     onClose: back,
@@ -3459,6 +3631,8 @@ function weaponForm(w = null, back = null) {
       const kept = (old.zero ?? null) === (zero > 0 ? zero : null) ? old : { ...old, zeroDate: undefined, zeroAmmo: undefined, zeroSuppressor: undefined };
       return {
         ...kept,
+        // Новий приціл зі сторінки магазину: ціна, дата, магазин, посилання, характеристики
+        ...(shopBuys.get(row.dataset.id)?.buy ?? {}),
         id: row.dataset.id,
         name: row.querySelector('.sc-name').value.trim(),
         kind: row.querySelector('.sc-kind').value,
@@ -3475,6 +3649,12 @@ function weaponForm(w = null, back = null) {
     const base = w ?? { id: db.uid(), created: Date.now() };
     const before = [...adopted].filter((id) => scopes.some((s) => s.id === id)).map(itemOf);
     await saveEntity('weapons', { ...base, ...v, ...remind.values(), ...choke.values(), ...size.values(), ...permit.values(), initialShots: v.initialShots ?? 0, scopes: [...scopes, ...(w?.scopes ?? []).filter(isSold)] });
+    // Фото зі сторінки магазину: нового ствола — у його фото, нового прицілу — фото прицілу
+    if (shopPhoto && !w) await addPhotos(base.id, [shopPhoto]);
+    for (const s of scopes) {
+      const file = shopBuys.get(s.id)?.file;
+      if (file) await saveItemPhoto({ scopeId: s.id }, { file, removed: true });
+    }
     const moved = await movedFrom(before, base.id);
     if (moved.length) toast(moved.join('; '));
   }
@@ -5104,7 +5284,14 @@ function sizeFields(w) {
     else return false;
     return true;
   };
-  return { el: f.el, values, invalid };
+  // ШІ-помічник: довжина ствола приходить у мм — вписуємо в тих одиницях, що зараз вибрані
+  const fill = ({ barrel, twist, length, weight }) => {
+    if (barrel > 0) fillInput(bIn, barrelUnit === 'in' ? toIn(barrel) : Math.round(barrel));
+    if (twist > 0) fillInput(f.inputs.twist, `1:${fmt.num(twist)}`);
+    fillInput(f.inputs.length, length);
+    fillInput(f.inputs.weight, weight);
+  };
+  return { el: f.el, values, invalid, fill };
 }
 
 /** «Показати» з нагадування: список зброї, прокрутка до картки ствола id і підсвітка. */
@@ -8881,6 +9068,8 @@ function myFortunes() {
 // Панель сценок — лише для автора: вмикається на пристрої 7 тапами по аватару автора (як режим розробника в Android)
 const SCENES_PANEL_KEY = 'shooters-log:scenes-panel';
 let authorTaps = [];
+// що показати в панелі: час доби й пора року ('' — як зараз)
+const preview = { tod: '', season: '' };
 
 /** Тап по аватару: щоразу підморгує, сьомий за 3 с перемикає панель сценок. */
 function authorTap(e) {
@@ -8891,19 +9080,42 @@ function authorTap(e) {
   authorTaps = [];
   const on = recall(SCENES_PANEL_KEY) !== '1';
   remember(SCENES_PANEL_KEY, on ? '1' : '');
-  toast(on ? t('Святкові сценки показано у «Вигляд»') : t('Святкові сценки сховано'));
+  toast(on ? t('Сценки й передбачення — у «Вигляді»') : t('Сценки й передбачення сховано'));
   render();
 }
 
-/** Усі святкові сценки під рукою, щоб переглянути без чекання дати. */
+/** Параметри печива для перегляду: обраний час і пора року плюс те, що задає кнопка. */
+const previewParams = (extra) => ({ preview: true, ...(preview.tod ? { tod: preview.tod } : {}), ...(preview.season ? { season: preview.season } : {}), ...extra });
+
+/** Усі сценки під рукою, щоб переглянути без чекання дати: печиво в будь-який час доби й пору року, свята. */
 function scenesRow() {
   if (recall(SCENES_PANEL_KEY) !== '1') return null;
-  const list = [['sobornist', t('День Соборності'), '22.01'], ['independence', t('День Незалежності'), '24.08'], ['halloween', t('Гелловін'), '31.10'], ['snowman', t('Сніговик'), '31.12'], ['newyear', t('Новий рік'), '1.01']];
-  return setRow('scenes', 'sparkle', t('Святкові сценки'), '',
-    h('div', { class: 'btn-row' }, list.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name))),
-      btn(t('День народження ствола'), () => playScene('birthday', demoBirthday())),
-      btn(t('Печиво з передбаченням'), () => playScene('fortune')),
-      btn(t('Усі передбачення'), fortunesSheet)));
+  const tod = chips([['', t('Зараз')], ['morning', t('Ранок')], ['day', t('День')], ['evening', t('Вечір')], ['night', t('Ніч')]], preview.tod, (v) => { preview.tod = v; });
+  const season = chips([['', t('Зараз')], ['spring', t('Весна')], ['summer', t('Літо')], ['autumn', t('Осінь')], ['winter', t('Зима')]], preview.season, (v) => { preview.season = v; });
+  // дрібні чипи — п'ять в один ряд і на вузькому телефоні
+  for (const c of [tod, season]) c.classList.add('chips-sm');
+  const holidays = [['sobornist', t('День Соборності'), '22.01'], ['independence', t('День Незалежності'), '24.08'], ['halloween', t('Гелловін'), '31.10'], ['snowman', t('Сніговик'), '31.12'], ['newyear', t('Новий рік'), '1.01']];
+  return setRow('scenes', 'sparkle', t('Сценки й передбачення'), '', [
+    h('p', { class: 'muted small' }, t('Сховано від усіх: 7 тапів по аватару в «Про застосунок» прибирають цей рядок.')),
+    h('div', { class: 'field-label' }, t('Час доби')), tod,
+    h('div', { class: 'field-label' }, t('Пора року')), season,
+    h('div', { class: 'btn-row' },
+      btn(t('Печиво'), () => playScene('fortune', previewParams({ meteor: false, gold: false })), 'primary'),
+      btn(t('Золоте'), () => playScene('fortune', previewParams({ meteor: false, gold: true, own: null }))),
+      btn(t('З обліку'), fortunesOwn),
+      btn(t('Усі передбачення'), fortunesSheet)),
+    h('div', { class: 'field-label' }, t('Рідкісні події')),
+    h('div', { class: 'btn-row' }, btn(t('Метеорит'), () => playScene('fortune', previewParams({ meteor: true, gold: false, own: null })))),
+    h('div', { class: 'field-label' }, t('Свята')),
+    h('div', { class: 'btn-row' }, holidays.map(([name, label, day]) => btn(`${label} · ${day}`, () => playScene(name))),
+      btn(t('День народження ствола'), () => playScene('birthday', demoBirthday())))]);
+}
+
+/** Печиво з передбаченням з обліку — якщо зараз нічого не складається, так і кажемо. */
+function fortunesOwn() {
+  const own = myFortunes();
+  if (!own.length) { toast(t('Зараз з обліку нічого не складається')); return; }
+  playScene('fortune', previewParams({ meteor: false, gold: false, own: own[Math.floor(Math.random() * own.length)] }));
 }
 
 /** Перелік усіх передбачень печива; тап — печиво саме з цим передбаченням (сценка лягає поверх шторки). */
@@ -8915,7 +9127,7 @@ function fortunesSheet() {
     const part = (title, list, params) => [h('h3', { class: 'fortune-head' }, `${title} · ${fmt.num(list.length)}`),
       list.length
         ? h('ol', { class: 'fortune-list' }, list.map((text, i) => h('li', {},
-          h('button', { type: 'button', onclick: () => playScene('fortune', params(text, i)) }, text))))
+          h('button', { type: 'button', onclick: () => playScene('fortune', previewParams(params(text, i))) }, text))))
         : h('p', { class: 'muted' }, t('Зараз з обліку нічого не складається'))];
     sheet(t('Усі передбачення'), h('div', {},
       ...part(t('Звичайні'), plain, (_, i) => ({ meteor: false, gold: false, own: null, i })),

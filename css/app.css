@@ -1147,6 +1147,22 @@ button.gun-stat { cursor: pointer; }
 .photo-pick-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
 .photo-pick-icons { display: flex; gap: 8px; }
 .specs-find { grid-column: 1 / -1; display: flex; margin: -4px 0 4px; }
+
+/* ШІ-помічник: заповнити форму з посилання на магазин (js/bot.js) */
+.link-fill { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.link-fill.filled { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface)); }
+.link-fill.compact { grid-column: 1 / -1; margin: 0 0 4px; padding: 8px 10px; }
+.link-row { display: flex; align-items: center; gap: 8px; }
+.link-row > .ico { flex: none; display: grid; color: var(--muted); }
+.link-row > .ico svg, .link-row .btn .ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.link-row .btn .ico { display: inline-grid; vertical-align: -4px; margin-right: 4px; }
+.link-fill :is(input, textarea) { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--muted) 72%, var(--line)); border-radius: 10px; background: var(--bg); color: inherit; font: inherit; }
+.link-fill :is(input, textarea):focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.link-row input { flex: 1; min-width: 0; min-height: 44px; }
+.link-row .btn { flex: none; min-height: 44px; }
+.link-fill textarea { box-sizing: border-box; width: 100%; margin-top: 10px; }
+.link-status { margin: 6px 0 0; }
+.link-status:empty { display: none; }
 .tool-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; vertical-align: middle; border-radius: 50%; background: var(--surface-2); color: var(--text); }
 .tool-ico svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .photo-pick-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }

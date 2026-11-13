@@ -1172,8 +1172,8 @@ function meteorSeen() {
 /** Печиво на цей показ; ?gold=1 ?own=1 ?season=winter ?tod=night ?meteor=1 — для перегляду. */
 function fortuneParams(ext = {}) {
   const q = new URLSearchParams(location.search), h = new Date().getHours();
-  // обране з «Усіх передбачень» (meteor: false) — не показ навмання: не рахуємо
-  const meteor = ext.meteor !== false && rollMeteor(q);
+  // перегляд з панелі сценок (meteor задано явно) — не показ навмання: не рахуємо
+  const meteor = typeof ext.meteor === 'boolean' ? ext.meteor : rollMeteor(q);
   const gold = !meteor && (q.has('gold') ? q.get('gold') === '1' : Math.random() < 1 / 20);
   const mine = gold || meteor ? [] : fortuneSource();
   const own = mine.length && (q.get('own') === '1' || Math.random() < 0.4) ? mine[Math.floor(Math.random() * mine.length)] : null;
@@ -1693,7 +1693,7 @@ const SCENES = {
   // params — передбачення обирається раз на показ: «Повторити» показує те саме
   fortune: {
     svg: fortuneCookie, tap: true, params: fortuneParams, mount: fortuneTilt,
-    onTap: (p = {}) => (p.meteor ? (meteorSeen(), meteorFeedback()) : crackFeedback(p.gold)),
+    onTap: (p = {}) => (p.meteor ? (p.preview || meteorSeen(), meteorFeedback()) : crackFeedback(p.gold)),
     // метеорит — без заголовка: лише записка
     text: (p = {}) => `${p.meteor ? '' : t(p.gold ? 'Золоте печиво' : 'Печиво з передбаченням')}\n${fortuneText(p)}`,
   },
