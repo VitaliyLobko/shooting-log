@@ -7136,17 +7136,34 @@ function devicePosition() {
   });
 }
 
-/** Рядок координат у формі: записує їх кнопка погоди, тут їх видно, можна відкрити на карті й прибрати. */
-function gpsEditor(initial = null, onClear = null) {
+/** Вибір точки на карті (js/map.js вантажиться при першому відкритті); «Я тут» — геолокація телефона. */
+function pickOnMap(start, onDone, opts = {}) {
+  import('./map.js')
+    .then((m) => m.mapPicker(start, onDone, { locate: devicePosition, ...opts }))
+    .catch(() => toast(t('Карта не завантажилась — перевірте інтернет')));
+}
+
+/**
+ * Рядок координат у формі: їх ставить кнопка погоди (телефон) або вибір на карті; тут їх видно,
+ * можна відкрити в Google Картах і прибрати. Точка з карти — без точності (acc).
+ */
+function gpsEditor(initial = null, onChange = null) {
   let gps = initial;
   const text = h('span', { class: 'muted small' });
-  const el = h('div', { class: 'tg-gps' }, text,
+  const tools = [
     toolBtn('map', t('Відкрити на карті'), () => openMap(gps), 'small'),
-    toolBtn('delete', t('Прибрати координати'), () => { set(null); onClear?.(); }, 'small'));
+    toolBtn('delete', t('Прибрати координати'), () => { set(null); onChange?.(); }, 'small'),
+  ];
+  const label = h('span', {});
+  const pick = btn([icon('locate'), label], () => pickOnMap(gps, (p) => { set(p); onChange?.(); }), 'mini map-btn');
+  const el = h('div', { class: 'tg-gps' }, text, tools, pick);
   const set = (value) => {
     gps = value;
-    el.hidden = !gps;
-    text.textContent = gps ? `${t('Координати')}: ${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)} ± ${Math.round(gps.acc)} ${t('м')}` : '';
+    text.hidden = !gps;
+    tools.forEach((b) => { b.hidden = !gps; });
+    label.textContent = gps ? t('Змінити на карті') : t('Вибрати на карті');
+    const acc = Number.isFinite(gps?.acc) ? ` ± ${Math.round(gps.acc)} ${t('м')}` : '';
+    text.textContent = gps ? `${t('Координати')}: ${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)}${acc}` : '';
   };
   set(gps);
   return { el, get: () => gps, set };

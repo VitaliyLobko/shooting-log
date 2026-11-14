@@ -2250,6 +2250,24 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tg-gps .icon-btn.tool.small, .kv-gps .icon-btn.tool.small { flex: none; width: 30px; height: 30px; }
 .tg-gps .icon-btn.tool.small svg, .kv-gps .icon-btn.tool.small svg { width: 16px; height: 16px; }
 .kv-gps { display: flex; align-items: center; gap: 8px; }
+.tg-gps { flex-wrap: wrap; }
+.btn.map-btn { display: inline-flex; align-items: center; gap: 6px; }
+.btn.map-btn .ico { display: grid; }
+.btn.map-btn .ico svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tw-place .icon-btn.tool { flex: none; }
+.map-picker { display: flex; flex-direction: column; height: 100%; }
+.map-tip { margin: 0 0 8px; text-align: center; }
+.map-box { flex: 1; min-height: 52vh; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+.map-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.map-tools .map-layers { flex: 1 1 180px; margin: 0; }
+.map-tools .btn-row { margin: 0; }
+.map-pin { background: none; border: 0; }
+.map-pin .pin-body { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); box-shadow: 0 2px 6px rgb(0 0 0 / .45); border: 2px solid #fff; box-sizing: border-box; }
+.map-pin svg { width: 20px; height: 20px; transform: rotate(45deg); fill: none; stroke: var(--on-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.map-box .leaflet-bar a, .map-box .leaflet-bar a:hover { background: var(--surface); color: var(--text); border-bottom-color: var(--line); }
+.map-box .leaflet-bar { border: 1px solid var(--line); box-shadow: var(--shadow); }
+.leaflet-container { font: inherit; }
+.leaflet-control-attribution { font-size: 10px; }
 .tg-weather { grid-template-columns: 1fr 1fr auto; }
 .tg-weather .tg-pull { align-self: end; width: 44px; height: 44px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 10px; background: var(--accent-soft); color: var(--accent-2); }
 .tg-weather .tg-pull:disabled { opacity: .55; }

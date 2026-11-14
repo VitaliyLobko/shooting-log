@@ -79,10 +79,17 @@ export function tripWeather({ locate, onWeather }) {
       if (pos) choose({ label: t('Моє місце ({lat}, {lon})', { lat: pos.lat.toFixed(3), lon: pos.lon.toFixed(3) }), lat: pos.lat, lon: pos.lon });
     } finally { here.disabled = false; }
   });
+  // Тир чи поле без назви в пошуку — точкою на карті; «Я тут» на карті — та сама геолокація
+  const onMap = toolBtn('map', t('Вибрати на карті'), () => import('./map.js')
+    .then((m) => m.mapPicker(place, (p) => {
+      if (p) choose({ label: t('Точка на карті ({lat}, {lon})', { lat: p.lat.toFixed(3), lon: p.lon.toFixed(3) }), lat: p.lat, lon: p.lon });
+      else { place = null; f.inputs.place.value = ''; }
+    }, { tip: t('Торкніться місця, куди їдете стріляти'), locate }))
+    .catch(() => toast(t('Карта не завантажилась — перевірте інтернет'))));
   f.inputs.place.addEventListener('input', () => { place = null; });
   f.inputs.place.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); find(); } });
   const placeField = f.inputs.place.closest('.field');
-  placeField.append(h('div', { class: 'tw-place' }, h('button', { type: 'button', class: 'btn mini', onclick: find }, t('Знайти')), here));
+  placeField.append(h('div', { class: 'tw-place' }, h('button', { type: 'button', class: 'btn mini', onclick: find }, t('Знайти')), here, onMap));
   const pull = h('button', { type: 'button', class: 'btn' }, t('Взяти прогноз'));
   pull.addEventListener('click', async () => {
     const v = f.values();
