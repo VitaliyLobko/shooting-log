@@ -2271,6 +2271,7 @@ button.tg-line .metric-label { margin-left: 8px; opacity: .55; }
 .tg-weather { grid-template-columns: 1fr 1fr auto; }
 .tg-weather .tg-pull { align-self: end; width: 44px; height: 44px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 10px; background: var(--accent-soft); color: var(--accent-2); }
 .tg-weather .tg-pull:disabled { opacity: .55; }
+.tg-pulls { align-self: end; display: flex; gap: 8px; }
 .tg-weather-note { display: block; margin-top: 8px; }
 .tg-weather-note:empty { display: none; }
 .ammo-name { display: inline-flex; align-items: center; gap: 8px; }

@@ -6700,14 +6700,14 @@ function chronoForm(c = null) {
   // Погода — як у мішені: значок геолокації ставить температуру на місці й на час серії
   const gps = gpsEditor(c?.gps);
   const weatherInfo = h('small', { class: 'muted tg-weather-note' });
-  const weatherBtn = toolBtn('locate', t('Підтягнути погоду'), async () => {
-    const w = await pullWeather({ date: f.inputs.date.value, time: f.inputs.time, gps, button: weatherBtn, info: weatherInfo });
+  const pulls = weatherButtons(gps, async () => {
+    const w = await pullWeather({ date: f.inputs.date.value, time: f.inputs.time, gps, button: pulls.button, info: weatherInfo });
     if (!w) return;
     f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
     weatherInfo.textContent = t('Це температура повітря. Набої, що полежали на сонці чи в машині, бувають теплішими — і швидшими.');
-  }, 'tg-pull');
+  });
   const weatherBox = box(t('Погода'), h('div', {},
-    h('div', { class: 'form tg-weather chrono-weather' }, f.inputs.temp.closest('.field'), weatherBtn),
+    h('div', { class: 'form tg-weather chrono-weather' }, f.inputs.temp.closest('.field'), pulls.el),
     weatherInfo, gps.el));
   const repaintAmmo = ammoPicker(f.inputs.cartridgeId, findWeapon(gunId)?.caliber);
   weaponPicker(f.inputs.weaponId);
@@ -7144,29 +7144,36 @@ function pickOnMap(start, onDone, opts = {}) {
 }
 
 /**
- * Рядок координат у формі: їх ставить кнопка погоди (телефон) або вибір на карті; тут їх видно,
- * можна відкрити в Google Картах і прибрати. Точка з карти — без точності (acc).
+ * Рядок координат у формі: їх ставить кнопка погоди (телефон) або карта поруч із нею; тут їх видно
+ * й можна прибрати. Точка з карти — без точності (acc).
  */
 function gpsEditor(initial = null, onChange = null) {
   let gps = initial;
   const text = h('span', { class: 'muted small' });
-  const tools = [
-    toolBtn('map', t('Відкрити на карті'), () => openMap(gps), 'small'),
-    toolBtn('delete', t('Прибрати координати'), () => { set(null); onChange?.(); }, 'small'),
-  ];
-  const label = h('span', {});
-  const pick = btn([icon('locate'), label], () => pickOnMap(gps, (p) => { set(p); onChange?.(); }), 'mini map-btn');
-  const el = h('div', { class: 'tg-gps' }, text, tools, pick);
+  const el = h('div', { class: 'tg-gps' }, text,
+    toolBtn('delete', t('Прибрати координати'), () => { set(null); onChange?.(); }, 'small'));
   const set = (value) => {
     gps = value;
-    text.hidden = !gps;
-    tools.forEach((b) => { b.hidden = !gps; });
-    label.textContent = gps ? t('Змінити на карті') : t('Вибрати на карті');
+    el.hidden = !gps;
     const acc = Number.isFinite(gps?.acc) ? ` ± ${Math.round(gps.acc)} ${t('м')}` : '';
     text.textContent = gps ? `${t('Координати')}: ${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)}${acc}` : '';
   };
   set(gps);
   return { el, get: () => gps, set };
+}
+
+/**
+ * Кнопки погоди: «Підтягнути погоду» (місце телефона або вже вибране) і карта поруч —
+ * вибрана на карті точка одразу тягне погоду для себе. pull() — та сама дія, що й у першої кнопки.
+ */
+function weatherButtons(geo, pull, onChange = null) {
+  const button = toolBtn('locate', t('Підтягнути погоду'), pull, 'tg-pull');
+  const onMap = toolBtn('map', t('Вибрати місце на карті'), () => pickOnMap(geo.get(), (p) => {
+    geo.set(p);
+    onChange?.();
+    if (p) pull();
+  }), 'tg-pull');
+  return { button, el: h('div', { class: 'tg-pulls' }, button, onMap) };
 }
 
 /** Поля блоку «Де, коли, погода» для form(): дата, час і погода; prev — уже записане (його час — у полі timeKey). */
@@ -7194,9 +7201,9 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = n
   clockPicker(f.inputs.windClock, { speed: f.inputs.wind, hideSpeed: true });
   const geo = gpsEditor(gps, onChange);
   const info = h('small', { class: 'muted tg-weather-note' }, note);
-  const button = toolBtn('locate', t('Підтягнути погоду'), async () => {
+  const pull = async () => {
     const day = f.values().date;
-    const w = await pullWeather({ date: typeof day === 'string' ? day : '', time: f.inputs[timeKey], gps: geo, button, info });
+    const w = await pullWeather({ date: typeof day === 'string' ? day : '', time: f.inputs[timeKey], gps: geo, button: pulls.button, info });
     if (!w) return;
     // Поля числові — значення з крапкою, не через fmt (там кома).
     f.inputs.temp.value = String(Math.round(w.temp * 10) / 10);
@@ -7206,7 +7213,8 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = n
       dir: compass()[Math.round(w.dir / 45) % 8], deg: Math.round(w.dir), gust: fmt.num(Math.round(w.gust ?? w.wind)),
     });
     onChange?.();
-  }, 'tg-pull');
+  };
+  const pulls = weatherButtons(geo, pull, onChange);
   const fieldOf = (name) => f.inputs[name].closest('.field');
   // Згорнутий блок не ховає головного: у шапці — що/де, дата, час і погода
   const summary = h('span', { class: 'box-sum' });
@@ -7217,7 +7225,7 @@ function whereWhenBox(f, { gps = null, timeKey = 'time', lead = [], onChange = n
   const el = box(t('Де, коли, погода'), h('div', {},
     lead.length ? h('div', { class: 'form' }, lead) : null,
     h('div', { class: 'form when' }, fieldOf('date'), fieldOf(timeKey)),
-    h('div', { class: 'form tg-weather' }, fieldOf('temp'), fieldOf('wind'), button, fieldOf('windClock'), fieldOf('windGuess')),
+    h('div', { class: 'form tg-weather' }, fieldOf('temp'), fieldOf('wind'), pulls.el, fieldOf('windClock'), fieldOf('windGuess')),
     info, geo.el), { fold: 'when', summary });
   el.addEventListener('input', sum);
   el.addEventListener('change', sum);
