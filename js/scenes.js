@@ -1451,7 +1451,7 @@ function fortuneCookie(p = {}) {
   }
   // золоте печиво: віяло променів з-за печива, лише над поручнями
   const rays = gold ? `<g clip-path="url(#sc-fc-rayclip)"><g class="sc-fc-rays-in"><g class="sc-fc-rays" fill="url(#sc-fc-ray)">${
-    Array.from({ length: 18 }, (_, k) => `<path d="M177 362L169 172H191L183 362Z" transform="rotate(${k * 20} 180 362)"/>`).join('')}</g></g></g>` : '';
+    Array.from({ length: 18 }, (_, k) => `<path d="M177 354L169 164H191L183 354Z" transform="rotate(${k * 20} 180 354)"/>`).join('')}</g></g></g>` : '';
   // Шари — окремі svg з тим самим viewBox: нерухомий шар браузер малює раз, а нахил лише зсуває готові шари
   // (data-dx/dy — зсув у px за повного нахилу, fortuneTilt). В одному svg будь-яка пелюстка чи нахил
   // перемальовували всю сцену — на слабкому телефоні це 3–10 кадрів на секунду.
@@ -1656,7 +1656,7 @@ ${layer('sc-fc-top')}
   </g>
   ${pal.glow > 0.3 ? `<ellipse cx="326" cy="392" rx="90" ry="9" fill="url(#sc-fc-glow)" opacity="${f1(pal.glow)}"/>` : ''}
   ${rays}
-  ${gold ? `<circle cx="180" cy="356" r="64" fill="url(#sc-fc-gglow)" opacity=".75"/><g class="sc-fc-gold" fill="#fff3b0">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => `<path d="${star(180 + Math.cos(k * 0.785) * 52, 356 + Math.sin(k * 0.785) * 34, 4, 1.4)}" style="animation-delay:-${(k * 0.2).toFixed(1)}s"/>`).join('')}</g>` : ''}
+  ${gold ? `<circle cx="180" cy="354" r="64" fill="url(#sc-fc-gglow)" opacity=".75"/><g class="sc-fc-gold" fill="#fff3b0">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => `<path d="${star(180 + Math.cos(k * 0.785) * 52, 354 + Math.sin(k * 0.785) * 34, 4, 1.4)}" style="animation-delay:-${(k * 0.2).toFixed(1)}s"/>`).join('')}</g>` : ''}
   <ellipse cx="180" cy="385" rx="34" ry="5.5" fill="#f2efe6"/><ellipse cx="180" cy="384" rx="26" ry="3.4" fill="#dcd6c8"/>
   <ellipse cx="180" cy="381" rx="30" ry="2.6" fill="#6b4a2a" opacity=".3"/>
   <g class="sc-cookie">

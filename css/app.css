@@ -3752,9 +3752,9 @@ body:has(.guide .sim.quiz-on) .topbar, body:has(.guide .sim.quiz-on) #view .rang
 .scene-fortune .sc-fc-wind path { stroke-dasharray: 26 200; stroke-dashoffset: 26; opacity: 0; animation: sc-fc-wind 1.3s cubic-bezier(.3, .1, .4, 1) both; }
 @keyframes sc-fc-wind { 0% { stroke-dashoffset: 26; opacity: 0; } 14%, 78% { opacity: .75; } 100% { stroke-dashoffset: -100; opacity: 0; } }
 /* золоте печиво: віяло променів повільно обертається, на розлам спалахує */
-.scene-fortune .sc-fc-rays { transform-box: view-box; transform-origin: 180px 362px; animation: sc-fc-spin 60s linear infinite; }
+.scene-fortune .sc-fc-rays { transform-box: view-box; transform-origin: 180px 354px; animation: sc-fc-spin 60s linear infinite; }
 @keyframes sc-fc-spin { to { transform: rotate(360deg); } }
-.scene-fortune .sc-fc-rays-in { transform-box: view-box; transform-origin: 180px 362px; animation: sc-fc-flare 1.6s ease-out .1s both; }
+.scene-fortune .sc-fc-rays-in { transform-box: view-box; transform-origin: 180px 354px; animation: sc-fc-flare 1.6s ease-out .1s both; }
 @keyframes sc-fc-flare { 0% { transform: scale(.75); opacity: .55; } 30% { transform: scale(1.25); opacity: 1; } 100% { transform: none; opacity: .85; } }
 /* вода: доріжка світла мерехтить рисками, кола від коропа, на воді дрейфують пелюстки */
 .scene-fortune .sc-fc-ripple path { animation: sc-fc-glint 1.6s ease-in-out infinite alternate; }
